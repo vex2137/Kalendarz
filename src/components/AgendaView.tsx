@@ -1,0 +1,174 @@
+import React from 'react';
+import { CalendarEvent } from '../types';
+import { GOOGLE_CALENDAR_COLORS, MONTH_NAMES_PL, DAY_NAMES_FULL_PL } from '../utils/constants';
+import { Clock, MapPin, Repeat, CalendarCheck2 } from 'lucide-react';
+
+interface AgendaViewProps {
+  events: CalendarEvent[];
+  onSelectEvent: (event: CalendarEvent) => void;
+  onSelectDay: (dateStr: string) => void;
+}
+
+export const AgendaView: React.FC<AgendaViewProps> = ({
+  events,
+  onSelectEvent,
+  onSelectDay,
+}) => {
+  // Sort events chronologically
+  const sortedEvents = [...events].sort((a, b) => {
+    if (a.startDate !== b.startDate) {
+      return a.startDate.localeCompare(b.startDate);
+    }
+    if (a.allDay && !b.allDay) return -1;
+    if (!a.allDay && b.allDay) return 1;
+    return (a.startTime || '').localeCompare(b.startTime || '');
+  });
+
+  // Group by date
+  const groupedEvents: Record<string, CalendarEvent[]> = {};
+  sortedEvents.forEach((ev) => {
+    if (!groupedEvents[ev.startDate]) {
+      groupedEvents[ev.startDate] = [];
+    }
+    groupedEvents[ev.startDate].push(ev);
+  });
+
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const formatHeaderDate = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    let dayOfWeek = dateObj.getDay() - 1;
+    if (dayOfWeek === -1) dayOfWeek = 6;
+
+    const dayName = DAY_NAMES_FULL_PL[dayOfWeek];
+    const monthName = MONTH_NAMES_PL[m - 1];
+
+    let prefix = '';
+    if (dateStr === todayStr) prefix = 'Dzisiaj • ';
+
+    return {
+      dayNumber: d,
+      fullText: `${prefix}${dayName}, ${d} ${monthName} ${y}`,
+      isToday: dateStr === todayStr,
+    };
+  };
+
+  const dates = Object.keys(groupedEvents);
+
+  if (dates.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center h-[calc(100vh-140px)] bg-stone-50">
+        <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+          <CalendarCheck2 className="w-8 h-8" />
+        </div>
+        <h3 className="text-base font-semibold text-stone-900">Brak zaplanowanych wydarzeń</h3>
+        <p className="text-xs text-stone-600 mt-1 max-w-xs">
+          Wszystko gotowe! Możesz dodać nowe wydarzenie przyciskiem „Utwórz” lub poprosić lokalnego Asystenta AI.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-stone-50 p-3 sm:p-6">
+      <div className="max-w-3xl mx-auto space-y-6">
+        {dates.map((dateStr) => {
+          const headerInfo = formatHeaderDate(dateStr);
+          const dayEvents = groupedEvents[dateStr];
+
+          return (
+            <div key={dateStr} className="space-y-2">
+              {/* Date Header Sticky Style */}
+              <div 
+                onClick={() => onSelectDay(dateStr)}
+                className="flex items-center gap-2.5 py-1 px-2 cursor-pointer group"
+              >
+                <span
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-transform group-hover:scale-105 ${
+                    headerInfo.isToday
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-stone-200 text-stone-700'
+                  }`}
+                >
+                  {headerInfo.dayNumber}
+                </span>
+                <span className={`text-sm font-semibold tracking-tight ${headerInfo.isToday ? 'text-blue-700' : 'text-stone-800'}`}>
+                  {headerInfo.fullText}
+                </span>
+              </div>
+
+              {/* Event Cards */}
+              <div className="space-y-2">
+                {dayEvents.map((ev) => {
+                  const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
+
+                  return (
+                    <div
+                      key={ev.id}
+                      id={`agenda-event-${ev.id}`}
+                      onClick={() => onSelectEvent(ev)}
+                      className="flex items-center gap-3 p-3.5 bg-white rounded-xl border border-stone-200 shadow-xs hover:border-stone-300 hover:shadow-sm transition-all cursor-pointer group"
+                    >
+                      {/* Color Stripe / Pill */}
+                      <div
+                        className="w-1.5 self-stretch rounded-full shrink-0"
+                        style={{ backgroundColor: colorDef.dot }}
+                      />
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-semibold text-stone-900 group-hover:text-blue-600 transition-colors truncate">
+                            {ev.title}
+                          </h4>
+                          {ev.recurrence && ev.recurrence !== 'NONE' && (
+                            <span className="flex items-center text-[10px] text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded-md">
+                              <Repeat className="w-2.5 h-2.5 mr-1" />
+                              Cykliczne
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Details row: time & location */}
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600 mt-1">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-stone-600" />
+                            <span>
+                              {ev.allDay ? 'Cały dzień' : `${ev.startTime || ''} – ${ev.endTime || ''}`}
+                            </span>
+                          </div>
+
+                          {ev.location && (
+                            <div className="flex items-center gap-1 truncate max-w-[200px]">
+                              <MapPin className="w-3.5 h-3.5 text-stone-600 shrink-0" />
+                              <span className="truncate">{ev.location}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {ev.description && (
+                          <p className="text-xs text-stone-600 mt-1.5 line-clamp-1">
+                            {ev.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Reminders count chip */}
+                      {ev.reminders && ev.reminders.length > 0 && (
+                        <div className="text-[10px] font-medium px-2 py-1 bg-stone-100 text-stone-700 rounded-lg shrink-0">
+                          {ev.reminders.length} {ev.reminders.length === 1 ? 'alert' : 'alerty'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};

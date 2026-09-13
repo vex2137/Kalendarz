@@ -1,0 +1,46 @@
+name: Zbuduj plik APK dla Androida
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Pobierz kod repozytorium
+        uses: actions/checkout@v4
+
+      - name: Konfiguracja Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalacja zależności i budowanie aplikacji webowej
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Konfiguracja środowiska Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Zezwolenie na uruchamianie Gradle Wrapper
+        run: chmod +x android/gradlew
+
+      - name: Kompilacja pliku APK (assembleDebug)
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Udostępnij gotowy plik APK do pobrania
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kalendarz-AI-Offline-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
