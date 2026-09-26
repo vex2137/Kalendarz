@@ -78,15 +78,15 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "37f456e20423f0a9db0e7cb44938a481"
+    "revision": "b1e38ee6a49477e0f9c4095840e68683"
   }, {
     "url": "assets/workbox-window.prod.es5-BBnX5xw4.js",
     "revision": null
   }, {
-    "url": "assets/index-Cps0rT4X.css",
+    "url": "assets/index-DUZLpxYH.js",
     "revision": null
   }, {
-    "url": "assets/index-Bcjr94W6.js",
+    "url": "assets/index-Cps0rT4X.css",
     "revision": null
   }, {
     "url": "apple-touch-icon.png",

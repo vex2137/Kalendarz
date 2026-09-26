@@ -15,7 +15,8 @@ import {
   AlertCircle,
   ShieldCheck,
   Zap,
-  ZapOff
+  ZapOff,
+  ArrowLeftRight
 } from 'lucide-react';
 import { CalendarEvent, AppTheme } from '../types';
 import { exportEventsToICS, parseICSToEvents } from '../utils/storage';
