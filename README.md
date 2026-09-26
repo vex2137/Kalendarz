@@ -1,125 +1,72 @@
-# 📅 Kalendarz Offline
+# 📅 Kalendarz Offline (Offline Calendar)
 
-Prywatny, w 100% lokalny kalendarz w stylu Google Calendar na **Androida (APK)**, **Linuxa (CachyOS/Arch/Ubuntu)** oraz **Windowsa**. Działa całkowicie bez internetu, nie wymaga logowania ani konta w chmurze i nie wysyła żadnych danych telemetrycznych.
+A modern, private, and 100% local calendar application inspired by Google Calendar. Built for **Android (APK)**, **Linux (Flatpak & AppImage)**, **Windows (.exe)**, and the **Web**.
 
----
-
-## 🚀 Spis treści
-- [1. Szybki start (uruchomienie lokalne)](#1-szybki-start)
-- [2. Budowanie pliku APK na telefon (Android)](#2-budowanie-pliku-apk-na-telefon-android)
-- [3. Uruchamianie i budowanie na Linux (CachyOS / Arch / Ubuntu)](#3-uruchamianie-i-budowanie-na-linux)
-- [4. Uruchamianie i budowanie na Windows (10 / 11)](#4-uruchamianie-i-budowanie-na-windows)
-- [5. Główne funkcje kalendarza](#5-główne-funkcje-kalendarza)
-- [6. Synchronizacja PC ⇄ Telefon bez chmury](#6-synchronizacja-pc--telefon-bez-chmury)
+Works entirely offline with zero cloud dependency, no telemetry, no tracking, and no user registration required.
 
 ---
 
-## 1. Szybki start
+## 📥 Downloads & Supported Platforms
 
-Wymagany zainstalowany [Node.js](https://nodejs.org/) (wersja 18+).
+Official standalone binaries and packages:
 
+- 🤖 **Android:** `.apk`
+- 🐧 **Linux:** `Flatpak` & `AppImage`
+- 🪟 **Windows:** `.exe` installer / portable
+- 🌐 **Web:** Progressive Web App (PWA) / Self-hosted
+
+Check the [Releases](https://github.com/vex2137/Kalendarz/releases) section to download the latest version for your platform.
+
+---
+
+## ✨ Key Features
+
+- 🔒 **100% Offline & Private:** All events, reminders, and settings are stored locally on your device storage (`localStorage` / native sandbox).
+- 🤖 **Offline Smart Assistant (NLP):** Natural language engine in Polish & English. Ask for your schedule (*"What do I have today?"*), detect schedule collisions (*"Check conflicts"*), find available free time slots (*"When am I free?"*), or create events with natural sentences (*"Meeting with team tomorrow at 2pm for 1h"*).
+- 📲 **P2P QR Code Sync (PC ⇄ Mobile):** Seamless offline sync between PC and phone by scanning an encrypted QR code directly from screen to screen. No servers, accounts, or internet needed.
+- 📆 **Comprehensive Calendar Views:** Month, Week, Day, Year, and Agenda views with fluid navigation and responsive mobile-first UI.
+- 🇵🇱 **Polish Holidays & Custom Holidays:** Built-in calculation of Polish statutory holidays (including movable holidays like Easter and Corpus Christi) with one-click addition/removal.
+- 🔁 **Recurring Events & Reminders:** Daily, weekly, monthly, and yearly recurring schedules with local notifications and alarms.
+- 🔐 **PIN Lock Screen:** Optional 4-digit PIN security lock with auto-lock options.
+- 🎨 **Adaptive Themes:** Light, Dark OLED, Nord Frost, Emerald, Sunset, Lavender, and Mocha themes.
+- 📦 **Standard .ICS Import & Export:** Full interoperability with Google Calendar, Microsoft Outlook, Apple Calendar, and Mozilla Thunderbird.
+- 🌐 **Bilingual Interface:** Instant switching between Polish 🇵🇱 and English 🇬🇧.
+
+---
+
+## 💻 Development & Local Setup
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18+ or v20+)
+- `npm` or `bun`
+
+### Quick Start
 ```bash
-# Wejdź do katalogu projektu
-cd ~/Pobrane/Kalendarz-main
+# Clone the repository
+git clone https://github.com/vex2137/Kalendarz.git
+cd Kalendarz
 
-# Zainstaluj zależności
+# Install dependencies
 npm install
 
-# Uruchom wersję przeglądarkową (deweloperską)
+# Start local development server
 npm run dev
 ```
-Aplikacja uruchomi się pod adresem: `http://localhost:3000`.
+Open `http://localhost:3000` in your web browser.
 
 ---
 
-## 2. Budowanie pliku APK na telefon (Android)
+## 🔄 Peer-to-Peer Sync (PC ⇄ Phone)
 
-Przygotowany został automatyczny skrypt, który sam kompiluje kod, synchronizuje Gradle i kopiuje gotowy plik `.apk` wprost do Twojego folderu `~/Pobrane`:
-
-### Sposób A — Jedna komenda (zalecany):
-```bash
-npm run build:apk
-```
-lub:
-```bash
-bash build-apk.sh
-```
-
-**Gdzie znajdziesz gotowy plik APK?**
-* `~/Pobrane/Kalendarz.apk`
-* `./Kalendarz-Offline.apk` (w głównym folderze projektu)
-
-Możesz przesłać ten plik na telefon (np. przez kabel USB, Bluetooth, KDE Connect lub komunikator) i zainstalować.
-
-### Sposób B — Otwarcie w Android Studio:
-Jeśli wolisz graficzne środowisko Android Studio:
-```bash
-npm run build
-npx cap sync android
-npx cap open android
-```
-W menu Android Studio kliknij: **Build** -> **Build Bundle(s) / APK(s)** -> **Build APK(s)**.
+Kalendarz Offline allows data synchronization without passing through external servers or cloud accounts:
+1. On your PC, click the **Sync** button in the navigation bar.
+2. An encrypted QR code containing your calendar database will be generated on screen.
+3. On your mobile app, open **Sync ➔ Scan QR Code** tab and point the camera at your monitor.
+4. Your events and preferences will instantly synchronize.
 
 ---
 
-## 3. Uruchamianie i budowanie na Linux
+## 📄 License & Privacy
 
-Aplikacja posiada natywną integrację z silnikiem **Electron**. Działa jako standardowy program okienkowy na pulpicie (z osobną ikoną na pasku zadań, obsługą powiadomień i bez zbędnych pasków przeglądarki).
-
-### Uruchomienie programu od razu w oknie:
-```bash
-npm run desktop
-```
-
-### Zbudowanie samodzielnej paczki `.AppImage`:
-```bash
-npm run dist:linux
-```
-Gotowy plik wykonywalny znajdziesz w katalogu `release/Kalendarz Offline.AppImage`. Możesz nadać mu uprawnienia do uruchamiania i odpalać na dowolnej dystrybucji Linuksa.
-
-### Interaktywne menu wyboru:
-```bash
-bash build-desktop.sh
-```
-
----
-
-## 4. Uruchamianie i budowanie na Windows
-
-Dla użytkowników Windowsa dostępny jest plik wsadowy `.bat`.
-
-### Uruchomienie dwuklikiem:
-W folderze projektu kliknij dwukrotnie w plik **`build-windows.bat`**.
-
-### Uruchomienie przez terminal (PowerShell / CMD):
-```powershell
-npm run desktop
-```
-
-### Zbudowanie instalatora `.exe` dla Windowsa:
-```powershell
-npm run dist:win
-```
-Instalator `Kalendarz Offline Setup.exe` zostanie zapisany w folderze `release\`.
-
----
-
-## 5. Główne funkcje kalendarza
-
-* **100% Offline & Zero Telemetrii:** Wszystkie wydarzenia przechowywane są lokalnie w bezpiecznej pamięci Twojego urządzenia (`localStorage` / `IndexedDB`).
-* **Lokalny Asystent NLP:** Potrafi odpowiadać na pytania o Twój plan (*„Co mam dzisiaj?”*), wyszukiwać spotkania (*„Kiedy mam dentystę?”*), wyliczać wolne okienka (*„Kiedy mam wolny czas?”*), wykrywać kolizje terminów oraz tworzyć wydarzenia ze zdań po polsku.
-* **Wyszukiwarka z filtrami (`Ctrl + F` / `Ctrl + K`):** Błyskawiczne przeszukiwanie całego kalendarza z filtrowaniem po kolorach oraz czasie (wszystkie, nadchodzące, przeszłe).
-* **Oficjalne Polskie Święta:** W Ustawieniach jednym kliknięciem można zaimportować polskie dni ustawowo wolne od pracy (z automatycznym wyliczaniem świąt ruchomych takich jak Wielkanoc czy Boże Ciało).
-* **Blokada kodem PIN:** Możliwość zabezpieczenia kalendarza 4-cyfrowym kodem PIN.
-* **System Motywów Kolorystycznych:** Ciemny OLED, Nord Frost, Szmaragdowy, Zachód słońca, Lawenda oraz Mokka.
-* **Format i Kopia .ICS:** Pełna zgodność z Google Calendar, Outlookiem i Thunderbirdem.
-
----
-
-## 6. Synchronizacja PC ⇄ Telefon bez chmury
-
-Aplikacja pozwala synchronizować dane między komputerem a telefonem bez zakładania jakichkolwiek kont:
-1. W aplikacji na komputerze kliknij przycisk **Synchronizuj** na górnym pasku.
-2. Na ekranie pojawi się wygenerowany kod QR z zaszyfrowaną bazą Twoich wydarzeń.
-3. W aplikacji na telefonie wejdź w **Synchronizuj** -> zakładka **Skanuj kod** i skieruj aparat na monitor.
-4. Cały kalendarz oraz wybrany motyw graficzny zostaną natychmiast przeniesione!
+- **Privacy First:** Zero trackers, zero analytics, zero external network calls.
+- **License:** MIT License. Free for personal and commercial use.
