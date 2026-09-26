@@ -1,4 +1,4 @@
-# 📅 Calendar Offline (Offline Calendar)
+# 📅 Calendar Offline
 
 A modern, private, and 100% local calendar application inspired by Google Calendar. Built for **Android (APK)**, **Linux (Flatpak & AppImage)**, **Windows (.exe)**, and the **Web**.
 
