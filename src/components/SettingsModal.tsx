@@ -502,13 +502,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <div className="p-3 rounded-2xl theme-subtle theme-border border space-y-2">
               <p className="text-xs theme-text leading-relaxed">
-                Możesz jednym kliknięciem zaimportować do swojego kalendarza wszystkie oficjalne polskie święta na lata 2025, 2026 i 2027 (w tym automatycznie wyliczone święta ruchome).
+                Możesz jednym kliknięciem zaimportować do swojego kalendarza wszystkie oficjalne polskie święta na 5 lat do przodu (2026–2031), w tym automatycznie wyliczone święta ruchome (Wielkanoc, Boże Ciało, Zielone Świątki).
               </p>
 
               <button
                 type="button"
                 onClick={() => {
-                  const holidays = generateHolidayEvents([2025, 2026, 2027]);
+                  const holidays = generateHolidayEvents([2026, 2027, 2028, 2029, 2030, 2031]);
                   onImportEvents(holidays);
                   setHolidaysAdded(true);
                   setTimeout(() => setHolidaysAdded(false), 4000);
@@ -516,7 +516,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="w-full py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
               >
                 <Flag className="w-3.5 h-3.5" />
-                {holidaysAdded ? 'Dodano polskie święta do kalendarza!' : 'Dodaj polskie święta (2025–2027)'}
+                {holidaysAdded ? 'Dodano polskie święta do kalendarza!' : 'Dodaj polskie święta (2026–2031)'}
               </button>
             </div>
           </div>

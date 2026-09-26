@@ -89,8 +89,9 @@ export function getPolishHolidays(year: number): PolishHoliday[] {
 
 /**
  * Konwertuje polskie święta na obiekty CalendarEvent gotowe do zapisania w kalendarzu.
+ * Domyślnie generuje na 5 lat do przodu: 2026-2031.
  */
-export function generateHolidayEvents(years: number[] = [2025, 2026, 2027]): CalendarEvent[] {
+export function generateHolidayEvents(years: number[] = [2026, 2027, 2028, 2029, 2030, 2031]): CalendarEvent[] {
   const events: CalendarEvent[] = [];
 
   years.forEach((yr) => {

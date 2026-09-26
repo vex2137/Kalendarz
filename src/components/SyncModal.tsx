@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
-import { CalendarEvent, AppTheme } from '../types';
-import { exportEventsToICS, parseICSToEvents } from '../utils/storage';
 import { 
   X, 
   QrCode, 
@@ -13,19 +11,22 @@ import {
   Upload, 
   Smartphone, 
   Laptop, 
-  ShieldCheck, 
   RefreshCw, 
-  ArrowLeftRight,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck,
+  Zap,
+  ZapOff
 } from 'lucide-react';
+import { CalendarEvent, AppTheme } from '../types';
+import { exportEventsToICS, parseICSToEvents } from '../utils/storage';
 
 interface SyncModalProps {
   isOpen: boolean;
   onClose: () => void;
   events: CalendarEvent[];
   onSyncMergeEvents: (incomingEvents: CalendarEvent[]) => void;
-  currentTheme: AppTheme;
-  onSyncTheme: (theme: AppTheme) => void;
+  currentTheme?: AppTheme;
+  onSyncTheme?: (theme: AppTheme) => void;
 }
 
 export const SyncModal: React.FC<SyncModalProps> = ({
@@ -33,7 +34,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
   onClose,
   events,
   onSyncMergeEvents,
-  currentTheme,
+  currentTheme = 'dark',
   onSyncTheme,
 }) => {
   const [activeTab, setActiveTab] = useState<'qr-show' | 'qr-scan' | 'text-code' | 'file'>('qr-show');
@@ -44,29 +45,37 @@ export const SyncModal: React.FC<SyncModalProps> = ({
 
   // Camera scanner state
   const [isScanning, setIsScanning] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameId = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  // Generate condensed sync payload
+  // Generate ultra-compact sync payload
   const generateSyncPayload = (): string => {
     try {
-      const minimalEvents = events.map((e) => ({
-        id: e.id,
-        t: e.title,
-        sd: e.startDate,
-        st: e.startTime || '',
-        ed: e.endDate,
-        et: e.endTime || '',
-        ad: e.allDay ? 1 : 0,
-        c: e.color || 'peacock',
-        loc: e.location || '',
-        d: e.description || '',
-        r: e.reminders || [15],
-        rec: e.recurrence || 'NONE',
-        u: e.updatedAt || e.createdAt || Date.now(),
-      }));
+      const minimalEvents = events.map((e) => {
+        const item: any = {
+          id: e.id,
+          t: e.title,
+          sd: e.startDate,
+        };
+        if (e.startTime) item.st = e.startTime;
+        if (e.endDate && e.endDate !== e.startDate) item.ed = e.endDate;
+        if (e.endTime) item.et = e.endTime;
+        if (e.allDay) item.ad = 1;
+        if (e.color && e.color !== 'peacock') item.c = e.color;
+        if (e.location) item.loc = e.location;
+        if (e.description) item.d = e.description;
+        if (e.reminders && e.reminders.length > 0) item.r = e.reminders;
+        if (e.recurrence && e.recurrence !== 'NONE') item.rec = e.recurrence;
+        if (e.customRecurrence) item.cr = e.customRecurrence;
+        if (e.updatedAt) item.u = e.updatedAt;
+        return item;
+      });
+
       return JSON.stringify({ v: 1, app: 'cal-offline', th: currentTheme, e: minimalEvents });
     } catch {
       return '';
@@ -75,7 +84,8 @@ export const SyncModal: React.FC<SyncModalProps> = ({
 
   const decodeSyncPayload = (payloadStr: string): { events: CalendarEvent[]; theme?: AppTheme } | null => {
     try {
-      const parsed = JSON.parse(payloadStr);
+      const cleanStr = payloadStr.trim();
+      const parsed = JSON.parse(cleanStr);
       if (parsed.app !== 'cal-offline' || !Array.isArray(parsed.e)) {
         return null;
       }
@@ -92,6 +102,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
         description: item.d || undefined,
         reminders: item.r || [15],
         recurrence: item.rec || 'NONE',
+        customRecurrence: item.cr || undefined,
         createdAt: item.u || Date.now(),
         updatedAt: item.u || Date.now(),
       }));
@@ -104,25 +115,25 @@ export const SyncModal: React.FC<SyncModalProps> = ({
     }
   };
 
-  // Generate QR Code when tab is 'qr-show' or events change
+  // Generate high-clarity QR Code when tab is 'qr-show' or events change
   useEffect(() => {
     if (!isOpen) return;
     const payload = generateSyncPayload();
     if (!payload) return;
 
     QRCode.toDataURL(payload, {
-      width: 320,
+      width: 360,
       margin: 2,
       errorCorrectionLevel: 'M',
       color: {
-        dark: '#111827',
+        dark: '#000000',
         light: '#ffffff',
       },
     })
       .then((url) => setQrDataUrl(url))
       .catch((err) => {
-        console.warn('QR Code generation error (payload might be large):', err);
-        QRCode.toDataURL(payload, { width: 320, margin: 1, errorCorrectionLevel: 'L' })
+        console.warn('QR Code generation fallback to level L:', err);
+        QRCode.toDataURL(payload, { width: 360, margin: 1, errorCorrectionLevel: 'L' })
           .then((url) => setQrDataUrl(url))
           .catch(() => setQrDataUrl(''));
       });
@@ -144,64 +155,130 @@ export const SyncModal: React.FC<SyncModalProps> = ({
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
+      mediaStreamRef.current = stream;
+
+      // Check if torch / flashlight is available
+      const track = stream.getVideoTracks()[0];
+      const capabilities = (track as any)?.getCapabilities?.();
+      if (capabilities && 'torch' in capabilities) {
+        setHasTorch(true);
+      } else {
+        setHasTorch(false);
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute('playsinline', 'true');
-        videoRef.current.play();
+        await videoRef.current.play();
         scanFrame();
       }
     } catch (err) {
       console.warn('Camera access denied or unavailable', err);
       setStatusMessage({
         type: 'error',
-        text: 'Brak dostępu do aparatu. Użyj opcji wczytania zdjęcia kodu QR lub kodu tekstowego.',
+        text: 'Aparat niedostępny lub brak uprawnień. Możesz użyć wczytania zdjęcia kodu QR lub kodu tekstowego.',
       });
       setIsScanning(false);
     }
   };
 
+  const toggleTorch = async () => {
+    if (!mediaStreamRef.current) return;
+    const track = mediaStreamRef.current.getVideoTracks()[0];
+    if (track && (track as any).applyConstraints) {
+      try {
+        const nextState = !isTorchOn;
+        await (track as any).applyConstraints({
+          advanced: [{ torch: nextState }],
+        });
+        setIsTorchOn(nextState);
+      } catch (err) {
+        console.warn('Failed to toggle torch', err);
+      }
+    }
+  };
+
   const stopCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
     if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
+    setIsTorchOn(false);
   };
 
-  const scanFrame = () => {
+  const scanFrame = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+    if (video.readyState >= video.HAVE_CURRENT_DATA && ctx) {
+      // 1. Try native BarcodeDetector API if supported (sub-millisecond hardware acceleration)
+      if ('BarcodeDetector' in window) {
+        try {
+          const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+          const barcodes = await detector.detect(video);
+          if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+            handleIncomingData(barcodes[0].rawValue);
+            setIsScanning(false);
+            stopCamera();
+            return;
+          }
+        } catch {
+          // Fallback to jsQR below
+        }
+      }
+
+      // 2. jsQR engine fallback
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert',
+        inversionAttempts: 'attemptBoth',
       });
 
-      if (code) {
+      if (code && code.data) {
         handleIncomingData(code.data);
         setIsScanning(false);
         stopCamera();
         return;
       }
     }
+
     animationFrameId.current = requestAnimationFrame(scanFrame);
   };
 
   // Process incoming data from QR or text
   const handleIncomingData = (dataStr: string) => {
+    if (!dataStr) return;
+
+    // Haptic feedback if available
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([100, 50, 100]);
+    }
+
     const result = decodeSyncPayload(dataStr);
     if (result && Array.isArray(result.events)) {
       if (result.theme && onSyncTheme) {
@@ -235,7 +312,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
       }
       setStatusMessage({
         type: 'error',
-        text: 'Nieprawidłowy kod synchronizacji lub niezgodny format.',
+        text: 'Nieprawidłowy format kodu synchronizacji lub niepełne dane.',
       });
     }
   };
@@ -256,8 +333,10 @@ export const SyncModal: React.FC<SyncModalProps> = ({
         if (!ctx) return;
         ctx.drawImage(img, 0, 0);
         const imageData = ctx.getImageData(0, 0, img.width, img.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        if (code) {
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'attemptBoth',
+        });
+        if (code && code.data) {
           handleIncomingData(code.data);
         } else {
           setStatusMessage({
@@ -305,7 +384,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
               </h3>
               <p className="text-xs theme-muted flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                100% Offline • Bez logowania i bez chmury
+                100% Offline • Bez konta i bez chmury
               </p>
             </div>
           </div>
@@ -398,7 +477,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
           {activeTab === 'qr-show' && (
             <div className="flex flex-col items-center text-center space-y-4">
               {/* White card container so QR code remains 100% scannable by camera regardless of dark mode */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200 shadow-lg">
+              <div className="bg-white p-3 sm:p-4 rounded-3xl border border-stone-200 shadow-lg">
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
@@ -435,13 +514,38 @@ export const SyncModal: React.FC<SyncModalProps> = ({
           {/* TAB 2: Skanuj kod aparatem */}
           {activeTab === 'qr-scan' && (
             <div className="flex flex-col items-center space-y-4 text-center">
-              <div className="relative w-full max-w-xs aspect-square rounded-2xl overflow-hidden bg-black flex items-center justify-center border-2 border-dashed border-indigo-500">
+              <div className="relative w-full max-w-xs aspect-square rounded-2xl overflow-hidden bg-black flex items-center justify-center border-2 border-indigo-500 shadow-xl">
                 <video
                   ref={videoRef}
                   className="w-full h-full object-cover"
                 />
                 <canvas ref={canvasRef} className="hidden" />
-                <div className="absolute inset-0 border-2 border-indigo-500 rounded-2xl pointer-events-none animate-pulse"></div>
+
+                {/* Modern Targeting reticle & animated laser line */}
+                <div className="absolute inset-4 border-2 border-indigo-400/80 rounded-xl pointer-events-none flex flex-col justify-between p-2">
+                  <div className="w-full flex justify-between">
+                    <div className="w-4 h-4 border-t-2 border-l-2 border-indigo-400" />
+                    <div className="w-4 h-4 border-t-2 border-r-2 border-indigo-400" />
+                  </div>
+                  <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent animate-pulse shadow-md" />
+                  <div className="w-full flex justify-between">
+                    <div className="w-4 h-4 border-b-2 border-l-2 border-indigo-400" />
+                    <div className="w-4 h-4 border-b-2 border-r-2 border-indigo-400" />
+                  </div>
+                </div>
+
+                {/* Torch button if supported */}
+                {hasTorch && (
+                  <button
+                    onClick={toggleTorch}
+                    className={`absolute bottom-3 right-3 p-2.5 rounded-full shadow-lg transition-colors ${
+                      isTorchOn ? 'bg-amber-400 text-stone-950' : 'bg-black/60 text-white hover:bg-black/80'
+                    }`}
+                    title="Włącz latarkę"
+                  >
+                    {isTorchOn ? <Zap className="w-4 h-4" /> : <ZapOff className="w-4 h-4" />}
+                  </button>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -453,7 +557,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-1">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -466,7 +570,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
                   className="px-3.5 py-2 rounded-xl theme-subtle theme-hover theme-text text-xs font-semibold flex items-center gap-1.5 transition-colors theme-border border"
                 >
                   <Upload className="w-4 h-4 opacity-70" />
-                  Wgraj zdjęcie kodu QR
+                  Wgraj zdjęcie kodu QR z galerii
                 </button>
               </div>
             </div>
@@ -519,74 +623,23 @@ export const SyncModal: React.FC<SyncModalProps> = ({
             </div>
           )}
 
-          {/* TAB 4: Plik kalendarza (.ics) */}
+          {/* TAB 4: Plik ICS */}
           {activeTab === 'file' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl theme-subtle theme-border border space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
-                    <Download className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold theme-text">Eksportuj do pliku .ICS</h5>
-                    <p className="text-[11px] theme-muted">Działa w 100% offline, pasuje do Google Calendar, Thunderbird i Outlook</p>
-                  </div>
-                </div>
+              <div className="p-3.5 rounded-2xl theme-subtle theme-border border space-y-2">
+                <p className="text-xs theme-text leading-relaxed">
+                  Możesz pobrać wszystkie swoje wydarzenia jako uniwersalny plik <strong>.ics</strong> i otworzyć go na dowolnym telefonie lub komputerze.
+                </p>
                 <button
                   onClick={() => exportEventsToICS(events)}
-                  className="w-full py-2 rounded-xl theme-surface theme-hover theme-border border text-xs font-semibold theme-text transition-colors shadow-2xs flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-2"
                 >
-                  <Download className="w-3.5 h-3.5 opacity-70" />
-                  Pobierz kopię kalendarza (.ics)
+                  <Download className="w-4 h-4" />
+                  Pobierz plik kalendarza (.ics)
                 </button>
-              </div>
-
-              <div className="p-4 rounded-2xl theme-subtle theme-border border space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                    <Upload className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold theme-text">Wczytaj plik z komputera lub telefonu</h5>
-                    <p className="text-[11px] theme-muted">Scal wydarzenia z pliku z obecnym kalendarzem</p>
-                  </div>
-                </div>
-                <label className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer">
-                  <Upload className="w-3.5 h-3.5" />
-                  Wybierz i zaimportuj plik .ics
-                  <input
-                    type="file"
-                    accept=".ics,text/calendar"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const r = new FileReader();
-                      r.onload = (ev) => {
-                        const content = ev.target?.result as string;
-                        if (content) {
-                          const evts = parseICSToEvents(content);
-                          if (evts.length > 0) {
-                            onSyncMergeEvents(evts);
-                            setStatusMessage({
-                              type: 'success',
-                              text: `Zaimportowano ${evts.length} wydarzeń!`,
-                            });
-                          }
-                        }
-                      };
-                      r.readAsText(file);
-                    }}
-                  />
-                </label>
               </div>
             </div>
           )}
-        </div>
-
-        {/* Footer info */}
-        <div className="p-3 theme-subtle theme-border border-t text-center text-[11px] theme-muted">
-          Wszystkie dane pozostają wyłącznie w Twoich rękach — żadnych serwerów, żadnych kont.
         </div>
       </div>
     </div>

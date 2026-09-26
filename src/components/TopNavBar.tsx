@@ -51,12 +51,12 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const year = currentDate.getFullYear();
 
   return (
-    <header className="sticky top-0 z-30 theme-header theme-border border-b px-2 sm:px-4 py-2 safe-top transition-colors duration-200 w-full max-w-full overflow-hidden">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-1 sm:gap-2 w-full">
+    <header className="sticky top-0 z-30 theme-header theme-border border-b px-2.5 sm:px-4 pt-2.5 sm:pt-2.5 pb-2 safe-top transition-colors duration-200 w-full max-w-full overflow-hidden shadow-2xs">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-3 w-full">
         {/* Left Section: Nav Chevrons, Today & Month/Year */}
-        <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
-          {/* Brand Logo & Name (Desktop only to prevent mobile cramping) */}
-          <div className="hidden lg:flex items-center gap-2 shrink-0 mr-1">
+        <div className="flex items-center gap-1 sm:gap-2.5 shrink-0 min-w-0">
+          {/* Brand Logo & Name (Desktop wide only) */}
+          <div className="hidden 2xl:flex items-center gap-2 shrink-0 mr-1">
             <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
               <CalendarIcon className="w-4 h-4" />
             </div>
@@ -67,7 +67,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           <button
             id="btn-nav-today"
             onClick={onNavigateToday}
-            className="h-8 px-2 sm:px-3 text-xs font-semibold rounded-xl theme-border border theme-surface theme-text theme-hover hover:opacity-90 transition-colors shadow-2xs shrink-0 flex items-center justify-center"
+            className="h-8 px-2.5 sm:px-3 text-xs font-semibold rounded-xl theme-border border theme-surface theme-text theme-hover hover:opacity-90 transition-colors shadow-2xs shrink-0 flex items-center justify-center"
             title="Przejdź do dzisiejszego dnia"
           >
             Dziś
@@ -96,17 +96,17 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             </button>
           </div>
 
-          {/* Current Month & Year */}
-          <h2 className="h-8 flex items-center text-xs sm:text-base md:text-lg font-bold theme-text whitespace-nowrap truncate pl-1">
+          {/* Current Month & Year - NEVER TRUNCATED (shrink-0) */}
+          <h2 className="h-8 flex items-center text-xs sm:text-base md:text-lg font-bold theme-text whitespace-nowrap shrink-0 pl-1">
             <span>{monthName}</span>
-            <span className="font-normal theme-muted text-[11px] sm:text-sm ml-1">{year}</span>
+            <span className="font-normal theme-muted text-[11px] sm:text-sm ml-1.5">{year}</span>
           </h2>
         </div>
 
         {/* Right Section: View selector (desktop), AI, Sync, Search, Settings & Create */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* View Mode Selector - Desktop full tabs (lg+) */}
-          <div className="hidden lg:flex h-8 items-center theme-subtle p-0.5 rounded-xl theme-border border text-xs font-medium shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* View Mode Selector - Desktop full tabs (xl+) */}
+          <div className="hidden xl:flex h-8 items-center theme-subtle p-0.5 rounded-xl theme-border border text-xs font-medium shrink-0">
             <button
               id="btn-view-year"
               onClick={() => onViewModeChange('year')}
@@ -164,13 +164,13 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             </button>
           </div>
 
-          {/* View Mode Selector - Compact selector for tablet (sm to lg) */}
-          <div className="hidden sm:flex lg:hidden h-8 items-center theme-subtle rounded-xl theme-border border px-2 text-xs shrink-0">
+          {/* View Mode Selector - Compact selector for tablet & medium screens (sm to xl) */}
+          <div className="hidden sm:flex xl:hidden h-8 items-center theme-subtle rounded-xl theme-border border px-2 text-xs shrink-0">
             <select
               aria-label="Wybierz widok kalendarza"
               value={viewMode}
               onChange={(e) => onViewModeChange(e.target.value as CalendarViewMode)}
-              className="bg-transparent theme-text font-semibold outline-hidden cursor-pointer"
+              className="bg-transparent theme-text font-semibold outline-hidden cursor-pointer text-xs"
             >
               <option value="month" className="theme-surface theme-text">Miesiąc</option>
               <option value="week" className="theme-surface theme-text">Tydzień</option>
@@ -180,7 +180,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             </select>
           </div>
 
-          {/* Quick Search Button (Lupa) */}
+          {/* Quick Search Button */}
           <button
             id="btn-open-search"
             onClick={onOpenSearch}
@@ -199,7 +199,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
               title="Lokalny Asystent Kalendarza (Offline NLP)"
             >
               <Sparkles className="w-4 h-4 text-violet-400" />
-              <span className="hidden xl:inline">Asystent</span>
+              <span className="hidden 2xl:inline">Asystent</span>
             </button>
           )}
 
@@ -211,7 +211,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             title="Synchronizacja PC ⇄ Telefon (Bez konta, Kod QR / Plik)"
           >
             <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
-            <span className="hidden xl:inline">Synchronizuj</span>
+            <span className="hidden 2xl:inline">Synchronizuj</span>
           </button>
 
           {/* Settings Button */}
@@ -225,7 +225,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           </button>
 
           {/* PWA Install Button (Desktop only) */}
-          <div className="hidden sm:flex items-center shrink-0">
+          <div className="hidden lg:flex items-center shrink-0">
             <PWAInstallButton />
           </div>
 

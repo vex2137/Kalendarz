@@ -59,11 +59,13 @@ export const EventModal: React.FC<EventModalProps> = ({
     daysOfWeek: [1],
     endType: 'NEVER',
   });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [reminders, setReminders] = useState<number[]>([defaultReminder]);
   const [customReminderVal, setCustomReminderVal] = useState<string>('');
   const [showCustomReminderInput, setShowCustomReminderInput] = useState(false);
 
   useEffect(() => {
+    setShowDeleteConfirm(false);
     if (!isOpen) return;
 
     if (eventToEdit) {
@@ -167,8 +169,58 @@ export const EventModal: React.FC<EventModalProps> = ({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div 
         id="modal-event-form"
-        className="theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150"
+        className="relative theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150"
       >
+        {/* Custom In-App Delete Confirmation Modal (Replaces native browser popup) */}
+        {showDeleteConfirm && (
+          <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="theme-surface theme-text rounded-2xl max-w-sm w-full p-5 shadow-2xl theme-border border text-center space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 mx-auto flex items-center justify-center">
+                <Trash2 className="w-6 h-6" />
+              </div>
+
+              <div>
+                <h4 className="text-base font-bold theme-text">Usuń wydarzenie</h4>
+                <p className="text-xs theme-muted mt-1 leading-relaxed">
+                  Czy na pewno chcesz usunąć to wydarzenie z kalendarza?
+                </p>
+                {eventToEdit && (
+                  <p className="text-xs font-semibold theme-text mt-2 px-3 py-1.5 rounded-lg theme-subtle truncate">
+                    „{eventToEdit.title}”
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-2">
+                {/* Przycisk NIE na czerwono jak prosił użytkownik */}
+                <button
+                  type="button"
+                  id="btn-confirm-delete-no"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-bold shadow-xs transition-colors"
+                >
+                  Nie
+                </button>
+                {/* Przycisk TAK */}
+                <button
+                  type="button"
+                  id="btn-confirm-delete-yes"
+                  onClick={() => {
+                    if (eventToEdit && onDelete) {
+                      onDelete(eventToEdit.id);
+                    }
+                    setShowDeleteConfirm(false);
+                    onClose();
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-xl theme-subtle theme-hover theme-border border theme-text text-xs font-bold transition-colors"
+                >
+                  Tak, usuń
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Top Header */}
         <div className="flex items-center justify-between px-5 py-3.5 theme-border border-b theme-subtle">
           <div className="flex items-center gap-2">
@@ -185,12 +237,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <button
                 type="button"
                 id="btn-delete-event"
-                onClick={() => {
-                  if (confirm('Czy na pewno chcesz usunąć to wydarzenie z kalendarza?')) {
-                    onDelete(eventToEdit.id);
-                    onClose();
-                  }
-                }}
+                onClick={() => setShowDeleteConfirm(true)}
                 className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors"
                 title="Usuń wydarzenie"
               >
