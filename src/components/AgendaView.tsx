@@ -2,6 +2,7 @@ import React from 'react';
 import { CalendarEvent } from '../types';
 import { GOOGLE_CALENDAR_COLORS, MONTH_NAMES_PL, DAY_NAMES_FULL_PL } from '../utils/constants';
 import { Clock, MapPin, Repeat, CalendarCheck2 } from 'lucide-react';
+import { isEventOccurringOnDate, getRecurrenceLabel, formatISODate } from '../utils/recurrence';
 
 interface AgendaViewProps {
   events: CalendarEvent[];
@@ -14,27 +15,28 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
   onSelectEvent,
   onSelectDay,
 }) => {
-  // Sort events chronologically
-  const sortedEvents = [...events].sort((a, b) => {
-    if (a.startDate !== b.startDate) {
-      return a.startDate.localeCompare(b.startDate);
-    }
-    if (a.allDay && !b.allDay) return -1;
-    if (!a.allDay && b.allDay) return 1;
-    return (a.startTime || '').localeCompare(b.startTime || '');
-  });
-
-  // Group by date
-  const groupedEvents: Record<string, CalendarEvent[]> = {};
-  sortedEvents.forEach((ev) => {
-    if (!groupedEvents[ev.startDate]) {
-      groupedEvents[ev.startDate] = [];
-    }
-    groupedEvents[ev.startDate].push(ev);
-  });
-
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  // Generate date list for the next 60 days to expand recurring and regular events
+  const groupedEvents: Record<string, CalendarEvent[]> = {};
+
+  // For the next 60 days:
+  for (let i = 0; i < 60; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const dateStr = formatISODate(d);
+
+    const occurrences = events.filter((ev) => isEventOccurringOnDate(ev, dateStr));
+    if (occurrences.length > 0) {
+      // Sort events: all-day first, then by startTime
+      const sorted = [...occurrences].sort((a, b) => {
+        if (a.allDay && !b.allDay) return -1;
+        if (!a.allDay && b.allDay) return 1;
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+      groupedEvents[dateStr] = sorted;
+    }
+  }
 
   const formatHeaderDate = (dateStr: string) => {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -63,7 +65,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
         <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
           <CalendarCheck2 className="w-8 h-8" />
         </div>
-        <h3 className="text-base font-semibold theme-text">Brak zaplanowanych wydarzeń</h3>
+        <h3 className="text-base font-semibold theme-text">Brak nadchodzących wydarzeń</h3>
         <p className="text-xs theme-muted mt-1 max-w-xs">
           Wszystko gotowe! Możesz dodać nowe wydarzenie przyciskiem „Utwórz” lub poprosić lokalnego Asystenta AI.
         </p>
@@ -73,7 +75,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   return (
     <div className="flex-1 overflow-y-auto p-3 sm:p-6 transition-colors duration-200">
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6 pb-12">
         {dates.map((dateStr) => {
           const headerInfo = formatHeaderDate(dateStr);
           const dayEvents = groupedEvents[dateStr];
@@ -103,10 +105,11 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
               <div className="space-y-2">
                 {dayEvents.map((ev) => {
                   const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
+                  const recurrenceLabel = getRecurrenceLabel(ev);
 
                   return (
                     <div
-                      key={ev.id}
+                      key={`${ev.id}-${dateStr}`}
                       id={`agenda-event-${ev.id}`}
                       onClick={() => onSelectEvent(ev)}
                       className="flex items-center gap-3 p-3.5 theme-surface rounded-xl theme-border border shadow-xs hover:border-blue-500/50 hover:shadow-sm transition-all cursor-pointer group"
@@ -124,9 +127,9 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                             {ev.title}
                           </h4>
                           {ev.recurrence && ev.recurrence !== 'NONE' && (
-                            <span className="flex items-center text-[10px] text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded-md">
+                            <span className="flex items-center text-[10px] theme-subtle theme-border border px-1.5 py-0.5 rounded-md text-blue-400">
                               <Repeat className="w-2.5 h-2.5 mr-1" />
-                              Cykliczne
+                              {recurrenceLabel}
                             </span>
                           )}
                         </div>

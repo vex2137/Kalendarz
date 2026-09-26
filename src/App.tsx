@@ -83,10 +83,16 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', settings.theme);
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      const currentTheme = AVAILABLE_THEMES.find((t) => t.id === settings.theme);
-      if (currentTheme) {
-        metaThemeColor.setAttribute('content', currentTheme.dotColor);
-      }
+      const themeColors: Record<string, string> = {
+        light: '#ffffff',
+        dark: '#141416',
+        nord: '#131c2e',
+        emerald: '#08241a',
+        sunset: '#2f1912',
+        lavender: '#201838',
+        moka: '#ffffff',
+      };
+      metaThemeColor.setAttribute('content', themeColors[settings.theme] || '#141416');
     }
   }, [settings.theme]);
 
@@ -264,7 +270,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen theme-bg theme-text flex flex-col font-sans select-none pb-16 sm:pb-0 transition-colors duration-200">
+    <div className="min-h-screen theme-bg theme-text flex flex-col font-sans select-none overflow-x-hidden w-full max-w-full transition-colors duration-200">
       {/* Top App Bar */}
       <TopNavBar
         currentDate={currentDate}
@@ -292,7 +298,7 @@ export default function App() {
       />
 
       {/* Main View Area */}
-      <main className="flex-1 flex flex-col max-w-7xl w-full mx-auto p-1.5 sm:p-4 pb-20 sm:pb-4 overflow-hidden">
+      <main className="flex-1 flex flex-col max-w-7xl w-full mx-auto p-1 sm:p-4 pb-20 sm:pb-4 overflow-hidden min-w-0">
         {viewMode === 'year' && (
           <YearView
             currentDate={currentDate}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { MONTH_NAMES_PL, DAY_NAMES_SHORT_PL } from '../utils/constants';
 import { CalendarEvent } from '../types';
+import { isEventOccurringOnDate } from '../utils/recurrence';
 
 interface YearViewProps {
   currentDate: Date;
@@ -19,11 +20,9 @@ export const YearView: React.FC<YearViewProps> = ({
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  const eventDatesSet = new Set(events.map((e) => e.startDate));
-
   return (
     <div className="flex-1 overflow-y-auto p-2 sm:p-4 max-w-6xl mx-auto w-full">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
         {MONTH_NAMES_PL.map((mName, mIdx) => {
           const firstDay = new Date(currentYear, mIdx, 1);
           let startDow = firstDay.getDay() - 1;
@@ -38,7 +37,7 @@ export const YearView: React.FC<YearViewProps> = ({
             <div
               key={mName}
               onClick={() => onSelectMonth(mIdx)}
-              className="theme-surface theme-border border rounded-2xl p-3 shadow-2xs hover:border-blue-500/50 transition-all cursor-pointer group"
+              className="theme-surface theme-border border rounded-2xl p-3 shadow-2xs hover:border-blue-500/50 transition-all cursor-pointer group w-full"
             >
               <h3 className="text-sm font-bold theme-text mb-2 flex items-center justify-between group-hover:text-blue-500 transition-colors">
                 <span>{mName}</span>
@@ -61,7 +60,7 @@ export const YearView: React.FC<YearViewProps> = ({
 
                   const dateStr = `${currentYear}-${String(mIdx + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                   const isToday = dateStr === todayStr;
-                  const hasEvent = eventDatesSet.has(dateStr);
+                  const hasEvent = events.some((ev) => isEventOccurringOnDate(ev, dateStr));
 
                   return (
                     <button

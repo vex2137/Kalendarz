@@ -1,6 +1,7 @@
 import React from 'react';
+import { MONTH_NAMES_PL, DAY_NAMES_SHORT_PL, GOOGLE_CALENDAR_COLORS } from '../utils/constants';
 import { CalendarEvent } from '../types';
-import { DAY_NAMES_SHORT_PL, GOOGLE_CALENDAR_COLORS } from '../utils/constants';
+import { isEventOccurringOnDate } from '../utils/recurrence';
 
 interface MonthViewProps {
   currentDate: Date;
@@ -15,25 +16,26 @@ export const MonthView: React.FC<MonthViewProps> = ({
   onSelectDay,
   onSelectEvent,
 }) => {
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
 
-  // First day of current month
-  const firstDayOfMonth = new Date(year, month, 1);
-  // Last day of current month
-  const lastDayOfMonth = new Date(year, month + 1, 0);
-
-  // Day of week for first day (0 = Sunday in JS, convert to 0 = Monday)
-  let startingDayOfWeek = firstDayOfMonth.getDay() - 1;
-  if (startingDayOfWeek === -1) startingDayOfWeek = 6;
-
-  const totalDaysInMonth = lastDayOfMonth.getDate();
-  const prevMonthLastDay = new Date(year, month, 0).getDate();
-
+  // Determine current day string
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  // Build grid days (42 cells: 6 weeks)
+  // First day of current month
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+  // Total days in current month
+  const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+  // Day of week for 1st of month: 0 (Sun) to 6 (Sat)
+  let startDayOfWeek = firstDayOfMonth.getDay() - 1; // Convert to Mon=0 ... Sun=6
+  if (startDayOfWeek === -1) startDayOfWeek = 6;
+
+  // Days in previous month
+  const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+  // Build grid cells (6 rows x 7 cols = 42 cells)
   const calendarCells: {
     dayNumber: number;
     dateStr: string;
@@ -42,11 +44,10 @@ export const MonthView: React.FC<MonthViewProps> = ({
   }[] = [];
 
   // Previous month trailing days
-  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-    const day = prevMonthLastDay - i;
-    const prevM = month === 0 ? 12 : month;
-    const prevY = month === 0 ? year - 1 : year;
-    const dateStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    const day = daysInPrevMonth - i;
+    const prevMonthDate = new Date(currentYear, currentMonth - 1, day);
+    const dateStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     calendarCells.push({
       dayNumber: day,
       dateStr,
@@ -56,8 +57,8 @@ export const MonthView: React.FC<MonthViewProps> = ({
   }
 
   // Current month days
-  for (let d = 1; d <= totalDaysInMonth; d++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  for (let d = 1; d <= daysInCurrentMonth; d++) {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     calendarCells.push({
       dayNumber: d,
       dateStr,
@@ -66,12 +67,11 @@ export const MonthView: React.FC<MonthViewProps> = ({
     });
   }
 
-  // Next month leading days (fill up to 35 or 42)
+  // Next month leading days (fill up to 42 cells)
   const remainingCells = 42 - calendarCells.length;
   for (let d = 1; d <= remainingCells; d++) {
-    const nextM = month === 11 ? 1 : month + 2;
-    const nextY = month === 11 ? year + 1 : year;
-    const dateStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const nextMonthDate = new Date(currentYear, currentMonth + 1, d);
+    const dateStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     calendarCells.push({
       dayNumber: d,
       dateStr,
@@ -79,15 +79,6 @@ export const MonthView: React.FC<MonthViewProps> = ({
       isToday: dateStr === todayStr,
     });
   }
-
-  // Map events by dateStr
-  const eventsByDate: Record<string, CalendarEvent[]> = {};
-  events.forEach((ev) => {
-    if (!eventsByDate[ev.startDate]) {
-      eventsByDate[ev.startDate] = [];
-    }
-    eventsByDate[ev.startDate].push(ev);
-  });
 
   return (
     <div className="flex flex-col flex-1 h-[calc(100dvh-130px)] sm:h-[calc(100vh-80px)] theme-surface rounded-2xl theme-border border overflow-hidden shadow-2xs transition-colors duration-200">
@@ -103,7 +94,9 @@ export const MonthView: React.FC<MonthViewProps> = ({
       {/* Days Grid */}
       <div className="grid grid-cols-7 grid-rows-6 flex-1 theme-border divide-x divide-stone-500/15">
         {calendarCells.map((cell, index) => {
-          const dayEvents = eventsByDate[cell.dateStr] || [];
+          // Filter events matching this date (including recurring rules)
+          const dayEvents = events.filter((ev) => isEventOccurringOnDate(ev, cell.dateStr));
+
           // Sort events: allDay first, then by startTime
           const sortedEvents = [...dayEvents].sort((a, b) => {
             if (a.allDay && !b.allDay) return -1;
@@ -128,68 +121,66 @@ export const MonthView: React.FC<MonthViewProps> = ({
                       ? 'bg-blue-600 text-white font-bold shadow-xs'
                       : cell.isCurrentMonth
                       ? 'theme-text'
-                      : 'theme-muted opacity-40'
+                      : 'theme-muted opacity-50'
                   }`}
                 >
                   {cell.dayNumber}
                 </span>
 
-                {/* Event count pill on mobile if crowded */}
+                {/* Event Count Dot on Mobile */}
                 {sortedEvents.length > 0 && (
-                  <span className="sm:hidden text-[9px] font-bold theme-muted bg-stone-500/15 px-1 rounded-full">
+                  <span className="sm:hidden flex items-center justify-center text-[9px] font-bold px-1 rounded-full bg-blue-500/20 text-blue-400">
                     {sortedEvents.length}
                   </span>
                 )}
               </div>
 
-              {/* Event chips container - compact on mobile */}
-              <div className="flex flex-col gap-0.5 sm:gap-1 overflow-hidden flex-1">
-                {/* On small mobile: show colored dots if very constrained */}
-                <div className="flex sm:hidden flex-wrap gap-0.5 mt-0.5 max-h-[22px] overflow-hidden">
-                  {sortedEvents.slice(0, 4).map((ev) => {
-                    const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
-                    return (
-                      <span
-                        key={ev.id}
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{ backgroundColor: colorDef.dot }}
-                        title={ev.title}
-                      />
-                    );
-                  })}
-                </div>
+              {/* Event Chips (Desktop & Tablets) */}
+              <div className="hidden sm:flex flex-col gap-1 overflow-hidden">
+                {sortedEvents.slice(0, 3).map((ev) => {
+                  const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
 
-                {/* Event titles on larger screens or compact text */}
-                <div className="hidden sm:flex flex-col gap-1 overflow-y-auto max-h-[85px]">
-                  {sortedEvents.slice(0, 3).map((ev) => {
-                    const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
-                    return (
-                      <button
-                        key={ev.id}
-                        id={`event-chip-${ev.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectEvent(ev);
-                        }}
-                        className={`text-left text-[11px] leading-tight px-1.5 py-0.5 rounded-sm font-medium truncate flex items-center gap-1 transition-opacity hover:opacity-90 ${colorDef.bg} ${colorDef.text}`}
-                        title={`${ev.title} ${ev.startTime ? `(${ev.startTime})` : ''}`}
-                      >
-                        {!ev.allDay && (
-                          <span className="font-semibold text-[10px] opacity-90 shrink-0">
-                            {ev.startTime}
-                          </span>
-                        )}
-                        <span className="truncate">{ev.title}</span>
-                      </button>
-                    );
-                  })}
+                  return (
+                    <button
+                      key={ev.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectEvent(ev);
+                      }}
+                      className={`w-full text-left px-1.5 py-0.5 rounded-md text-[11px] font-medium truncate transition-opacity hover:opacity-85 cursor-pointer flex items-center gap-1 shadow-2xs ${colorDef.bg} ${colorDef.text}`}
+                      title={`${ev.title} (${ev.allDay ? 'Cały dzień' : ev.startTime || ''})`}
+                    >
+                      {!ev.allDay && ev.startTime && (
+                        <span className="opacity-75 font-mono text-[9px] shrink-0">
+                          {ev.startTime}
+                        </span>
+                      )}
+                      <span className="truncate">{ev.title}</span>
+                    </button>
+                  );
+                })}
 
-                  {sortedEvents.length > 3 && (
-                    <div className="text-[10px] font-semibold theme-muted hover:theme-text pl-1">
-                      +{sortedEvents.length - 3} więcej
-                    </div>
-                  )}
-                </div>
+                {/* More events overflow indicator */}
+                {sortedEvents.length > 3 && (
+                  <span className="text-[10px] font-medium theme-muted pl-1">
+                    +{sortedEvents.length - 3} więcej
+                  </span>
+                )}
+              </div>
+
+              {/* Mobile Event Dots indicator (Colored circles) */}
+              <div className="sm:hidden flex flex-wrap gap-1 mt-auto pb-0.5 max-h-3 overflow-hidden">
+                {sortedEvents.slice(0, 4).map((ev) => {
+                  const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
+                  return (
+                    <span
+                      key={ev.id}
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: colorDef.dot }}
+                    />
+                  );
+                })}
               </div>
             </div>
           );

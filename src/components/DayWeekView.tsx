@@ -1,10 +1,11 @@
 import React from 'react';
-import { CalendarEvent } from '../types';
-import { GOOGLE_CALENDAR_COLORS, DAY_NAMES_SHORT_PL, MONTH_NAMES_PL } from '../utils/constants';
+import { CalendarEvent, CalendarViewMode } from '../types';
+import { DAY_NAMES_SHORT_PL, GOOGLE_CALENDAR_COLORS } from '../utils/constants';
+import { isEventOccurringOnDate } from '../utils/recurrence';
 
 interface DayWeekViewProps {
   currentDate: Date;
-  viewMode: 'day' | 'week';
+  viewMode: CalendarViewMode;
   events: CalendarEvent[];
   onSelectEvent: (event: CalendarEvent) => void;
   onCreateAtTime: (dateStr: string, hour: number) => void;
@@ -17,35 +18,37 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
   onSelectEvent,
   onCreateAtTime,
 }) => {
+  // Hours from 0 to 23
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  // Calculate days for week view (7 days starting from Monday)
-  const getWeekDays = (date: Date) => {
-    const days: { dateObj: Date; dateStr: string; dayNumber: number; dayName: string; isToday: boolean }[] = [];
-    const current = new Date(date);
-    const dayOfWeek = current.getDay();
-    const diff = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek; // Monday start
-    current.setDate(current.getDate() + diff);
+  // Helper to calculate days for the current week (Mon-Sun)
+  const getWeekDays = (baseDate: Date) => {
+    const d = new Date(baseDate);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    const monday = new Date(d.setDate(diff));
 
+    const week: { dateObj: Date; dateStr: string; dayNumber: number; dayName: string; isToday: boolean }[] = [];
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     for (let i = 0; i < 7; i++) {
-      const d = new Date(current);
-      d.setDate(current.getDate() + i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      let dow = d.getDay() - 1;
+      const current = new Date(monday);
+      current.setDate(monday.getDate() + i);
+      const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+      
+      let dow = current.getDay() - 1;
       if (dow === -1) dow = 6;
 
-      days.push({
-        dateObj: d,
+      week.push({
+        dateObj: current,
         dateStr,
-        dayNumber: d.getDate(),
+        dayNumber: current.getDate(),
         dayName: DAY_NAMES_SHORT_PL[dow],
         isToday: dateStr === todayStr,
       });
     }
-    return days;
+    return week;
   };
 
   const now = new Date();
@@ -92,7 +95,7 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
   return (
     <div className="flex flex-col flex-1 h-[calc(100dvh-130px)] sm:h-[calc(100vh-80px)] theme-surface theme-border border rounded-2xl overflow-hidden shadow-2xs transition-colors duration-200">
       {/* Top Days Header */}
-      <div className="flex theme-border border-b bg-stone-500/5 pl-11 sm:pl-14 pr-1 sm:pr-2 py-2 shrink-0">
+      <div className="flex theme-border border-b bg-stone-500/5 pl-12 sm:pl-16 pr-1 sm:pr-2 py-2 shrink-0">
         <div className={`grid w-full ${viewMode === 'day' ? 'grid-cols-1' : 'grid-cols-7'} text-center`}>
           {daysToRender.map((day) => (
             <div key={day.dateStr} className="flex flex-col items-center">
@@ -109,24 +112,24 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
         </div>
       </div>
 
-      {/* Hourly Grid Scrollable Body - with pt-3 to ensure 00:00 label is completely visible */}
-      <div className="flex-1 overflow-y-auto relative divide-y divide-stone-500/10 pt-2 pb-6">
+      {/* Hourly Grid Scrollable Body - with proper top/bottom space for full 00:00 - 23:00 visibility */}
+      <div className="flex-1 overflow-y-auto relative divide-y divide-stone-500/10 pt-3 pb-8">
         {hours.map((hour) => {
           const hourLabel = `${String(hour).padStart(2, '0')}:00`;
 
           return (
             <div key={hour} className="flex min-h-[52px] sm:min-h-[56px] relative group hover:bg-stone-500/5">
-              {/* Hour Label */}
-              <div className="w-11 sm:w-14 shrink-0 text-right pr-1 sm:pr-2.5 top-0 relative text-[10px] sm:text-[11px] font-medium theme-muted select-none">
+              {/* Hour Label - Fully visible with generous spacing */}
+              <div className="w-12 sm:w-16 shrink-0 text-right pr-2 sm:pr-3 pt-1 text-[11px] sm:text-xs font-medium theme-muted select-none">
                 {hourLabel}
               </div>
 
               {/* Day Columns */}
               <div className={`grid flex-1 border-l theme-border ${viewMode === 'day' ? 'grid-cols-1' : 'grid-cols-7'} divide-x divide-stone-500/10 relative`}>
                 {daysToRender.map((day) => {
-                  // Find events starting in this hour
+                  // Find events occurring on this date and starting in this hour
                   const dayHourEvents = events.filter((ev) => {
-                    if (ev.startDate !== day.dateStr || ev.allDay || !ev.startTime) return false;
+                    if (!isEventOccurringOnDate(ev, day.dateStr) || ev.allDay || !ev.startTime) return false;
                     const [h] = ev.startTime.split(':').map(Number);
                     return h === hour;
                   });
@@ -168,8 +171,8 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
                             title={`${ev.title} (${ev.startTime} - ${ev.endTime})`}
                           >
                             <div className="font-semibold truncate">{ev.title}</div>
-                            {ev.startTime && (
-                              <div className="text-[9px] sm:text-[10px] opacity-90 truncate hidden sm:block">
+                            {ev.endTime && (
+                              <div className="opacity-80 text-[9px] truncate">
                                 {ev.startTime} - {ev.endTime}
                               </div>
                             )}

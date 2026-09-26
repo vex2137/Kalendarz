@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   CalendarEvent, 
   GoogleCalendarColor, 
-  RecurrenceFreq 
+  RecurrenceFreq,
+  CustomRecurrenceRule 
 } from '../types';
 import { GOOGLE_CALENDAR_COLORS, STANDARD_REMINDER_OPTIONS } from '../utils/constants';
 import { 
@@ -52,6 +53,12 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<GoogleCalendarColor>(defaultColor);
   const [recurrence, setRecurrence] = useState<RecurrenceFreq>('NONE');
+  const [customRecurrence, setCustomRecurrence] = useState<CustomRecurrenceRule>({
+    interval: 1,
+    unit: 'WEEK',
+    daysOfWeek: [1],
+    endType: 'NEVER',
+  });
   const [reminders, setReminders] = useState<number[]>([defaultReminder]);
   const [customReminderVal, setCustomReminderVal] = useState<string>('');
   const [showCustomReminderInput, setShowCustomReminderInput] = useState(false);
@@ -70,6 +77,17 @@ export const EventModal: React.FC<EventModalProps> = ({
       setDescription(eventToEdit.description || '');
       setColor(eventToEdit.color);
       setRecurrence(eventToEdit.recurrence || 'NONE');
+      if (eventToEdit.customRecurrence) {
+        setCustomRecurrence(eventToEdit.customRecurrence);
+      } else {
+        const d = new Date(eventToEdit.startDate);
+        setCustomRecurrence({
+          interval: 1,
+          unit: 'WEEK',
+          daysOfWeek: [d.getDay()],
+          endType: 'NEVER',
+        });
+      }
       setReminders(eventToEdit.reminders || [defaultReminder]);
     } else {
       const todayStr = initialDate || new Date().toISOString().split('T')[0];
@@ -92,6 +110,13 @@ export const EventModal: React.FC<EventModalProps> = ({
       setDescription('');
       setColor(defaultColor);
       setRecurrence('NONE');
+      const d = new Date(todayStr);
+      setCustomRecurrence({
+        interval: 1,
+        unit: 'WEEK',
+        daysOfWeek: [d.getDay()],
+        endType: 'NEVER',
+      });
       setReminders(defaultReminder > 0 ? [defaultReminder] : []);
     }
     setShowCustomReminderInput(false);
@@ -116,6 +141,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       description: description.trim() || undefined,
       reminders,
       recurrence,
+      customRecurrence: recurrence === 'CUSTOM' ? customRecurrence : undefined,
       createdAt: eventToEdit ? eventToEdit.createdAt : Date.now(),
       updatedAt: Date.now(),
     };
@@ -265,22 +291,164 @@ export const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Recurrence Selection */}
-          <div className="flex items-center gap-3 pt-1 text-xs">
-            <Repeat className="w-4 h-4 theme-muted shrink-0" />
-            <div className="flex-1">
-              <select
-                id="select-recurrence"
-                value={recurrence}
-                onChange={(e) => setRecurrence(e.target.value as RecurrenceFreq)}
-                className="w-full px-2.5 py-1.5 rounded-xl theme-input text-xs focus:outline-none"
-              >
-                <option value="NONE">Nie powtarza się</option>
-                <option value="DAILY">Codziennie</option>
-                <option value="WEEKLY">Co tydzień</option>
-                <option value="MONTHLY">Co miesiąc</option>
-                <option value="YEARLY">Co rok</option>
-              </select>
+          <div className="space-y-2 pt-1 text-xs">
+            <div className="flex items-center gap-3">
+              <Repeat className="w-4 h-4 theme-muted shrink-0" />
+              <div className="flex-1">
+                <select
+                  id="select-recurrence"
+                  value={recurrence}
+                  onChange={(e) => setRecurrence(e.target.value as RecurrenceFreq)}
+                  className="w-full px-2.5 py-1.5 rounded-xl theme-input text-xs focus:outline-none"
+                >
+                  <option value="NONE">Nie powtarza się</option>
+                  <option value="DAILY">Codziennie</option>
+                  <option value="WEEKLY">Co tydzień</option>
+                  <option value="MONTHLY">Co miesiąc</option>
+                  <option value="YEARLY">Co rok</option>
+                  <option value="CUSTOM">Niestandardowe...</option>
+                </select>
+              </div>
             </div>
+
+            {/* Custom Recurrence Editor */}
+            {recurrence === 'CUSTOM' && (
+              <div className="ml-7 p-3 rounded-2xl theme-subtle theme-border border space-y-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="theme-muted text-xs">Powtarzaj co:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={customRecurrence.interval}
+                    onChange={(e) => setCustomRecurrence({
+                      ...customRecurrence,
+                      interval: Math.max(1, parseInt(e.target.value, 10) || 1)
+                    })}
+                    className="w-14 px-2 py-1 rounded-lg theme-input text-center font-bold"
+                  />
+                  <select
+                    value={customRecurrence.unit}
+                    onChange={(e) => setCustomRecurrence({
+                      ...customRecurrence,
+                      unit: e.target.value as 'DAY' | 'WEEK' | 'MONTH' | 'YEAR'
+                    })}
+                    className="px-2.5 py-1 rounded-lg theme-input font-medium"
+                  >
+                    <option value="DAY">Dni</option>
+                    <option value="WEEK">Tygodnie</option>
+                    <option value="MONTH">Miesiące</option>
+                    <option value="YEAR">Lata</option>
+                  </select>
+                </div>
+
+                {/* Days of week selector if unit is WEEK */}
+                {customRecurrence.unit === 'WEEK' && (
+                  <div className="space-y-1.5">
+                    <span className="theme-muted text-[11px] block font-semibold">W dniach:</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {[
+                        { dow: 1, label: 'Pn' },
+                        { dow: 2, label: 'Wt' },
+                        { dow: 3, label: 'Śr' },
+                        { dow: 4, label: 'Cz' },
+                        { dow: 5, label: 'Pt' },
+                        { dow: 6, label: 'So' },
+                        { dow: 0, label: 'Nd' },
+                      ].map(({ dow, label }) => {
+                        const isSelected = (customRecurrence.daysOfWeek || []).includes(dow);
+                        return (
+                          <button
+                            key={dow}
+                            type="button"
+                            onClick={() => {
+                              const current = customRecurrence.daysOfWeek || [];
+                              const next = isSelected
+                                ? current.filter((d) => d !== dow)
+                                : [...current, dow];
+                              setCustomRecurrence({
+                                ...customRecurrence,
+                                daysOfWeek: next.length > 0 ? next : [dow],
+                              });
+                            }}
+                            className={`w-7 h-7 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-600 text-white shadow-xs'
+                                : 'theme-surface theme-text theme-border border hover:opacity-80'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* End type */}
+                <div className="space-y-2 pt-2 border-t theme-border">
+                  <span className="theme-muted text-[11px] block font-semibold">Koniec powtarzania:</span>
+                  
+                  {/* Radio 1: Nigdy */}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="recurrence-end"
+                      checked={customRecurrence.endType === 'NEVER'}
+                      onChange={() => setCustomRecurrence({ ...customRecurrence, endType: 'NEVER' })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xs theme-text">Nigdy</span>
+                  </label>
+
+                  {/* Radio 2: W dniu */}
+                  <label className="flex items-center gap-2 cursor-pointer flex-wrap">
+                    <input
+                      type="radio"
+                      name="recurrence-end"
+                      checked={customRecurrence.endType === 'UNTIL_DATE'}
+                      onChange={() => setCustomRecurrence({ ...customRecurrence, endType: 'UNTIL_DATE', untilDate: customRecurrence.untilDate || startDate })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xs theme-text">W dniu:</span>
+                    {customRecurrence.endType === 'UNTIL_DATE' && (
+                      <input
+                        type="date"
+                        value={customRecurrence.untilDate || startDate}
+                        min={startDate}
+                        onChange={(e) => setCustomRecurrence({ ...customRecurrence, untilDate: e.target.value })}
+                        className="px-2 py-0.5 rounded-lg theme-input text-xs"
+                      />
+                    )}
+                  </label>
+
+                  {/* Radio 3: Po X powtórzeniach */}
+                  <label className="flex items-center gap-2 cursor-pointer flex-wrap">
+                    <input
+                      type="radio"
+                      name="recurrence-end"
+                      checked={customRecurrence.endType === 'COUNT'}
+                      onChange={() => setCustomRecurrence({ ...customRecurrence, endType: 'COUNT', count: customRecurrence.count || 10 })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xs theme-text">Po:</span>
+                    {customRecurrence.endType === 'COUNT' && (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={customRecurrence.count || 10}
+                          onChange={(e) => setCustomRecurrence({ ...customRecurrence, count: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                          className="w-14 px-1.5 py-0.5 rounded-lg theme-input text-xs text-center font-bold"
+                        />
+                        <span className="text-xs theme-muted">wystąpieniach</span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Color Palette (11 Google Calendar Colors) */}

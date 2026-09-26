@@ -20,7 +20,16 @@ export interface CalendarColorDef {
   dot: string;
 }
 
-export type RecurrenceFreq = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+export type RecurrenceFreq = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM';
+
+export interface CustomRecurrenceRule {
+  interval: number; // e.g. 1, 2, 3...
+  unit: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
+  daysOfWeek?: number[]; // [0, 1, 2, 3, 4, 5, 6] (0 = Sunday, 1 = Monday ...)
+  endType: 'NEVER' | 'UNTIL_DATE' | 'COUNT';
+  untilDate?: string; // YYYY-MM-DD
+  count?: number; // total occurrences
+}
 
 export type ReminderInterval = 0 | 5 | 10 | 15 | 30 | 60 | 120 | 1440 | 'custom'; // minutes before
 
@@ -42,6 +51,7 @@ export interface CalendarEvent {
   allDay: boolean;
   color: GoogleCalendarColor;
   recurrence: RecurrenceFreq;
+  customRecurrence?: CustomRecurrenceRule;
   reminders: number[]; // minutes before event
   isCompletedTask?: boolean;
   createdAt: number;

@@ -6,53 +6,60 @@ interface MarkdownMessageProps {
 }
 
 /**
- * Robust, lightweight Markdown parser tailored for calendar assistant messages.
+ * Robust, high-performance Markdown parser for AI assistant messages.
  * Formats:
- * - **bold**
- * - *italic*
+ * - **bold** and __bold__
+ * - *italic* and _italic_
  * - `code`
+ * - # Headings (H1, H2, H3)
  * - Bullet lists (•, -, *)
  * - Numbered lists (1., 2., etc.)
- * - Line breaks and paragraphs
+ * - Line breaks and clean typography
  */
 export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUser = false }) => {
-  // Split message into paragraphs/lines
-  const lines = content.split('\n');
+  // Pre-clean any accidental spaces inside markdown asterisks like * * text * *
+  const cleanContent = content
+    .replace(/\*\s+\*/g, '')
+    .trim();
 
-  // Helper to parse inline styles (**bold**, *italic*, `code`)
+  // Helper to parse inline bold, italic, and code tokens
   const parseInline = (text: string): React.ReactNode[] => {
-    // Regex matching **bold**, *italic*, `code`, or plain text
-    // Using a capture group tokenizer
-    const tokenRegex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
-    const parts = text.split(tokenRegex);
+    // Matches **bold**, __bold__, *italic*, _italic_, `code`
+    const regex = /(\*\*[^*]+\*\*|__[^_]+__|(?<!\*)\*[^*]+\*(?!\*)|(?<!_)_[^_]+_(?!_)|`[^`]+`)/g;
+    const parts = text.split(regex);
 
     return parts.map((part, index) => {
       if (!part) return null;
 
-      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      // Bold (**text** or __text__)
+      if ((part.startsWith('**') && part.endsWith('**') && part.length >= 4) ||
+          (part.startsWith('__') && part.endsWith('__') && part.length >= 4)) {
         const inner = part.slice(2, -2);
         return (
           <strong
             key={index}
-            className={isUser ? 'font-bold text-white' : 'font-bold theme-text underline-offset-2'}
+            className={isUser ? 'font-bold text-white' : 'font-bold theme-text'}
           >
-            {inner}
+            {parseInline(inner)}
           </strong>
         );
       }
 
-      if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
+      // Italic (*text* or _text_)
+      if ((part.startsWith('*') && part.endsWith('*') && part.length >= 2) ||
+          (part.startsWith('_') && part.endsWith('_') && part.length >= 2)) {
         const inner = part.slice(1, -1);
         return (
           <em
             key={index}
-            className={isUser ? 'italic text-blue-100' : 'italic theme-text opacity-95'}
+            className={isUser ? 'italic text-blue-100' : 'italic theme-text opacity-90'}
           >
             {inner}
           </em>
         );
       }
 
+      // Inline code (`text`)
       if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
         const inner = part.slice(1, -1);
         return (
@@ -71,7 +78,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
     });
   };
 
-  // Group lines into blocks (paragraphs or lists)
+  const lines = cleanContent.split('\n');
   const elements: React.ReactNode[] = [];
   let currentList: { type: 'bullet' | 'ordered'; items: string[] } | null = null;
 
@@ -85,7 +92,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
                 <span className={`inline-block mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${
                   isUser ? 'bg-white/80' : 'bg-blue-500'
                 }`} />
-                <span className="leading-relaxed">{parseInline(item)}</span>
+                <span className="leading-relaxed text-xs sm:text-sm">{parseInline(item)}</span>
               </li>
             ))}
           </ul>
@@ -100,7 +107,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
                 }`}>
                   {i + 1}.
                 </span>
-                <span className="leading-relaxed">{parseInline(item)}</span>
+                <span className="leading-relaxed text-xs sm:text-sm">{parseInline(item)}</span>
               </li>
             ))}
           </ol>
@@ -116,7 +123,40 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
 
     if (!trimmed) {
       flushList();
-      elements.push(<div key={`empty-${i}`} className="h-2" />);
+      elements.push(<div key={`empty-${i}`} className="h-1.5" />);
+      continue;
+    }
+
+    // Heading 1 (# Heading)
+    if (trimmed.startsWith('# ')) {
+      flushList();
+      elements.push(
+        <h4 key={`h1-${i}`} className="text-sm sm:text-base font-bold theme-text mt-2 mb-1">
+          {parseInline(trimmed.slice(2))}
+        </h4>
+      );
+      continue;
+    }
+
+    // Heading 2 (## Heading)
+    if (trimmed.startsWith('## ')) {
+      flushList();
+      elements.push(
+        <h5 key={`h2-${i}`} className="text-xs sm:text-sm font-bold theme-text mt-2 mb-0.5">
+          {parseInline(trimmed.slice(3))}
+        </h5>
+      );
+      continue;
+    }
+
+    // Heading 3 (### Heading)
+    if (trimmed.startsWith('### ')) {
+      flushList();
+      elements.push(
+        <h6 key={`h3-${i}`} className="text-xs font-bold theme-text mt-1.5 mb-0.5">
+          {parseInline(trimmed.slice(4))}
+        </h6>
+      );
       continue;
     }
 
@@ -147,7 +187,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
     // Regular line
     flushList();
     elements.push(
-      <p key={`line-${i}`} className="leading-relaxed">
+      <p key={`line-${i}`} className="leading-relaxed text-xs sm:text-sm">
         {parseInline(trimmed)}
       </p>
     );
