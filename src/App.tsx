@@ -21,6 +21,8 @@ import { TopNavBar } from './components/TopNavBar';
 import { MonthView } from './components/MonthView';
 import { DayWeekView } from './components/DayWeekView';
 import { AgendaView } from './components/AgendaView';
+import { YearView } from './components/YearView';
+import { BottomNavMobile } from './components/BottomNavMobile';
 import { EventModal } from './components/EventModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AiAssistantDrawer } from './components/AiAssistantDrawer';
@@ -153,7 +155,9 @@ export default function App() {
   const handleNavigatePrev = () => {
     setCurrentDate((prev) => {
       const next = new Date(prev);
-      if (viewMode === 'month') {
+      if (viewMode === 'year') {
+        next.setFullYear(prev.getFullYear() - 1);
+      } else if (viewMode === 'month') {
         next.setMonth(prev.getMonth() - 1);
       } else if (viewMode === 'week') {
         next.setDate(prev.getDate() - 7);
@@ -169,7 +173,9 @@ export default function App() {
   const handleNavigateNext = () => {
     setCurrentDate((prev) => {
       const next = new Date(prev);
-      if (viewMode === 'month') {
+      if (viewMode === 'year') {
+        next.setFullYear(prev.getFullYear() + 1);
+      } else if (viewMode === 'month') {
         next.setMonth(prev.getMonth() + 1);
       } else if (viewMode === 'week') {
         next.setDate(prev.getDate() + 7);
@@ -286,7 +292,21 @@ export default function App() {
       />
 
       {/* Main View Area */}
-      <main className="flex-1 flex flex-col max-w-7xl w-full mx-auto p-2 sm:p-4">
+      <main className="flex-1 flex flex-col max-w-7xl w-full mx-auto p-1.5 sm:p-4 pb-20 sm:pb-4 overflow-hidden">
+        {viewMode === 'year' && (
+          <YearView
+            currentDate={currentDate}
+            events={events}
+            onSelectMonth={(monthIdx) => {
+              const next = new Date(currentDate);
+              next.setMonth(monthIdx);
+              setCurrentDate(next);
+              setViewMode('month');
+            }}
+            onSelectDay={handleSelectDay}
+          />
+        )}
+
         {viewMode === 'month' && (
           <MonthView
             currentDate={currentDate}
@@ -318,14 +338,22 @@ export default function App() {
         )}
       </main>
 
+      {/* Mobile Bottom Navigation Bar (like native Samsung/Google Calendar) */}
+      <BottomNavMobile
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        todayDayNumber={new Date().getDate()}
+        onNavigateToday={handleNavigateToday}
+      />
+
       {/* Mobile Floating Action Button (FAB) */}
       <button
         id="btn-mobile-fab-create"
         onClick={() => handleOpenCreateModal()}
         aria-label="Dodaj wydarzenie"
-        className="sm:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-xl flex items-center justify-center z-40 transition-transform active:scale-95"
+        className="sm:hidden fixed bottom-18 right-5 w-13 h-13 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-xl flex items-center justify-center z-40 transition-transform active:scale-95"
       >
-        <Plus className="w-7 h-7" />
+        <Plus className="w-6 h-6" />
       </button>
 
       {/* Event Modal (Create / Edit) */}

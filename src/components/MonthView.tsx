@@ -90,9 +90,9 @@ export const MonthView: React.FC<MonthViewProps> = ({
   });
 
   return (
-    <div className="flex flex-col h-[calc(100vh-115px)] sm:h-[calc(100vh-80px)] theme-surface rounded-2xl theme-border border overflow-hidden shadow-2xs transition-colors duration-200">
+    <div className="flex flex-col flex-1 h-[calc(100dvh-130px)] sm:h-[calc(100vh-80px)] theme-surface rounded-2xl theme-border border overflow-hidden shadow-2xs transition-colors duration-200">
       {/* Day of Week Headers */}
-      <div className="grid grid-cols-7 theme-border border-b bg-stone-500/5 text-center py-2 text-xs font-semibold theme-muted">
+      <div className="grid grid-cols-7 theme-border border-b bg-stone-500/5 text-center py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold theme-muted">
         {DAY_NAMES_SHORT_PL.map((day, idx) => (
           <div key={day} className={idx >= 5 ? 'opacity-60' : ''}>
             {day}
@@ -101,7 +101,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
       </div>
 
       {/* Days Grid */}
-      <div className="grid grid-cols-7 grid-rows-6 flex-1 theme-border divide-x divide-stone-500/20">
+      <div className="grid grid-cols-7 grid-rows-6 flex-1 theme-border divide-x divide-stone-500/15">
         {calendarCells.map((cell, index) => {
           const dayEvents = eventsByDate[cell.dateStr] || [];
           // Sort events: allDay first, then by startTime
@@ -116,19 +116,19 @@ export const MonthView: React.FC<MonthViewProps> = ({
               key={`${cell.dateStr}-${index}`}
               id={`calendar-cell-${cell.dateStr}`}
               onClick={() => onSelectDay(cell.dateStr)}
-              className={`flex flex-col p-1 sm:p-1.5 transition-colors cursor-pointer group border-b border-stone-500/20 overflow-hidden ${
+              className={`flex flex-col p-1 sm:p-1.5 transition-colors cursor-pointer group border-b border-stone-500/15 overflow-hidden min-h-0 ${
                 cell.isCurrentMonth ? 'theme-surface hover:bg-stone-500/5' : 'bg-stone-500/5 hover:bg-stone-500/10'
               }`}
             >
               {/* Day Header */}
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-0.5 sm:mb-1">
                 <span
-                  className={`inline-flex items-center justify-center text-xs font-medium rounded-full w-6 h-6 transition-transform group-hover:scale-105 ${
+                  className={`inline-flex items-center justify-center text-[11px] sm:text-xs font-medium rounded-full w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-105 ${
                     cell.isToday
                       ? 'bg-blue-600 text-white font-bold shadow-xs'
                       : cell.isCurrentMonth
                       ? 'theme-text'
-                      : 'theme-muted opacity-50'
+                      : 'theme-muted opacity-40'
                   }`}
                 >
                   {cell.dayNumber}
@@ -136,42 +136,60 @@ export const MonthView: React.FC<MonthViewProps> = ({
 
                 {/* Event count pill on mobile if crowded */}
                 {sortedEvents.length > 0 && (
-                  <span className="sm:hidden text-[10px] font-medium theme-muted bg-stone-500/10 px-1 rounded-sm">
+                  <span className="sm:hidden text-[9px] font-bold theme-muted bg-stone-500/15 px-1 rounded-full">
                     {sortedEvents.length}
                   </span>
                 )}
               </div>
 
-              {/* Event chips container */}
-              <div className="flex flex-col gap-1 overflow-y-auto max-h-[85px] sm:max-h-[105px] pr-0.5">
-                {sortedEvents.slice(0, 3).map((ev) => {
-                  const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
-                  return (
-                    <button
-                      key={ev.id}
-                      id={`event-chip-${ev.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectEvent(ev);
-                      }}
-                      className={`text-left text-[11px] leading-tight px-1.5 py-0.5 rounded-sm font-medium truncate flex items-center gap-1 transition-opacity hover:opacity-90 ${colorDef.bg} ${colorDef.text}`}
-                      title={`${ev.title} ${ev.startTime ? `(${ev.startTime})` : ''}`}
-                    >
-                      {!ev.allDay && (
-                        <span className="font-semibold text-[10px] opacity-90 shrink-0">
-                          {ev.startTime}
-                        </span>
-                      )}
-                      <span className="truncate">{ev.title}</span>
-                    </button>
-                  );
-                })}
+              {/* Event chips container - compact on mobile */}
+              <div className="flex flex-col gap-0.5 sm:gap-1 overflow-hidden flex-1">
+                {/* On small mobile: show colored dots if very constrained */}
+                <div className="flex sm:hidden flex-wrap gap-0.5 mt-0.5 max-h-[22px] overflow-hidden">
+                  {sortedEvents.slice(0, 4).map((ev) => {
+                    const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
+                    return (
+                      <span
+                        key={ev.id}
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: colorDef.dot }}
+                        title={ev.title}
+                      />
+                    );
+                  })}
+                </div>
 
-                {sortedEvents.length > 3 && (
-                  <div className="text-[10px] font-semibold theme-muted hover:theme-text pl-1">
-                    +{sortedEvents.length - 3} więcej
-                  </div>
-                )}
+                {/* Event titles on larger screens or compact text */}
+                <div className="hidden sm:flex flex-col gap-1 overflow-y-auto max-h-[85px]">
+                  {sortedEvents.slice(0, 3).map((ev) => {
+                    const colorDef = GOOGLE_CALENDAR_COLORS[ev.color] || GOOGLE_CALENDAR_COLORS.peacock;
+                    return (
+                      <button
+                        key={ev.id}
+                        id={`event-chip-${ev.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectEvent(ev);
+                        }}
+                        className={`text-left text-[11px] leading-tight px-1.5 py-0.5 rounded-sm font-medium truncate flex items-center gap-1 transition-opacity hover:opacity-90 ${colorDef.bg} ${colorDef.text}`}
+                        title={`${ev.title} ${ev.startTime ? `(${ev.startTime})` : ''}`}
+                      >
+                        {!ev.allDay && (
+                          <span className="font-semibold text-[10px] opacity-90 shrink-0">
+                            {ev.startTime}
+                          </span>
+                        )}
+                        <span className="truncate">{ev.title}</span>
+                      </button>
+                    );
+                  })}
+
+                  {sortedEvents.length > 3 && (
+                    <div className="text-[10px] font-semibold theme-muted hover:theme-text pl-1">
+                      +{sortedEvents.length - 3} więcej
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );

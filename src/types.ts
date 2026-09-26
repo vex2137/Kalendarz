@@ -48,7 +48,7 @@ export interface CalendarEvent {
   updatedAt: number;
 }
 
-export type CalendarViewMode = 'month' | 'week' | 'day' | 'agenda';
+export type CalendarViewMode = 'month' | 'week' | 'day' | 'agenda' | 'year';
 
 export interface AiSettings {
   enabled: boolean;

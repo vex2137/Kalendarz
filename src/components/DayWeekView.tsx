@@ -90,15 +90,15 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-115px)] sm:h-[calc(100vh-80px)] theme-surface theme-border border rounded-2xl overflow-hidden shadow-2xs transition-colors duration-200">
+    <div className="flex flex-col flex-1 h-[calc(100dvh-130px)] sm:h-[calc(100vh-80px)] theme-surface theme-border border rounded-2xl overflow-hidden shadow-2xs transition-colors duration-200">
       {/* Top Days Header */}
-      <div className="flex theme-border border-b bg-stone-500/5 pl-14 pr-2 py-2">
+      <div className="flex theme-border border-b bg-stone-500/5 pl-10 sm:pl-14 pr-1 sm:pr-2 py-2">
         <div className={`grid w-full ${viewMode === 'day' ? 'grid-cols-1' : 'grid-cols-7'} text-center`}>
           {daysToRender.map((day) => (
             <div key={day.dateStr} className="flex flex-col items-center">
-              <span className="text-[11px] font-semibold theme-muted uppercase">{day.dayName}</span>
+              <span className="text-[10px] sm:text-[11px] font-semibold theme-muted uppercase">{day.dayName}</span>
               <span
-                className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center mt-0.5 ${
+                className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full text-[11px] sm:text-xs font-bold flex items-center justify-center mt-0.5 ${
                   day.isToday ? 'bg-blue-600 text-white shadow-xs' : 'theme-text'
                 }`}
               >
@@ -115,9 +115,9 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
           const hourLabel = `${String(hour).padStart(2, '0')}:00`;
 
           return (
-            <div key={hour} className="flex min-h-[56px] relative group hover:bg-stone-500/5">
+            <div key={hour} className="flex min-h-[50px] sm:min-h-[56px] relative group hover:bg-stone-500/5">
               {/* Hour Label */}
-              <div className="w-14 shrink-0 text-right pr-2.5 -top-2 relative text-[11px] font-medium theme-muted select-none">
+              <div className="w-10 sm:w-14 shrink-0 text-right pr-1 sm:pr-2.5 -top-2 relative text-[10px] sm:text-[11px] font-medium theme-muted select-none">
                 {hourLabel}
               </div>
 
@@ -143,7 +143,7 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
                           className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
                           style={{ top: `${((currentHourMinutes % 60) / 60) * 100}%` }}
                         >
-                          <div className="w-2 h-2 rounded-full bg-red-600 -ml-1"></div>
+                          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-600 -ml-1"></div>
                           <div className="h-0.5 w-full bg-red-500"></div>
                         </div>
                       )}
@@ -164,13 +164,15 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
                               top: `${topPercent}%`,
                               height: `${heightPercent}%`,
                             }}
-                            className={`absolute left-0.5 right-0.5 z-10 rounded-md p-1 shadow-xs cursor-pointer overflow-hidden text-[11px] leading-tight ${colorDef.bg} ${colorDef.text}`}
+                            className={`absolute left-0.5 right-0.5 z-10 rounded-md p-0.5 sm:p-1 shadow-xs cursor-pointer overflow-hidden text-[10px] sm:text-[11px] leading-tight ${colorDef.bg} ${colorDef.text}`}
                             title={`${ev.title} (${ev.startTime} - ${ev.endTime})`}
                           >
                             <div className="font-semibold truncate">{ev.title}</div>
-                            <div className="text-[10px] opacity-90 truncate">
-                              {ev.startTime} - {ev.endTime}
-                            </div>
+                            {ev.startTime && (
+                              <div className="text-[9px] sm:text-[10px] opacity-90 truncate hidden sm:block">
+                                {ev.startTime} - {ev.endTime}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
