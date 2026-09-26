@@ -92,7 +92,7 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
   return (
     <div className="flex flex-col flex-1 h-[calc(100dvh-130px)] sm:h-[calc(100vh-80px)] theme-surface theme-border border rounded-2xl overflow-hidden shadow-2xs transition-colors duration-200">
       {/* Top Days Header */}
-      <div className="flex theme-border border-b bg-stone-500/5 pl-10 sm:pl-14 pr-1 sm:pr-2 py-2">
+      <div className="flex theme-border border-b bg-stone-500/5 pl-11 sm:pl-14 pr-1 sm:pr-2 py-2 shrink-0">
         <div className={`grid w-full ${viewMode === 'day' ? 'grid-cols-1' : 'grid-cols-7'} text-center`}>
           {daysToRender.map((day) => (
             <div key={day.dateStr} className="flex flex-col items-center">
@@ -109,15 +109,15 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
         </div>
       </div>
 
-      {/* Hourly Grid Scrollable Body */}
-      <div className="flex-1 overflow-y-auto relative divide-y divide-stone-500/10">
+      {/* Hourly Grid Scrollable Body - with pt-3 to ensure 00:00 label is completely visible */}
+      <div className="flex-1 overflow-y-auto relative divide-y divide-stone-500/10 pt-2 pb-6">
         {hours.map((hour) => {
           const hourLabel = `${String(hour).padStart(2, '0')}:00`;
 
           return (
-            <div key={hour} className="flex min-h-[50px] sm:min-h-[56px] relative group hover:bg-stone-500/5">
+            <div key={hour} className="flex min-h-[52px] sm:min-h-[56px] relative group hover:bg-stone-500/5">
               {/* Hour Label */}
-              <div className="w-10 sm:w-14 shrink-0 text-right pr-1 sm:pr-2.5 -top-2 relative text-[10px] sm:text-[11px] font-medium theme-muted select-none">
+              <div className="w-11 sm:w-14 shrink-0 text-right pr-1 sm:pr-2.5 top-0 relative text-[10px] sm:text-[11px] font-medium theme-muted select-none">
                 {hourLabel}
               </div>
 
