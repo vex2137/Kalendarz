@@ -6,13 +6,13 @@ import {
   Plus, 
   Sparkles, 
   Settings as SettingsIcon,
-  Search,
   Bell,
-  Check
+  ArrowLeftRight,
+  Search,
+  Layers
 } from 'lucide-react';
 import { CalendarViewMode } from '../types';
 import { MONTH_NAMES_PL } from '../utils/constants';
-import { PrivacyBadge } from './PrivacyBadge';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface TopNavBarProps {
@@ -25,6 +25,9 @@ interface TopNavBarProps {
   onOpenCreateModal: () => void;
   onOpenAiDrawer: () => void;
   onOpenSettings: () => void;
+  onOpenSync: () => void;
+  onOpenSearch: () => void;
+  onOpenBuildGuide: () => void;
   isAiEnabled: boolean;
   notificationPermission: NotificationPermission;
   onRequestNotification: () => void;
@@ -40,6 +43,9 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   onOpenCreateModal,
   onOpenAiDrawer,
   onOpenSettings,
+  onOpenSync,
+  onOpenSearch,
+  onOpenBuildGuide,
   isAiEnabled,
   notificationPermission,
   onRequestNotification,
@@ -48,27 +54,26 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const year = currentDate.getFullYear();
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-stone-200 px-3 py-2.5 sm:px-4">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-30 theme-header theme-border border-b px-3 py-2.5 sm:px-5 transition-colors duration-200">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         {/* Left Section: Brand & Month Navigation */}
-        <div className="flex items-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
               <CalendarIcon className="w-5 h-5" />
             </div>
-            <div className="hidden md:block">
-              <span className="font-semibold text-stone-900 tracking-tight text-base">Kalendarz</span>
-              <span className="ml-1 text-xs px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 font-medium border border-blue-200">AI Offline</span>
+            <div className="hidden sm:block">
+              <span className="font-bold theme-text tracking-tight text-base">Kalendarz Offline</span>
             </div>
           </div>
 
-          <div className="h-5 w-px bg-stone-200 hidden sm:block"></div>
+          <div className="h-5 w-px theme-border border-r hidden sm:block"></div>
 
           {/* Today Button */}
           <button
             id="btn-nav-today"
             onClick={onNavigateToday}
-            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 active:bg-stone-100 transition-colors"
+            className="px-3 py-1.5 text-xs font-semibold rounded-xl theme-border border theme-surface theme-text theme-hover hover:opacity-90 transition-colors shadow-2xs"
           >
             Dzisiaj
           </button>
@@ -78,7 +83,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <button
               id="btn-nav-prev"
               onClick={onNavigatePrev}
-              className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors"
+              className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
               title="Poprzedni"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -86,7 +91,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <button
               id="btn-nav-next"
               onClick={onNavigateNext}
-              className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors"
+              className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
               title="Następny"
             >
               <ChevronRight className="w-5 h-5" />
@@ -94,15 +99,22 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           </div>
 
           {/* Current Month & Year */}
-          <h2 className="text-base sm:text-lg font-semibold text-stone-900 whitespace-nowrap">
-            {monthName} <span className="font-normal text-stone-500">{year}</span>
+          <h2 className="text-base sm:text-lg font-bold theme-text whitespace-nowrap pl-1">
+            {monthName} <span className="font-normal theme-muted">{year}</span>
           </h2>
         </div>
 
         {/* Center / Right Section: Controls */}
-        <div className="flex items-center gap-2">
-          {/* Privacy badge */}
-          <PrivacyBadge />
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Quick Search Button */}
+          <button
+            id="btn-open-search"
+            onClick={onOpenSearch}
+            className="p-2 rounded-xl theme-muted hover:theme-text theme-hover transition-colors border border-transparent hover:theme-border"
+            title="Szukaj wydarzeń (Ctrl+F)"
+          >
+            <Search className="w-4 h-4" />
+          </button>
 
           {/* PWA Install Button */}
           <PWAInstallButton />
@@ -112,23 +124,23 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <button
               id="btn-request-notifications"
               onClick={onRequestNotification}
-              className="hidden lg:flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
-              title="Włącz powiadomienia push w przeglądarce / na telefonie"
+              className="hidden lg:flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-xl text-amber-500 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+              title="Włącz powiadomienia na urządzeniu"
             >
-              <Bell className="w-3.5 h-3.5 text-amber-600" />
-              <span>Włącz alerty</span>
+              <Bell className="w-3.5 h-3.5 text-amber-500" />
+              <span>Alerty</span>
             </button>
           )}
 
           {/* View Mode Selector */}
-          <div className="hidden sm:flex bg-stone-100 p-0.5 rounded-xl border border-stone-200 text-xs font-medium">
+          <div className="hidden md:flex theme-subtle p-0.5 rounded-xl theme-border border text-xs font-medium">
             <button
               id="btn-view-month"
               onClick={() => onViewModeChange('month')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all ${
                 viewMode === 'month' 
-                  ? 'bg-white text-stone-900 shadow-xs font-semibold' 
-                  : 'text-stone-600 hover:text-stone-900'
+                  ? 'theme-surface theme-text shadow-xs font-bold' 
+                  : 'theme-muted hover:theme-text'
               }`}
             >
               Miesiąc
@@ -136,10 +148,10 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <button
               id="btn-view-week"
               onClick={() => onViewModeChange('week')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all ${
                 viewMode === 'week' 
-                  ? 'bg-white text-stone-900 shadow-xs font-semibold' 
-                  : 'text-stone-600 hover:text-stone-900'
+                  ? 'theme-surface theme-text shadow-xs font-bold' 
+                  : 'theme-muted hover:theme-text'
               }`}
             >
               Tydzień
@@ -147,10 +159,10 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <button
               id="btn-view-day"
               onClick={() => onViewModeChange('day')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all ${
                 viewMode === 'day' 
-                  ? 'bg-white text-stone-900 shadow-xs font-semibold' 
-                  : 'text-stone-600 hover:text-stone-900'
+                  ? 'theme-surface theme-text shadow-xs font-bold' 
+                  : 'theme-muted hover:theme-text'
               }`}
             >
               Dzień
@@ -158,42 +170,57 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <button
               id="btn-view-agenda"
               onClick={() => onViewModeChange('agenda')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all ${
                 viewMode === 'agenda' 
-                  ? 'bg-white text-stone-900 shadow-xs font-semibold' 
-                  : 'text-stone-600 hover:text-stone-900'
+                  ? 'theme-surface theme-text shadow-xs font-bold' 
+                  : 'theme-muted hover:theme-text'
               }`}
             >
               Harmonogram
             </button>
           </div>
 
-          {/* AI Assistant Button */}
+          {/* Assistant Button */}
+          {isAiEnabled && (
+            <button
+              id="btn-open-ai-assistant"
+              onClick={onOpenAiDrawer}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border border-violet-500/30 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 shadow-xs"
+              title="Lokalny Asystent Kalendarza (Offline NLP)"
+            >
+              <Sparkles className="w-4 h-4 text-violet-400" />
+              <span className="hidden sm:inline">Asystent</span>
+            </button>
+          )}
+
+          {/* Sync Button */}
           <button
-            id="btn-open-ai-assistant"
-            onClick={onOpenAiDrawer}
-            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
-              isAiEnabled 
-                ? 'bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100 shadow-xs' 
-                : 'bg-stone-100 text-stone-500 border-stone-200 hover:bg-stone-200'
-            }`}
-            title="Lokalny Asystent AI (Gemma 2 2B / NLP Offline)"
+            id="btn-open-sync"
+            onClick={onOpenSync}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors border border-indigo-500/30 text-xs font-semibold shadow-2xs"
+            title="Synchronizacja PC ⇄ Telefon (Bez konta, Kod QR / Plik)"
           >
-            <Sparkles className={`w-4 h-4 ${isAiEnabled ? 'text-violet-600 animate-pulse' : 'text-stone-400'}`} />
-            <span className="hidden md:inline">Asystent AI</span>
-            {isAiEnabled && (
-              <span className="hidden lg:inline text-[10px] uppercase font-bold tracking-wider px-1 rounded bg-violet-200 text-violet-900">
-                Gemma 2B
-              </span>
-            )}
+            <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
+            <span className="hidden sm:inline">Synchronizuj</span>
+          </button>
+
+          {/* Build Guide Button */}
+          <button
+            id="btn-open-build-guide"
+            onClick={onOpenBuildGuide}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl theme-subtle theme-hover theme-text theme-border border text-xs font-semibold shadow-2xs"
+            title="Instrukcje i skrypty budowy na APK, Linux i Windows"
+          >
+            <Layers className="w-3.5 h-3.5 text-blue-500" />
+            <span>Buduj / APK</span>
           </button>
 
           {/* Settings Button */}
           <button
             id="btn-open-settings"
             onClick={onOpenSettings}
-            className="p-2 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors border border-transparent hover:border-stone-200"
-            title="Ustawienia, PIN i Eksport"
+            className="p-2 rounded-xl theme-muted hover:theme-text theme-hover transition-colors border border-transparent hover:theme-border"
+            title="Ustawienia, Święta, Motywy, PIN i Kopia"
           >
             <SettingsIcon className="w-4 h-4" />
           </button>
@@ -202,7 +229,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           <button
             id="btn-create-event-top"
             onClick={onOpenCreateModal}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Utwórz</span>
@@ -211,36 +238,36 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
       </div>
 
       {/* Mobile view selector row */}
-      <div className="flex sm:hidden mt-2 pt-2 border-t border-stone-100 items-center justify-between">
-        <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200 text-xs font-medium w-full justify-between">
+      <div className="flex md:hidden mt-2 pt-2 theme-border border-t items-center justify-between">
+        <div className="flex theme-subtle p-0.5 rounded-xl theme-border border text-xs font-medium w-full justify-between">
           <button
             onClick={() => onViewModeChange('month')}
-            className={`flex-1 py-1 rounded-md text-center transition-all ${
-              viewMode === 'month' ? 'bg-white text-stone-900 shadow-xs font-semibold' : 'text-stone-600'
+            className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
+              viewMode === 'month' ? 'theme-surface theme-text shadow-xs font-bold' : 'theme-muted'
             }`}
           >
             Miesiąc
           </button>
           <button
             onClick={() => onViewModeChange('week')}
-            className={`flex-1 py-1 rounded-md text-center transition-all ${
-              viewMode === 'week' ? 'bg-white text-stone-900 shadow-xs font-semibold' : 'text-stone-600'
+            className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
+              viewMode === 'week' ? 'theme-surface theme-text shadow-xs font-bold' : 'theme-muted'
             }`}
           >
             Tydzień
           </button>
           <button
             onClick={() => onViewModeChange('day')}
-            className={`flex-1 py-1 rounded-md text-center transition-all ${
-              viewMode === 'day' ? 'bg-white text-stone-900 shadow-xs font-semibold' : 'text-stone-600'
+            className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
+              viewMode === 'day' ? 'theme-surface theme-text shadow-xs font-bold' : 'theme-muted'
             }`}
           >
             Dzień
           </button>
           <button
             onClick={() => onViewModeChange('agenda')}
-            className={`flex-1 py-1 rounded-md text-center transition-all ${
-              viewMode === 'agenda' ? 'bg-white text-stone-900 shadow-xs font-semibold' : 'text-stone-600'
+            className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
+              viewMode === 'agenda' ? 'theme-surface theme-text shadow-xs font-bold' : 'theme-muted'
             }`}
           >
             Plan

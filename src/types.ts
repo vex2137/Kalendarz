@@ -66,13 +66,21 @@ export interface SecuritySettings {
   isLocked: boolean;
 }
 
+export type AppTheme = 'light' | 'dark' | 'nord' | 'emerald' | 'sunset' | 'lavender' | 'moka';
+
 export interface AppSettings {
   ai: AiSettings;
   security: SecuritySettings;
   soundEnabled: boolean;
   vibrationEnabled: boolean;
   startOfWeek: 1; // 1 = Monday
-  theme: 'light' | 'dark' | 'system';
+  theme: AppTheme;
+  defaultEventDuration: number; // np. 30, 45, 60 minut
+  defaultReminder: number; // np. 0, 5, 10, 15, 30, 60 minut
+  defaultView: CalendarViewMode;
+  defaultColor: GoogleCalendarColor;
+  timeFormat24h: boolean;
+  compactView: boolean;
 }
 
 export interface AiChatMessage {

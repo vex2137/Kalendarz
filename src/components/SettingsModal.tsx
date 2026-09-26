@@ -1,12 +1,21 @@
 import React, { useState, useRef } from 'react';
 import { 
   AppSettings, 
-  CalendarEvent 
+  CalendarEvent,
+  AppTheme,
+  GoogleCalendarColor,
+  CalendarViewMode
 } from '../types';
 import { 
   exportEventsToICS, 
   parseICSToEvents 
 } from '../utils/storage';
+import { 
+  AVAILABLE_THEMES,
+  GOOGLE_CALENDAR_COLORS,
+  STANDARD_REMINDER_OPTIONS
+} from '../utils/constants';
+import { generateHolidayEvents } from '../utils/holidays';
 import { 
   playNotificationSound, 
   triggerVibration, 
@@ -14,16 +23,23 @@ import {
 } from '../utils/notifications';
 import { 
   X, 
-  Cpu, 
-  Lock, 
+  Shield, 
+  KeyRound, 
   Bell, 
+  Sparkles, 
   Download, 
   Upload, 
   Trash2, 
   Volume2, 
   Check, 
   AlertTriangle,
-  Smartphone
+  Smartphone,
+  Palette,
+  Clock,
+  Calendar,
+  Layers,
+  Flag,
+  Monitor
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -32,9 +48,10 @@ interface SettingsModalProps {
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
   events: CalendarEvent[];
-  onImportEvents: (newEvents: CalendarEvent[]) => void;
+  onImportEvents: (importedEvents: CalendarEvent[]) => void;
   onClearAllEvents: () => void;
-  onLockApp: () => void;
+  onLockApp?: () => void;
+  onOpenBuildGuide?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -46,70 +63,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportEvents,
   onClearAllEvents,
   onLockApp,
+  onOpenBuildGuide,
 }) => {
-  const [pinInput, setPinInput] = useState(settings.security.pinCode || '');
-  const [showPinError, setShowPinError] = useState(false);
-  const [notificationStatus, setNotificationStatus] = useState<string>(
-    typeof Notification !== 'undefined' ? Notification.permission : 'default'
-  );
+  const [pinInput, setPinInput] = useState(settings.security.pinCode);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinSuccess, setPinSuccess] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [holidaysAdded, setHolidaysAdded] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
 
-  const handleToggleAi = (enabled: boolean) => {
+  const handleSavePin = () => {
+    if (settings.security.pinEnabled) {
+      if (pinInput.length !== 4 || !/^\d{4}$/.test(pinInput)) {
+        setPinError('PIN musi składać się dokładnie z 4 cyfr!');
+        return;
+      }
+    }
+    setPinError(null);
     onUpdateSettings({
       ...settings,
-      ai: {
-        ...settings.ai,
-        enabled,
+      security: {
+        ...settings.security,
+        pinCode: pinInput,
       },
     });
+    setPinSuccess('PIN został pomyślnie zaktualizowany.');
+    setTimeout(() => setPinSuccess(null), 3000);
   };
 
   const handleTogglePin = (enabled: boolean) => {
-    if (enabled && pinInput.length < 4) {
-      setShowPinError(true);
+    if (enabled && (!pinInput || pinInput.length !== 4)) {
+      setPinError('Wprowadź 4 cyfry PIN przed włączeniem blokady!');
       return;
     }
-    setShowPinError(false);
+    setPinError(null);
     onUpdateSettings({
       ...settings,
       security: {
         ...settings.security,
         pinEnabled: enabled,
-        pinCode: enabled ? pinInput : '',
-      },
-    });
-  };
-
-  const handleSavePin = () => {
-    if (pinInput.length !== 4 || !/^\d+$/.test(pinInput)) {
-      setShowPinError(true);
-      return;
-    }
-    setShowPinError(false);
-    onUpdateSettings({
-      ...settings,
-      security: {
-        ...settings.security,
-        pinEnabled: true,
         pinCode: pinInput,
       },
     });
   };
 
-  const handleRequestPush = async () => {
-    const res = await requestNotificationPermission();
-    setNotificationStatus(res);
+  const handleTestSound = () => {
+    playNotificationSound();
   };
 
-  const handleTestChime = () => {
-    playNotificationSound();
+  const handleTestVibration = () => {
     triggerVibration();
   };
 
-  const handleIcsFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -125,7 +134,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
           setImportStatus('Nie znaleziono poprawnych wydarzeń w pliku .ics.');
         }
-      } catch (err) {
+      } catch {
         setImportStatus('Błąd podczas odczytu pliku .ics');
       }
     };
@@ -133,273 +142,510 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div 
         id="modal-settings"
-        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-stone-200 overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150"
+        className="theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50/70">
-          <h3 className="text-base font-semibold text-stone-900">Ustawienia kalendarza</h3>
+        <div className="flex items-center justify-between px-5 py-4 theme-border border-b theme-subtle">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold theme-text">Ustawienia kalendarza</h3>
+          </div>
           <button
             id="btn-close-settings-modal"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-200/60 transition-colors"
+            className="p-1.5 rounded-xl theme-muted hover:theme-text theme-hover transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-5 space-y-6 overflow-y-auto max-h-[80vh] divide-y divide-stone-100">
-          {/* Section 1: Local AI Engine (Gemma 2 2B) */}
+        <div className="p-5 space-y-6 overflow-y-auto max-h-[80vh] divide-y theme-border">
+          {/* Section 1: Motyw kolorystyczny */}
           <div className="space-y-3 pt-1">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center">
-                  <Cpu className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-stone-900">Lokalny model AI</h4>
-                  <p className="text-xs text-stone-700">Działający w 100% na urządzeniu</p>
-                </div>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                <Palette className="w-4 h-4" />
               </div>
-
-              {/* Toggle switch */}
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  id="toggle-ai-enabled"
-                  type="checkbox"
-                  checked={settings.ai.enabled}
-                  onChange={(e) => handleToggleAi(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
-              </label>
+              <div>
+                <h4 className="text-sm font-bold theme-text">Motyw kolorystyczny</h4>
+                <p className="text-xs theme-muted">Dostosuj styl całej aplikacji</p>
+              </div>
             </div>
 
-            {settings.ai.enabled ? (
-              <div className="p-3 bg-violet-50/60 rounded-xl border border-violet-100 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-violet-900">
-                  <span className="font-medium">Aktywny silnik:</span>
-                  <span className="font-semibold px-2 py-0.5 rounded-md bg-violet-200 text-violet-950">
-                    Gemma 2 (2B) On-Device
-                  </span>
-                </div>
-                <p className="text-[11px] text-stone-700">
-                  Przetwarzanie tekstu, rozpoznawanie dat w języku polskim oraz asystent czatu działają bezpośrednio na procesorze telefonu bez wysyłania jakichkolwiek zapytań do internetu.
-                </p>
-              </div>
-            ) : (
-              <div className="p-2.5 bg-stone-100 rounded-xl text-xs text-stone-700">
-                Sztuczna inteligencja jest wyłączona. Wszystkie standardowe funkcje kalendarza działają normalnie.
-              </div>
-            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+              {AVAILABLE_THEMES.map((th) => {
+                const isSelected = settings.theme === th.id;
+                return (
+                  <button
+                    key={th.id}
+                    type="button"
+                    onClick={() => {
+                      onUpdateSettings({
+                        ...settings,
+                        theme: th.id,
+                      });
+                    }}
+                    className={`relative p-3 rounded-2xl border text-left transition-all flex flex-col justify-between overflow-hidden ${
+                      isSelected
+                        ? 'border-indigo-500 ring-2 ring-indigo-500/40 shadow-xs theme-surface'
+                        : 'theme-border hover:opacity-90 theme-subtle'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="w-4 h-4 rounded-full flex items-center justify-center border border-black/20 shadow-xs" style={{ backgroundColor: th.dotColor }}>
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${th.chipClass}`}>
+                        {th.badge}
+                      </span>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-bold theme-text leading-tight">
+                        {th.name}
+                      </p>
+                    </div>
+
+                    {isSelected && (
+                      <div className="absolute top-2 right-2 text-indigo-400">
+                        <Check className="w-3.5 h-3.5" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Section 2: Security & PIN lock */}
+          {/* Section 2: Domyślne parametry nowych wydarzeń */}
+          <div className="space-y-3 pt-5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold theme-text">Domyślne ustawienia wydarzeń</h4>
+                <p className="text-xs theme-muted">Ułatw szybkie dodawanie terminów</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Domyślny czas trwania */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold theme-text">
+                  Domyślny czas trwania:
+                </label>
+                <select
+                  value={settings.defaultEventDuration || 60}
+                  onChange={(e) => {
+                    onUpdateSettings({
+                      ...settings,
+                      defaultEventDuration: Number(e.target.value),
+                    });
+                  }}
+                  className="w-full text-xs font-medium px-3 py-2 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={15}>15 minut</option>
+                  <option value={30}>30 minut</option>
+                  <option value={45}>45 minut</option>
+                  <option value={60}>1 godzina (60 min)</option>
+                  <option value={90}>1.5 godziny (90 min)</option>
+                  <option value={120}>2 godziny (120 min)</option>
+                </select>
+              </div>
+
+              {/* Domyślne powiadomienie */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold theme-text">
+                  Domyślne przypomnienie:
+                </label>
+                <select
+                  value={settings.defaultReminder !== undefined ? settings.defaultReminder : 15}
+                  onChange={(e) => {
+                    onUpdateSettings({
+                      ...settings,
+                      defaultReminder: Number(e.target.value),
+                    });
+                  }}
+                  className="w-full text-xs font-medium px-3 py-2 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {STANDARD_REMINDER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Domyślny widok po otwarciu */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold theme-text">
+                  Domyślny widok kalendarza:
+                </label>
+                <select
+                  value={settings.defaultView || 'month'}
+                  onChange={(e) => {
+                    onUpdateSettings({
+                      ...settings,
+                      defaultView: e.target.value as CalendarViewMode,
+                    });
+                  }}
+                  className="w-full text-xs font-medium px-3 py-2 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="month">Widok miesiąca</option>
+                  <option value="week">Widok tygodnia</option>
+                  <option value="day">Widok dnia</option>
+                  <option value="agenda">Harmonogram (Lista)</option>
+                </select>
+              </div>
+
+              {/* Domyślny kolor */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold theme-text">
+                  Domyślny kolor nowego wydarzenia:
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  {(Object.keys(GOOGLE_CALENDAR_COLORS) as GoogleCalendarColor[]).slice(0, 8).map((cKey) => {
+                    const isSelected = (settings.defaultColor || 'peacock') === cKey;
+                    return (
+                      <button
+                        key={cKey}
+                        type="button"
+                        onClick={() => {
+                          onUpdateSettings({
+                            ...settings,
+                            defaultColor: cKey,
+                          });
+                        }}
+                        className={`w-6 h-6 rounded-full transition-transform flex items-center justify-center ${
+                          isSelected ? 'scale-115 ring-2 ring-white shadow-xs' : 'hover:scale-105 opacity-80 hover:opacity-100'
+                        }`}
+                        style={{ backgroundColor: GOOGLE_CALENDAR_COLORS[cKey].dot }}
+                        title={GOOGLE_CALENDAR_COLORS[cKey].name}
+                      >
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Dźwięki i Alerty */}
+          <div className="space-y-3 pt-5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                <Bell className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold theme-text">Dźwięki i powiadomienia</h4>
+                <p className="text-xs theme-muted">Sygnały dźwiękowe i wibracje na telefonie</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between p-3 rounded-2xl theme-subtle theme-border border">
+                <div className="flex items-center gap-2.5">
+                  <Volume2 className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs font-semibold theme-text">Dźwięk powiadomień</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTestSound}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg theme-surface theme-hover theme-border border theme-text"
+                  >
+                    Testuj dźwięk
+                  </button>
+                  <input
+                    type="checkbox"
+                    checked={settings.soundEnabled}
+                    onChange={(e) =>
+                      onUpdateSettings({
+                        ...settings,
+                        soundEnabled: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-2xl theme-subtle theme-border border">
+                <div className="flex items-center gap-2.5">
+                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-semibold theme-text">Wibracja w telefonie</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTestVibration}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg theme-surface theme-hover theme-border border theme-text"
+                  >
+                    Testuj wibrację
+                  </button>
+                  <input
+                    type="checkbox"
+                    checked={settings.vibrationEnabled}
+                    onChange={(e) =>
+                      onUpdateSettings({
+                        ...settings,
+                        vibrationEnabled: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Lokalny Asystent Kalendarza (Offline NLP) */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                  <Lock className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-stone-900">Blokada kodem PIN</h4>
-                  <p className="text-xs text-stone-700">Ochrona Twojego kalendarza przed niepowołanymi osobami</p>
+                  <h4 className="text-sm font-bold theme-text">Lokalny Asystent Kalendarza</h4>
+                  <p className="text-xs theme-muted">100% Offline NLP • 0 telemetrii</p>
                 </div>
               </div>
-
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
-                  id="toggle-pin-security"
+                  type="checkbox"
+                  checked={settings.ai.enabled}
+                  onChange={(e) =>
+                    onUpdateSettings({
+                      ...settings,
+                      ai: {
+                        ...settings.ai,
+                        enabled: e.target.checked,
+                      },
+                    })
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-stone-500/30 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-600"></div>
+              </label>
+            </div>
+
+            <p className="text-xs theme-muted leading-relaxed">
+              Asystent działa w całości na Twoim telefonie bez żadnego połączenia z internetem. Potrafi analizować wolny czas, planować spotkania ze zdań w języku polskim oraz tworzyć inteligentne podsumowania.
+            </p>
+          </div>
+
+          {/* Section 5: Blokada kodem PIN */}
+          <div className="space-y-3 pt-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold theme-text">Blokada kodem PIN</h4>
+                  <p className="text-xs theme-muted">Zabezpiecz kalendarz 4-cyfrowym kodem</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
                   type="checkbox"
                   checked={settings.security.pinEnabled}
                   onChange={(e) => handleTogglePin(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                <div className="w-9 h-5 bg-stone-500/30 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
               </label>
             </div>
 
-            {settings.security.pinEnabled && (
-              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2 text-xs">
-                <label className="block text-stone-700 font-medium">Ustaw 4-cyfrowy kod PIN:</label>
-                <div className="flex items-center gap-2">
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <KeyRound className="w-4 h-4 absolute left-3 top-2.5 theme-muted" />
                   <input
-                    id="input-pin-setting"
                     type="password"
                     maxLength={4}
-                    placeholder="np. 1234"
+                    placeholder="Wpisz 4 cyfry (np. 1234)"
                     value={pinInput}
-                    onChange={(e) => {
-                      setPinInput(e.target.value.replace(/\D/g, ''));
-                      setShowPinError(false);
-                    }}
-                    className="w-28 tracking-widest text-center text-sm font-bold px-3 py-1.5 rounded-lg border border-stone-300 bg-white"
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl theme-input text-xs tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
-                  <button
-                    type="button"
-                    id="btn-save-pin"
-                    onClick={handleSavePin}
-                    className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-medium"
-                  >
-                    Zapisz PIN
-                  </button>
-                  <button
-                    type="button"
-                    id="btn-lock-now"
-                    onClick={() => {
-                      onClose();
-                      onLockApp();
-                    }}
-                    className="px-3 py-1.5 border border-stone-300 text-stone-700 hover:bg-stone-100 rounded-lg text-xs font-medium"
-                  >
-                    Zablokuj teraz
-                  </button>
                 </div>
-                {showPinError && (
-                  <p className="text-xs text-red-600">Wpisz dokładnie 4 cyfry.</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Section 3: Notifications & Sounds */}
-          <div className="space-y-3 pt-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                  <Bell className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-stone-900">Dźwięki i Alerty</h4>
-                  <p className="text-xs text-stone-700">Powiadomienia przed nadchodzącymi wydarzeniami</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs">
-              <div>
-                <span className="font-medium text-stone-800">Dźwięk gongu przypomnienia</span>
-                <p className="text-[11px] text-stone-700">Syntetyczny dźwięk Google Calendar (działa offline)</p>
-              </div>
-              <button
-                type="button"
-                id="btn-test-sound"
-                onClick={handleTestChime}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-stone-300 hover:bg-stone-100 rounded-lg text-stone-800 font-medium transition-colors"
-              >
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>Testuj dźwięk</span>
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs">
-              <div>
-                <span className="font-medium text-stone-800">Uprawnienie do powiadomień systemowych</span>
-                <p className="text-[11px] text-stone-700">Status: {notificationStatus === 'granted' ? 'Aktywne' : 'Nieaktywne'}</p>
-              </div>
-              {notificationStatus !== 'granted' ? (
                 <button
                   type="button"
-                  id="btn-grant-notifications-settings"
-                  onClick={handleRequestPush}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                  onClick={handleSavePin}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-2xs"
                 >
-                  Włącz powiadomienia
+                  Zapisz PIN
                 </button>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
-                  <Check className="w-4 h-4" />
-                  Włączone
-                </span>
+              </div>
+
+              {pinError && <p className="text-[11px] text-rose-500 font-semibold">{pinError}</p>}
+              {pinSuccess && <p className="text-[11px] text-emerald-500 font-semibold">{pinSuccess}</p>}
+            </div>
+          </div>
+
+          {/* Section 6: Polskie święta i dni ustawowo wolne od pracy */}
+          <div className="space-y-3 pt-5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center">
+                <Flag className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold theme-text">Polskie święta i dni wolne</h4>
+                <p className="text-xs theme-muted">Oficjalne dni ustawowo wolne od pracy (Nowy Rok, Majówka, Boże Ciało...)</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl theme-subtle theme-border border space-y-2">
+              <p className="text-xs theme-text leading-relaxed">
+                Możesz jednym kliknięciem zaimportować do swojego kalendarza wszystkie oficjalne polskie święta na lata 2025, 2026 i 2027 (w tym automatycznie wyliczone święta ruchome).
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const holidays = generateHolidayEvents([2025, 2026, 2027]);
+                  onImportEvents(holidays);
+                  setHolidaysAdded(true);
+                  setTimeout(() => setHolidaysAdded(false), 4000);
+                }}
+                className="w-full py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
+              >
+                <Flag className="w-3.5 h-3.5" />
+                {holidaysAdded ? 'Dodano polskie święta do kalendarza!' : 'Dodaj polskie święta (2025–2027)'}
+              </button>
+            </div>
+          </div>
+
+          {/* Section 7: Aplikacja na komputer i telefon (APK, Linux, Windows) */}
+          <div className="space-y-3 pt-5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                <Monitor className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold theme-text">Aplikacja na telefon i komputer</h4>
+                <p className="text-xs theme-muted">Instrukcje i skrypty budowania APK, Linux (.AppImage) i Windows (.exe)</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl theme-subtle theme-border border space-y-2">
+              <p className="text-xs theme-text leading-relaxed">
+                Przygotowałem skrypty 1-kliknięcia (<code>build-apk.sh</code>, <code>build-desktop.sh</code>, <code>build-windows.bat</code>), dzięki którym łatwo skompilujesz lub uruchomisz program w oknie na CachyOS/Linux, Windowsie i telefonie.
+              </p>
+
+              {onOpenBuildGuide && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenBuildGuide();
+                  }}
+                  className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  Otwórz centrum budowania (APK / Linux / Windows)
+                </button>
               )}
             </div>
           </div>
 
-          {/* Section 4: Backup, ICS Import & Export */}
+          {/* Section 8: Kopia zapasowa i zarządzanie danymi */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-                <Download className="w-4 h-4" />
+              <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                <Layers className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-stone-900">Kopia zapasowa i Import</h4>
-                <p className="text-xs text-stone-700">Format .ics kompatybilny z Google Calendar</p>
+                <h4 className="text-sm font-bold theme-text">Kopia zapasowa i dane</h4>
+                <p className="text-xs theme-muted">Zapisane lokalnie wydarzenia: <strong>{events.length}</strong></p>
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => exportEventsToICS(events)}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl theme-subtle theme-hover theme-border border text-xs font-semibold theme-text transition-colors shadow-2xs"
+              >
+                <Download className="w-3.5 h-3.5 opacity-70" />
+                Pobierz plik .ics
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl theme-subtle theme-hover theme-border border text-xs font-semibold theme-text transition-colors shadow-2xs"
+              >
+                <Upload className="w-3.5 h-3.5 opacity-70" />
+                Wczytaj plik .ics
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".ics,text/calendar"
+                onChange={handleFileChange}
+                className="hidden"
+              />
             </div>
 
             {importStatus && (
-              <div className="p-2.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs">
-                {importStatus}
-              </div>
+              <p className="text-xs text-blue-400 font-semibold">{importStatus}</p>
             )}
 
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                id="btn-export-ics"
-                onClick={() => exportEventsToICS(events)}
-                className="flex items-center justify-center gap-1.5 p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl font-medium text-stone-800 transition-colors"
-              >
-                <Download className="w-4 h-4 text-stone-600" />
-                <span>Eksportuj (.ics)</span>
-              </button>
-
-              <label className="flex items-center justify-center gap-1.5 p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl font-medium text-stone-800 transition-colors cursor-pointer">
-                <Upload className="w-4 h-4 text-stone-600" />
-                <span>Importuj (.ics)</span>
-                <input
-                  type="file"
-                  accept=".ics,text/calendar"
-                  onChange={handleIcsFileUpload}
-                  ref={fileInputRef}
-                  className="hidden"
-                />
-              </label>
+            <div className="pt-2">
+              {!confirmClear ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmClear(true)}
+                  className="flex items-center gap-1.5 text-xs text-rose-500 hover:text-rose-400 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Wyczyść wszystkie wydarzenia
+                </button>
+              ) : (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
+                    <AlertTriangle className="w-4 h-4" />
+                    Czy na pewno chcesz usunąć wszystkie {events.length} wydarzeń?
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClearAllEvents();
+                        setConfirmClear(false);
+                      }}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors"
+                    >
+                      Tak, usuń wszystko
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmClear(false)}
+                      className="px-3 py-1.5 theme-subtle theme-hover theme-border border theme-text rounded-xl text-xs font-medium transition-colors"
+                    >
+                      Anuluj
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-
-          {/* Section 5: Android APK Info */}
-          <div className="space-y-2 pt-5">
-            <div className="flex items-center gap-2 text-stone-900">
-              <Smartphone className="w-4 h-4 text-blue-600" />
-              <h4 className="text-sm font-semibold">Generowanie Android APK & ZIP</h4>
-            </div>
-            <p className="text-xs text-stone-700 leading-relaxed">
-              Projekt możesz natychmiast pobrać w formacie <strong>.zip</strong> poprzez menu AI Studio (Export &gt; Download ZIP). Do wygenerowania pliku <code>.apk</code> możesz użyć standardowego polecenia <code>npx cap add android && npx cap build android</code> w Android Studio.
-            </p>
-          </div>
-
-          {/* Section 6: Reset / Clear */}
-          <div className="pt-5">
-            <button
-              type="button"
-              id="btn-clear-all-events"
-              onClick={() => {
-                if (confirm('Czy na pewno chcesz usunąć wszystkie wydarzenia z lokalnej pamięci?')) {
-                  onClearAllEvents();
-                  onClose();
-                }
-              }}
-              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-red-600 hover:bg-red-50 border border-red-200 rounded-xl text-xs font-semibold transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Wyczyść wszystkie wydarzenia</span>
-            </button>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-stone-100 bg-stone-50 flex justify-end">
+        <div className="px-5 py-3 theme-subtle theme-border border-t flex justify-end">
           <button
             type="button"
-            id="btn-close-settings-bottom"
             onClick={onClose}
-            className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors"
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
           >
-            Gotowe
+            Zamknij
           </button>
         </div>
       </div>

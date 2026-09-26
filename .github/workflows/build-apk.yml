@@ -17,19 +17,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Instalacja zależności i budowanie aplikacji webowej
         run: |
-          npm ci
+          npm install
           npm run build
           npx cap sync android
 
-      - name: Konfiguracja środowiska Java JDK 17
+      - name: Konfiguracja środowiska Java JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21'
 
       - name: Zezwolenie na uruchamianie Gradle Wrapper
         run: chmod +x android/gradlew

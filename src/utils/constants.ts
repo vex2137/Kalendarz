@@ -94,7 +94,7 @@ export const GOOGLE_CALENDAR_COLORS: Record<GoogleCalendarColor, CalendarColorDe
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   ai: {
     enabled: true,
-    model: 'gemma-2-2b-local',
+    model: 'lightweight-nlp',
     autoExtractEvents: true,
     temperature: 0.2,
     modelLoaded: true,
@@ -109,7 +109,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   soundEnabled: true,
   vibrationEnabled: true,
   startOfWeek: 1, // Poniedziałek
-  theme: 'light',
+  theme: 'dark',
+  defaultEventDuration: 60, // 60 min
+  defaultReminder: 15, // 15 min wcześniej
+  defaultView: 'month',
+  defaultColor: 'peacock',
+  timeFormat24h: true,
+  compactView: false,
 };
 
 export const STANDARD_REMINDER_OPTIONS = [
@@ -130,3 +136,113 @@ export const MONTH_NAMES_PL = [
 
 export const DAY_NAMES_SHORT_PL = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'];
 export const DAY_NAMES_FULL_PL = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+
+import { AppTheme } from '../types';
+
+export interface ThemeDefinition {
+  id: AppTheme;
+  name: string;
+  badge: string;
+  bgClass: string;
+  surfaceClass: string;
+  borderClass: string;
+  textClass: string;
+  mutedTextClass: string;
+  accentClass: string;
+  dotColor: string;
+  chipClass: string;
+}
+
+export const AVAILABLE_THEMES: ThemeDefinition[] = [
+  {
+    id: 'light',
+    name: 'Jasny Google',
+    badge: 'Klasyczny',
+    bgClass: 'bg-stone-50',
+    surfaceClass: 'bg-white',
+    borderClass: 'border-stone-200',
+    textClass: 'text-stone-900',
+    mutedTextClass: 'text-stone-500',
+    accentClass: 'bg-blue-600',
+    dotColor: '#2563eb',
+    chipClass: 'border-blue-500 text-blue-600 bg-blue-50',
+  },
+  {
+    id: 'dark',
+    name: 'Ciemny OLED',
+    badge: 'Nocny',
+    bgClass: 'bg-neutral-950',
+    surfaceClass: 'bg-neutral-900',
+    borderClass: 'border-neutral-800',
+    textClass: 'text-neutral-100',
+    mutedTextClass: 'text-neutral-400',
+    accentClass: 'bg-blue-500',
+    dotColor: '#3b82f6',
+    chipClass: 'border-neutral-700 text-blue-400 bg-neutral-800',
+  },
+  {
+    id: 'nord',
+    name: 'Nordic Frost',
+    badge: 'Arktyczny',
+    bgClass: 'bg-slate-950',
+    surfaceClass: 'bg-slate-900',
+    borderClass: 'border-slate-800',
+    textClass: 'text-slate-100',
+    mutedTextClass: 'text-slate-400',
+    accentClass: 'bg-sky-500',
+    dotColor: '#38bdf8',
+    chipClass: 'border-sky-800 text-sky-400 bg-slate-800',
+  },
+  {
+    id: 'emerald',
+    name: 'Szmaragdowy Las',
+    badge: 'Eko / Spokój',
+    bgClass: 'bg-[#051c14]',
+    surfaceClass: 'bg-[#09291e]',
+    borderClass: 'border-emerald-900/60',
+    textClass: 'text-emerald-50',
+    mutedTextClass: 'text-emerald-400/80',
+    accentClass: 'bg-emerald-600',
+    dotColor: '#10b981',
+    chipClass: 'border-emerald-800 text-emerald-300 bg-[#06241a]',
+  },
+  {
+    id: 'sunset',
+    name: 'Ciepły Zachód Słońca',
+    badge: 'Bursztyn',
+    bgClass: 'bg-[#21110c]',
+    surfaceClass: 'bg-[#2f1912]',
+    borderClass: 'border-amber-900/60',
+    textClass: 'text-amber-50',
+    mutedTextClass: 'text-amber-400/80',
+    accentClass: 'bg-amber-600',
+    dotColor: '#f59e0b',
+    chipClass: 'border-amber-800 text-amber-300 bg-[#24130d]',
+  },
+  {
+    id: 'lavender',
+    name: 'Cyber Lawenda',
+    badge: 'Fiolet / Pastel',
+    bgClass: 'bg-[#150f24]',
+    surfaceClass: 'bg-[#201838]',
+    borderClass: 'border-purple-900/60',
+    textClass: 'text-purple-50',
+    mutedTextClass: 'text-purple-300/80',
+    accentClass: 'bg-violet-600',
+    dotColor: '#8b5cf6',
+    chipClass: 'border-purple-800 text-purple-300 bg-[#19132c]',
+  },
+  {
+    id: 'moka',
+    name: 'Ciepła Mokka',
+    badge: 'Kawiarnia',
+    bgClass: 'bg-[#f7f3ee]',
+    surfaceClass: 'bg-[#ffffff]',
+    borderClass: 'border-[#e4dacd]',
+    textClass: 'text-[#36271c]',
+    mutedTextClass: 'text-[#7d6856]',
+    accentClass: 'bg-[#936449]',
+    dotColor: '#936449',
+    chipClass: 'border-[#cbb9a3] text-[#714d37] bg-[#ede4d8]',
+  },
+];

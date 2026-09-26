@@ -59,12 +59,12 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   if (dates.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center h-[calc(100vh-140px)] bg-stone-50">
-        <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+      <div className="flex flex-col items-center justify-center p-12 text-center h-[calc(100vh-140px)] theme-surface rounded-2xl theme-border border shadow-2xs">
+        <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
           <CalendarCheck2 className="w-8 h-8" />
         </div>
-        <h3 className="text-base font-semibold text-stone-900">Brak zaplanowanych wydarzeń</h3>
-        <p className="text-xs text-stone-600 mt-1 max-w-xs">
+        <h3 className="text-base font-semibold theme-text">Brak zaplanowanych wydarzeń</h3>
+        <p className="text-xs theme-muted mt-1 max-w-xs">
           Wszystko gotowe! Możesz dodać nowe wydarzenie przyciskiem „Utwórz” lub poprosić lokalnego Asystenta AI.
         </p>
       </div>
@@ -72,7 +72,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-stone-50 p-3 sm:p-6">
+    <div className="flex-1 overflow-y-auto p-3 sm:p-6 transition-colors duration-200">
       <div className="max-w-3xl mx-auto space-y-6">
         {dates.map((dateStr) => {
           const headerInfo = formatHeaderDate(dateStr);
@@ -89,12 +89,12 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                   className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-transform group-hover:scale-105 ${
                     headerInfo.isToday
                       ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-stone-200 text-stone-700'
+                      : 'bg-stone-500/20 theme-text'
                   }`}
                 >
                   {headerInfo.dayNumber}
                 </span>
-                <span className={`text-sm font-semibold tracking-tight ${headerInfo.isToday ? 'text-blue-700' : 'text-stone-800'}`}>
+                <span className={`text-sm font-semibold tracking-tight ${headerInfo.isToday ? 'text-blue-500 font-bold' : 'theme-text'}`}>
                   {headerInfo.fullText}
                 </span>
               </div>
@@ -109,7 +109,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                       key={ev.id}
                       id={`agenda-event-${ev.id}`}
                       onClick={() => onSelectEvent(ev)}
-                      className="flex items-center gap-3 p-3.5 bg-white rounded-xl border border-stone-200 shadow-xs hover:border-stone-300 hover:shadow-sm transition-all cursor-pointer group"
+                      className="flex items-center gap-3 p-3.5 theme-surface rounded-xl theme-border border shadow-xs hover:border-blue-500/50 hover:shadow-sm transition-all cursor-pointer group"
                     >
                       {/* Color Stripe / Pill */}
                       <div
@@ -120,7 +120,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-semibold text-stone-900 group-hover:text-blue-600 transition-colors truncate">
+                          <h4 className="text-sm font-semibold theme-text group-hover:text-blue-500 transition-colors truncate">
                             {ev.title}
                           </h4>
                           {ev.recurrence && ev.recurrence !== 'NONE' && (
@@ -132,9 +132,9 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                         </div>
 
                         {/* Details row: time & location */}
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600 mt-1">
+                        <div className="flex flex-wrap items-center gap-3 text-xs theme-muted mt-1">
                           <div className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-stone-600" />
+                            <Clock className="w-3.5 h-3.5 opacity-70" />
                             <span>
                               {ev.allDay ? 'Cały dzień' : `${ev.startTime || ''} – ${ev.endTime || ''}`}
                             </span>
@@ -142,14 +142,14 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
                           {ev.location && (
                             <div className="flex items-center gap-1 truncate max-w-[200px]">
-                              <MapPin className="w-3.5 h-3.5 text-stone-600 shrink-0" />
+                              <MapPin className="w-3.5 h-3.5 opacity-70 shrink-0" />
                               <span className="truncate">{ev.location}</span>
                             </div>
                           )}
                         </div>
 
                         {ev.description && (
-                          <p className="text-xs text-stone-600 mt-1.5 line-clamp-1">
+                          <p className="text-xs theme-muted mt-1.5 line-clamp-1 opacity-80">
                             {ev.description}
                           </p>
                         )}
@@ -157,7 +157,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
                       {/* Reminders count chip */}
                       {ev.reminders && ev.reminders.length > 0 && (
-                        <div className="text-[10px] font-medium px-2 py-1 bg-stone-100 text-stone-700 rounded-lg shrink-0">
+                        <div className="text-[10px] font-medium px-2 py-1 bg-stone-500/10 theme-muted rounded-lg shrink-0">
                           {ev.reminders.length} {ev.reminders.length === 1 ? 'alert' : 'alerty'}
                         </div>
                       )}

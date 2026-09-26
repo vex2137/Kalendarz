@@ -90,18 +90,18 @@ export const MonthView: React.FC<MonthViewProps> = ({
   });
 
   return (
-    <div className="flex flex-col h-[calc(100vh-115px)] sm:h-[calc(100vh-80px)] bg-white">
+    <div className="flex flex-col h-[calc(100vh-115px)] sm:h-[calc(100vh-80px)] theme-surface rounded-2xl theme-border border overflow-hidden shadow-2xs transition-colors duration-200">
       {/* Day of Week Headers */}
-      <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-50 text-center py-2 text-xs font-semibold text-stone-600">
+      <div className="grid grid-cols-7 theme-border border-b bg-stone-500/5 text-center py-2 text-xs font-semibold theme-muted">
         {DAY_NAMES_SHORT_PL.map((day, idx) => (
-          <div key={day} className={idx >= 5 ? 'text-stone-400' : ''}>
+          <div key={day} className={idx >= 5 ? 'opacity-60' : ''}>
             {day}
           </div>
         ))}
       </div>
 
       {/* Days Grid */}
-      <div className="grid grid-cols-7 grid-rows-6 flex-1 border-b border-stone-200 divide-x divide-stone-200">
+      <div className="grid grid-cols-7 grid-rows-6 flex-1 theme-border divide-x divide-stone-500/20">
         {calendarCells.map((cell, index) => {
           const dayEvents = eventsByDate[cell.dateStr] || [];
           // Sort events: allDay first, then by startTime
@@ -116,8 +116,8 @@ export const MonthView: React.FC<MonthViewProps> = ({
               key={`${cell.dateStr}-${index}`}
               id={`calendar-cell-${cell.dateStr}`}
               onClick={() => onSelectDay(cell.dateStr)}
-              className={`flex flex-col p-1 sm:p-1.5 transition-colors cursor-pointer group border-b border-stone-200 overflow-hidden ${
-                cell.isCurrentMonth ? 'bg-white hover:bg-stone-50/70' : 'bg-stone-50/40 hover:bg-stone-100/50'
+              className={`flex flex-col p-1 sm:p-1.5 transition-colors cursor-pointer group border-b border-stone-500/20 overflow-hidden ${
+                cell.isCurrentMonth ? 'theme-surface hover:bg-stone-500/5' : 'bg-stone-500/5 hover:bg-stone-500/10'
               }`}
             >
               {/* Day Header */}
@@ -127,8 +127,8 @@ export const MonthView: React.FC<MonthViewProps> = ({
                     cell.isToday
                       ? 'bg-blue-600 text-white font-bold shadow-xs'
                       : cell.isCurrentMonth
-                      ? 'text-stone-800'
-                      : 'text-stone-400'
+                      ? 'theme-text'
+                      : 'theme-muted opacity-50'
                   }`}
                 >
                   {cell.dayNumber}
@@ -136,7 +136,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
 
                 {/* Event count pill on mobile if crowded */}
                 {sortedEvents.length > 0 && (
-                  <span className="sm:hidden text-[10px] font-medium text-stone-500 bg-stone-100 px-1 rounded-sm">
+                  <span className="sm:hidden text-[10px] font-medium theme-muted bg-stone-500/10 px-1 rounded-sm">
                     {sortedEvents.length}
                   </span>
                 )}
@@ -168,7 +168,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
                 })}
 
                 {sortedEvents.length > 3 && (
-                  <div className="text-[10px] font-semibold text-stone-500 hover:text-stone-800 pl-1">
+                  <div className="text-[10px] font-semibold theme-muted hover:theme-text pl-1">
                     +{sortedEvents.length - 3} więcej
                   </div>
                 )}

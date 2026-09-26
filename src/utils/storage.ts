@@ -1,4 +1,4 @@
-import { CalendarEvent, AppSettings } from '../types';
+import { CalendarEvent, AppSettings, GoogleCalendarColor } from '../types';
 import { DEFAULT_APP_SETTINGS } from './constants';
 
 const EVENTS_STORAGE_KEY = 'offline_calendar_events_v1';
@@ -178,6 +178,12 @@ export const exportEventsToICS = (events: CalendarEvent[]): void => {
       lines.push(`LOCATION:${ev.location.replace(/\n/g, ' ')}`);
     }
 
+    if (ev.color) {
+      lines.push(`COLOR:${ev.color}`);
+      lines.push(`X-COLOR:${ev.color}`);
+      lines.push(`CATEGORIES:${ev.color}`);
+    }
+
     if (ev.recurrence && ev.recurrence !== 'NONE') {
       lines.push(`RRULE:FREQ=${ev.recurrence}`);
     }
@@ -274,6 +280,12 @@ export const parseICSToEvents = (icsText: string): CalendarEvent[] => {
       currentEvent.description = line.substring(12).replace(/\\n/g, '\n');
     } else if (line.startsWith('LOCATION:')) {
       currentEvent.location = line.substring(9);
+    } else if (line.startsWith('COLOR:') || line.startsWith('X-COLOR:') || line.startsWith('CATEGORIES:')) {
+      const colorVal = line.split(':')[1]?.trim().toLowerCase();
+      const validColors: GoogleCalendarColor[] = ['tomato', 'flamingo', 'tangerine', 'banana', 'sage', 'basil', 'peacock', 'blueberry', 'lavender', 'grape', 'graphite'];
+      if (validColors.includes(colorVal as GoogleCalendarColor)) {
+        currentEvent.color = colorVal as GoogleCalendarColor;
+      }
     } else if (line.startsWith('DTSTART')) {
       const val = line.split(':')[1];
       if (val) {

@@ -5,7 +5,6 @@ import {
   AiSettings 
 } from '../types';
 import { runLocalAiAssistant } from '../utils/aiEngine';
-import { GOOGLE_CALENDAR_COLORS } from '../utils/constants';
 import { 
   X, 
   Sparkles, 
@@ -15,8 +14,9 @@ import {
   Check, 
   Clock, 
   AlertCircle,
-  HelpCircle,
-  Wand2
+  Wand2,
+  CalendarSearch,
+  MessageSquare
 } from 'lucide-react';
 
 interface AiAssistantDrawerProps {
@@ -38,7 +38,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     {
       id: 'msg-welcome',
       role: 'assistant',
-      content: 'Cześć! Jestem Twoim lokalnym asystentem AI kalendarza. Przetwarzam wszystkie polecenia **w 100% offline na Twoim telefonie** (Gemma 2 2B / Offline NLP) z zerową telemetrią.\n\nNapisz np.:\n- *„Jutro o 15:30 dentysta na 45 minut”*\n- *„Kiedy mam wolne dzisiaj?”*\n- *„Podsumuj mój nadchodzący tydzień”*',
+      content: 'Cześć! Jestem Twoim lokalnym asystentem kalendarza (100% Offline). Działam w całości na Twoim urządzeniu i potrafię:\n\n• **Odpowiadać na pytania** o Twój grafik i wolny czas\n• **Wyszukiwać spotkania** (np. *„Kiedy mam dentystę?”*)\n• **Wykrywać kolizje** i nakładające się terminy\n• **Planować wydarzenia** ze zdań po polsku (np. *„Dentysta jutro o 15:30 na 45 minut”*)\n\nW czym mogę Ci pomóc?',
       timestamp: Date.now(),
     },
   ]);
@@ -80,13 +80,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         suggestedEvent: response.suggestedEvent,
       };
       setMessages((prev) => [...prev, assistantMessage]);
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
           id: 'msg-err-' + Date.now(),
           role: 'assistant',
-          content: 'Wystąpił błąd lokalnego silnika AI. Upewnij się, że opcja AI jest aktywna w ustawieniach.',
+          content: 'Wystąpił błąd lokalnego asystenta. Spróbuj zadać pytanie inaczej.',
           timestamp: Date.now(),
         },
       ]);
@@ -101,74 +101,81 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-end">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex justify-end">
       <div 
         id="drawer-ai-assistant"
-        className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 border-l border-stone-200"
+        className="theme-surface w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 theme-border border-l"
       >
         {/* Header */}
-        <div className="px-4 py-3.5 border-b border-stone-200 bg-violet-50/70 flex items-center justify-between">
+        <div className="px-4 py-3.5 theme-border border-b theme-subtle flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-violet-600 text-white flex items-center justify-center shadow-xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="text-sm font-semibold text-stone-900">Lokalne AI Kalendarza</h3>
-                <span className="text-[10px] bg-violet-200 text-violet-900 font-bold px-1.5 py-0.2 rounded-md uppercase">
-                  Gemma 2 2B
+                <h3 className="text-sm font-semibold theme-text">Asystent Kalendarza</h3>
+                <span className="text-[10px] bg-violet-500/20 text-violet-400 font-bold px-1.5 py-0.2 rounded-md uppercase">
+                  Offline
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-[11px] text-stone-700">
-                <Cpu className="w-3 h-3 text-emerald-600" />
-                <span>Przetwarzanie na telefonie • 0 telemetrii</span>
+              <div className="flex items-center gap-1 text-[11px] theme-muted">
+                <Cpu className="w-3 h-3 text-emerald-500" />
+                <span>100% na telefonie • 0 połączeń z siecią</span>
               </div>
             </div>
           </div>
           <button
             id="btn-close-ai-drawer"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-700 hover:text-stone-900 hover:bg-stone-200/60 transition-colors"
+            className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Status indicator if AI is disabled */}
+        {/* Warning if AI is disabled in settings */}
         {!aiSettings.enabled && (
-          <div className="bg-amber-50 px-4 py-2.5 border-b border-amber-200 flex items-center gap-2 text-xs text-amber-900">
-            <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>AI jest obecnie wyłączone w opcjach. Przejdź do Ustawień, aby je aktywować.</span>
+          <div className="px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-500 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>Asystent jest obecnie wyłączony w opcjach. Przejdź do Ustawień, aby go włączyć.</span>
           </div>
         )}
 
         {/* Quick Suggestion Chips */}
-        <div className="px-4 py-2 bg-stone-50 border-b border-stone-100 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
+        <div className="px-3 py-2 theme-subtle theme-border border-b flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
           <button
             type="button"
             onClick={() => handleSendMessage('Kiedy mam wolne dzisiaj?')}
-            className="whitespace-nowrap px-2.5 py-1 bg-white hover:bg-stone-100 text-stone-700 rounded-lg border border-stone-200 transition-colors"
+            className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs"
           >
-            Wolny czas dzisiaj
+            🔍 Wolny czas dzisiaj
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Jutro o 15:30 dentysta na 45 minut')}
-            className="whitespace-nowrap px-2.5 py-1 bg-white hover:bg-stone-100 text-stone-700 rounded-lg border border-stone-200 transition-colors"
+            onClick={() => handleSendMessage('Co mam zaplanowane na dzisiaj?')}
+            className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs"
           >
-            + Dentysta jutro 15:30
+            📅 Mój plan
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Czy mam jakieś konflikty w terminach?')}
-            className="whitespace-nowrap px-2.5 py-1 bg-white hover:bg-stone-100 text-stone-700 rounded-lg border border-stone-200 transition-colors"
+            onClick={() => handleSendMessage('Czy mam jakieś kolizje w terminach?')}
+            className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs"
           >
-            Sprawdź kolizje
+            ⚠️ Kolizje terminów
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSendMessage('Podsumuj mój nadchodzący tydzień')}
+            className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs"
+          >
+            📊 Podsumuj tydzień
           </button>
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-stone-50/40">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 theme-bg">
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
             const isAdded = addedEventsIds.includes(msg.id);
@@ -182,21 +189,21 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm shadow-xs ${
                     isUser
                       ? 'bg-blue-600 text-white rounded-tr-xs'
-                      : 'bg-white text-stone-800 border border-stone-200 rounded-tl-xs'
+                      : 'theme-surface theme-text theme-border border rounded-tl-xs'
                   }`}
                 >
                   <p className="whitespace-pre-line leading-relaxed">{msg.content}</p>
 
                   {/* If assistant extracted an event suggestion */}
                   {msg.suggestedEvent && (
-                    <div className="mt-3 p-3 bg-stone-50 rounded-xl border border-stone-200 text-stone-900 space-y-2 text-xs">
-                      <div className="font-semibold text-sm text-stone-900 flex items-center gap-1.5">
-                        <Wand2 className="w-4 h-4 text-violet-600" />
+                    <div className="mt-3 p-3 theme-subtle rounded-xl theme-border border theme-text space-y-2 text-xs">
+                      <div className="font-semibold text-sm theme-text flex items-center gap-1.5">
+                        <Wand2 className="w-4 h-4 text-violet-400" />
                         <span>{msg.suggestedEvent.title}</span>
                       </div>
 
-                      <div className="flex items-center gap-2 text-stone-700">
-                        <Clock className="w-3.5 h-3.5 text-stone-600" />
+                      <div className="flex items-center gap-2 theme-muted">
+                        <Clock className="w-3.5 h-3.5 opacity-70" />
                         <span>
                           {msg.suggestedEvent.startDate}
                           {msg.suggestedEvent.startTime ? `, ${msg.suggestedEvent.startTime} - ${msg.suggestedEvent.endTime}` : ' (Cały dzień)'}
@@ -204,14 +211,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       </div>
 
                       {msg.suggestedEvent.location && (
-                        <div className="text-stone-700">
-                          Lokalizacja: <span className="font-medium text-stone-800">{msg.suggestedEvent.location}</span>
+                        <div className="theme-muted">
+                          Lokalizacja: <span className="font-medium theme-text">{msg.suggestedEvent.location}</span>
                         </div>
                       )}
 
                       <div className="pt-1">
                         {isAdded ? (
-                          <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold py-1">
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-500 font-semibold py-1">
                             <Check className="w-4 h-4" />
                             <span>Dodano do Twojego kalendarza!</span>
                           </div>
@@ -230,7 +237,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                     </div>
                   )}
                 </div>
-                <span className="text-[10px] text-stone-600 mt-1 px-1">
+                <span className="text-[10px] theme-muted mt-1 px-1">
                   {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
@@ -238,9 +245,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           })}
 
           {isProcessing && (
-            <div className="flex items-center gap-2 p-3 bg-white rounded-2xl border border-stone-200 text-xs text-stone-700 w-fit">
-              <Sparkles className="w-4 h-4 text-violet-600 animate-spin" />
-              <span>Gemma 2 (2B) przetwarza lokalnie...</span>
+            <div className="flex items-center gap-2 p-3 theme-surface rounded-2xl theme-border border text-xs theme-text w-fit">
+              <Sparkles className="w-4 h-4 text-violet-400 animate-spin" />
+              <span>Analizuję zapytanie i Twój grafik...</span>
             </div>
           )}
 
@@ -248,7 +255,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         </div>
 
         {/* Input Bar */}
-        <div className="p-3 border-t border-stone-200 bg-white">
+        <div className="p-3 theme-border border-t theme-surface">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -257,26 +264,26 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             className="flex items-center gap-2"
           >
             <input
-              id="input-ai-chat-prompt"
+              id="input-ai-chat"
               type="text"
-              placeholder="Wpisz np. 'Jutro o 16 basen na 1h'..."
+              placeholder="Zapytaj o grafik, wolny czas lub dodaj spotkanie..."
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
               disabled={isProcessing || !aiSettings.enabled}
-              className="flex-1 px-3.5 py-2 rounded-xl border border-stone-300 text-stone-800 placeholder:text-stone-600 text-xs sm:text-sm focus:border-violet-500 outline-hidden transition-all disabled:opacity-50"
+              className="flex-1 px-3.5 py-2 rounded-xl theme-input text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all disabled:opacity-50"
             />
             <button
               type="submit"
-              id="btn-send-ai-chat"
               disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled}
               className="p-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white transition-colors shrink-0 shadow-xs"
-              title="Wyślij do lokalnego AI"
+              title="Wyślij do asystenta"
             >
               <Send className="w-4 h-4" />
             </button>
           </form>
-          <div className="flex items-center justify-between text-[10px] text-stone-600 mt-2 px-1">
-            <span>Model: Gemma 2 2B (On-Device)</span>
+
+          <div className="flex items-center justify-between text-[10px] theme-muted mt-2 px-1">
+            <span>Silnik: 100% Offline NLP (Na urządzeniu)</span>
             <span>Bez połączenia z siecią</span>
           </div>
         </div>

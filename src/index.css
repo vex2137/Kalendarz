@@ -1,1 +1,137 @@
 @import "tailwindcss";
+
+/* System motywów kolorystycznych dla całej aplikacji, menu, modali i skanera */
+:root, [data-theme='light'] {
+  --bg-main: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-header: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --border-color: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --accent-color: #2563eb;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg-main: #09090b;
+  --bg-surface: #141416;
+  --bg-header: #141416;
+  --bg-subtle: #1f1f23;
+  --bg-hover: #27272d;
+  --border-color: #2c2c34;
+  --text-main: #fafafa;
+  --text-muted: #a1a1aa;
+  --accent-color: #3b82f6;
+  color-scheme: dark;
+}
+
+[data-theme='nord'] {
+  --bg-main: #0b1120;
+  --bg-surface: #131c2e;
+  --bg-header: #131c2e;
+  --bg-subtle: #1c2a44;
+  --bg-hover: #243555;
+  --border-color: #273754;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent-color: #38bdf8;
+  color-scheme: dark;
+}
+
+[data-theme='emerald'] {
+  --bg-main: #03140e;
+  --bg-surface: #08241a;
+  --bg-header: #08241a;
+  --bg-subtle: #0f3627;
+  --bg-hover: #154532;
+  --border-color: #174b37;
+  --text-main: #ecfdf5;
+  --text-muted: #6ee7b7;
+  --accent-color: #10b981;
+  color-scheme: dark;
+}
+
+[data-theme='sunset'] {
+  --bg-main: #180c07;
+  --bg-surface: #27140c;
+  --bg-header: #27140c;
+  --bg-subtle: #3a1d12;
+  --bg-hover: #4e2617;
+  --border-color: #492517;
+  --text-main: #fffbeb;
+  --text-muted: #fcd34d;
+  --accent-color: #f59e0b;
+  color-scheme: dark;
+}
+
+[data-theme='lavender'] {
+  --bg-main: #0f091c;
+  --bg-surface: #1a1030;
+  --bg-header: #1a1030;
+  --bg-subtle: #27184a;
+  --bg-hover: #352163;
+  --border-color: #382367;
+  --text-main: #faf5ff;
+  --text-muted: #d8b4fe;
+  --accent-color: #8b5cf6;
+  color-scheme: dark;
+}
+
+[data-theme='moka'] {
+  --bg-main: #f5efe6;
+  --bg-surface: #ffffff;
+  --bg-header: #ffffff;
+  --bg-subtle: #ede3d5;
+  --bg-hover: #e2d6c4;
+  --border-color: #dbcbb7;
+  --text-main: #362215;
+  --text-muted: #795d48;
+  --accent-color: #936449;
+  color-scheme: light;
+}
+
+/* Helper utility classes mapped directly to active CSS variables */
+.theme-bg {
+  background-color: var(--bg-main) !important;
+}
+
+.theme-surface {
+  background-color: var(--bg-surface) !important;
+}
+
+.theme-header {
+  background-color: var(--bg-header) !important;
+}
+
+.theme-subtle {
+  background-color: var(--bg-subtle) !important;
+}
+
+.theme-hover:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.theme-border {
+  border-color: var(--border-color) !important;
+}
+
+.theme-text {
+  color: var(--text-main) !important;
+}
+
+.theme-muted {
+  color: var(--text-muted) !important;
+}
+
+.theme-input {
+  background-color: var(--bg-subtle) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+.theme-input::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 0.7;
+}

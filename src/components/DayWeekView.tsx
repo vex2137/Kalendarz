@@ -90,16 +90,16 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-115px)] sm:h-[calc(100vh-80px)] bg-white overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-115px)] sm:h-[calc(100vh-80px)] theme-surface theme-border border rounded-2xl overflow-hidden shadow-2xs transition-colors duration-200">
       {/* Top Days Header */}
-      <div className="flex border-b border-stone-200 bg-stone-50 pl-14 pr-2 py-2">
+      <div className="flex theme-border border-b bg-stone-500/5 pl-14 pr-2 py-2">
         <div className={`grid w-full ${viewMode === 'day' ? 'grid-cols-1' : 'grid-cols-7'} text-center`}>
           {daysToRender.map((day) => (
             <div key={day.dateStr} className="flex flex-col items-center">
-              <span className="text-[11px] font-semibold text-stone-500 uppercase">{day.dayName}</span>
+              <span className="text-[11px] font-semibold theme-muted uppercase">{day.dayName}</span>
               <span
                 className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center mt-0.5 ${
-                  day.isToday ? 'bg-blue-600 text-white shadow-xs' : 'text-stone-800'
+                  day.isToday ? 'bg-blue-600 text-white shadow-xs' : 'theme-text'
                 }`}
               >
                 {day.dayNumber}
@@ -110,19 +110,19 @@ export const DayWeekView: React.FC<DayWeekViewProps> = ({
       </div>
 
       {/* Hourly Grid Scrollable Body */}
-      <div className="flex-1 overflow-y-auto relative divide-y divide-stone-100">
+      <div className="flex-1 overflow-y-auto relative divide-y divide-stone-500/10">
         {hours.map((hour) => {
           const hourLabel = `${String(hour).padStart(2, '0')}:00`;
 
           return (
-            <div key={hour} className="flex min-h-[56px] relative group hover:bg-stone-50/40">
+            <div key={hour} className="flex min-h-[56px] relative group hover:bg-stone-500/5">
               {/* Hour Label */}
-              <div className="w-14 shrink-0 text-right pr-2.5 -top-2 relative text-[11px] font-medium text-stone-600 select-none">
+              <div className="w-14 shrink-0 text-right pr-2.5 -top-2 relative text-[11px] font-medium theme-muted select-none">
                 {hourLabel}
               </div>
 
               {/* Day Columns */}
-              <div className={`grid flex-1 border-l border-stone-200 ${viewMode === 'day' ? 'grid-cols-1' : 'grid-cols-7'} divide-x divide-stone-100 relative`}>
+              <div className={`grid flex-1 border-l theme-border ${viewMode === 'day' ? 'grid-cols-1' : 'grid-cols-7'} divide-x divide-stone-500/10 relative`}>
                 {daysToRender.map((day) => {
                   // Find events starting in this hour
                   const dayHourEvents = events.filter((ev) => {
