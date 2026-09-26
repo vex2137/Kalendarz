@@ -89,4 +89,5 @@ export interface AiChatMessage {
   content: string;
   timestamp: number;
   suggestedEvent?: Partial<CalendarEvent>;
+  suggestedPrompts?: string[];
 }
