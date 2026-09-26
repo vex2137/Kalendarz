@@ -1,6 +1,6 @@
 {
 	"appId": "com.kalendarz.offline",
-	"appName": "Kalendarz Offline",
+	"appName": "Kalendarz",
 	"webDir": "dist",
 	"server": {
 		"androidScheme": "https"

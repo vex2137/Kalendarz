@@ -92,6 +92,7 @@ export const GOOGLE_CALENDAR_COLORS: Record<GoogleCalendarColor, CalendarColorDe
 };
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
+  language: 'pl',
   ai: {
     enabled: true,
     model: 'lightweight-nlp',

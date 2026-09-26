@@ -6,6 +6,7 @@ import {
 } from '../types';
 import { runLocalAiAssistant } from '../utils/aiEngine';
 import { MarkdownMessage } from './MarkdownMessage';
+import { getTranslation, AppLanguage } from '../utils/i18n';
 import { 
   X, 
   Sparkles, 
@@ -25,20 +26,8 @@ interface AiAssistantDrawerProps {
   events: CalendarEvent[];
   onAddEventFromAi: (eventData: Partial<CalendarEvent>) => void;
   aiSettings: AiSettings;
+  language?: AppLanguage;
 }
-
-const DEFAULT_WELCOME_MSG: AiChatMessage = {
-  id: 'msg-welcome',
-  role: 'assistant',
-  content: 'Dzień dobry! 👋 Jestem Twoim lokalnym asystentem kalendarza (100% Offline).\n\nPracuję bezpośrednio na Twoim urządzeniu z zerową telemetrią. Oto co potrafię:\n• **Odpowiedzieć na pytania** o grafik i wolny czas na dowolny dzień\n• **Sprawdzić wolne okienka** (np. *„Czy mam wolny czwartek?”*)\n• **Wykryć kolizje terminów** i nakładające się spotkania\n• **Dodać nowe wydarzenie** ze zdania po polsku (np. *„Trening jutro o 18 na godzinę”*)\n\nW czym mogę Ci pomóc?',
-  timestamp: Date.now(),
-  suggestedPrompts: [
-    'Co mam dzisiaj w planie?',
-    'Kiedy mam wolne dzisiaj?',
-    'Czy mam wolny czwartek?',
-    'Sprawdź kolizje terminów',
-  ],
-};
 
 export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   isOpen,
@@ -46,8 +35,23 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   events,
   onAddEventFromAi,
   aiSettings,
+  language = 'pl',
 }) => {
-  const [messages, setMessages] = useState<AiChatMessage[]>([DEFAULT_WELCOME_MSG]);
+  const t = getTranslation(language);
+
+  const defaultMsg: AiChatMessage = {
+    id: 'msg-welcome',
+    role: 'assistant',
+    content: language === 'pl'
+      ? 'Dzień dobry! 👋 Jestem Twoim lokalnym asystentem kalendarza (100% Offline).\n\nPracuję bezpośrednio na Twoim urządzeniu z zerową telemetrią. Oto co potrafię:\n• **Odpowiedzieć na pytania** o grafik i wolny czas na dowolny dzień\n• **Sprawdzić wolne okienka** (np. *„Czy mam wolny czwartek?”*)\n• **Wykryć kolizje terminów** i nakładające się spotkania\n• **Dodać nowe wydarzenie** ze zdania (np. *„Trening jutro o 18:00 na godzinę”*)\n\nW czym mogę Ci pomóc?'
+      : 'Hello! 👋 I am your local calendar assistant (100% Offline).\n\nI run directly on your device with zero telemetry. Here is what I can do:\n• **Answer questions** about your schedule and free time on any day\n• **Check free slots** (e.g. *“Do I have free time on Friday?”*)\n• **Detect schedule conflicts** and overlapping events\n• **Schedule new events** from natural language (e.g. *“Workout tomorrow at 6pm for 1 hour”*)\n\nHow can I help you?',
+    timestamp: Date.now(),
+    suggestedPrompts: language === 'pl'
+      ? ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?', 'Czy mam wolny czwartek?', 'Sprawdź kolizje terminów']
+      : ['What is on my schedule today?', 'When do I have free time today?', 'Check for conflicting events', 'Summary of this week'],
+  };
+
+  const [messages, setMessages] = useState<AiChatMessage[]>([defaultMsg]);
   const [inputQuery, setInputQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [addedEventsIds, setAddedEventsIds] = useState<string[]>([]);
@@ -81,7 +85,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsProcessing(true);
 
     try {
-      const response = await runLocalAiAssistant(text, events);
+      const response = await runLocalAiAssistant(text, events, language);
       const assistantMessage: AiChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         role: 'assistant',
@@ -97,9 +101,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         {
           id: 'msg-err-' + Date.now(),
           role: 'assistant',
-          content: 'Wystąpił błąd lokalnego asystenta. Spróbuj zadać pytanie inaczej.',
+          content: language === 'pl' 
+            ? 'Wystąpił błąd lokalnego asystenta. Spróbuj zadać pytanie inaczej.' 
+            : 'An error occurred. Try rephrasing your question.',
           timestamp: Date.now(),
-          suggestedPrompts: ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?'],
+          suggestedPrompts: language === 'pl' 
+            ? ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?']
+            : ['What is on my schedule today?', 'When do I have free time today?'],
         },
       ]);
     } finally {
@@ -108,7 +116,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   };
 
   const handleClearChat = () => {
-    setMessages([DEFAULT_WELCOME_MSG]);
+    setMessages([defaultMsg]);
     setAddedEventsIds([]);
   };
 
@@ -131,7 +139,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="text-sm font-bold theme-text">Asystent Kalendarza</h3>
+                <h3 className="text-sm font-bold theme-text">{t.aiAssistantTitle}</h3>
                 <span className="text-[10px] bg-violet-500/20 text-violet-400 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
                   Offline
                 </span>
@@ -175,38 +183,38 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         <div className="px-3 py-2 theme-subtle theme-border border-b flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
           <button
             type="button"
-            onClick={() => handleSendMessage('Kiedy mam wolne dzisiaj?')}
+            onClick={() => handleSendMessage(language === 'pl' ? 'Kiedy mam wolne dzisiaj?' : 'When do I have free time today?')}
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>🔍</span> Wolny czas dzisiaj
+            <span>🔍</span> {language === 'pl' ? 'Wolny czas dzisiaj' : 'Free time today'}
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Co mam zaplanowane na dzisiaj?')}
+            onClick={() => handleSendMessage(language === 'pl' ? 'Co mam zaplanowane na dzisiaj?' : 'What is on for today?')}
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>📅</span> Mój plan
+            <span>📅</span> {language === 'pl' ? 'Mój plan' : 'My schedule'}
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Czy mam wolny czwartek?')}
+            onClick={() => handleSendMessage(language === 'pl' ? 'Czy mam wolny czwartek?' : 'Am I free on Thursday?')}
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>🗓️</span> Wolny czwartek?
+            <span>🗓️</span> {language === 'pl' ? 'Wolny czwartek?' : 'Free Thursday?'}
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Czy mam jakieś kolizje w terminach?')}
+            onClick={() => handleSendMessage(language === 'pl' ? 'Czy mam jakieś kolizje w terminach?' : 'Check for conflicting events')}
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>⚠️</span> Kolizje
+            <span>⚠️</span> {language === 'pl' ? 'Kolizje' : 'Conflicts'}
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Podsumuj mój nadchodzący tydzień')}
+            onClick={() => handleSendMessage(language === 'pl' ? 'Podsumuj mój nadchodzący tydzień' : 'Summary of this week')}
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>📊</span> Tydzień
+            <span>📊</span> {language === 'pl' ? 'Tydzień' : 'Week'}
           </button>
         </div>
 
@@ -228,7 +236,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       : 'theme-surface theme-text theme-border border rounded-tl-xs'
                   }`}
                 >
-                  {/* Markdown Renderer: renders bold, italics, bullets and quotes nicely */}
+                  {/* Markdown Renderer */}
                   <MarkdownMessage content={msg.content} isUser={isUser} />
 
                   {/* If assistant extracted an event suggestion */}
@@ -243,13 +251,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         <Clock className="w-3.5 h-3.5 opacity-70 shrink-0" />
                         <span>
                           {msg.suggestedEvent.startDate}
-                          {msg.suggestedEvent.startTime ? `, ${msg.suggestedEvent.startTime} – ${msg.suggestedEvent.endTime}` : ' (Cały dzień)'}
+                          {msg.suggestedEvent.startTime ? `, ${msg.suggestedEvent.startTime} – ${msg.suggestedEvent.endTime}` : (language === 'pl' ? ' (Cały dzień)' : ' (All day)')}
                         </span>
                       </div>
 
                       {msg.suggestedEvent.location && (
                         <div className="theme-muted">
-                          Lokalizacja: <span className="font-medium theme-text">{msg.suggestedEvent.location}</span>
+                          {language === 'pl' ? 'Lokalizacja:' : 'Location:'} <span className="font-medium theme-text">{msg.suggestedEvent.location}</span>
                         </div>
                       )}
 
@@ -257,7 +265,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         {isAdded ? (
                           <div className="flex items-center gap-1.5 text-xs text-emerald-500 font-semibold py-1">
                             <Check className="w-4 h-4" />
-                            <span>Dodano do Twojego kalendarza!</span>
+                            <span>{language === 'pl' ? 'Dodano do Twojego kalendarza!' : 'Added to your calendar!'}</span>
                           </div>
                         ) : (
                           <button
@@ -267,7 +275,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                             className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
                           >
                             <CalendarPlus className="w-3.5 h-3.5" />
-                            <span>Zatwierdź i dodaj do kalendarza</span>
+                            <span>{language === 'pl' ? 'Zatwierdź i dodaj do kalendarza' : 'Confirm and add to calendar'}</span>
                           </button>
                         )}
                       </div>
@@ -298,50 +306,31 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               </div>
             );
           })}
-
-          {isProcessing && (
-            <div className="flex items-center gap-2 p-3 theme-surface rounded-2xl theme-border border text-xs theme-text w-fit animate-pulse">
-              <Sparkles className="w-4 h-4 text-violet-400 animate-spin" />
-              <span>Analizuję zapytanie i Twój grafik...</span>
-            </div>
-          )}
-
           <div ref={chatEndRef} />
         </div>
 
         {/* Input Bar */}
-        <div className="p-3 theme-border border-t theme-surface">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendMessage();
+        <div className="p-3 theme-surface theme-border border-t flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputQuery}
+            onChange={(e) => setInputQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSendMessage();
             }}
-            className="flex items-center gap-2"
+            placeholder={language === 'pl' ? 'Napisz np. Trening jutro o 18 na 1h...' : 'Type e.g. Workout tomorrow at 6pm for 1h...'}
+            disabled={isProcessing}
+            className="flex-1 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
+          <button
+            id="btn-send-ai-message"
+            onClick={() => handleSendMessage()}
+            disabled={!inputQuery.trim() || isProcessing}
+            className="p-2.5 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
-            <input
-              ref={inputRef}
-              id="input-ai-chat"
-              type="text"
-              placeholder="Zapytaj np. „Czy mam wolny czwartek?” lub dodaj wydarzenie..."
-              value={inputQuery}
-              onChange={(e) => setInputQuery(e.target.value)}
-              disabled={isProcessing || !aiSettings.enabled}
-              className="flex-1 px-3.5 py-2.5 rounded-xl theme-input text-xs sm:text-sm focus:outline-hidden focus:ring-2 focus:ring-violet-500 transition-all disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled}
-              className="w-10 h-10 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white transition-colors shrink-0 shadow-xs flex items-center justify-center cursor-pointer"
-              title="Wyślij do asystenta"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-
-          <div className="flex items-center justify-between text-[10px] theme-muted mt-2 px-1">
-            <span>Silnik: 100% Offline NLP (Na urządzeniu)</span>
-            <span>Bez połączenia z siecią</span>
-          </div>
+            <Send className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>

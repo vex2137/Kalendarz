@@ -78,7 +78,10 @@ export interface SecuritySettings {
 
 export type AppTheme = 'light' | 'dark' | 'nord' | 'emerald' | 'sunset' | 'lavender' | 'moka';
 
+import { AppLanguage } from './utils/i18n';
+
 export interface AppSettings {
+  language?: AppLanguage;
   ai: AiSettings;
   security: SecuritySettings;
   soundEnabled: boolean;

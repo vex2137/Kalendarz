@@ -7,11 +7,10 @@ import {
   Sparkles, 
   Settings as SettingsIcon,
   ArrowLeftRight,
-  Search,
-  Layers
+  Search
 } from 'lucide-react';
 import { CalendarViewMode } from '../types';
-import { MONTH_NAMES_PL } from '../utils/constants';
+import { MONTH_NAMES, getTranslation, AppLanguage } from '../utils/i18n';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface TopNavBarProps {
@@ -26,10 +25,8 @@ interface TopNavBarProps {
   onOpenSettings: () => void;
   onOpenSync: () => void;
   onOpenSearch: () => void;
-  onOpenBuildGuide: () => void;
   isAiEnabled: boolean;
-  notificationPermission: NotificationPermission;
-  onRequestNotification: () => void;
+  language?: AppLanguage;
 }
 
 export const TopNavBar: React.FC<TopNavBarProps> = ({
@@ -44,10 +41,11 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   onOpenSettings,
   onOpenSync,
   onOpenSearch,
-  onOpenBuildGuide,
   isAiEnabled,
+  language = 'pl',
 }) => {
-  const monthName = MONTH_NAMES_PL[currentDate.getMonth()];
+  const t = getTranslation(language);
+  const monthName = MONTH_NAMES[language]?.[currentDate.getMonth()] || MONTH_NAMES.pl[currentDate.getMonth()];
   const year = currentDate.getFullYear();
 
   return (
@@ -60,7 +58,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
               <CalendarIcon className="w-4 h-4" />
             </div>
-            <span className="font-bold theme-text tracking-tight text-sm whitespace-nowrap">Kalendarz Offline</span>
+            <span className="font-bold theme-text tracking-tight text-sm whitespace-nowrap">Kalendarz</span>
           </div>
 
           {/* Today Button */}
@@ -68,9 +66,9 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             id="btn-nav-today"
             onClick={onNavigateToday}
             className="h-8 px-2.5 sm:px-3 text-xs font-semibold rounded-xl theme-border border theme-surface theme-text theme-hover hover:opacity-90 transition-colors shadow-2xs shrink-0 flex items-center justify-center"
-            title="Przejdź do dzisiejszego dnia"
+            title={t.today}
           >
-            Dziś
+            {t.today}
           </button>
 
           {/* Navigation Chevrons */}
@@ -79,7 +77,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
               id="btn-nav-prev"
               onClick={onNavigatePrev}
               className="w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-lg theme-muted hover:theme-text theme-hover transition-colors flex items-center justify-center"
-              title="Poprzedni okres"
               aria-label="Poprzedni"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -89,7 +86,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
               id="btn-nav-next"
               onClick={onNavigateNext}
               className="w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-lg theme-muted hover:theme-text theme-hover transition-colors flex items-center justify-center"
-              title="Następny okres"
               aria-label="Następny"
             >
               <ChevronRight className="w-4 h-4" />
@@ -116,7 +112,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                   : 'theme-muted hover:theme-text'
               }`}
             >
-              Rok
+              {t.year}
             </button>
             <button
               id="btn-view-month"
@@ -127,7 +123,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                   : 'theme-muted hover:theme-text'
               }`}
             >
-              Miesiąc
+              {t.month}
             </button>
             <button
               id="btn-view-week"
@@ -138,7 +134,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                   : 'theme-muted hover:theme-text'
               }`}
             >
-              Tydzień
+              {t.week}
             </button>
             <button
               id="btn-view-day"
@@ -149,7 +145,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                   : 'theme-muted hover:theme-text'
               }`}
             >
-              Dzień
+              {t.day}
             </button>
             <button
               id="btn-view-agenda"
@@ -160,7 +156,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                   : 'theme-muted hover:theme-text'
               }`}
             >
-              Harmonogram
+              {t.agenda}
             </button>
           </div>
 
@@ -172,11 +168,11 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
               onChange={(e) => onViewModeChange(e.target.value as CalendarViewMode)}
               className="bg-transparent theme-text font-semibold outline-hidden cursor-pointer text-xs"
             >
-              <option value="month" className="theme-surface theme-text">Miesiąc</option>
-              <option value="week" className="theme-surface theme-text">Tydzień</option>
-              <option value="day" className="theme-surface theme-text">Dzień</option>
-              <option value="year" className="theme-surface theme-text">Rok</option>
-              <option value="agenda" className="theme-surface theme-text">Harmonogram</option>
+              <option value="month" className="theme-surface theme-text">{t.month}</option>
+              <option value="week" className="theme-surface theme-text">{t.week}</option>
+              <option value="day" className="theme-surface theme-text">{t.day}</option>
+              <option value="year" className="theme-surface theme-text">{t.year}</option>
+              <option value="agenda" className="theme-surface theme-text">{t.agenda}</option>
             </select>
           </div>
 
@@ -185,7 +181,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             id="btn-open-search"
             onClick={onOpenSearch}
             className="w-8 h-8 rounded-xl theme-muted hover:theme-text theme-hover flex items-center justify-center transition-colors border border-transparent hover:theme-border shrink-0"
-            title="Szukaj wydarzeń (Ctrl+F)"
+            title={t.search}
           >
             <Search className="w-4 h-4" />
           </button>
@@ -196,10 +192,10 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
               id="btn-open-ai-assistant"
               onClick={onOpenAiDrawer}
               className="h-8 w-8 sm:w-auto sm:px-2.5 rounded-xl text-xs font-semibold transition-all border border-violet-500/30 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 shadow-xs flex items-center justify-center gap-1.5 shrink-0"
-              title="Lokalny Asystent Kalendarza (Offline NLP)"
+              title={t.aiAssistantTitle}
             >
               <Sparkles className="w-4 h-4 text-violet-400" />
-              <span className="hidden 2xl:inline">Asystent</span>
+              <span className="hidden 2xl:inline">{t.assistant}</span>
             </button>
           )}
 
@@ -208,10 +204,10 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             id="btn-open-sync"
             onClick={onOpenSync}
             className="h-8 w-8 sm:w-auto sm:px-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors border border-indigo-500/30 text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 shrink-0"
-            title="Synchronizacja PC ⇄ Telefon (Bez konta, Kod QR / Plik)"
+            title={t.sync}
           >
             <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
-            <span className="hidden 2xl:inline">Synchronizuj</span>
+            <span className="hidden 2xl:inline">{t.sync}</span>
           </button>
 
           {/* Settings Button */}
@@ -219,7 +215,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             id="btn-open-settings"
             onClick={onOpenSettings}
             className="w-8 h-8 rounded-xl theme-muted hover:theme-text theme-hover flex items-center justify-center transition-colors border border-transparent hover:theme-border shrink-0"
-            title="Ustawienia, Motywy, PIN i Kopia"
+            title={t.settings}
           >
             <SettingsIcon className="w-4 h-4" />
           </button>
@@ -229,17 +225,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <PWAInstallButton />
           </div>
 
-          {/* Build Guide Button */}
-          <button
-            id="btn-open-build-guide"
-            onClick={onOpenBuildGuide}
-            className="hidden 2xl:flex h-8 items-center justify-center gap-1.5 px-2.5 rounded-xl theme-subtle theme-hover theme-text theme-border border text-xs font-semibold shadow-2xs shrink-0"
-            title="Instrukcje i skrypty budowy na APK, Linux i Windows"
-          >
-            <Layers className="w-3.5 h-3.5 text-blue-500" />
-            <span>Buduj / APK</span>
-          </button>
-
           {/* Create Button (Desktop) */}
           <button
             id="btn-create-event-top"
@@ -247,7 +232,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             className="hidden sm:flex h-8 items-center justify-center gap-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold shadow-xs transition-colors shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden md:inline">Utwórz</span>
+            <span className="hidden md:inline">{t.create}</span>
           </button>
         </div>
       </div>

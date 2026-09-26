@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   CalendarEvent, 
   CalendarViewMode, 
-  AppSettings 
+  AppSettings, 
+  AppTheme 
 } from './types';
 import { 
   loadStoredEvents, 
@@ -10,48 +11,44 @@ import {
   loadStoredSettings, 
   saveStoredSettings 
 } from './utils/storage';
-import { AVAILABLE_THEMES } from './utils/constants';
 import { 
   checkEventReminders, 
+  requestNotificationPermission, 
   playNotificationSound, 
-  triggerVibration, 
-  requestNotificationPermission 
+  triggerVibration 
 } from './utils/notifications';
 import { TopNavBar } from './components/TopNavBar';
 import { MonthView } from './components/MonthView';
 import { DayWeekView } from './components/DayWeekView';
-import { AgendaView } from './components/AgendaView';
 import { YearView } from './components/YearView';
+import { AgendaView } from './components/AgendaView';
 import { BottomNavMobile } from './components/BottomNavMobile';
 import { EventModal } from './components/EventModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AiAssistantDrawer } from './components/AiAssistantDrawer';
-import { PinLockScreen } from './components/PinLockScreen';
-import { NotificationBanner } from './components/NotificationBanner';
 import { SyncModal } from './components/SyncModal';
 import { SearchModal } from './components/SearchModal';
-import { BuildGuideModal } from './components/BuildGuideModal';
+import { PinLockScreen } from './components/PinLockScreen';
+import { NotificationBanner } from './components/NotificationBanner';
 import { Plus } from 'lucide-react';
 
 export default function App() {
-  const [events, setEvents] = useState<CalendarEvent[]>(() => loadStoredEvents());
-  const [settings, setSettings] = useState<AppSettings>(() => loadStoredSettings());
+  // Primary State
+  const [events, setEvents] = useState<CalendarEvent[]>(loadStoredEvents);
+  const [settings, setSettings] = useState<AppSettings>(loadStoredSettings);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
-    const saved = loadStoredSettings();
-    return saved.defaultView || 'month';
-  });
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(settings.defaultView || 'month');
 
-  // Modals & Panels state
+  // Modals & Drawers
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [modalInitialDate, setModalInitialDate] = useState<string | undefined>();
-  const [modalInitialTime, setModalInitialTime] = useState<string | undefined>();
+  const [modalInitialDate, setModalInitialDate] = useState<string | undefined>(undefined);
+  const [modalInitialTime, setModalInitialTime] = useState<string | undefined>(undefined);
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [isBuildGuideOpen, setIsBuildGuideOpen] = useState(false);
 
   // Security / PIN lock
   const [isPinLocked, setIsPinLocked] = useState<boolean>(
@@ -100,19 +97,16 @@ export default function App() {
   const handleSyncMergeEvents = useCallback((incomingEvents: CalendarEvent[]) => {
     setEvents((current) => {
       const eventMap = new Map<string, CalendarEvent>();
-      // Put existing events
       current.forEach((e) => {
         const key = e.id || `${e.title}_${e.startDate}_${e.startTime || ''}`;
         eventMap.set(key, e);
       });
-      // Merge incoming
       incomingEvents.forEach((inc) => {
         const key = inc.id || `${inc.title}_${inc.startDate}_${inc.startTime || ''}`;
         const existing = eventMap.get(key);
         if (!existing) {
           eventMap.set(key, inc);
         } else {
-          // If incoming is newer or existing has older timestamp, overwrite
           const existingTime = existing.updatedAt || existing.createdAt || 0;
           const incTime = inc.updatedAt || inc.createdAt || 0;
           if (incTime >= existingTime) {
@@ -230,6 +224,11 @@ export default function App() {
     setIsEventModalOpen(false);
   };
 
+  const handleRemoveHolidays = () => {
+    const remaining = events.filter((e) => !e.id.startsWith('pl-holiday-') && !e.title.startsWith('🇵🇱 '));
+    updateEvents(remaining);
+  };
+
   // Select day in Month or Agenda view
   const handleSelectDay = (dateStr: string) => {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -269,6 +268,8 @@ export default function App() {
     );
   }
 
+  const currentLang = settings.language || 'pl';
+
   return (
     <div className="min-h-screen theme-bg theme-text flex flex-col font-sans select-none overflow-x-hidden w-full max-w-full transition-colors duration-200">
       {/* Top App Bar */}
@@ -284,10 +285,8 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenSync={() => setIsSyncModalOpen(true)}
         onOpenSearch={() => setIsSearchModalOpen(true)}
-        onOpenBuildGuide={() => setIsBuildGuideOpen(true)}
         isAiEnabled={settings.ai.enabled}
-        notificationPermission={notificationPermission}
-        onRequestNotification={handleRequestNotification}
+        language={currentLang}
       />
 
       {/* Floating Notification Toast */}
@@ -344,12 +343,13 @@ export default function App() {
         )}
       </main>
 
-      {/* Mobile Bottom Navigation Bar (like native Samsung/Google Calendar) */}
+      {/* Mobile Bottom Navigation Bar */}
       <BottomNavMobile
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         todayDayNumber={new Date().getDate()}
         onNavigateToday={handleNavigateToday}
+        language={currentLang}
       />
 
       {/* Mobile Floating Action Button (FAB) */}
@@ -357,7 +357,7 @@ export default function App() {
         id="btn-mobile-fab-create"
         onClick={() => handleOpenCreateModal()}
         aria-label="Dodaj wydarzenie"
-        className="sm:hidden fixed bottom-18 right-5 w-13 h-13 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-xl flex items-center justify-center z-40 transition-transform active:scale-95"
+        className="sm:hidden fixed bottom-18 right-5 w-13 h-13 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-xl flex items-center justify-center z-40 transition-transform active:scale-95 cursor-pointer"
       >
         <Plus className="w-6 h-6" />
       </button>
@@ -384,9 +384,9 @@ export default function App() {
         onUpdateSettings={updateSettings}
         events={events}
         onImportEvents={(newEvts) => updateEvents(newEvts)}
+        onRemoveHolidays={handleRemoveHolidays}
         onClearAllEvents={() => updateEvents([])}
         onLockApp={() => setIsPinLocked(true)}
-        onOpenBuildGuide={() => setIsBuildGuideOpen(true)}
       />
 
       {/* Local AI Assistant Drawer */}
@@ -396,6 +396,7 @@ export default function App() {
         events={events}
         onAddEventFromAi={handleAddEventFromAi}
         aiSettings={settings.ai}
+        language={currentLang}
       />
 
       {/* Accountless Sync Modal (PC <-> Phone) */}
@@ -419,12 +420,6 @@ export default function App() {
         onClose={() => setIsSearchModalOpen(false)}
         events={events}
         onSelectEvent={handleSelectEvent}
-      />
-
-      {/* Build & Installation Guide (APK, Linux, Windows) */}
-      <BuildGuideModal
-        isOpen={isBuildGuideOpen}
-        onClose={() => setIsBuildGuideOpen(false)}
       />
     </div>
   );

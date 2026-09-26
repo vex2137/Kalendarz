@@ -15,7 +15,7 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           id: '/',
-          name: 'Kalendarz AI Offline',
+          name: 'Kalendarz',
           short_name: 'Kalendarz',
           description: 'Prywatny kalendarz w stylu Google Calendar z lokalnym modelem AI i powiadomieniami',
           theme_color: '#2563eb',

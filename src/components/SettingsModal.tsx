@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { 
   AppSettings, 
   CalendarEvent,
-  AppTheme,
   GoogleCalendarColor,
   CalendarViewMode
 } from '../types';
@@ -18,9 +17,9 @@ import {
 import { generateHolidayEvents } from '../utils/holidays';
 import { 
   playNotificationSound, 
-  triggerVibration, 
-  requestNotificationPermission 
+  triggerVibration 
 } from '../utils/notifications';
+import { getTranslation, AppLanguage } from '../utils/i18n';
 import { 
   X, 
   Shield, 
@@ -39,7 +38,7 @@ import {
   Calendar,
   Layers,
   Flag,
-  Monitor
+  Languages
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -49,9 +48,9 @@ interface SettingsModalProps {
   onUpdateSettings: (newSettings: AppSettings) => void;
   events: CalendarEvent[];
   onImportEvents: (importedEvents: CalendarEvent[]) => void;
+  onRemoveHolidays?: () => void;
   onClearAllEvents: () => void;
   onLockApp?: () => void;
-  onOpenBuildGuide?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -61,24 +60,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateSettings,
   events,
   onImportEvents,
+  onRemoveHolidays,
   onClearAllEvents,
   onLockApp,
-  onOpenBuildGuide,
 }) => {
+  const lang: AppLanguage = settings.language || 'pl';
+  const t = getTranslation(lang);
+
   const [pinInput, setPinInput] = useState(settings.security.pinCode);
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinSuccess, setPinSuccess] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
-  const [holidaysAdded, setHolidaysAdded] = useState(false);
+  const [holidaysToast, setHolidaysToast] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
 
+  // Count Polish holiday events in calendar
+  const polishHolidaysInCal = events.filter(
+    (e) => e.id.startsWith('pl-holiday-') || e.title.startsWith('🇵🇱 ')
+  );
+
   const handleSavePin = () => {
     if (settings.security.pinEnabled) {
       if (pinInput.length !== 4 || !/^\d{4}$/.test(pinInput)) {
-        setPinError('PIN musi składać się dokładnie z 4 cyfr!');
+        setPinError(lang === 'pl' ? 'PIN musi składać się z 4 cyfr!' : 'PIN must be 4 digits!');
         return;
       }
     }
@@ -90,13 +97,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         pinCode: pinInput,
       },
     });
-    setPinSuccess('PIN został pomyślnie zaktualizowany.');
+    setPinSuccess(lang === 'pl' ? 'PIN został zaktualizowany.' : 'PIN successfully updated.');
     setTimeout(() => setPinSuccess(null), 3000);
   };
 
   const handleTogglePin = (enabled: boolean) => {
     if (enabled && (!pinInput || pinInput.length !== 4)) {
-      setPinError('Wprowadź 4 cyfry PIN przed włączeniem blokady!');
+      setPinError(lang === 'pl' ? 'Wprowadź 4 cyfry PIN!' : 'Enter 4 digits PIN!');
       return;
     }
     setPinError(null);
@@ -110,12 +117,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
   };
 
-  const handleTestSound = () => {
-    playNotificationSound();
+  const handleAddHolidays = () => {
+    const holidays = generateHolidayEvents([2026, 2027, 2028, 2029, 2030, 2031]);
+    onImportEvents(holidays);
+    setHolidaysToast(t.holidaysAdded);
+    setTimeout(() => setHolidaysToast(null), 3500);
   };
 
-  const handleTestVibration = () => {
-    triggerVibration();
+  const handleRemoveHolidaysClick = () => {
+    if (onRemoveHolidays) {
+      onRemoveHolidays();
+    }
+    setHolidaysToast(t.holidaysRemoved);
+    setTimeout(() => setHolidaysToast(null), 3500);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,29 +143,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const parsed = parseICSToEvents(text);
         if (parsed.length > 0) {
           onImportEvents(parsed);
-          setImportStatus(`Pomyślnie zaimportowano ${parsed.length} wydarzeń!`);
-          setTimeout(() => setImportStatus(null), 4000);
+          setImportStatus(
+            lang === 'pl' 
+              ? `Pomyślnie zaimportowano ${parsed.length} wydarzeń z pliku .ics!` 
+              : `Successfully imported ${parsed.length} events from .ics file!`
+          );
         } else {
-          setImportStatus('Nie znaleziono poprawnych wydarzeń w pliku .ics.');
+          setImportStatus(
+            lang === 'pl' 
+              ? 'Nie znaleziono poprawnych wydarzeń w pliku .ics.' 
+              : 'No valid events found in .ics file.'
+          );
         }
       } catch {
-        setImportStatus('Błąd podczas odczytu pliku .ics');
+        setImportStatus(lang === 'pl' ? 'Błąd podczas odczytu pliku.' : 'Error reading file.');
       }
+      setTimeout(() => setImportStatus(null), 4000);
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div 
         id="modal-settings"
-        className="theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150"
+        className="theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border flex flex-col max-h-[90vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 theme-border border-b theme-subtle">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold theme-text">Ustawienia kalendarza</h3>
-          </div>
+          <h3 className="text-base font-bold theme-text">{t.settingsTitle}</h3>
           <button
             id="btn-close-settings-modal"
             onClick={onClose}
@@ -163,15 +185,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Content */}
         <div className="p-5 space-y-6 overflow-y-auto max-h-[80vh] divide-y theme-border">
-          {/* Section 1: Motyw kolorystyczny */}
+          {/* Section 0: Wybór języka (Language Selector) */}
           <div className="space-y-3 pt-1">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center">
+                <Languages className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold theme-text">{t.language}</h4>
+                <p className="text-xs theme-muted">{t.languageDesc}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({ ...settings, language: 'pl' })}
+                className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                  lang === 'pl'
+                    ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text'
+                    : 'theme-border theme-subtle theme-muted hover:theme-text'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🇵🇱</span>
+                  <span className="text-xs">Polski</span>
+                </div>
+                {lang === 'pl' && <Check className="w-4 h-4 text-blue-500" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({ ...settings, language: 'en' })}
+                className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                  lang === 'en'
+                    ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text'
+                    : 'theme-border theme-subtle theme-muted hover:theme-text'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🇬🇧</span>
+                  <span className="text-xs">English</span>
+                </div>
+                {lang === 'en' && <Check className="w-4 h-4 text-blue-500" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Section 1: Motyw kolorystyczny */}
+          <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
                 <Palette className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">Motyw kolorystyczny</h4>
-                <p className="text-xs theme-muted">Dostosuj styl całej aplikacji</p>
+                <h4 className="text-sm font-bold theme-text">{t.theme}</h4>
+                <p className="text-xs theme-muted">{t.themeDesc}</p>
               </div>
             </div>
 
@@ -227,7 +296,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Clock className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">Domyślne ustawienia wydarzeń</h4>
+                <h4 className="text-sm font-bold theme-text">{t.defaultEventSettings}</h4>
                 <p className="text-xs theme-muted">Ułatw szybkie dodawanie terminów</p>
               </div>
             </div>
@@ -236,7 +305,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {/* Domyślny czas trwania */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold theme-text">
-                  Domyślny czas trwania:
+                  {t.defaultDuration}
                 </label>
                 <select
                   value={settings.defaultEventDuration || 60}
@@ -257,10 +326,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </select>
               </div>
 
-              {/* Domyślne powiadomienie */}
+              {/* Domyślne przypomnienie */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold theme-text">
-                  Domyślne przypomnienie:
+                  {t.defaultReminderLabel}
                 </label>
                 <select
                   value={settings.defaultReminder !== undefined ? settings.defaultReminder : 15}
@@ -280,6 +349,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </select>
               </div>
 
+              {/* Domyślny kolor wpisów */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold theme-text">
+                  {t.defaultColorLabel}
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  {(Object.keys(GOOGLE_CALENDAR_COLORS) as GoogleCalendarColor[]).map((cKey) => {
+                    const cDef = GOOGLE_CALENDAR_COLORS[cKey];
+                    const isSelected = (settings.defaultColor || 'peacock') === cKey;
+                    return (
+                      <button
+                        key={cKey}
+                        type="button"
+                        onClick={() => {
+                          onUpdateSettings({
+                            ...settings,
+                            defaultColor: cKey,
+                          });
+                        }}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform ${
+                          isSelected ? 'scale-110 ring-2 ring-blue-500 ring-offset-2 ring-offset-black' : 'hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: cDef.dot }}
+                        title={cDef.name}
+                      >
+                        {isSelected && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Domyślny widok po otwarciu */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold theme-text">
@@ -295,70 +396,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }}
                   className="w-full text-xs font-medium px-3 py-2 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="month">Widok miesiąca</option>
-                  <option value="week">Widok tygodnia</option>
-                  <option value="day">Widok dnia</option>
-                  <option value="agenda">Harmonogram (Lista)</option>
+                  <option value="month">Miesiąc</option>
+                  <option value="week">Tydzień</option>
+                  <option value="day">Dzień</option>
+                  <option value="agenda">Harmonogram</option>
+                  <option value="year">Rok</option>
                 </select>
-              </div>
-
-              {/* Domyślny kolor */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold theme-text">
-                  Domyślny kolor nowego wydarzenia:
-                </label>
-                <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  {(Object.keys(GOOGLE_CALENDAR_COLORS) as GoogleCalendarColor[]).slice(0, 8).map((cKey) => {
-                    const isSelected = (settings.defaultColor || 'peacock') === cKey;
-                    return (
-                      <button
-                        key={cKey}
-                        type="button"
-                        onClick={() => {
-                          onUpdateSettings({
-                            ...settings,
-                            defaultColor: cKey,
-                          });
-                        }}
-                        className={`w-6 h-6 rounded-full transition-transform flex items-center justify-center ${
-                          isSelected ? 'scale-115 ring-2 ring-white shadow-xs' : 'hover:scale-105 opacity-80 hover:opacity-100'
-                        }`}
-                        style={{ backgroundColor: GOOGLE_CALENDAR_COLORS[cKey].dot }}
-                        title={GOOGLE_CALENDAR_COLORS[cKey].name}
-                      >
-                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             </div>
           </div>
 
-          {/* Section 3: Dźwięki i Alerty */}
+          {/* Section 3: Dźwięki i wibracje powiadomień */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                 <Bell className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">Dźwięki i powiadomienia</h4>
-                <p className="text-xs theme-muted">Sygnały dźwiękowe i wibracje na telefonie</p>
+                <h4 className="text-sm font-bold theme-text">{t.soundAndVib}</h4>
+                <p className="text-xs theme-muted">Dźwięki powiadomień i wibracja</p>
               </div>
             </div>
 
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between p-3 rounded-2xl theme-subtle theme-border border">
                 <div className="flex items-center gap-2.5">
-                  <Volume2 className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs font-semibold theme-text">Dźwięk powiadomień</span>
+                  <Volume2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-semibold theme-text">{t.soundEnabled}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleTestSound}
+                    onClick={playNotificationSound}
                     className="px-2.5 py-1 text-[11px] font-semibold rounded-lg theme-surface theme-hover theme-border border theme-text"
                   >
-                    Testuj dźwięk
+                    {t.testSound}
                   </button>
                   <input
                     type="checkbox"
@@ -377,14 +448,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center justify-between p-3 rounded-2xl theme-subtle theme-border border">
                 <div className="flex items-center gap-2.5">
                   <Smartphone className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-semibold theme-text">Wibracja w telefonie</span>
+                  <span className="text-xs font-semibold theme-text">{t.vibrationEnabled}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleTestVibration}
+                    onClick={() => triggerVibration()}
                     className="px-2.5 py-1 text-[11px] font-semibold rounded-lg theme-surface theme-hover theme-border border theme-text"
                   >
-                    Testuj wibrację
+                    {t.testVibration}
                   </button>
                   <input
                     type="checkbox"
@@ -410,8 +481,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold theme-text">Lokalny Asystent Kalendarza</h4>
-                  <p className="text-xs theme-muted">100% Offline NLP • 0 telemetrii</p>
+                  <h4 className="text-sm font-bold theme-text">{t.aiAssistantTitle}</h4>
+                  <p className="text-xs theme-muted">{t.aiAssistantDesc}</p>
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -434,7 +505,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <p className="text-xs theme-muted leading-relaxed">
-              Asystent działa w całości na Twoim telefonie bez żadnego połączenia z internetem. Potrafi analizować wolny czas, planować spotkania ze zdań w języku polskim oraz tworzyć inteligentne podsumowania.
+              {lang === 'pl' 
+                ? 'Asystent działa w 100% lokalnie na Twoim urządzeniu. Analizuje grafik, wolny czas, wykrywa kolizje i planuje spotkania ze zdań.'
+                : 'The assistant runs 100% locally on your device. It analyzes your schedule, checks free time, and extracts events from natural language.'}
             </p>
           </div>
 
@@ -446,8 +519,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Shield className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold theme-text">Blokada kodem PIN</h4>
-                  <p className="text-xs theme-muted">Zabezpiecz kalendarz 4-cyfrowym kodem</p>
+                  <h4 className="text-sm font-bold theme-text">{t.pinLock}</h4>
+                  <p className="text-xs theme-muted">{t.pinLockDesc}</p>
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -461,31 +534,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </label>
             </div>
 
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <KeyRound className="w-4 h-4 absolute left-3 top-2.5 theme-muted" />
+            {settings.security.pinEnabled && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-emerald-300">Ustaw kod PIN (4 cyfry):</span>
+                </div>
+                <div className="flex items-center gap-2">
                   <input
                     type="password"
                     maxLength={4}
-                    placeholder="Wpisz 4 cyfry (np. 1234)"
                     value={pinInput}
                     onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl theme-input text-xs tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="••••"
+                    className="w-24 text-center tracking-widest text-base font-bold px-3 py-1.5 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  <button
+                    type="button"
+                    onClick={handleSavePin}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs"
+                  >
+                    Zapisz PIN
+                  </button>
+                  {onLockApp && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onLockApp();
+                      }}
+                      className="px-3 py-1.5 theme-subtle theme-hover theme-border border theme-text rounded-xl text-xs font-medium transition-colors"
+                    >
+                      Zablokuj teraz
+                    </button>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSavePin}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-2xs"
-                >
-                  Zapisz PIN
-                </button>
-              </div>
 
-              {pinError && <p className="text-[11px] text-rose-500 font-semibold">{pinError}</p>}
-              {pinSuccess && <p className="text-[11px] text-emerald-500 font-semibold">{pinSuccess}</p>}
-            </div>
+                {pinError && <p className="text-xs text-rose-400 font-medium">{pinError}</p>}
+                {pinSuccess && <p className="text-xs text-emerald-400 font-medium">{pinSuccess}</p>}
+              </div>
+            )}
           </div>
 
           {/* Section 6: Polskie święta i dni ustawowo wolne od pracy */}
@@ -495,74 +583,70 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Flag className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">Polskie święta i dni wolne</h4>
-                <p className="text-xs theme-muted">Oficjalne dni ustawowo wolne od pracy (Nowy Rok, Majówka, Boże Ciało...)</p>
+                <h4 className="text-sm font-bold theme-text">{t.holidaysSection}</h4>
+                <p className="text-xs theme-muted">{t.holidaysDesc}</p>
               </div>
             </div>
 
-            <div className="p-3 rounded-2xl theme-subtle theme-border border space-y-2">
-              <p className="text-xs theme-text leading-relaxed">
-                Możesz jednym kliknięciem zaimportować do swojego kalendarza wszystkie oficjalne polskie święta na 5 lat do przodu (2026–2031), w tym automatycznie wyliczone święta ruchome (Wielkanoc, Boże Ciało, Zielone Świątki).
-              </p>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const holidays = generateHolidayEvents([2026, 2027, 2028, 2029, 2030, 2031]);
-                  onImportEvents(holidays);
-                  setHolidaysAdded(true);
-                  setTimeout(() => setHolidaysAdded(false), 4000);
-                }}
-                className="w-full py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
-              >
-                <Flag className="w-3.5 h-3.5" />
-                {holidaysAdded ? 'Dodano polskie święta do kalendarza!' : 'Dodaj polskie święta (2026–2031)'}
-              </button>
-            </div>
-          </div>
-
-          {/* Section 7: Aplikacja na komputer i telefon (APK, Linux, Windows) */}
-          <div className="space-y-3 pt-5">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
-                <Monitor className="w-4 h-4" />
+            <div className="p-3.5 rounded-2xl theme-subtle theme-border border space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="theme-muted">{t.holidaysInCalendar}</span>
+                <span className={`px-2 py-0.5 rounded-lg font-bold text-xs ${
+                  polishHolidaysInCal.length > 0 
+                    ? 'bg-red-500/10 text-red-500 border border-red-500/30' 
+                    : 'theme-subtle theme-muted border theme-border'
+                }`}>
+                  {polishHolidaysInCal.length} {t.holidaysUnit}
+                </span>
               </div>
-              <div>
-                <h4 className="text-sm font-bold theme-text">Aplikacja na telefon i komputer</h4>
-                <p className="text-xs theme-muted">Instrukcje i skrypty budowania APK, Linux (.AppImage) i Windows (.exe)</p>
-              </div>
-            </div>
 
-            <div className="p-3 rounded-2xl theme-subtle theme-border border space-y-2">
-              <p className="text-xs theme-text leading-relaxed">
-                Przygotowałem skrypty 1-kliknięcia (<code>build-apk.sh</code>, <code>build-desktop.sh</code>, <code>build-windows.bat</code>), dzięki którym łatwo skompilujesz lub uruchomisz program w oknie na CachyOS/Linux, Windowsie i telefonie.
-              </p>
-
-              {onOpenBuildGuide && (
+              {polishHolidaysInCal.length > 0 ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleAddHolidays}
+                    className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
+                  >
+                    <Flag className="w-3.5 h-3.5" />
+                    {t.updateHolidaysBtn}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveHolidaysClick}
+                    className="w-full py-2 rounded-xl bg-rose-600/15 hover:bg-rose-600/25 border border-rose-500/40 text-rose-400 text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {t.removeHolidaysBtn}
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenBuildGuide();
-                  }}
-                  className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
+                  onClick={handleAddHolidays}
+                  className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
                 >
-                  <Layers className="w-3.5 h-3.5" />
-                  Otwórz centrum budowania (APK / Linux / Windows)
+                  <Flag className="w-3.5 h-3.5" />
+                  {t.addHolidaysBtn}
                 </button>
+              )}
+
+              {holidaysToast && (
+                <p className="text-xs text-emerald-400 font-semibold text-center pt-1 animate-in fade-in">
+                  {holidaysToast}
+                </p>
               )}
             </div>
           </div>
 
-          {/* Section 8: Kopia zapasowa i zarządzanie danymi */}
+          {/* Section 7: Kopia zapasowa i zarządzanie danymi */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
                 <Layers className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">Kopia zapasowa i dane</h4>
-                <p className="text-xs theme-muted">Zapisane lokalnie wydarzenia: <strong>{events.length}</strong></p>
+                <h4 className="text-sm font-bold theme-text">{t.backupAndData}</h4>
+                <p className="text-xs theme-muted">Lokalne wydarzenia: <strong>{events.length}</strong></p>
               </div>
             </div>
 
@@ -573,7 +657,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl theme-subtle theme-hover theme-border border text-xs font-semibold theme-text transition-colors shadow-2xs"
               >
                 <Download className="w-3.5 h-3.5 opacity-70" />
-                Pobierz plik .ics
+                {t.downloadIcs}
               </button>
 
               <button
@@ -582,7 +666,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl theme-subtle theme-hover theme-border border text-xs font-semibold theme-text transition-colors shadow-2xs"
               >
                 <Upload className="w-3.5 h-3.5 opacity-70" />
-                Wczytaj plik .ics
+                {t.uploadIcs}
               </button>
               <input
                 type="file"
@@ -605,13 +689,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="flex items-center gap-1.5 text-xs text-rose-500 hover:text-rose-400 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  Wyczyść wszystkie wydarzenia
+                  {t.clearAllEvents}
                 </button>
               ) : (
                 <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl space-y-2">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
                     <AlertTriangle className="w-4 h-4" />
-                    Czy na pewno chcesz usunąć wszystkie {events.length} wydarzeń?
+                    {t.clearConfirm} ({events.length})
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -622,14 +706,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }}
                       className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors"
                     >
-                      Tak, usuń wszystko
+                      {t.yesDelete}
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirmClear(false)}
                       className="px-3 py-1.5 theme-subtle theme-hover theme-border border theme-text rounded-xl text-xs font-medium transition-colors"
                     >
-                      Anuluj
+                      {t.cancel}
                     </button>
                   </div>
                 </div>
@@ -645,7 +729,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
           >
-            Zamknij
+            {t.close}
           </button>
         </div>
       </div>

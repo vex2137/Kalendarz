@@ -7,20 +7,24 @@ import {
   CalendarCheck
 } from 'lucide-react';
 import { CalendarViewMode } from '../types';
+import { getTranslation, AppLanguage } from '../utils/i18n';
 
 interface BottomNavMobileProps {
   viewMode: CalendarViewMode;
   onViewModeChange: (mode: CalendarViewMode) => void;
   todayDayNumber: number;
   onNavigateToday: () => void;
+  language?: AppLanguage;
 }
 
 export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
   viewMode,
   onViewModeChange,
   todayDayNumber,
-  onNavigateToday,
+  language = 'pl',
 }) => {
+  const t = getTranslation(language);
+
   return (
     <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 theme-header theme-border border-t safe-bottom px-1 py-1.5 shadow-lg backdrop-blur-md">
       <div className="flex items-center justify-around max-w-md mx-auto">
@@ -34,7 +38,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
           }`}
         >
           <CalendarCheck className="w-6 h-6 mb-1" />
-          <span className="text-[11px] font-medium tracking-tight">Rok</span>
+          <span className="text-[11px] font-medium tracking-tight">{t.year}</span>
         </button>
 
         {/* Miesiąc */}
@@ -47,7 +51,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
           }`}
         >
           <MonthIcon className="w-6 h-6 mb-1" />
-          <span className="text-[11px] font-medium tracking-tight">Miesiąc</span>
+          <span className="text-[11px] font-medium tracking-tight">{t.month}</span>
         </button>
 
         {/* Tydzień */}
@@ -60,7 +64,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
           }`}
         >
           <CalendarRange className="w-6 h-6 mb-1" />
-          <span className="text-[11px] font-medium tracking-tight">Tydzień</span>
+          <span className="text-[11px] font-medium tracking-tight">{t.week}</span>
         </button>
 
         {/* Dzień */}
@@ -76,7 +80,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
             <CalendarDays className="w-6 h-6" />
             <span className="absolute text-[9px] font-bold top-[6px]">{todayDayNumber}</span>
           </div>
-          <span className="text-[11px] font-medium tracking-tight">Dzień</span>
+          <span className="text-[11px] font-medium tracking-tight">{t.day}</span>
         </button>
 
         {/* Plan / Agenda */}
@@ -89,7 +93,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
           }`}
         >
           <ListOrdered className="w-6 h-6 mb-1" />
-          <span className="text-[11px] font-medium tracking-tight">Plan</span>
+          <span className="text-[11px] font-medium tracking-tight">{t.agenda}</span>
         </button>
       </div>
     </nav>
