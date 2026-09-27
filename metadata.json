@@ -1,0 +1,6 @@
+{
+  "name": "Kalendarz",
+  "description": "Prywatny kalendarz w stylu Google Calendar działający w 100% offline z powiadomieniami, synchronizacją bez konta i zerową telemetrią.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

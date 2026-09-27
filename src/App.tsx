@@ -75,6 +75,14 @@ export default function App() {
     saveStoredSettings(newSettings);
   }, []);
 
+  // Sync document title and HTML lang attribute based on selected language
+  useEffect(() => {
+    const lang = settings.language || 'pl';
+    const appTitle = lang === 'en' ? 'Calendar' : 'Kalendarz';
+    document.title = appTitle;
+    document.documentElement.setAttribute('lang', lang);
+  }, [settings.language]);
+
   // Sync data-theme attribute on <html> and <meta name="theme-color">
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme);
@@ -264,6 +272,7 @@ export default function App() {
       <PinLockScreen 
         correctPin={settings.security.pinCode}
         onUnlock={() => setIsPinLocked(false)}
+        language={settings.language || 'pl'}
       />
     );
   }

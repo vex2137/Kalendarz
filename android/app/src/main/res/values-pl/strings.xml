@@ -2,6 +2,4 @@
 <resources>
     <string name="app_name">Kalendarz</string>
     <string name="title_activity_main">Kalendarz</string>
-    <string name="package_name">com.kalendarz.offline</string>
-    <string name="custom_url_scheme">com.kalendarz.offline</string>
 </resources>

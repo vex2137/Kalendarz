@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { CalendarViewMode } from '../types';
 import { MONTH_NAMES, getTranslation, AppLanguage } from '../utils/i18n';
-import { PWAInstallButton } from './PWAInstallButton';
 
 interface TopNavBarProps {
   currentDate: Date;
@@ -58,7 +57,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
               <CalendarIcon className="w-4 h-4" />
             </div>
-            <span className="font-bold theme-text tracking-tight text-sm whitespace-nowrap">Kalendarz</span>
+            <span className="font-bold theme-text tracking-tight text-sm whitespace-nowrap">{t.appName}</span>
           </div>
 
           {/* Today Button */}
@@ -219,11 +218,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           >
             <SettingsIcon className="w-4 h-4" />
           </button>
-
-          {/* PWA Install Button (Desktop only) */}
-          <div className="hidden lg:flex items-center shrink-0">
-            <PWAInstallButton />
-          </div>
 
           {/* Create Button (Desktop) */}
           <button

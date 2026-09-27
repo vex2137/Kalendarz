@@ -55,6 +55,10 @@ export const TRANSLATIONS = {
     reminders: 'Powiadomienia',
     addReminder: 'Dodaj przypomnienie',
     customRepeat: 'Niestandardowe...',
+    // Pin lock
+    pinLockedTitle: 'Kalendarz zablokowany',
+    pinEnterCode: 'Wprowadź 4-cyfrowy kod PIN',
+    pinIncorrect: 'Niepoprawny PIN. Spróbuj ponownie.',
     // Settings
     settingsTitle: 'Ustawienia kalendarza',
     theme: 'Motyw kolorystyczny',
@@ -123,6 +127,10 @@ export const TRANSLATIONS = {
     reminders: 'Reminders',
     addReminder: 'Add reminder',
     customRepeat: 'Custom...',
+    // Pin lock
+    pinLockedTitle: 'Calendar Locked',
+    pinEnterCode: 'Enter 4-digit PIN code',
+    pinIncorrect: 'Incorrect PIN. Please try again.',
     // Settings
     settingsTitle: 'Calendar Settings',
     theme: 'Color Theme',
