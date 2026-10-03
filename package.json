@@ -1,14 +1,49 @@
 {
   "name": "kalendarz-offline",
+  "productName": "Kalendarz Offline",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "clean": "rm -rf dist release",
+    "lint": "tsc --noEmit",
+    "build:linux": "npm run build && electron-builder --linux AppImage",
+    "build:win": "npm run build && electron-builder --win nsis",
+    "build:flatpak": "npm run build && electron-builder --linux flatpak"
+  },
+  "build": {
+    "appId": "com.vex2137.kalendarz",
+    "productName": "Kalendarz Offline",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "public/**/*"
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "public/pwa-512x512.png"
+    },
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ],
+      "signAndEditExecutable": false,
+      "icon": "public/pwa-512x512.png"
+    },
+    "nsis": {
+      "differentialPackage": false
+    }
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -36,6 +71,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",

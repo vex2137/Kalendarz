@@ -1,0 +1,27 @@
+app-id: com.vex2137.kalendarz
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: '24.08'
+command: kalendarz-offline
+separate-locales: false
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --device=dri
+  - --filesystem=xdg-download
+  - --talk-name=org.freedesktop.Notifications
+
+modules:
+  - name: kalendarz-offline
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 kalendarz-wrapper.sh /app/bin/kalendarz-offline
+      - cp -r release/linux-unpacked/* /app/lib/kalendarz/
+      - install -Dm644 public/pwa-512x512.png /app/share/icons/hicolor/512x512/apps/com.vex2137.kalendarz.png
+      - install -Dm644 com.vex2137.kalendarz.desktop /app/share/applications/com.vex2137.kalendarz.desktop
+    sources:
+      - type: dir
+        path: .

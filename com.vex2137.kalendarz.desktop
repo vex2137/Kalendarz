@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Kalendarz Offline
+Comment=Prywatny kalendarz w stylu Google Calendar działający offline z powiadomieniami
+Exec=kalendarz-offline %U
+Terminal=false
+Type=Application
+Icon=com.vex2137.kalendarz
+Categories=Office;Calendar;
+StartupWMClass=kalendarz-offline

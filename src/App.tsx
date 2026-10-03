@@ -30,6 +30,7 @@ import { SyncModal } from './components/SyncModal';
 import { SearchModal } from './components/SearchModal';
 import { PinLockScreen } from './components/PinLockScreen';
 import { NotificationBanner } from './components/NotificationBanner';
+import { DownloadModal } from './components/DownloadModal';
 import { Plus } from 'lucide-react';
 
 export default function App() {
@@ -49,6 +50,7 @@ export default function App() {
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
 
   // Security / PIN lock
   const [isPinLocked, setIsPinLocked] = useState<boolean>(
@@ -294,6 +296,7 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenSync={() => setIsSyncModalOpen(true)}
         onOpenSearch={() => setIsSearchModalOpen(true)}
+        onOpenDownload={() => setIsDownloadOpen(true)}
         isAiEnabled={settings.ai.enabled}
         language={currentLang}
       />
@@ -429,6 +432,13 @@ export default function App() {
         onClose={() => setIsSearchModalOpen(false)}
         events={events}
         onSelectEvent={handleSelectEvent}
+      />
+
+      {/* Desktop Downloads Modal */}
+      <DownloadModal
+        isOpen={isDownloadOpen}
+        onClose={() => setIsDownloadOpen(false)}
+        language={currentLang}
       />
     </div>
   );

@@ -7,7 +7,8 @@ import {
   Sparkles, 
   Settings as SettingsIcon,
   ArrowLeftRight,
-  Search
+  Search,
+  Download
 } from 'lucide-react';
 import { CalendarViewMode } from '../types';
 import { MONTH_NAMES, getTranslation, AppLanguage } from '../utils/i18n';
@@ -24,6 +25,7 @@ interface TopNavBarProps {
   onOpenSettings: () => void;
   onOpenSync: () => void;
   onOpenSearch: () => void;
+  onOpenDownload?: () => void;
   isAiEnabled: boolean;
   language?: AppLanguage;
 }
@@ -40,6 +42,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   onOpenSettings,
   onOpenSync,
   onOpenSearch,
+  onOpenDownload,
   isAiEnabled,
   language = 'pl',
 }) => {
@@ -208,6 +211,19 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
             <span className="hidden 2xl:inline">{t.sync}</span>
           </button>
+
+          {/* Download Desktop App Button */}
+          {onOpenDownload && (
+            <button
+              id="btn-open-download"
+              onClick={onOpenDownload}
+              className="h-8 px-2 sm:px-2.5 rounded-xl bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors border border-blue-500/30 text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 shrink-0"
+              title="Pobierz aplikację (.exe / .AppImage)"
+            >
+              <Download className="w-4 h-4 text-blue-500" />
+              <span className="hidden xl:inline">Pobierz app</span>
+            </button>
+          )}
 
           {/* Settings Button */}
           <button
