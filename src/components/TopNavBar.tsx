@@ -103,79 +103,33 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
 
         {/* Right Section: View selector (desktop), AI, Sync, Search, Settings & Create */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* View Mode Selector - Desktop full tabs (xl+) */}
-          <div className="hidden xl:flex h-8 items-center theme-subtle p-0.5 rounded-xl theme-border border text-xs font-medium shrink-0">
-            <button
-              id="btn-view-year"
-              onClick={() => onViewModeChange('year')}
-              className={`h-7 px-2.5 rounded-lg transition-all flex items-center justify-center ${
-                viewMode === 'year' 
-                  ? 'theme-surface theme-text shadow-xs font-bold' 
-                  : 'theme-muted hover:theme-text'
-              }`}
-            >
-              {t.year}
-            </button>
-            <button
-              id="btn-view-month"
-              onClick={() => onViewModeChange('month')}
-              className={`h-7 px-2.5 rounded-lg transition-all flex items-center justify-center ${
-                viewMode === 'month' 
-                  ? 'theme-surface theme-text shadow-xs font-bold' 
-                  : 'theme-muted hover:theme-text'
-              }`}
-            >
-              {t.month}
-            </button>
-            <button
-              id="btn-view-week"
-              onClick={() => onViewModeChange('week')}
-              className={`h-7 px-2.5 rounded-lg transition-all flex items-center justify-center ${
-                viewMode === 'week' 
-                  ? 'theme-surface theme-text shadow-xs font-bold' 
-                  : 'theme-muted hover:theme-text'
-              }`}
-            >
-              {t.week}
-            </button>
-            <button
-              id="btn-view-day"
-              onClick={() => onViewModeChange('day')}
-              className={`h-7 px-2.5 rounded-lg transition-all flex items-center justify-center ${
-                viewMode === 'day' 
-                  ? 'theme-surface theme-text shadow-xs font-bold' 
-                  : 'theme-muted hover:theme-text'
-              }`}
-            >
-              {t.day}
-            </button>
-            <button
-              id="btn-view-agenda"
-              onClick={() => onViewModeChange('agenda')}
-              className={`h-7 px-2.5 rounded-lg transition-all flex items-center justify-center ${
-                viewMode === 'agenda' 
-                  ? 'theme-surface theme-text shadow-xs font-bold' 
-                  : 'theme-muted hover:theme-text'
-              }`}
-            >
-              {t.agenda}
-            </button>
-          </div>
-
-          {/* View Mode Selector - Compact selector for tablet & medium screens (sm to xl) */}
-          <div className="hidden sm:flex xl:hidden h-8 items-center theme-subtle rounded-xl theme-border border px-2 text-xs shrink-0">
-            <select
-              aria-label="Wybierz widok kalendarza"
-              value={viewMode}
-              onChange={(e) => onViewModeChange(e.target.value as CalendarViewMode)}
-              className="bg-transparent theme-text font-semibold outline-hidden cursor-pointer text-xs"
-            >
-              <option value="month" className="theme-surface theme-text">{t.month}</option>
-              <option value="week" className="theme-surface theme-text">{t.week}</option>
-              <option value="day" className="theme-surface theme-text">{t.day}</option>
-              <option value="year" className="theme-surface theme-text">{t.year}</option>
-              <option value="agenda" className="theme-surface theme-text">{t.agenda}</option>
-            </select>
+          {/* View Mode Selector - Horizontal segmented pill buttons (Rok, Miesiąc, Tydzień, Dzień, Harmonogram) */}
+          <div className="flex h-8 items-center bg-gray-100/80 dark:bg-[#18191d] border border-gray-200 dark:border-neutral-800/90 p-0.5 rounded-xl text-xs font-medium shrink-0 overflow-x-auto no-scrollbar">
+            {(
+              [
+                { id: 'year', label: t.year },
+                { id: 'month', label: t.month },
+                { id: 'week', label: t.week },
+                { id: 'day', label: t.day },
+                { id: 'agenda', label: t.agenda },
+              ] as const
+            ).map((mode) => {
+              const isActive = viewMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  id={`btn-view-${mode.id}`}
+                  onClick={() => onViewModeChange(mode.id)}
+                  className={`h-7 px-2 sm:px-2.5 md:px-3 rounded-lg transition-all flex items-center justify-center text-xs whitespace-nowrap ${
+                    isActive
+                      ? 'bg-white dark:bg-[#282a30] text-gray-900 dark:text-white font-semibold shadow-2xs'
+                      : 'text-gray-500 dark:text-neutral-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Quick Search Button */}
