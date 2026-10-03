@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Download, Monitor, Terminal, FileCode, CheckCircle2 } from 'lucide-react';
+import { X, Download, Monitor, Terminal, FileCode, CheckCircle2, ExternalLink } from 'lucide-react';
 import { AppLanguage, getTranslation } from '../utils/i18n';
 
 interface DownloadModalProps {
@@ -43,6 +43,32 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
 
         {/* Content */}
         <div className="py-4 space-y-4">
+          {/* GitHub Release Banner */}
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-emerald-600/10 border border-blue-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-600 text-white">
+                  v1.1.0
+                </span>
+                <span className="font-semibold text-xs text-gray-900 dark:text-white">
+                  Oficjalne wydanie GitHub Releases
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                Pliki .exe oraz .AppImage są już wgrane na Twoje repozytorium GitHub
+              </p>
+            </div>
+            <a
+              href="https://github.com/vex2137/Kalendarz/releases/tag/v1.1.0"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-semibold hover:opacity-90 transition-opacity shrink-0"
+            >
+              <span>Zobacz na GitHub</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
           {/* Windows Section */}
           <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-[#141416]/50">
             <div className="flex items-center justify-between mb-2">
@@ -61,16 +87,14 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
             </p>
             <div className="flex flex-wrap gap-2">
               <a
-                href="/api/download/windows"
-                download="Kalendarz-Offline.exe"
+                href="https://github.com/vex2137/Kalendarz/releases/download/v1.1.0/Kalendarz-Offline.exe"
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors"
               >
                 <Download className="w-4 h-4" />
-                Pobierz Kalendarz Offline.exe
+                Pobierz Kalendarz-Offline.exe
               </a>
               <a
-                href="/api/download/windows-zip"
-                download="Kalendarz-Offline-win.zip"
+                href="https://github.com/vex2137/Kalendarz/releases/download/v1.1.0/Kalendarz-Offline-1.0.0-win.zip"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium transition-colors"
               >
                 Paczka ZIP (193 MB)
@@ -96,15 +120,14 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <a
-                href="/api/download/linux"
-                download="Kalendarz-Offline.AppImage"
+                href="https://github.com/vex2137/Kalendarz/releases/download/v1.1.0/Kalendarz-Offline-1.0.0.AppImage"
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
               >
                 <Download className="w-4 h-4" />
                 Pobierz .AppImage
               </a>
               <span className="text-[11px] text-gray-500 font-mono">
-                chmod +x Kalendarz-Offline.AppImage
+                chmod +x Kalendarz-Offline-1.0.0.AppImage
               </span>
             </div>
           </div>
