@@ -11,6 +11,8 @@ on:
       - 'scripts/verify-release.cjs'
       - 'scripts/verify-android-tests.py'
       - 'android/app/src/androidTest/**'
+      - 'android/app/proguard*.pro'
+      - 'android/app/build.gradle'
   workflow_dispatch:
 
 permissions:

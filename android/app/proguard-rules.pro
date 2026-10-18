@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# AndroidX instrumentation shares this Kotlin runtime class with the release APK.
+# Keep its public ABI: R8 parameter reordering otherwise breaks the test runner
+# before it can launch the actual minified application (NoSuchMethodError).
+-keep class kotlin.jvm.internal.Intrinsics { *; }
