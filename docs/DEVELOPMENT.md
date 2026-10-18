@@ -111,3 +111,8 @@ All seven platform packages must exist and pass their respective checks before t
 release job generates SHA256SUMS.txt and publishes. The Android APK is a developer-
 signed test package, Windows executables have no commercial Authenticode signature.
 Release notes live in `.github/release-notes/v<version>.md`.
+
+Successful main-branch package runs also trigger `publish.yml`. It downloads only
+that successful run's artifacts, verifies all seven packages and publishes an
+unreleased version at the exact tested commit, without rebuilding. Existing
+releases are preserved; an existing tag targeting a different commit is rejected.

@@ -1,0 +1,85 @@
+name: Publish tested packages
+
+on:
+  workflow_run:
+    workflows: ['Release packages']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-calendar-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Select unpublished version from tested commit
+        id: release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { version } = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+            const tag = `v${version}`;
+            core.setOutput('tag', tag);
+            try {
+              await github.rest.repos.getReleaseByTag({ ...context.repo, tag });
+              core.setOutput('needed', 'false');
+              core.info(`${tag} is already published; preserving the existing release.`);
+              return;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            try {
+              const { data: ref } = await github.rest.git.getRef({ ...context.repo, ref: `tags/${tag}` });
+              let commit = ref.object.sha;
+              if (ref.object.type === 'tag') {
+                const { data } = await github.rest.git.getTag({ ...context.repo, tag_sha: commit });
+                commit = data.object.sha;
+              }
+              if (commit !== context.payload.workflow_run.head_sha) {
+                throw new Error(`${tag} points to a different commit than the tested packages.`);
+              }
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            core.setOutput('needed', 'true');
+      - uses: actions/download-artifact@v4
+        if: steps.release.outputs.needed == 'true'
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Verify all platform packages and checksums
+        if: steps.release.outputs.needed == 'true'
+        run: node scripts/verify-release.cjs
+      - name: Publish verified packages
+        if: steps.release.outputs.needed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          name: Kalendarz Offline ${{ steps.release.outputs.tag }} (Android, Windows, Linux, Web)
+          body_path: .github/release-notes/${{ steps.release.outputs.tag }}.md
+          fail_on_unmatched_files: true
+          make_latest: true
+          files: |
+            release/*.apk
+            release/*.exe
+            release/*.zip
+            release/*.AppImage
+            release/*.flatpak
+            release/SHA256SUMS.txt
