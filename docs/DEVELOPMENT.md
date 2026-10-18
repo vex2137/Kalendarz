@@ -106,7 +106,7 @@ installed application or notification delivery on a physical device.
 
 The version in package.json is shared by the UI, Electron and Android. Release
 filenames include version and platform. Push a matching `v<version>` tag to run
-`.github/workflows/release.yml`; main-branch runs build and test without publishing.
+`.github/workflows/release.yml`; successful main-branch runs can also publish a new version through `publish.yml`.
 All seven platform packages must exist and pass their respective checks before the
 release job generates SHA256SUMS.txt and publishes. The Android APK is a developer-
 signed test package, Windows executables have no commercial Authenticode signature.
