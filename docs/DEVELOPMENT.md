@@ -91,10 +91,23 @@ bounds are asserted to catch accidental removal of virtualization.
 Android uses SDK 36/JDK 21 and the checksum-verified Gradle 8.14.3 wrapper. The local
 notifications plugin is registered by `npx cap sync android`. Release builds enable
 R8/resource shrinking. CI publishes an **unsigned build artifact**, not a signed
-store release. Supply signing credentials outside the repository when distributing.
+store release. The release workflow explicitly opts into developer signing with
+`-PcalendarTestSigning=true` for the downloadable test APK. Production signing
+credentials remain outside the repository. Both Android version fields derive
+from package.json (major × 10000 + minor × 100 + patch).
 
 Electron packages dist/ and electron/, excludes development-only dependencies,
 and opens approved GitHub links in the system browser with sandboxing and context
 isolation enabled. `npm run build:linux`, `build:win` and `build:flatpak` still require
 the matching native packaging tools. Packaging success is distinct from testing an
 installed application or notification delivery on a physical device.
+
+## Releases
+
+The version in package.json is shared by the UI, Electron and Android. Release
+filenames include version and platform. Push a matching `v<version>` tag to run
+`.github/workflows/release.yml`; main-branch runs build and test without publishing.
+All seven platform packages must exist and pass their respective checks before the
+release job generates SHA256SUMS.txt and publishes. The Android APK is a developer-
+signed test package, Windows executables have no commercial Authenticode signature.
+Release notes live in `.github/release-notes/v<version>.md`.

@@ -1,38 +1,38 @@
-# Jak zbudować plik APK z tego projektu (Android)
+# Android — Kalendarz Offline 1.2.0
 
-Projekt został skonfigurowany pod Capacitor, dzięki czemu budowa APK jest w 100% zautomatyzowana.
+Gotowy instalowalny APK testowy znajdziesz w [wydaniu v1.2.0](https://github.com/vex2137/Kalendarz/releases/tag/v1.2.0).
+Jest podpisany kluczem deweloperskim Androida; nie jest wydaniem Google Play.
+Przed instalacją wyeksportuj kopię kalendarza. Aktualizacja APK podpisanego innym
+kluczem wymaga odinstalowania starej aplikacji, co usuwa jej lokalne dane.
 
-## Wymagania na Twoim komputerze:
-1. Zainstalowany **Node.js** (wersja 18+)
-2. Zainstalowane **Android Studio** (z Android SDK)
+## Budowanie
 
----
-
-## Krok 1: Przygotowanie
-Wypakuj pobrane archiwum ZIP i otwórz ten folder w terminalu / konsoli (np. CMD, PowerShell lub Terminal na Mac/Linux):
+Wymagania: Node.js 24, Bun 1.4.3, JDK 21 i Android SDK 36 (Build Tools 35.0.0).
+Platforma Android jest już dodana; nie uruchamiaj ponownie `cap add android`.
 
 ```bash
-npm install
+bun install --frozen-lockfile
 npm run build
+npx cap sync android
+cd android
+# Instalowalna paczka do testów, z włączonym R8 i podpisem deweloperskim:
+./gradlew assembleRelease -PcalendarTestSigning=true --no-daemon
+# Windows: gradlew.bat assembleRelease -PcalendarTestSigning=true --no-daemon
 ```
 
----
+Wynik: `android/app/build/outputs/apk/release/app-release.apk`.
+Bez `-PcalendarTestSigning=true` powstaje niepodpisany `app-release-unsigned.apk`;
+nie można go bezpośrednio zainstalować. Do dystrybucji produkcyjnej użyj własnego,
+trwale przechowywanego klucza podpisującego poza repozytorium. Nie dodawaj kluczy
+ani haseł do Git.
 
-## Krok 2: Dodanie platformy Android i kompilacja APK
+Numery `versionName` i rosnący `versionCode` wynikają z `package.json`:
+1.2.0 → 10200. Instalacja na urządzeniu przez ADB:
 
-Uruchom:
 ```bash
-npx cap add android
-npx cap copy android
-npx cap open android
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-Otworzy się program **Android Studio**:
-1. Poczekaj chwilę, aż skończy się wstępna synchronizacja Gradle (na dole okna).
-2. W górnym menu wybierz:
-   **Build** -> **Build Bundle(s) / APK(s)** -> **Build APK(s)**.
-3. Gdy kompilacja się skończy, w prawym dolnym rogu pojawi się dymek:
-   *„APK(s) generated successfully”* z linkiem **locate**.
-4. Kliknij **locate** – zobaczysz gotowy plik **`app-debug.apk`**!
-
-Prześlij go na telefon (np. przez kabel USB, Bluetooth, Telegram lub Dysk Google) i zainstaluj.
+Sprawdź tworzenie i edycję wydarzeń, ponowne uruchomienie, import, przypomnienia
+po przyznaniu uprawnień oraz skanowanie QR. Powiadomienia zależą także od
+ustawień oszczędzania baterii telefonu.

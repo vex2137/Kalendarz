@@ -10,7 +10,11 @@ const { _electron } = require('playwright');
     application = await _electron.launch({
       executablePath:
         process.env.ELECTRON_EXECUTABLE ||
-        resolve('release/linux-unpacked/kalendarz-offline'),
+        resolve(
+          process.platform === 'win32'
+            ? 'release/win-unpacked/Kalendarz Offline.exe'
+            : 'release/linux-unpacked/kalendarz-offline',
+        ),
       env: {
         ...process.env,
         XDG_CACHE_HOME: join(profile, 'cache'),
@@ -26,6 +30,10 @@ const { _electron } = require('playwright');
     const page = await application.firstWindow();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
+    assert.equal(
+      await application.evaluate(({ app }) => app.getVersion()),
+      require('../package.json').version,
+    );
     await page.locator('#btn-create-event-top').waitFor();
     await page.locator('#btn-create-event-top').click();
     await page.locator('#input-event-title').fill('Desktop smoke event');

@@ -1,15 +1,18 @@
 apply plugin: 'com.android.application'
 
 def calendarPackage = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
+def calendarVersion = calendarPackage.version.tokenize('.').collect { it as int }
+def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
 
 android {
+    testBuildType providers.gradleProperty('calendarAndroidTestBuildType').orElse('debug').get()
     namespace = "com.kalendarz.offline"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.kalendarz.offline"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2]
         versionName calendarPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -19,10 +22,15 @@ android {
         }
     }
     buildTypes {
+        // Opt in only for downloadable test APKs; production signing stays external.
         release {
+            if (calendarTestSigning) {
+                signingConfig signingConfigs.debug
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            testProguardFiles 'proguard-test-rules.pro'
         }
     }
 }

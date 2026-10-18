@@ -2,7 +2,7 @@
   "name": "kalendarz-offline",
   "productName": "Kalendarz Offline",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.2.0",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -11,9 +11,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist release",
     "lint": "tsc --noEmit",
-    "build:linux": "npm run build && electron-builder --linux AppImage",
-    "build:win": "npm run build && electron-builder --win nsis",
-    "build:flatpak": "npm run build && electron-builder --linux flatpak",
+    "build:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never",
+    "build:win": "npm run build && electron-builder --win nsis portable zip --x64 --publish never",
+    "build:flatpak": "npm run build && electron-builder --linux flatpak --x64 --publish never",
     "test": "TZ=Europe/Warsaw tsx --test tests/*.test.ts",
     "test:e2e": "node tests/browser.cjs",
     "check": "npm run lint && npm test && npm run build",
@@ -37,20 +37,39 @@
       ],
       "category": "Office",
       "icon": "public/pwa-512x512.png",
-      "syncDesktopName": true
+      "syncDesktopName": true,
+      "artifactName": "Kalendarz-Offline-${version}-linux-${arch}.${ext}"
     },
     "win": {
       "target": [
         "portable",
         "nsis"
       ],
-      "signAndEditExecutable": false,
-      "icon": "public/pwa-512x512.png"
+      "icon": "public/pwa-512x512.png",
+      "artifactName": "Kalendarz-Offline-${version}-windows-${arch}.${ext}",
+      "signExecutable": false
     },
     "nsis": {
-      "differentialPackage": false
+      "differentialPackage": false,
+      "artifactName": "Kalendarz-Offline-${version}-windows-${arch}-setup.${ext}"
     },
-    "asar": true
+    "asar": true,
+    "portable": {
+      "artifactName": "Kalendarz-Offline-${version}-windows-${arch}-portable.${ext}"
+    },
+    "flatpak": {
+      "runtimeVersion": "24.08",
+      "baseVersion": "24.08",
+      "artifactName": "Kalendarz-Offline-${version}-linux-${arch}.${ext}",
+      "finishArgs": [
+        "--socket=wayland",
+        "--socket=x11",
+        "--share=ipc",
+        "--device=dri",
+        "--filesystem=xdg-download",
+        "--talk-name=org.freedesktop.Notifications"
+      ]
+    }
   },
   "dependencies": {
     "@capacitor/core": "^8.5.2",

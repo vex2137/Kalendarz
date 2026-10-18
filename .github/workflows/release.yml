@@ -1,0 +1,202 @@
+name: Release packages
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/release-notes/**'
+      - 'package.json'
+      - 'scripts/verify-release.cjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Package self-hosted web application
+        run: |
+          mkdir -p release
+          version=$(node -p 'require("./package.json").version')
+          (cd dist && zip -qr "../release/Kalendarz-Offline-${version}-web.zip" .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-web
+          path: release/*-web.zip
+          if-no-files-found: error
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            targets: --linux AppImage
+          - os: windows-latest
+            platform: windows
+            targets: --win nsis portable zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - run: npm run build
+      - if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+      - run: npx electron-builder ${{ matrix.targets }} --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Test packaged Windows application
+        if: runner.os == 'Windows'
+        run: npm run test:desktop
+      - name: Test packaged Linux AppImage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          chmod +x "release/Kalendarz-Offline-${version}-linux-x86_64.AppImage"
+          APPIMAGE_EXTRACT_AND_RUN=1 ELECTRON_EXECUTABLE="$PWD/release/Kalendarz-Offline-${version}-linux-x86_64.AppImage" xvfb-run -a npm run test:desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: |
+            release/*.exe
+            release/*.zip
+            release/*.AppImage
+          if-no-files-found: error
+
+  flatpak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - name: Install Flatpak build tools and runtimes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08 org.electronjs.Electron2.BaseApp//24.08
+      - run: npm run build:flatpak
+      - name: Verify installable bundle
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          flatpak install --user -y --noninteractive "release/Kalendarz-Offline-${version}-linux-x86_64.flatpak"
+          flatpak info --user com.vex2137.kalendarz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-flatpak
+          path: release/*.flatpak
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: bun install --frozen-lockfile
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Build installable test APK
+        working-directory: android
+        run: bash ./gradlew assembleRelease assembleReleaseAndroidTest -PcalendarTestSigning=true -PcalendarAndroidTestBuildType=release --no-daemon
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Test release APK in Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: cd android && bash ./gradlew connectedReleaseAndroidTest -PcalendarTestSigning=true -PcalendarAndroidTestBuildType=release --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-instrumentation-results
+          path: android/app/build/reports/androidTests/
+      - name: Verify APK signature and version
+        shell: bash
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          tools="$ANDROID_HOME/build-tools/35.0.0"
+          "$tools/apksigner" verify --verbose android/app/build/outputs/apk/release/app-release.apk
+          "$tools/aapt" dump badging android/app/build/outputs/apk/release/app-release.apk | tee /tmp/kalendarz-apk.txt
+          grep -F "versionName='$version'" /tmp/kalendarz-apk.txt
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk "release/Kalendarz-Offline-${version}-android-test.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: release/*.apk
+          if-no-files-found: error
+
+  publish:
+    needs: [web, desktop, flatpak, android]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Check all platforms and generate checksums
+        run: node scripts/verify-release.cjs
+      - name: Publish tested release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Kalendarz Offline ${{ github.ref_name }} (Android, Windows, Linux, Web)
+          body_path: .github/release-notes/${{ github.ref_name }}.md
+          fail_on_unmatched_files: true
+          make_latest: true
+          files: |
+            release/*.apk
+            release/*.exe
+            release/*.zip
+            release/*.AppImage
+            release/*.flatpak
+            release/SHA256SUMS.txt
