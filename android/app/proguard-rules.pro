@@ -20,7 +20,11 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
-# AndroidX instrumentation shares this Kotlin runtime class with the release APK.
-# Keep its public ABI: R8 parameter reordering otherwise breaks the test runner
-# before it can launch the actual minified application (NoSuchMethodError).
--keep class kotlin.jvm.internal.Intrinsics { *; }
+# Instrumentation shares these transitive runtime APIs with the release APK.
+# Android excludes them from the test APK even when R8 removes/reorders APIs
+# unused by the app itself. Preserve them so the real release APK can be tested.
+-keep class kotlin.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+-keep class androidx.tracing.** { *; }
+-keep class androidx.concurrent.futures.** { *; }
+-keep interface com.google.common.util.concurrent.ListenableFuture { *; }
