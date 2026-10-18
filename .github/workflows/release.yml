@@ -157,7 +157,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: cd android && bash ./gradlew connectedReleaseAndroidTest -PcalendarTestSigning=true -PcalendarAndroidTestBuildType=release --no-daemon
+          script: bash scripts/test-android.sh
       - name: Verify Android functional test results
         if: always()
         run: python3 scripts/verify-android-tests.py

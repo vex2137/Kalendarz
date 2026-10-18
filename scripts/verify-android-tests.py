@@ -10,7 +10,7 @@ def annotation(message):
 
 
 reports = list(Path("android/app/build/outputs/androidTest-results/connected").rglob("*.xml"))
-cases = [case for report in reports for case in ET.parse(report).getroot().iter("testcase")]
+cases = [case for report in reports for case in ET.parse(report).getroot().iter() if case.tag.rsplit('}', 1)[-1] == 'testcase']
 failed = False
 for case in cases:
     for failure in [*case.findall("failure"), *case.findall("error")]:
@@ -18,7 +18,7 @@ for case in cases:
         failed = True
 smoke = [case for case in cases if case.get("name") == "createsPersistsAndDisplaysVersion"]
 if not smoke or all(case.find("skipped") is not None for case in smoke):
-    annotation("The release APK create/save/reload/version test did not execute.")
+    annotation(f"The release APK create/save/reload/version test did not execute. Reports: {[str(report) for report in reports]}")
     failed = True
 print(f"Android: {len(cases)} test cases, {len(smoke)} release WebView smoke test(s).")
 sys.exit(1 if failed else 0)
