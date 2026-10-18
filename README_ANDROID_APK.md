@@ -1,38 +1,38 @@
 # Android — Kalendarz Offline 1.2.0
 
-Gotowy instalowalny APK testowy znajdziesz w [wydaniu v1.2.0](https://github.com/vex2137/Kalendarz/releases/tag/v1.2.0).
-Jest podpisany kluczem deweloperskim Androida; nie jest wydaniem Google Play.
-Przed instalacją wyeksportuj kopię kalendarza. Aktualizacja APK podpisanego innym
-kluczem wymaga odinstalowania starej aplikacji, co usuwa jej lokalne dane.
+A ready-to-install test APK is available in the [v1.2.0 release](https://github.com/vex2137/Kalendarz/releases/tag/v1.2.0).
+It is signed with an Android development key; it is not a Google Play release.
+Export a calendar backup before installing. If your existing APK was signed with a different
+key, you must uninstall the old app first, which deletes its local data.
 
-## Budowanie
+## Building
 
-Wymagania: Node.js 24, Bun 1.4.3, JDK 21 i Android SDK 36 (Build Tools 35.0.0).
-Platforma Android jest już dodana; nie uruchamiaj ponownie `cap add android`.
+Requirements: Node.js 24, Bun 1.4.3, JDK 21, and Android SDK 36 (Build Tools 35.0.0).
+The Android platform has already been added; do not run `cap add android` again.
 
 ```bash
 bun install --frozen-lockfile
 npm run build
 npx cap sync android
 cd android
-# Instalowalna paczka do testów, z włączonym R8 i podpisem deweloperskim:
+# Installable test package with R8 enabled and development signing:
 ./gradlew assembleRelease -PcalendarTestSigning=true --no-daemon
 # Windows: gradlew.bat assembleRelease -PcalendarTestSigning=true --no-daemon
 ```
 
-Wynik: `android/app/build/outputs/apk/release/app-release.apk`.
-Bez `-PcalendarTestSigning=true` powstaje niepodpisany `app-release-unsigned.apk`;
-nie można go bezpośrednio zainstalować. Do dystrybucji produkcyjnej użyj własnego,
-trwale przechowywanego klucza podpisującego poza repozytorium. Nie dodawaj kluczy
-ani haseł do Git.
+Output: `android/app/build/outputs/apk/release/app-release.apk`.
+Without `-PcalendarTestSigning=true`, the build produces an unsigned `app-release-unsigned.apk`,
+which cannot be installed directly. For production distribution, use your own
+signing key and keep it stored securely outside the repository. Do not commit keys
+or passwords to Git.
 
-Numery `versionName` i rosnący `versionCode` wynikają z `package.json`:
-1.2.0 → 10200. Instalacja na urządzeniu przez ADB:
+The `versionName` and increasing `versionCode` are derived from `package.json`:
+1.2.0 → 10200. To install on a device using ADB:
 
 ```bash
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-Sprawdź tworzenie i edycję wydarzeń, ponowne uruchomienie, import, przypomnienia
-po przyznaniu uprawnień oraz skanowanie QR. Powiadomienia zależą także od
-ustawień oszczędzania baterii telefonu.
+Check event creation and editing, restarting the app, importing, reminders
+after granting permissions, and QR scanning. Notifications also depend on
+the phone's battery-saving settings.
