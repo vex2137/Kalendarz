@@ -3,6 +3,9 @@ package com.kalendarz.offline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.WebView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import java.util.concurrent.CountDownLatch;
@@ -14,10 +17,28 @@ import org.junit.runner.RunWith;
 /** Exercises the actual release WebView and its IndexedDB, without a test server. */
 @RunWith(AndroidJUnit4.class)
 public class CalendarSmokeTest {
+    private WebView findWebView(View view) {
+        if (view instanceof WebView) return (WebView) view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                WebView found = findWebView(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private WebView webView(MainActivity activity) {
+        WebView view = findWebView(activity.getWindow().getDecorView());
+        if (view == null) throw new AssertionError("The release activity has no WebView");
+        return view;
+    }
+
     private String evaluate(ActivityScenario<MainActivity> scenario, String script) throws Exception {
         AtomicReference<String> result = new AtomicReference<>();
         CountDownLatch callback = new CountDownLatch(1);
-        scenario.onActivity(activity -> activity.getBridge().getWebView().evaluateJavascript(script, value -> {
+        scenario.onActivity(activity -> webView(activity).evaluateJavascript(script, value -> {
             result.set(value);
             callback.countDown();
         }));
@@ -48,7 +69,7 @@ public class CalendarSmokeTest {
             until(scenario, "document.querySelector('#input-event-title').value === '" + title + "'");
             evaluate(scenario, "document.querySelector('#btn-save-event-form').click()");
             until(scenario, "!document.querySelector('#input-event-title') && document.body.textContent.includes('" + title + "')");
-            scenario.onActivity(activity -> activity.getBridge().getWebView().reload());
+            scenario.onActivity(activity -> webView(activity).reload());
             until(scenario, "document.querySelector('#btn-create-event-top') && document.body.textContent.includes('" + title + "')");
             evaluate(scenario, "document.querySelector('#btn-open-download').click()");
             AtomicReference<String> version = new AtomicReference<>();
