@@ -1,445 +1,545 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  CalendarEvent, 
-  CalendarViewMode, 
-  AppSettings, 
-  AppTheme 
-} from './types';
-import { 
-  loadStoredEvents, 
-  saveStoredEvents, 
-  loadStoredSettings, 
-  saveStoredSettings 
-} from './utils/storage';
-import { 
-  checkEventReminders, 
-  requestNotificationPermission, 
-  playNotificationSound, 
-  triggerVibration 
+import React, {
+  lazy,
+  Suspense,
+  useState,
+  useEffect,
+  useCallback,
+  memo,
+  useRef,
+} from 'react';
+import type { CalendarEvent, CalendarViewMode, AppSettings } from './types';
+import {
+  loadStoredSettings,
+  saveStoredSettings,
+} from './utils/settingsStorage';
+import {
+  checkEventReminders,
+  playNotificationSound,
+  triggerVibration,
+  scheduleNativeReminders,
 } from './utils/notifications';
+import { localDate, shiftMonth, pad2 } from './utils/dates';
+import { hashPin } from './utils/security';
+import { useCalendar } from './hooks/useCalendar';
+import { useNow } from './hooks/useNow';
 import { TopNavBar } from './components/TopNavBar';
 import { MonthView } from './components/MonthView';
 import { DayWeekView } from './components/DayWeekView';
 import { YearView } from './components/YearView';
 import { AgendaView } from './components/AgendaView';
 import { BottomNavMobile } from './components/BottomNavMobile';
-import { EventModal } from './components/EventModal';
-import { SettingsModal } from './components/SettingsModal';
-import { AiAssistantDrawer } from './components/AiAssistantDrawer';
-import { SyncModal } from './components/SyncModal';
-import { SearchModal } from './components/SearchModal';
 import { PinLockScreen } from './components/PinLockScreen';
 import { NotificationBanner } from './components/NotificationBanner';
-import { DownloadModal } from './components/DownloadModal';
 import { Plus } from 'lucide-react';
+import { AppUpdate } from './components/AppUpdate';
+import { Capacitor } from '@capacitor/core';
+const EventModal = lazy(() =>
+  import('./components/EventModal').then((m) => ({ default: m.EventModal })),
+);
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then((m) => ({
+    default: m.SettingsModal,
+  })),
+);
+const AiAssistantDrawer = lazy(() =>
+  import('./components/AiAssistantDrawer').then((m) => ({
+    default: m.AiAssistantDrawer,
+  })),
+);
+const SyncModal = lazy(() =>
+  import('./components/SyncModal').then((m) => ({ default: m.SyncModal })),
+);
+const SearchModal = lazy(() =>
+  import('./components/SearchModal').then((m) => ({ default: m.SearchModal })),
+);
+const DownloadModal = lazy(() =>
+  import('./components/DownloadModal').then((m) => ({
+    default: m.DownloadModal,
+  })),
+);
+
+const CalendarPanel = memo(function CalendarPanel({
+  currentDate,
+  viewMode,
+  events,
+  onSelectDay,
+  onSelectEvent,
+  onCreateAtTime,
+  onSelectMonth,
+  language,
+  now,
+}: {
+  currentDate: Date;
+  viewMode: CalendarViewMode;
+  events: CalendarEvent[];
+  onSelectDay: (date: string) => void;
+  onSelectEvent: (event: CalendarEvent) => void;
+  onCreateAtTime: (date: string, hour: number) => void;
+  onSelectMonth: (month: number) => void;
+  language: 'pl' | 'en';
+  now: Date;
+}) {
+  return (
+    <main className="flex-1 min-h-0 flex flex-col max-w-7xl w-full mx-auto p-1 sm:p-4 pb-20 sm:pb-4 overflow-hidden min-w-0">
+      {viewMode === 'year' && (
+        <YearView
+          {...{
+            currentDate,
+            events,
+            onSelectMonth,
+            onSelectDay,
+            language,
+            now,
+          }}
+        />
+      )}
+      {viewMode === 'month' && (
+        <MonthView
+          {...{
+            currentDate,
+            events,
+            onSelectDay,
+            onSelectEvent,
+            language,
+            now,
+          }}
+        />
+      )}
+      {(viewMode === 'week' || viewMode === 'day') && (
+        <DayWeekView
+          {...{
+            currentDate,
+            viewMode,
+            events,
+            onSelectEvent,
+            onCreateAtTime,
+            language,
+            now,
+          }}
+        />
+      )}
+      {viewMode === 'agenda' && (
+        <AgendaView
+          {...{ events, onSelectEvent, onSelectDay, language, now }}
+        />
+      )}
+    </main>
+  );
+});
 
 export default function App() {
-  // Primary State
-  const [events, setEvents] = useState<CalendarEvent[]>(loadStoredEvents);
+  const {
+    events,
+    deletions,
+    ready,
+    error,
+    commit,
+    save: saveRecords,
+    remove,
+  } = useCalendar();
   const [settings, setSettings] = useState<AppSettings>(loadStoredSettings);
-  const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<CalendarViewMode>(settings.defaultView || 'month');
-
-  // Modals & Drawers
-  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [modalInitialDate, setModalInitialDate] = useState<string | undefined>(undefined);
-  const [modalInitialTime, setModalInitialTime] = useState<string | undefined>(undefined);
-
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
-
-  // Security / PIN lock
-  const [isPinLocked, setIsPinLocked] = useState<boolean>(
-    () => settings.security.pinEnabled && settings.security.isLocked
+  const [settingsError, setSettingsError] = useState('');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(
+    settings.defaultView || 'month',
   );
-
-  // Notifications
+  const [modal, setModal] = useState<
+    'event' | 'settings' | 'ai' | 'sync' | 'search' | 'download' | null
+  >(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
+    null,
+  );
+  const [initialDate, setInitialDate] = useState<string>();
+  const [initialTime, setInitialTime] = useState<string>();
+  const [isPinLocked, setIsPinLocked] = useState(settings.security.pinEnabled);
   const [activeNotification, setActiveNotification] = useState<{
     event: CalendarEvent;
     minutesBefore: number;
   } | null>(null);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
-    typeof Notification !== 'undefined' ? Notification.permission : 'default'
-  );
-
-  // Sync events & settings to LocalStorage
-  const updateEvents = useCallback((newEvents: CalendarEvent[]) => {
-    setEvents(newEvents);
-    saveStoredEvents(newEvents);
+  const now = useNow();
+  const language = settings.language || 'pl';
+  const updateSettings = useCallback((next: AppSettings) => {
+    try {
+      saveStoredSettings(next);
+      setSettings(next);
+      setSettingsError('');
+    } catch (e) {
+      setSettingsError(
+        `Nie zapisano ustawień / Settings were not saved: ${String(e)}`,
+      );
+    }
   }, []);
-
-  const updateSettings = useCallback((newSettings: AppSettings) => {
-    setSettings(newSettings);
-    saveStoredSettings(newSettings);
+  useEffect(() => {
+    const listener = (e: StorageEvent) => {
+      if (e.key === 'offline_calendar_settings_v2') {
+        const next = loadStoredSettings();
+        setSettings(next);
+        if (next.security.pinEnabled) setIsPinLocked(true);
+      }
+    };
+    window.addEventListener('storage', listener);
+    return () => window.removeEventListener('storage', listener);
   }, []);
-
-  // Sync document title and HTML lang attribute based on selected language
   useEffect(() => {
-    const lang = settings.language || 'pl';
-    const appTitle = lang === 'en' ? 'Calendar' : 'Kalendarz';
-    document.title = appTitle;
-    document.documentElement.setAttribute('lang', lang);
-  }, [settings.language]);
-
-  // Sync data-theme attribute on <html> and <meta name="theme-color">
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', settings.theme);
-    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (metaThemeColor) {
-      const themeColors: Record<string, string> = {
-        light: '#ffffff',
-        dark: '#141416',
-        nord: '#131c2e',
-        emerald: '#08241a',
-        sunset: '#2f1912',
-        lavender: '#201838',
-        moka: '#ffffff',
+    if (settings.security.pinCode && !settings.security.pinHash) {
+      let active = true;
+      void hashPin(settings.security.pinCode)
+        .then((hash) => {
+          if (active)
+            updateSettings({
+              ...settings,
+              security: { ...settings.security, ...hash },
+            });
+        })
+        .catch((e) => setSettingsError(String(e)));
+      return () => {
+        active = false;
       };
-      metaThemeColor.setAttribute('content', themeColors[settings.theme] || '#141416');
     }
-  }, [settings.theme]);
-
-  // Merge incoming synced events (two-way merge, no duplicates)
-  const handleSyncMergeEvents = useCallback((incomingEvents: CalendarEvent[]) => {
-    setEvents((current) => {
-      const eventMap = new Map<string, CalendarEvent>();
-      current.forEach((e) => {
-        const key = e.id || `${e.title}_${e.startDate}_${e.startTime || ''}`;
-        eventMap.set(key, e);
-      });
-      incomingEvents.forEach((inc) => {
-        const key = inc.id || `${inc.title}_${inc.startDate}_${inc.startTime || ''}`;
-        const existing = eventMap.get(key);
-        if (!existing) {
-          eventMap.set(key, inc);
-        } else {
-          const existingTime = existing.updatedAt || existing.createdAt || 0;
-          const incTime = inc.updatedAt || inc.createdAt || 0;
-          if (incTime >= existingTime) {
-            eventMap.set(key, { ...existing, ...inc });
-          }
-        }
-      });
-      const merged = Array.from(eventMap.values());
-      saveStoredEvents(merged);
-      return merged;
-    });
+  }, [settings, updateSettings]);
+  useEffect(() => {
+    document.title = language === 'en' ? 'Calendar' : 'Kalendarz';
+    document.documentElement.lang = language;
+    document.documentElement.dataset.theme = settings.theme;
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute(
+        'content',
+        getComputedStyle(document.documentElement)
+          .getPropertyValue('--bg-main')
+          .trim(),
+      );
+  }, [language, settings.theme]);
+  const lock = useCallback(() => {
+    setModal(null);
+    setIsPinLocked(true);
   }, []);
-
-  // Periodic reminder checker (runs every 30 seconds)
   useEffect(() => {
-    const interval = setInterval(() => {
-      checkEventReminders(events, (event, minutesBefore) => {
-        setActiveNotification({ event, minutesBefore });
-        if (settings.soundEnabled) playNotificationSound();
-        if (settings.vibrationEnabled) triggerVibration();
-      });
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [events, settings.soundEnabled, settings.vibrationEnabled]);
-
-  // Request notification permission
-  const handleRequestNotification = async () => {
-    const result = await requestNotificationPermission();
-    setNotificationPermission(result);
-  };
-
-  // Keyboard shortcut for search (Ctrl+F or Ctrl+K)
+    if (!settings.security.pinEnabled) return;
+    const timeout = Math.max(1, settings.security.autoLockMinutes || 5) * 60000;
+    let last = Date.now();
+    const activity = () => {
+      if (Date.now() - last >= timeout) {
+        lock();
+      }
+      last = Date.now();
+    };
+    const check = () => {
+      if (Date.now() - last >= timeout) lock();
+    };
+    const timer = setInterval(check, 10000);
+    const visible = () => {
+      if (document.hidden) {
+        sessionStorage.setItem('calendar-hidden', String(Date.now()));
+      } else {
+        check();
+      }
+    };
+    for (const key of ['pointerdown', 'keydown', 'touchstart'])
+      window.addEventListener(key, activity, { passive: true });
+    document.addEventListener('visibilitychange', visible);
+    return () => {
+      clearInterval(timer);
+      for (const key of ['pointerdown', 'keydown', 'touchstart'])
+        window.removeEventListener(key, activity);
+      document.removeEventListener('visibilitychange', visible);
+    };
+  }, [settings.security.pinEnabled, settings.security.autoLockMinutes, lock]);
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'k')) {
+    const key = (e: KeyboardEvent) => {
+      if (!isPinLocked && (e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
-        setIsSearchModalOpen(true);
+        setModal('search');
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Date Navigation
-  const handleNavigatePrev = () => {
-    setCurrentDate((prev) => {
-      const next = new Date(prev);
-      if (viewMode === 'year') {
-        next.setFullYear(prev.getFullYear() - 1);
-      } else if (viewMode === 'month') {
-        next.setMonth(prev.getMonth() - 1);
-      } else if (viewMode === 'week') {
-        next.setDate(prev.getDate() - 7);
-      } else if (viewMode === 'day') {
-        next.setDate(prev.getDate() - 1);
-      } else {
-        next.setMonth(prev.getMonth() - 1);
-      }
-      return next;
-    });
-  };
-
-  const handleNavigateNext = () => {
-    setCurrentDate((prev) => {
-      const next = new Date(prev);
-      if (viewMode === 'year') {
-        next.setFullYear(prev.getFullYear() + 1);
-      } else if (viewMode === 'month') {
-        next.setMonth(prev.getMonth() + 1);
-      } else if (viewMode === 'week') {
-        next.setDate(prev.getDate() + 7);
-      } else if (viewMode === 'day') {
-        next.setDate(prev.getDate() + 1);
-      } else {
-        next.setMonth(prev.getMonth() + 1);
-      }
-      return next;
-    });
-  };
-
-  const handleNavigateToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  // Event modal actions
-  const handleOpenCreateModal = (dateStr?: string, timeStr?: string) => {
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [isPinLocked]);
+  const lastCheck = useRef(Date.now() - 60000);
+  useEffect(() => {
+    if (!ready) return;
+    const check = () => {
+      const at = new Date();
+      checkEventReminders(
+        events,
+        (event, minutesBefore) => {
+          if (isPinLocked) return;
+          setActiveNotification({ event, minutesBefore });
+          if (settings.soundEnabled) playNotificationSound();
+          if (settings.vibrationEnabled) triggerVibration();
+        },
+        at,
+        lastCheck.current,
+        !isPinLocked,
+      );
+      lastCheck.current = at.getTime();
+    };
+    const scheduledCheck = () => {
+      if (navigator.locks)
+        void navigator.locks.request(
+          'offline-calendar-reminders',
+          { ifAvailable: true },
+          (lock) => {
+            if (lock) check();
+          },
+        );
+      else check();
+    };
+    scheduledCheck();
+    const timer = setInterval(scheduledCheck, 30000);
+    document.addEventListener('visibilitychange', scheduledCheck);
+    void scheduleNativeReminders(events, isPinLocked).catch((e) =>
+      setSettingsError(String(e)),
+    );
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', scheduledCheck);
+    };
+  }, [
+    events,
+    ready,
+    settings.soundEnabled,
+    settings.vibrationEnabled,
+    isPinLocked,
+  ]);
+  const navigate = useCallback(
+    (direction: number) =>
+      setCurrentDate((prev) => {
+        if (
+          viewMode === 'month' ||
+          viewMode === 'agenda' ||
+          viewMode === 'year'
+        )
+          return shiftMonth(prev, direction * (viewMode === 'year' ? 12 : 1));
+        const next = new Date(prev);
+        next.setDate(
+          prev.getDate() + direction * (viewMode === 'week' ? 7 : 1),
+        );
+        return next;
+      }),
+    [viewMode],
+  );
+  const today = useCallback(() => setCurrentDate(new Date()), []);
+  const create = useCallback((date?: string, time?: string) => {
     setSelectedEvent(null);
-    setModalInitialDate(dateStr || new Date().toISOString().slice(0, 10));
-    setModalInitialTime(timeStr || '10:00');
-    setIsEventModalOpen(true);
-  };
-
-  const handleSelectEvent = (event: CalendarEvent) => {
+    setInitialDate(date || localDate());
+    setInitialTime(time || '10:00');
+    setModal('event');
+  }, []);
+  const select = useCallback((event: CalendarEvent) => {
     setSelectedEvent(event);
-    setModalInitialDate(undefined);
-    setModalInitialTime(undefined);
-    setIsEventModalOpen(true);
-  };
-
-  const handleSaveEvent = (savedEvent: CalendarEvent) => {
-    const existingIndex = events.findIndex((e) => e.id === savedEvent.id);
-    if (existingIndex >= 0) {
-      const updated = [...events];
-      updated[existingIndex] = savedEvent;
-      updateEvents(updated);
-    } else {
-      updateEvents([...events, savedEvent]);
-    }
-    setIsEventModalOpen(false);
-  };
-
-  const handleDeleteEvent = (eventId: string) => {
-    updateEvents(events.filter((e) => e.id !== eventId));
-    setIsEventModalOpen(false);
-  };
-
-  const handleRemoveHolidays = () => {
-    const remaining = events.filter((e) => !e.id.startsWith('pl-holiday-') && !e.title.startsWith('🇵🇱 '));
-    updateEvents(remaining);
-  };
-
-  // Select day in Month or Agenda view
-  const handleSelectDay = (dateStr: string) => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    setCurrentDate(new Date(y, m - 1, d));
+    setInitialDate(undefined);
+    setInitialTime(undefined);
+    setModal('event');
+  }, []);
+  const selectDay = useCallback((date: string) => {
+    setCurrentDate(new Date(`${date}T12:00:00`));
     setViewMode('day');
-  };
-
-  // AI assistant creates event
-  const handleAddEventFromAi = (partial: Partial<CalendarEvent>) => {
-    const newEvent: CalendarEvent = {
-      id: 'ai-evt-' + Date.now(),
-      title: partial.title || 'Nowe wydarzenie AI',
-      description: partial.description || '',
-      location: partial.location || '',
-      startDate: partial.startDate || new Date().toISOString().slice(0, 10),
-      startTime: partial.startTime || '12:00',
-      endDate: partial.endDate || partial.startDate || new Date().toISOString().slice(0, 10),
-      endTime: partial.endTime || '13:00',
-      allDay: partial.allDay ?? false,
-      color: partial.color || 'lavender',
-      recurrence: partial.recurrence || 'NONE',
-      reminders: partial.reminders || [15],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    updateEvents([...events, newEvent]);
-    setIsAiDrawerOpen(false);
-  };
-
-  // PIN Lock Screen
-  if (isPinLocked && settings.security.pinEnabled) {
+  }, []);
+  const selectMonth = useCallback((month: number) => {
+    setCurrentDate((prev) => shiftMonth(prev, month - prev.getMonth()));
+    setViewMode('month');
+  }, []);
+  const createAt = useCallback(
+    (date: string, hour: number) => create(date, `${pad2(hour)}:00`),
+    [create],
+  );
+  const close = useCallback(() => setModal(null), []);
+  const save = useCallback(
+    async (event: CalendarEvent) => {
+      await saveRecords([event]);
+      setModal(null);
+    },
+    [saveRecords],
+  );
+  const deleteEvent = useCallback(
+    async (id: string) => {
+      await remove([id]);
+      setModal(null);
+    },
+    [remove],
+  );
+  const addFromAi = useCallback(
+    async (partial: Partial<CalendarEvent>) => {
+      const at = Date.now();
+      const date = partial.startDate || localDate();
+      await save({
+        id: crypto.randomUUID(),
+        title: partial.title || 'Event',
+        description: partial.description || '',
+        location: partial.location || '',
+        startDate: date,
+        startTime: partial.startTime || '12:00',
+        endDate: partial.endDate || date,
+        endTime: partial.endTime || '13:00',
+        allDay: partial.allDay ?? false,
+        color: partial.color || 'lavender',
+        recurrence: partial.recurrence || 'NONE',
+        customRecurrence: partial.customRecurrence,
+        reminders: partial.reminders ?? [15],
+        createdAt: at,
+        updatedAt: at,
+      });
+    },
+    [save],
+  );
+  if (isPinLocked && settings.security.pinEnabled)
     return (
-      <PinLockScreen 
-        correctPin={settings.security.pinCode}
+      <PinLockScreen
+        security={settings.security}
         onUnlock={() => setIsPinLocked(false)}
-        language={settings.language || 'pl'}
+        language={language}
       />
     );
-  }
-
-  const currentLang = settings.language || 'pl';
-
   return (
-    <div className="min-h-screen theme-bg theme-text flex flex-col font-sans select-none overflow-x-hidden w-full max-w-full transition-colors duration-200">
-      {/* Top App Bar */}
-      <TopNavBar
-        currentDate={currentDate}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        onNavigatePrev={handleNavigatePrev}
-        onNavigateNext={handleNavigateNext}
-        onNavigateToday={handleNavigateToday}
-        onOpenCreateModal={() => handleOpenCreateModal()}
-        onOpenAiDrawer={() => setIsAiDrawerOpen(true)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenSync={() => setIsSyncModalOpen(true)}
-        onOpenSearch={() => setIsSearchModalOpen(true)}
-        onOpenDownload={() => setIsDownloadOpen(true)}
-        isAiEnabled={settings.ai.enabled}
-        language={currentLang}
-      />
-
-      {/* Floating Notification Toast */}
-      <NotificationBanner
-        activeNotification={activeNotification}
-        onDismiss={() => setActiveNotification(null)}
-        onOpenEvent={handleSelectEvent}
-      />
-
-      {/* Main View Area */}
-      <main className="flex-1 flex flex-col max-w-7xl w-full mx-auto p-1 sm:p-4 pb-20 sm:pb-4 overflow-hidden min-w-0">
-        {viewMode === 'year' && (
-          <YearView
-            currentDate={currentDate}
-            events={events}
-            onSelectMonth={(monthIdx) => {
-              const next = new Date(currentDate);
-              next.setMonth(monthIdx);
-              setCurrentDate(next);
-              setViewMode('month');
-            }}
-            onSelectDay={handleSelectDay}
-          />
-        )}
-
-        {viewMode === 'month' && (
-          <MonthView
-            currentDate={currentDate}
-            events={events}
-            onSelectDay={handleSelectDay}
-            onSelectEvent={handleSelectEvent}
-          />
-        )}
-
-        {(viewMode === 'week' || viewMode === 'day') && (
-          <DayWeekView
+    <div className="h-dvh overflow-hidden theme-bg theme-text flex flex-col w-full max-w-full">
+      {!Capacitor.isNativePlatform() && location.protocol !== 'file:' && (
+        <AppUpdate />
+      )}
+      {(error || settingsError) && (
+        <div role="alert" className="p-3 bg-red-800 text-white">
+          {error || settingsError}
+          <button className="ml-3 underline" onClick={() => location.reload()}>
+            {language === 'pl' ? 'Spróbuj ponownie' : 'Retry'}
+          </button>
+        </div>
+      )}
+      {!ready ? (
+        <p role="status" className="p-4">
+          {language === 'pl' ? 'Wczytywanie kalendarza…' : 'Loading calendar…'}
+        </p>
+      ) : (
+        <>
+          <TopNavBar
             currentDate={currentDate}
             viewMode={viewMode}
-            events={events}
-            onSelectEvent={handleSelectEvent}
-            onCreateAtTime={(dateStr, hour) => {
-              const hourStr = String(hour).padStart(2, '0') + ':00';
-              handleOpenCreateModal(dateStr, hourStr);
+            onViewModeChange={setViewMode}
+            onNavigatePrev={() => navigate(-1)}
+            onNavigateNext={() => navigate(1)}
+            onNavigateToday={today}
+            onOpenCreateModal={() => create()}
+            onOpenAiDrawer={() => setModal('ai')}
+            onOpenSettings={() => setModal('settings')}
+            onOpenSync={() => setModal('sync')}
+            onOpenSearch={() => setModal('search')}
+            onOpenDownload={() => setModal('download')}
+            isAiEnabled={settings.ai.enabled}
+            language={language}
+          />
+          <NotificationBanner
+            activeNotification={activeNotification}
+            onDismiss={() => setActiveNotification(null)}
+            onOpenEvent={select}
+          />
+          <CalendarPanel
+            {...{
+              currentDate,
+              viewMode,
+              events,
+              onSelectDay: selectDay,
+              onSelectEvent: select,
+              onCreateAtTime: createAt,
+              onSelectMonth: selectMonth,
+              language,
+              now,
             }}
           />
-        )}
-
-        {viewMode === 'agenda' && (
-          <AgendaView
-            events={events}
-            onSelectEvent={handleSelectEvent}
-            onSelectDay={handleSelectDay}
+          <BottomNavMobile
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            todayDayNumber={now.getDate()}
+            onNavigateToday={today}
+            language={language}
           />
-        )}
-      </main>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <BottomNavMobile
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        todayDayNumber={new Date().getDate()}
-        onNavigateToday={handleNavigateToday}
-        language={currentLang}
-      />
-
-      {/* Mobile Floating Action Button (FAB) */}
-      <button
-        id="btn-mobile-fab-create"
-        onClick={() => handleOpenCreateModal()}
-        aria-label="Dodaj wydarzenie"
-        className="sm:hidden fixed bottom-18 right-5 w-13 h-13 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-xl flex items-center justify-center z-40 transition-transform active:scale-95 cursor-pointer"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
-
-      {/* Event Modal (Create / Edit) */}
-      <EventModal
-        isOpen={isEventModalOpen}
-        eventToEdit={selectedEvent}
-        initialDate={modalInitialDate}
-        initialTime={modalInitialTime}
-        defaultColor={settings.defaultColor || 'peacock'}
-        defaultReminder={settings.defaultReminder !== undefined ? settings.defaultReminder : 15}
-        defaultDuration={settings.defaultEventDuration || 60}
-        onClose={() => setIsEventModalOpen(false)}
-        onSave={handleSaveEvent}
-        onDelete={handleDeleteEvent}
-      />
-
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        settings={settings}
-        onUpdateSettings={updateSettings}
-        events={events}
-        onImportEvents={(newEvts) => updateEvents(newEvts)}
-        onRemoveHolidays={handleRemoveHolidays}
-        onClearAllEvents={() => updateEvents([])}
-        onLockApp={() => setIsPinLocked(true)}
-      />
-
-      {/* Local AI Assistant Drawer */}
-      <AiAssistantDrawer
-        isOpen={isAiDrawerOpen}
-        onClose={() => setIsAiDrawerOpen(false)}
-        events={events}
-        onAddEventFromAi={handleAddEventFromAi}
-        aiSettings={settings.ai}
-        language={currentLang}
-      />
-
-      {/* Accountless Sync Modal (PC <-> Phone) */}
-      <SyncModal
-        isOpen={isSyncModalOpen}
-        onClose={() => setIsSyncModalOpen(false)}
-        events={events}
-        onSyncMergeEvents={handleSyncMergeEvents}
-        currentTheme={settings.theme}
-        onSyncTheme={(newTheme) => {
-          updateSettings({
-            ...settings,
-            theme: newTheme,
-          });
-        }}
-      />
-
-      {/* Search & Filter Modal (Ctrl+F) */}
-      <SearchModal
-        isOpen={isSearchModalOpen}
-        onClose={() => setIsSearchModalOpen(false)}
-        events={events}
-        onSelectEvent={handleSelectEvent}
-      />
-
-      {/* Desktop Downloads Modal */}
-      <DownloadModal
-        isOpen={isDownloadOpen}
-        onClose={() => setIsDownloadOpen(false)}
-        language={currentLang}
-      />
+          <button
+            id="btn-mobile-fab-create"
+            onClick={() => create()}
+            aria-label={language === 'pl' ? 'Dodaj wydarzenie' : 'Create event'}
+            className="sm:hidden fixed bottom-18 right-5 w-13 h-13 rounded-full bg-blue-600 text-white shadow-xl z-40 flex items-center justify-center"
+          >
+            <Plus />
+          </button>
+          <Suspense
+            fallback={
+              <p
+                role="status"
+                className="fixed bottom-2 left-2 theme-surface p-2"
+              >
+                {language === 'pl' ? 'Wczytywanie…' : 'Loading…'}
+              </p>
+            }
+          >
+            {modal === 'event' && (
+              <EventModal
+                isOpen
+                eventToEdit={selectedEvent}
+                initialDate={initialDate}
+                initialTime={initialTime}
+                defaultColor={settings.defaultColor}
+                defaultReminder={settings.defaultReminder}
+                defaultDuration={settings.defaultEventDuration}
+                onClose={close}
+                onSave={save}
+                onDelete={deleteEvent}
+                language={language}
+              />
+            )}
+            {modal === 'settings' && (
+              <SettingsModal
+                isOpen
+                onClose={close}
+                settings={settings}
+                onUpdateSettings={updateSettings}
+                events={events}
+                onImportEvents={saveRecords}
+                onRemoveHolidays={() =>
+                  remove(
+                    events
+                      .filter((e) => e.id.startsWith('pl-holiday-'))
+                      .map((e) => e.id),
+                  )
+                }
+                onClearAllEvents={() => remove(events.map((e) => e.id))}
+                onLockApp={lock}
+              />
+            )}
+            {modal === 'ai' && (
+              <AiAssistantDrawer
+                isOpen
+                onClose={close}
+                events={events}
+                onAddEventFromAi={addFromAi}
+                aiSettings={settings.ai}
+                language={language}
+              />
+            )}
+            {modal === 'sync' && (
+              <SyncModal
+                isOpen
+                onClose={close}
+                events={events}
+                deletions={deletions}
+                onSyncMergeEvents={commit}
+                currentTheme={settings.theme}
+                onSyncTheme={(theme) => updateSettings({ ...settings, theme })}
+                language={language}
+              />
+            )}
+            {modal === 'search' && (
+              <SearchModal
+                isOpen
+                onClose={close}
+                events={events}
+                onSelectEvent={select}
+                language={language}
+              />
+            )}
+            {modal === 'download' && (
+              <DownloadModal isOpen onClose={close} language={language} />
+            )}
+          </Suspense>
+        </>
+      )}
     </div>
   );
 }

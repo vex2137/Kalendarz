@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { MONTH_NAMES, DAY_NAMES_SHORT, type AppLanguage } from '../utils/i18n';
 import { MONTH_NAMES_PL, DAY_NAMES_SHORT_PL } from '../utils/constants';
 import { CalendarEvent } from '../types';
-import { isEventOccurringOnDate } from '../utils/recurrence';
+import { eventDatePresence } from '../utils/recurrence';
 
 interface YearViewProps {
   currentDate: Date;
+  language?: AppLanguage;
+  now?: Date;
   events: CalendarEvent[];
   onSelectMonth: (monthIndex: number) => void;
   onSelectDay: (dateStr: string) => void;
@@ -15,15 +18,21 @@ export const YearView: React.FC<YearViewProps> = ({
   events,
   onSelectMonth,
   onSelectDay,
+  language = 'pl',
+  now = new Date(),
 }) => {
   const currentYear = currentDate.getFullYear();
-  const now = new Date();
+  const presence = useMemo(
+    () =>
+      eventDatePresence(events, `${currentYear}-01-01`, `${currentYear}-12-31`),
+    [events, currentYear],
+  );
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   return (
     <div className="flex-1 overflow-y-auto p-2 sm:p-4 max-w-6xl mx-auto w-full">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-        {MONTH_NAMES_PL.map((mName, mIdx) => {
+        {MONTH_NAMES[language].map((mName, mIdx) => {
           const firstDay = new Date(currentYear, mIdx, 1);
           let startDow = firstDay.getDay() - 1;
           if (startDow === -1) startDow = 6;
@@ -40,12 +49,21 @@ export const YearView: React.FC<YearViewProps> = ({
               className="theme-surface theme-border border rounded-2xl p-3 shadow-2xs hover:border-blue-500/50 transition-all cursor-pointer group w-full"
             >
               <h3 className="text-sm font-bold theme-text mb-2 flex items-center justify-between group-hover:text-blue-500 transition-colors">
-                <span>{mName}</span>
-                <span className="text-xs font-normal theme-muted">{currentYear}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectMonth(mIdx);
+                  }}
+                >
+                  {mName}
+                </button>
+                <span className="text-xs font-normal theme-muted">
+                  {currentYear}
+                </span>
               </h3>
 
               <div className="grid grid-cols-7 text-center text-[10px] font-semibold theme-muted mb-1">
-                {DAY_NAMES_SHORT_PL.map((d, i) => (
+                {DAY_NAMES_SHORT[language].map((d, i) => (
                   <span key={d} className={i >= 5 ? 'opacity-60' : ''}>
                     {d[0]}
                   </span>
@@ -60,7 +78,7 @@ export const YearView: React.FC<YearViewProps> = ({
 
                   const dateStr = `${currentYear}-${String(mIdx + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                   const isToday = dateStr === todayStr;
-                  const hasEvent = events.some((ev) => isEventOccurringOnDate(ev, dateStr));
+                  const hasEvent = presence.has(dateStr);
 
                   return (
                     <button

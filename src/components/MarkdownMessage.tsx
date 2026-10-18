@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 
 interface MarkdownMessageProps {
   content: string;
@@ -16,24 +16,28 @@ interface MarkdownMessageProps {
  * - Numbered lists (1., 2., etc.)
  * - Line breaks and clean typography
  */
-export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUser = false }) => {
+export const MarkdownMessage = memo(function MarkdownMessage({
+  content,
+  isUser = false,
+}: MarkdownMessageProps) {
   // Pre-clean any accidental spaces inside markdown asterisks like * * text * *
-  const cleanContent = content
-    .replace(/\*\s+\*/g, '')
-    .trim();
+  const cleanContent = content.replace(/\*\s+\*/g, '').trim();
 
   // Helper to parse inline bold, italic, and code tokens
   const parseInline = (text: string): React.ReactNode[] => {
     // Matches **bold**, __bold__, *italic*, _italic_, `code`
-    const regex = /(\*\*[^*]+\*\*|__[^_]+__|(?<!\*)\*[^*]+\*(?!\*)|(?<!_)_[^_]+_(?!_)|`[^`]+`)/g;
+    const regex =
+      /(\*\*[^*]+\*\*|__[^_]+__|(?<!\*)\*[^*]+\*(?!\*)|(?<!_)_[^_]+_(?!_)|`[^`]+`)/g;
     const parts = text.split(regex);
 
     return parts.map((part, index) => {
       if (!part) return null;
 
       // Bold (**text** or __text__)
-      if ((part.startsWith('**') && part.endsWith('**') && part.length >= 4) ||
-          (part.startsWith('__') && part.endsWith('__') && part.length >= 4)) {
+      if (
+        (part.startsWith('**') && part.endsWith('**') && part.length >= 4) ||
+        (part.startsWith('__') && part.endsWith('__') && part.length >= 4)
+      ) {
         const inner = part.slice(2, -2);
         return (
           <strong
@@ -46,13 +50,17 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
       }
 
       // Italic (*text* or _text_)
-      if ((part.startsWith('*') && part.endsWith('*') && part.length >= 2) ||
-          (part.startsWith('_') && part.endsWith('_') && part.length >= 2)) {
+      if (
+        (part.startsWith('*') && part.endsWith('*') && part.length >= 2) ||
+        (part.startsWith('_') && part.endsWith('_') && part.length >= 2)
+      ) {
         const inner = part.slice(1, -1);
         return (
           <em
             key={index}
-            className={isUser ? 'italic text-blue-100' : 'italic theme-text opacity-90'}
+            className={
+              isUser ? 'italic text-blue-100' : 'italic theme-text opacity-90'
+            }
           >
             {inner}
           </em>
@@ -66,7 +74,9 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
           <code
             key={index}
             className={`px-1.5 py-0.5 rounded text-[11px] font-mono ${
-              isUser ? 'bg-blue-700/60 text-white' : 'theme-subtle theme-border border text-blue-400'
+              isUser
+                ? 'bg-blue-700/60 text-white'
+                : 'theme-subtle theme-border border text-blue-400'
             }`}
           >
             {inner}
@@ -80,7 +90,8 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
 
   const lines = cleanContent.split('\n');
   const elements: React.ReactNode[] = [];
-  let currentList: { type: 'bullet' | 'ordered'; items: string[] } | null = null;
+  let currentList: { type: 'bullet' | 'ordered'; items: string[] } | null =
+    null;
 
   const flushList = () => {
     if (currentList) {
@@ -89,28 +100,36 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
           <ul key={`list-${elements.length}`} className="my-1.5 space-y-1 pl-1">
             {currentList.items.map((item, i) => (
               <li key={i} className="flex items-start gap-2">
-                <span className={`inline-block mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${
-                  isUser ? 'bg-white/80' : 'bg-blue-500'
-                }`} />
-                <span className="leading-relaxed text-xs sm:text-sm">{parseInline(item)}</span>
+                <span
+                  className={`inline-block mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${
+                    isUser ? 'bg-white/80' : 'bg-blue-500'
+                  }`}
+                />
+                <span className="leading-relaxed text-xs sm:text-sm">
+                  {parseInline(item)}
+                </span>
               </li>
             ))}
-          </ul>
+          </ul>,
         );
       } else {
         elements.push(
           <ol key={`list-${elements.length}`} className="my-1.5 space-y-1 pl-1">
             {currentList.items.map((item, i) => (
               <li key={i} className="flex items-start gap-2">
-                <span className={`text-[11px] font-bold mt-0.5 shrink-0 ${
-                  isUser ? 'text-blue-100' : 'text-blue-500'
-                }`}>
+                <span
+                  className={`text-[11px] font-bold mt-0.5 shrink-0 ${
+                    isUser ? 'text-blue-100' : 'text-blue-500'
+                  }`}
+                >
                   {i + 1}.
                 </span>
-                <span className="leading-relaxed text-xs sm:text-sm">{parseInline(item)}</span>
+                <span className="leading-relaxed text-xs sm:text-sm">
+                  {parseInline(item)}
+                </span>
               </li>
             ))}
-          </ol>
+          </ol>,
         );
       }
       currentList = null;
@@ -131,9 +150,12 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
     if (trimmed.startsWith('# ')) {
       flushList();
       elements.push(
-        <h4 key={`h1-${i}`} className="text-sm sm:text-base font-bold theme-text mt-2 mb-1">
+        <h4
+          key={`h1-${i}`}
+          className="text-sm sm:text-base font-bold theme-text mt-2 mb-1"
+        >
           {parseInline(trimmed.slice(2))}
-        </h4>
+        </h4>,
       );
       continue;
     }
@@ -142,9 +164,12 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
     if (trimmed.startsWith('## ')) {
       flushList();
       elements.push(
-        <h5 key={`h2-${i}`} className="text-xs sm:text-sm font-bold theme-text mt-2 mb-0.5">
+        <h5
+          key={`h2-${i}`}
+          className="text-xs sm:text-sm font-bold theme-text mt-2 mb-0.5"
+        >
           {parseInline(trimmed.slice(3))}
-        </h5>
+        </h5>,
       );
       continue;
     }
@@ -153,9 +178,12 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
     if (trimmed.startsWith('### ')) {
       flushList();
       elements.push(
-        <h6 key={`h3-${i}`} className="text-xs font-bold theme-text mt-1.5 mb-0.5">
+        <h6
+          key={`h3-${i}`}
+          className="text-xs font-bold theme-text mt-1.5 mb-0.5"
+        >
           {parseInline(trimmed.slice(4))}
-        </h6>
+        </h6>,
       );
       continue;
     }
@@ -189,11 +217,11 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isUse
     elements.push(
       <p key={`line-${i}`} className="leading-relaxed text-xs sm:text-sm">
         {parseInline(trimmed)}
-      </p>
+      </p>,
     );
   }
 
   flushList();
 
   return <div className="space-y-1">{elements}</div>;
-};
+});

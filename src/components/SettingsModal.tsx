@@ -1,36 +1,42 @@
+import { reminderLabel, colorLabel } from '../utils/i18n';
+import { hashPin } from '../utils/security';
+import {
+  requestNotificationPermission,
+  scheduleNativeReminders,
+} from '../utils/notifications';
+import { MAX_IMPORT_BYTES, validateEvents } from '../utils/validation';
+import { downloadFile } from '../utils/storage';
+import { Dialog } from './Dialog';
 import React, { useState, useRef } from 'react';
-import { 
-  AppSettings, 
+import {
+  AppSettings,
   CalendarEvent,
   GoogleCalendarColor,
-  CalendarViewMode
+  CalendarViewMode,
 } from '../types';
-import { 
-  exportEventsToICS, 
-  parseICSToEvents 
-} from '../utils/storage';
-import { 
+import { exportEventsToICS, parseICSToEvents } from '../utils/storage';
+import {
   AVAILABLE_THEMES,
   GOOGLE_CALENDAR_COLORS,
-  STANDARD_REMINDER_OPTIONS
+  STANDARD_REMINDER_OPTIONS,
 } from '../utils/constants';
 import { generateHolidayEvents } from '../utils/holidays';
-import { 
-  playNotificationSound, 
-  triggerVibration 
+import {
+  playNotificationSound,
+  triggerVibration,
 } from '../utils/notifications';
 import { getTranslation, AppLanguage } from '../utils/i18n';
-import { 
-  X, 
-  Shield, 
-  KeyRound, 
-  Bell, 
-  Sparkles, 
-  Download, 
-  Upload, 
-  Trash2, 
-  Volume2, 
-  Check, 
+import {
+  X,
+  Shield,
+  KeyRound,
+  Bell,
+  Sparkles,
+  Download,
+  Upload,
+  Trash2,
+  Volume2,
+  Check,
   AlertTriangle,
   Smartphone,
   Palette,
@@ -38,7 +44,7 @@ import {
   Calendar,
   Layers,
   Flag,
-  Languages
+  Languages,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -47,9 +53,9 @@ interface SettingsModalProps {
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
   events: CalendarEvent[];
-  onImportEvents: (importedEvents: CalendarEvent[]) => void;
-  onRemoveHolidays?: () => void;
-  onClearAllEvents: () => void;
+  onImportEvents: (importedEvents: CalendarEvent[]) => void | Promise<void>;
+  onRemoveHolidays?: () => void | Promise<void>;
+  onClearAllEvents: () => void | Promise<void>;
   onLockApp?: () => void;
 }
 
@@ -79,54 +85,77 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Count Polish holiday events in calendar
   const polishHolidaysInCal = events.filter(
-    (e) => e.id.startsWith('pl-holiday-') || e.title.startsWith('🇵🇱 ')
+    (e) => e.id.startsWith('pl-holiday-') || e.title.startsWith('🇵🇱 '),
   );
 
-  const handleSavePin = () => {
+  const handleSavePin = async () => {
     if (settings.security.pinEnabled) {
       if (pinInput.length !== 4 || !/^\d{4}$/.test(pinInput)) {
-        setPinError(lang === 'pl' ? 'PIN musi składać się z 4 cyfr!' : 'PIN must be 4 digits!');
+        setPinError(
+          lang === 'pl'
+            ? 'PIN musi składać się z 4 cyfr!'
+            : 'PIN must be 4 digits!',
+        );
         return;
       }
     }
     setPinError(null);
-    onUpdateSettings({
-      ...settings,
-      security: {
-        ...settings.security,
-        pinCode: pinInput,
-      },
-    });
-    setPinSuccess(lang === 'pl' ? 'PIN został zaktualizowany.' : 'PIN successfully updated.');
+    try {
+      const hash = await hashPin(pinInput);
+      onUpdateSettings({
+        ...settings,
+        security: { ...settings.security, ...hash },
+      });
+      setPinInput('');
+    } catch (error) {
+      setPinError(String(error));
+      return;
+    }
+    setPinSuccess(
+      lang === 'pl'
+        ? 'PIN został zaktualizowany.'
+        : 'PIN successfully updated.',
+    );
     setTimeout(() => setPinSuccess(null), 3000);
   };
 
-  const handleTogglePin = (enabled: boolean) => {
-    if (enabled && (!pinInput || pinInput.length !== 4)) {
-      setPinError(lang === 'pl' ? 'Wprowadź 4 cyfry PIN!' : 'Enter 4 digits PIN!');
+  const handleTogglePin = async (enabled: boolean) => {
+    if (enabled && !settings.security.pinHash && !/^\d{4}$/.test(pinInput)) {
+      setPinError(
+        lang === 'pl' ? 'Wprowadź 4 cyfry PIN!' : 'Enter 4 digits PIN!',
+      );
       return;
     }
     setPinError(null);
-    onUpdateSettings({
-      ...settings,
-      security: {
-        ...settings.security,
-        pinEnabled: enabled,
-        pinCode: pinInput,
-      },
-    });
+    try {
+      const hash = pinInput ? await hashPin(pinInput) : {};
+      onUpdateSettings({
+        ...settings,
+        security: { ...settings.security, ...hash, pinEnabled: enabled },
+      });
+      setPinInput('');
+    } catch (error) {
+      setPinError(String(error));
+    }
   };
 
-  const handleAddHolidays = () => {
-    const holidays = generateHolidayEvents([2026, 2027, 2028, 2029, 2030, 2031]);
-    onImportEvents(holidays);
-    setHolidaysToast(t.holidaysAdded);
-    setTimeout(() => setHolidaysToast(null), 3500);
+  const handleAddHolidays = async () => {
+    try {
+      const holidays = generateHolidayEvents();
+      await onImportEvents(holidays);
+      setHolidaysToast(t.holidaysAdded);
+      setTimeout(() => setHolidaysToast(null), 3500);
+    } catch (error) {
+      setHolidaysToast(String(error));
+    }
   };
 
-  const handleRemoveHolidaysClick = () => {
-    if (onRemoveHolidays) {
-      onRemoveHolidays();
+  const handleRemoveHolidaysClick = async () => {
+    try {
+      if (onRemoveHolidays) await onRemoveHolidays();
+    } catch (error) {
+      setHolidaysToast(String(error));
+      return;
     }
     setHolidaysToast(t.holidaysRemoved);
     setTimeout(() => setHolidaysToast(null), 3500);
@@ -135,28 +164,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      setImportStatus(
+        lang === 'pl'
+          ? 'Plik jest zbyt duży (maks. 10 MB)'
+          : 'File too large (max 10 MB)',
+      );
+      return;
+    }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
-        const parsed = parseICSToEvents(text);
+        const parsed = file.name.endsWith('.json')
+          ? validateEvents(JSON.parse(text).events)
+          : parseICSToEvents(text);
         if (parsed.length > 0) {
-          onImportEvents(parsed);
+          await onImportEvents(parsed);
           setImportStatus(
-            lang === 'pl' 
-              ? `Pomyślnie zaimportowano ${parsed.length} wydarzeń z pliku .ics!` 
-              : `Successfully imported ${parsed.length} events from .ics file!`
+            lang === 'pl'
+              ? `Pomyślnie zaimportowano ${parsed.length} wydarzeń z pliku .ics!`
+              : `Successfully imported ${parsed.length} events from .ics file!`,
           );
         } else {
           setImportStatus(
-            lang === 'pl' 
-              ? 'Nie znaleziono poprawnych wydarzeń w pliku .ics.' 
-              : 'No valid events found in .ics file.'
+            lang === 'pl'
+              ? 'Nie znaleziono poprawnych wydarzeń w pliku .ics.'
+              : 'No valid events found in .ics file.',
           );
         }
-      } catch {
-        setImportStatus(lang === 'pl' ? 'Błąd podczas odczytu pliku.' : 'Error reading file.');
+      } catch (error) {
+        setImportStatus(String(error));
       }
       setTimeout(() => setImportStatus(null), 4000);
     };
@@ -165,17 +204,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div 
+    <Dialog
+      onClose={onClose}
+      label={t.settingsTitle}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+    >
+      <div
         id="modal-settings"
         className="theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border flex flex-col max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="p-3 space-y-2 theme-subtle text-xs">
+          <button
+            className="underline"
+            onClick={async () => {
+              try {
+                const result = await requestNotificationPermission();
+                if (result === 'granted') await scheduleNativeReminders(events);
+                setImportStatus(
+                  result === 'granted'
+                    ? lang === 'pl'
+                      ? 'Powiadomienia włączone'
+                      : 'Notifications enabled'
+                    : lang === 'pl'
+                      ? 'Brak zgody na powiadomienia'
+                      : 'Notification permission denied',
+                );
+              } catch (error) {
+                setImportStatus(String(error));
+              }
+            }}
+          >
+            {lang === 'pl'
+              ? 'Włącz powiadomienia systemowe'
+              : 'Enable system notifications'}
+          </button>
+          <p>
+            {lang === 'pl'
+              ? 'W przeglądarce przypomnienia wymagają działającej aplikacji. Android może planować je systemowo.'
+              : 'Browser reminders require the app to be running. Android can schedule them with the system.'}
+          </p>
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 theme-border border-b theme-subtle">
           <h3 className="text-base font-bold theme-text">{t.settingsTitle}</h3>
           <button
             id="btn-close-settings-modal"
+            aria-label={t.close}
             onClick={onClose}
             className="p-1.5 rounded-xl theme-muted hover:theme-text theme-hover transition-colors"
           >
@@ -200,7 +275,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="grid grid-cols-2 gap-2.5 pt-1">
               <button
                 type="button"
-                onClick={() => onUpdateSettings({ ...settings, language: 'pl' })}
+                onClick={() =>
+                  onUpdateSettings({ ...settings, language: 'pl' })
+                }
                 className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
                   lang === 'pl'
                     ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text'
@@ -216,7 +293,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => onUpdateSettings({ ...settings, language: 'en' })}
+                onClick={() =>
+                  onUpdateSettings({ ...settings, language: 'en' })
+                }
                 className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
                   lang === 'en'
                     ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text'
@@ -264,10 +343,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="w-4 h-4 rounded-full flex items-center justify-center border border-black/20 shadow-xs" style={{ backgroundColor: th.dotColor }}>
-                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                      <span
+                        className="w-4 h-4 rounded-full flex items-center justify-center border border-black/20 shadow-xs"
+                        style={{ backgroundColor: th.dotColor }}
+                      >
+                        {isSelected && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                        )}
                       </span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${th.chipClass}`}>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${th.chipClass}`}
+                      >
                         {th.badge}
                       </span>
                     </div>
@@ -296,8 +382,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Clock className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">{t.defaultEventSettings}</h4>
-                <p className="text-xs theme-muted">Ułatw szybkie dodawanie terminów</p>
+                <h4 className="text-sm font-bold theme-text">
+                  {t.defaultEventSettings}
+                </h4>
+                <p className="text-xs theme-muted">
+                  {lang === 'pl'
+                    ? 'Ułatw szybkie dodawanie terminów'
+                    : 'Create events faster'}
+                </p>
               </div>
             </div>
 
@@ -332,7 +424,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {t.defaultReminderLabel}
                 </label>
                 <select
-                  value={settings.defaultReminder !== undefined ? settings.defaultReminder : 15}
+                  value={
+                    settings.defaultReminder !== undefined
+                      ? settings.defaultReminder
+                      : 15
+                  }
                   onChange={(e) => {
                     onUpdateSettings({
                       ...settings,
@@ -343,7 +439,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                   {STANDARD_REMINDER_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {reminderLabel(opt.value, lang)}
                     </option>
                   ))}
                 </select>
@@ -355,9 +451,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {t.defaultColorLabel}
                 </label>
                 <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  {(Object.keys(GOOGLE_CALENDAR_COLORS) as GoogleCalendarColor[]).map((cKey) => {
+                  {(
+                    Object.keys(GOOGLE_CALENDAR_COLORS) as GoogleCalendarColor[]
+                  ).map((cKey) => {
                     const cDef = GOOGLE_CALENDAR_COLORS[cKey];
-                    const isSelected = (settings.defaultColor || 'peacock') === cKey;
+                    const isSelected =
+                      (settings.defaultColor || 'peacock') === cKey;
                     return (
                       <button
                         key={cKey}
@@ -369,12 +468,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           });
                         }}
                         className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform ${
-                          isSelected ? 'scale-110 ring-2 ring-blue-500 ring-offset-2 ring-offset-black' : 'hover:scale-105'
+                          isSelected
+                            ? 'scale-110 ring-2 ring-blue-500 ring-offset-2 ring-offset-black'
+                            : 'hover:scale-105'
                         }`}
                         style={{ backgroundColor: cDef.dot }}
-                        title={cDef.name}
+                        title={colorLabel(cDef.id, lang, cDef.name)}
                       >
-                        {isSelected && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                        {isSelected && (
+                          <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+                        )}
                       </button>
                     );
                   })}
@@ -384,7 +487,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {/* Domyślny widok po otwarciu */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold theme-text">
-                  Domyślny widok kalendarza:
+                  {lang === 'pl'
+                    ? 'Domyślny widok kalendarza:'
+                    : 'Default calendar view:'}
                 </label>
                 <select
                   value={settings.defaultView || 'month'}
@@ -396,11 +501,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }}
                   className="w-full text-xs font-medium px-3 py-2 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="month">Miesiąc</option>
-                  <option value="week">Tydzień</option>
-                  <option value="day">Dzień</option>
-                  <option value="agenda">Harmonogram</option>
-                  <option value="year">Rok</option>
+                  <option value="month">
+                    {lang === 'pl' ? 'Miesiąc' : 'Month'}
+                  </option>
+                  <option value="week">
+                    {lang === 'pl' ? 'Tydzień' : 'Week'}
+                  </option>
+                  <option value="day">{lang === 'pl' ? 'Dzień' : 'Day'}</option>
+                  <option value="agenda">
+                    {lang === 'pl' ? 'Harmonogram' : 'Schedule'}
+                  </option>
+                  <option value="year">{lang === 'pl' ? 'Rok' : 'Year'}</option>
                 </select>
               </div>
             </div>
@@ -413,8 +524,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Bell className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">{t.soundAndVib}</h4>
-                <p className="text-xs theme-muted">Dźwięki powiadomień i wibracja</p>
+                <h4 className="text-sm font-bold theme-text">
+                  {t.soundAndVib}
+                </h4>
+                <p className="text-xs theme-muted">
+                  {lang === 'pl'
+                    ? 'Dźwięki powiadomień i wibracja'
+                    : 'Notification sounds and vibration'}
+                </p>
               </div>
             </div>
 
@@ -422,7 +539,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center justify-between p-3 rounded-2xl theme-subtle theme-border border">
                 <div className="flex items-center gap-2.5">
                   <Volume2 className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-semibold theme-text">{t.soundEnabled}</span>
+                  <span className="text-xs font-semibold theme-text">
+                    {t.soundEnabled}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -448,7 +567,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center justify-between p-3 rounded-2xl theme-subtle theme-border border">
                 <div className="flex items-center gap-2.5">
                   <Smartphone className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-semibold theme-text">{t.vibrationEnabled}</span>
+                  <span className="text-xs font-semibold theme-text">
+                    {t.vibrationEnabled}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -481,7 +602,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold theme-text">{t.aiAssistantTitle}</h4>
+                  <h4 className="text-sm font-bold theme-text">
+                    {t.aiAssistantTitle}
+                  </h4>
                   <p className="text-xs theme-muted">{t.aiAssistantDesc}</p>
                 </div>
               </div>
@@ -505,7 +628,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <p className="text-xs theme-muted leading-relaxed">
-              {lang === 'pl' 
+              {lang === 'pl'
                 ? 'Asystent działa w 100% lokalnie na Twoim urządzeniu. Analizuje grafik, wolny czas, wykrywa kolizje i planuje spotkania ze zdań.'
                 : 'The assistant runs 100% locally on your device. It analyzes your schedule, checks free time, and extracts events from natural language.'}
             </p>
@@ -520,12 +643,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
                 <div>
                   <h4 className="text-sm font-bold theme-text">{t.pinLock}</h4>
-                  <p className="text-xs theme-muted">{t.pinLockDesc}</p>
+                  <p className="text-xs theme-muted">
+                    {t.pinLockDesc}
+                    <span className="block text-xs theme-muted">
+                      {lang === 'pl'
+                        ? 'Blokada ekranu nie szyfruje wydarzeń.'
+                        : 'The screen lock does not encrypt your events.'}
+                    </span>
+                  </p>
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
+                  aria-label={t.pinLock}
                   checked={settings.security.pinEnabled}
                   onChange={(e) => handleTogglePin(e.target.checked)}
                   className="sr-only peer"
@@ -534,18 +665,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </label>
             </div>
 
-            {settings.security.pinEnabled && (
+            {true && (
               <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl space-y-3">
                 <div className="flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-bold text-emerald-300">Ustaw kod PIN (4 cyfry):</span>
+                  <span className="text-xs font-bold text-emerald-300">
+                    {lang === 'pl'
+                      ? 'Ustaw kod PIN (4 cyfry):'
+                      : 'Set a 4-digit PIN:'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
                     type="password"
+                    aria-label="PIN"
+                    autoComplete="new-password"
+                    inputMode="numeric"
                     maxLength={4}
                     value={pinInput}
-                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) =>
+                      setPinInput(e.target.value.replace(/\D/g, ''))
+                    }
                     placeholder="••••"
                     className="w-24 text-center tracking-widest text-base font-bold px-3 py-1.5 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
@@ -554,9 +694,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onClick={handleSavePin}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs"
                   >
-                    Zapisz PIN
+                    {lang === 'pl' ? 'Zapisz PIN' : 'Save PIN'}
                   </button>
-                  {onLockApp && (
+                  {onLockApp && settings.security.pinEnabled && (
                     <button
                       type="button"
                       onClick={() => {
@@ -565,13 +705,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }}
                       className="px-3 py-1.5 theme-subtle theme-hover theme-border border theme-text rounded-xl text-xs font-medium transition-colors"
                     >
-                      Zablokuj teraz
+                      {lang === 'pl' ? 'Zablokuj teraz' : 'Lock now'}
                     </button>
                   )}
                 </div>
 
-                {pinError && <p className="text-xs text-rose-400 font-medium">{pinError}</p>}
-                {pinSuccess && <p className="text-xs text-emerald-400 font-medium">{pinSuccess}</p>}
+                {pinError && (
+                  <p className="text-xs text-rose-400 font-medium">
+                    {pinError}
+                  </p>
+                )}
+                {pinSuccess && (
+                  <p className="text-xs text-emerald-400 font-medium">
+                    {pinSuccess}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -583,7 +731,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Flag className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">{t.holidaysSection}</h4>
+                <h4 className="text-sm font-bold theme-text">
+                  {t.holidaysSection}
+                </h4>
                 <p className="text-xs theme-muted">{t.holidaysDesc}</p>
               </div>
             </div>
@@ -591,11 +741,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="p-3.5 rounded-2xl theme-subtle theme-border border space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="theme-muted">{t.holidaysInCalendar}</span>
-                <span className={`px-2 py-0.5 rounded-lg font-bold text-xs ${
-                  polishHolidaysInCal.length > 0 
-                    ? 'bg-red-500/10 text-red-500 border border-red-500/30' 
-                    : 'theme-subtle theme-muted border theme-border'
-                }`}>
+                <span
+                  className={`px-2 py-0.5 rounded-lg font-bold text-xs ${
+                    polishHolidaysInCal.length > 0
+                      ? 'bg-red-500/10 text-red-500 border border-red-500/30'
+                      : 'theme-subtle theme-muted border theme-border'
+                  }`}
+                >
                   {polishHolidaysInCal.length} {t.holidaysUnit}
                 </span>
               </div>
@@ -638,6 +790,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+          <label className="block text-xs theme-muted">
+            {lang === 'pl'
+              ? 'Automatyczna blokada po minutach bezczynności'
+              : 'Auto-lock after minutes of inactivity'}{' '}
+            <input
+              aria-label="Auto-lock minutes"
+              className="theme-input w-16 p-1 rounded"
+              type="number"
+              min={1}
+              max={60}
+              value={settings.security.autoLockMinutes}
+              onChange={(e) =>
+                onUpdateSettings({
+                  ...settings,
+                  security: {
+                    ...settings.security,
+                    autoLockMinutes: Math.max(
+                      1,
+                      Math.min(60, Number(e.target.value) || 1),
+                    ),
+                  },
+                })
+              }
+            />
+          </label>
           {/* Section 7: Kopia zapasowa i zarządzanie danymi */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
@@ -645,15 +822,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Layers className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold theme-text">{t.backupAndData}</h4>
-                <p className="text-xs theme-muted">Lokalne wydarzenia: <strong>{events.length}</strong></p>
+                <h4 className="text-sm font-bold theme-text">
+                  {t.backupAndData}
+                </h4>
+                <p className="text-xs theme-muted">
+                  {lang === 'pl' ? 'Lokalne wydarzenia:' : 'Local events:'}{' '}
+                  <strong>{events.length}</strong>
+                </p>
               </div>
             </div>
 
+            <p className="text-xs theme-muted">
+              {lang === 'pl'
+                ? 'Import scala wydarzenia z obecnym kalendarzem. JSON zachowuje wszystkie dane wydarzeń.'
+                : 'Import merges events with your calendar. JSON preserves all event fields.'}
+            </p>
+            <button
+              className="theme-input rounded-lg p-2 text-xs"
+              onClick={() =>
+                downloadFile(
+                  JSON.stringify({ version: 1, events }, null, 2),
+                  'kalendarz-backup.json',
+                )
+              }
+            >
+              {lang === 'pl'
+                ? 'Pełna kopia wydarzeń JSON'
+                : 'Full event backup (JSON)'}
+            </button>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => exportEventsToICS(events)}
+                onClick={() => {
+                  try {
+                    exportEventsToICS(events);
+                  } catch (error) {
+                    setImportStatus(String(error));
+                  }
+                }}
                 className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl theme-subtle theme-hover theme-border border text-xs font-semibold theme-text transition-colors shadow-2xs"
               >
                 <Download className="w-3.5 h-3.5 opacity-70" />
@@ -671,14 +877,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <input
                 type="file"
                 ref={fileInputRef}
-                accept=".ics,text/calendar"
+                accept=".ics,.json,text/calendar,application/json"
                 onChange={handleFileChange}
                 className="hidden"
               />
             </div>
 
             {importStatus && (
-              <p className="text-xs text-blue-400 font-semibold">{importStatus}</p>
+              <p className="text-xs text-blue-400 font-semibold">
+                {importStatus}
+              </p>
             )}
 
             <div className="pt-2">
@@ -700,9 +908,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        onClearAllEvents();
-                        setConfirmClear(false);
+                      onClick={async () => {
+                        try {
+                          await onClearAllEvents();
+                          setConfirmClear(false);
+                        } catch (error) {
+                          setImportStatus(String(error));
+                        }
                       }}
                       className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors"
                     >
@@ -733,6 +945,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 };

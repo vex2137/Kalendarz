@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, shell } = require('electron');
 const path = require('path');
 const url = require('url');
 
@@ -12,7 +12,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#09090b',
     title: 'Kalendarz Offline',
-    icon: path.join(__dirname, '../public/icon.svg'),
+    icon: path.join(__dirname, '../dist/pwa-512x512.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -27,8 +27,28 @@ function createWindow() {
       pathname: indexPath,
       protocol: 'file:',
       slashes: true,
-    })
+    }),
   );
+
+  const openExternal = (target) => {
+    try {
+      const parsed = new URL(target);
+      if (parsed.protocol === 'https:' && parsed.hostname === 'github.com')
+        void shell.openExternal(target);
+    } catch {
+      /* Ignore malformed navigation. */
+    }
+  };
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openExternal(url);
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, target) => {
+    if (target !== mainWindow.webContents.getURL()) {
+      event.preventDefault();
+      openExternal(target);
+    }
+  });
 
   // Ukryj domyślne surowe menu systemowe dla nowoczesnego wyglądu
   Menu.setApplicationMenu(null);

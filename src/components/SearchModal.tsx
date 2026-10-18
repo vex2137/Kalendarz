@@ -1,126 +1,108 @@
-import React, { useState, useMemo } from 'react';
-import { CalendarEvent } from '../types';
-import { Search, X, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
-import { GOOGLE_CALENDAR_COLORS } from '../utils/constants';
-
-interface SearchModalProps {
+import React, { useMemo, useState, useDeferredValue, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import type { CalendarEvent } from '../types';
+import { getTranslation, type AppLanguage } from '../utils/i18n';
+import { Dialog } from './Dialog';
+interface Props {
   isOpen: boolean;
   onClose: () => void;
   events: CalendarEvent[];
-  onSelectEvent: (event: CalendarEvent) => void;
+  onSelectEvent: (e: CalendarEvent) => void;
+  language?: AppLanguage;
 }
-
-export const SearchModal: React.FC<SearchModalProps> = ({
-  isOpen,
+export function SearchModal({
   onClose,
   events,
   onSelectEvent,
-}) => {
-  const [query, setQuery] = useState('');
-
-  const filteredEvents = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return events.filter(
-      (e) =>
-        e.title.toLowerCase().includes(q) ||
-        (e.description && e.description.toLowerCase().includes(q)) ||
-        (e.location && e.location.toLowerCase().includes(q))
-    ).sort((a, b) => a.startDate.localeCompare(b.startDate));
-  }, [events, query]);
-
-  if (!isOpen) return null;
-
+  language = 'pl',
+}: Props) {
+  const t = getTranslation(language),
+    [query, setQuery] = useState(''),
+    deferred = useDeferredValue(query);
+  const searchable = useMemo(
+    () =>
+      [...events]
+        .sort((a, b) => a.startDate.localeCompare(b.startDate))
+        .map((event) => ({
+          event,
+          text: `${event.title}\n${event.description || ''}\n${event.location || ''}`.toLocaleLowerCase(),
+        })),
+    [events],
+  );
+  const results = useMemo(() => {
+    const q = deferred.trim().toLocaleLowerCase();
+    return q
+      ? searchable.filter((row) => row.text.includes(q)).map((row) => row.event)
+      : [];
+  }, [searchable, deferred]);
+  const parent = useRef<HTMLDivElement>(null);
+  const virtual = useVirtualizer({
+    count: results.length,
+    getScrollElement: () => parent.current,
+    estimateSize: () => 76,
+    overscan: 5,
+    getItemKey: (i) => results[i].id,
+  });
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-4 pt-16 sm:pt-20 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div 
+    <Dialog
+      onClose={onClose}
+      label={t.search}
+      className="fixed inset-0 z-50 bg-black/60 p-3 pt-12 flex justify-center items-start"
+    >
+      <div
         id="modal-search"
-        className="theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border flex flex-col max-h-[80vh] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg theme-surface rounded-2xl p-3"
       >
-        {/* Search Input Bar */}
-        <div className="p-3.5 sm:p-4 theme-border border-b flex items-center gap-3">
-          <Search className="w-5 h-5 theme-muted shrink-0" />
+        <div className="flex gap-2">
           <input
-            type="text"
+            aria-label={t.search}
+            placeholder={t.searchPlaceholder}
+            data-autofocus="true"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Szukaj wydarzeń, osób, miejsc..."
-            autoFocus
-            className="flex-1 bg-transparent text-sm sm:text-base font-medium theme-text focus:outline-none placeholder:text-stone-400"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              parent.current?.scrollTo(0, 0);
+            }}
+            className="theme-input min-w-0 flex-1 p-2 rounded-lg"
           />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="p-1 rounded-lg theme-muted hover:theme-text transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="px-2.5 py-1 text-xs font-semibold theme-subtle theme-hover theme-text rounded-xl theme-border border transition-colors"
-          >
-            Zamknij
+          <button onClick={onClose} className="text-xs p-2">
+            {t.close}
           </button>
         </div>
-
-        {/* Results List */}
-        <div className="p-3 overflow-y-auto max-h-[60vh] space-y-2">
-          {!query.trim() ? (
-            <div className="p-8 text-center text-xs theme-muted">
-              Wpisz frazę, aby wyszukać wydarzenia w kalendarzu.
-            </div>
-          ) : filteredEvents.length === 0 ? (
-            <div className="p-8 text-center text-xs theme-muted">
-              Brak wyników dla „{query}”.
-            </div>
-          ) : (
-            filteredEvents.map((ev) => {
-              const colorDef = GOOGLE_CALENDAR_COLORS[ev.color || 'peacock'];
+        <p className="text-xs theme-muted p-2" role="status">
+          {query
+            ? `${results.length} ${language === 'pl' ? 'wyników' : 'results'}`
+            : t.searchPlaceholder}
+        </p>
+        <div
+          ref={parent}
+          className="h-[60dvh] overflow-auto"
+          aria-busy={query !== deferred}
+        >
+          <div className="relative" style={{ height: virtual.getTotalSize() }}>
+            {virtual.getVirtualItems().map((row) => {
+              const event = results[row.index];
               return (
                 <button
-                  key={ev.id}
-                  type="button"
-                  onClick={() => {
-                    onSelectEvent(ev);
-                    onClose();
-                  }}
-                  className="w-full text-left p-3 rounded-2xl theme-subtle theme-hover theme-border border transition-all flex items-start gap-3 group"
+                  key={row.key}
+                  data-index={row.index}
+                  ref={virtual.measureElement}
+                  onClick={() => onSelectEvent(event)}
+                  className="absolute left-0 w-full text-left p-3 border-b theme-border theme-hover"
+                  style={{ transform: `translateY(${row.start}px)` }}
                 >
-                  <span
-                    className="w-3.5 h-3.5 rounded-full shrink-0 mt-0.5"
-                    style={{ backgroundColor: colorDef.dot }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-xs sm:text-sm font-bold theme-text truncate group-hover:text-blue-500 transition-colors">
-                      {ev.title}
-                    </h4>
-                    <div className="flex items-center gap-3 text-[11px] theme-muted mt-1 flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <CalendarIcon className="w-3.5 h-3.5 opacity-70" />
-                        {ev.startDate}
-                      </span>
-                      {!ev.allDay && ev.startTime && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 opacity-70" />
-                          {ev.startTime} – {ev.endTime}
-                        </span>
-                      )}
-                      {ev.location && (
-                        <span className="flex items-center gap-1 truncate">
-                          <MapPin className="w-3.5 h-3.5 opacity-70" />
-                          {ev.location}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <span className="block font-semibold truncate">
+                    {event.title}
+                  </span>
+                  <span className="block text-xs theme-muted">
+                    {event.startDate} {event.startTime} {event.location}
+                  </span>
                 </button>
               );
-            })
-          )}
+            })}
+          </div>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
-};
+}

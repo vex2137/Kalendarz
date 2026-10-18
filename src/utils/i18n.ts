@@ -2,23 +2,59 @@ export type AppLanguage = 'pl' | 'en';
 
 export const MONTH_NAMES: Record<AppLanguage, string[]> = {
   pl: [
-    'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
-    'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+    'Styczeń',
+    'Luty',
+    'Marzec',
+    'Kwiecień',
+    'Maj',
+    'Czerwiec',
+    'Lipiec',
+    'Sierpień',
+    'Wrzesień',
+    'Październik',
+    'Listopad',
+    'Grudzień',
   ],
   en: [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ]
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ],
 };
 
 export const DAY_NAMES_SHORT: Record<AppLanguage, string[]> = {
   pl: ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'],
-  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
 };
 
 export const DAY_NAMES_FULL: Record<AppLanguage, string[]> = {
-  pl: ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'],
-  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  pl: [
+    'Poniedziałek',
+    'Wtorek',
+    'Środa',
+    'Czwartek',
+    'Piątek',
+    'Sobota',
+    'Niedziela',
+  ],
+  en: [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ],
 };
 
 export const TRANSLATIONS = {
@@ -79,11 +115,11 @@ export const TRANSLATIONS = {
     pinLock: 'Blokada kodem PIN',
     pinLockDesc: 'Zabezpiecz kalendarz 4-cyfrowym kodem',
     holidaysSection: 'Polskie święta i dni wolne',
-    holidaysDesc: 'Oficjalne dni ustawowo wolne od pracy (2026–2031)',
+    holidaysDesc: `Oficjalne dni ustawowo wolne od pracy (${new Date().getFullYear()}–${new Date().getFullYear() + 5})`,
     holidaysInCalendar: 'W kalendarzu znajduje się',
     holidaysUnit: 'polskich świąt',
-    addHolidaysBtn: 'Dodaj polskie święta (2026–2031)',
-    updateHolidaysBtn: 'Zaktualizuj polskie święta (2026–2031)',
+    addHolidaysBtn: `Dodaj polskie święta (${new Date().getFullYear()}–${new Date().getFullYear() + 5})`,
+    updateHolidaysBtn: `Zaktualizuj polskie święta (${new Date().getFullYear()}–${new Date().getFullYear() + 5})`,
     removeHolidaysBtn: 'Usuń polskie święta z kalendarza',
     holidaysRemoved: 'Usunięto polskie święta z kalendarza!',
     holidaysAdded: 'Dodano polskie święta do kalendarza!',
@@ -114,7 +150,8 @@ export const TRANSLATIONS = {
     editEvent: 'Edit event',
     deleteEvent: 'Delete event',
     deleteConfirmTitle: 'Delete event',
-    deleteConfirmDesc: 'Are you sure you want to delete this event from the calendar?',
+    deleteConfirmDesc:
+      'Are you sure you want to delete this event from the calendar?',
     yesDelete: 'Yes, delete',
     noCancel: 'No',
     save: 'Save',
@@ -151,11 +188,11 @@ export const TRANSLATIONS = {
     pinLock: 'PIN Code Lock',
     pinLockDesc: 'Secure your calendar with a 4-digit PIN',
     holidaysSection: 'Polish Public Holidays',
-    holidaysDesc: 'Official statutory non-working days (2026–2031)',
+    holidaysDesc: `Official statutory non-working days (${new Date().getFullYear()}–${new Date().getFullYear() + 5})`,
     holidaysInCalendar: 'In your calendar:',
     holidaysUnit: 'public holidays',
-    addHolidaysBtn: 'Add Polish Holidays (2026–2031)',
-    updateHolidaysBtn: 'Update Polish Holidays (2026–2031)',
+    addHolidaysBtn: `Add Polish Holidays (${new Date().getFullYear()}–${new Date().getFullYear() + 5})`,
+    updateHolidaysBtn: `Update Polish Holidays (${new Date().getFullYear()}–${new Date().getFullYear() + 5})`,
     removeHolidaysBtn: 'Remove Polish Holidays from Calendar',
     holidaysRemoved: 'Polish holidays removed from calendar!',
     holidaysAdded: 'Polish holidays added to calendar!',
@@ -165,7 +202,19 @@ export const TRANSLATIONS = {
     clearAllEvents: 'Clear all events',
     clearConfirm: 'Are you sure you want to delete all events?',
     close: 'Close',
-  }
+  },
 };
 
-export const getTranslation = (lang: AppLanguage = 'pl') => TRANSLATIONS[lang] || TRANSLATIONS.pl;
+export const getTranslation = (lang: AppLanguage = 'pl') =>
+  TRANSLATIONS[lang] || TRANSLATIONS.pl;
+
+export function reminderLabel(value: number, language: AppLanguage = 'pl') {
+  if (value === 0)
+    return language === 'pl' ? 'W momencie rozpoczęcia' : 'At start';
+  return language === 'pl' ? `${value} min wcześniej` : `${value} min before`;
+}
+export const colorLabel = (
+  id: string,
+  language: AppLanguage = 'pl',
+  fallback = id,
+) => (language === 'pl' ? fallback : id.charAt(0).toUpperCase() + id.slice(1));

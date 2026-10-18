@@ -1,30 +1,27 @@
+import { Dialog } from './Dialog';
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  CalendarEvent, 
-  AiChatMessage, 
-  AiSettings 
-} from '../types';
+import { CalendarEvent, AiChatMessage, AiSettings } from '../types';
 import { runLocalAiAssistant } from '../utils/aiEngine';
 import { MarkdownMessage } from './MarkdownMessage';
 import { getTranslation, AppLanguage } from '../utils/i18n';
-import { 
-  X, 
-  Sparkles, 
-  Send, 
-  Cpu, 
-  CalendarPlus, 
-  Check, 
-  Clock, 
+import {
+  X,
+  Sparkles,
+  Send,
+  Cpu,
+  CalendarPlus,
+  Check,
+  Clock,
   AlertCircle,
   Wand2,
-  RotateCcw
+  RotateCcw,
 } from 'lucide-react';
 
 interface AiAssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   events: CalendarEvent[];
-  onAddEventFromAi: (eventData: Partial<CalendarEvent>) => void;
+  onAddEventFromAi: (eventData: Partial<CalendarEvent>) => void | Promise<void>;
   aiSettings: AiSettings;
   language?: AppLanguage;
 }
@@ -42,13 +39,25 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const defaultMsg: AiChatMessage = {
     id: 'msg-welcome',
     role: 'assistant',
-    content: language === 'pl'
-      ? 'Dzień dobry! 👋 Jestem Twoim lokalnym asystentem kalendarza (100% Offline).\n\nPracuję bezpośrednio na Twoim urządzeniu z zerową telemetrią. Oto co potrafię:\n• **Odpowiedzieć na pytania** o grafik i wolny czas na dowolny dzień\n• **Sprawdzić wolne okienka** (np. *„Czy mam wolny czwartek?”*)\n• **Wykryć kolizje terminów** i nakładające się spotkania\n• **Dodać nowe wydarzenie** ze zdania (np. *„Trening jutro o 18:00 na godzinę”*)\n\nW czym mogę Ci pomóc?'
-      : 'Hello! 👋 I am your local calendar assistant (100% Offline).\n\nI run directly on your device with zero telemetry. Here is what I can do:\n• **Answer questions** about your schedule and free time on any day\n• **Check free slots** (e.g. *“Do I have free time on Friday?”*)\n• **Detect schedule conflicts** and overlapping events\n• **Schedule new events** from natural language (e.g. *“Workout tomorrow at 6pm for 1 hour”*)\n\nHow can I help you?',
+    content:
+      language === 'pl'
+        ? 'Dzień dobry! 👋 Jestem Twoim lokalnym asystentem kalendarza (100% Offline).\n\nPracuję bezpośrednio na Twoim urządzeniu z zerową telemetrią. Oto co potrafię:\n• **Odpowiedzieć na pytania** o grafik i wolny czas na dowolny dzień\n• **Sprawdzić wolne okienka** (np. *„Czy mam wolny czwartek?”*)\n• **Wykryć kolizje terminów** i nakładające się spotkania\n• **Dodać nowe wydarzenie** ze zdania (np. *„Trening jutro o 18:00 na godzinę”*)\n\nW czym mogę Ci pomóc?'
+        : 'Hello! 👋 I am your local calendar assistant (100% Offline).\n\nI run directly on your device with zero telemetry. Here is what I can do:\n• **Answer questions** about your schedule and free time on any day\n• **Check free slots** (e.g. *“Do I have free time on Friday?”*)\n• **Detect schedule conflicts** and overlapping events\n• **Schedule new events** from natural language (e.g. *“Workout tomorrow at 6pm for 1 hour”*)\n\nHow can I help you?',
     timestamp: Date.now(),
-    suggestedPrompts: language === 'pl'
-      ? ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?', 'Czy mam wolny czwartek?', 'Sprawdź kolizje terminów']
-      : ['What is on my schedule today?', 'When do I have free time today?', 'Check for conflicting events', 'Summary of this week'],
+    suggestedPrompts:
+      language === 'pl'
+        ? [
+            'Co mam dzisiaj w planie?',
+            'Kiedy mam wolne dzisiaj?',
+            'Czy mam wolny czwartek?',
+            'Sprawdź kolizje terminów',
+          ]
+        : [
+            'What is on my schedule today?',
+            'When do I have free time today?',
+            'Check for conflicting events',
+            'Summary of this week',
+          ],
   };
 
   const [messages, setMessages] = useState<AiChatMessage[]>([defaultMsg]);
@@ -60,10 +69,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         inputRef.current?.focus();
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [messages, isOpen]);
 
@@ -80,7 +90,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       timestamp: Date.now(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev.slice(-199), userMessage]);
     setInputQuery('');
     setIsProcessing(true);
 
@@ -94,20 +104,25 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         suggestedEvent: response.suggestedEvent,
         suggestedPrompts: response.suggestedPrompts,
       };
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev) => [...prev.slice(-199), assistantMessage]);
     } catch {
       setMessages((prev) => [
         ...prev,
         {
           id: 'msg-err-' + Date.now(),
           role: 'assistant',
-          content: language === 'pl' 
-            ? 'Wystąpił błąd lokalnego asystenta. Spróbuj zadać pytanie inaczej.' 
-            : 'An error occurred. Try rephrasing your question.',
+          content:
+            language === 'pl'
+              ? 'Wystąpił błąd lokalnego asystenta. Spróbuj zadać pytanie inaczej.'
+              : 'An error occurred. Try rephrasing your question.',
           timestamp: Date.now(),
-          suggestedPrompts: language === 'pl' 
-            ? ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?']
-            : ['What is on my schedule today?', 'When do I have free time today?'],
+          suggestedPrompts:
+            language === 'pl'
+              ? ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?']
+              : [
+                  'What is on my schedule today?',
+                  'When do I have free time today?',
+                ],
         },
       ]);
     } finally {
@@ -120,14 +135,36 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setAddedEventsIds([]);
   };
 
-  const handleConfirmAdd = (msgId: string, eventSuggestion: Partial<CalendarEvent>) => {
-    onAddEventFromAi(eventSuggestion);
-    setAddedEventsIds((prev) => [...prev, msgId]);
+  const handleConfirmAdd = async (
+    msgId: string,
+    eventSuggestion: Partial<CalendarEvent>,
+  ) => {
+    try {
+      setIsProcessing(true);
+      await onAddEventFromAi(eventSuggestion);
+      setAddedEventsIds((prev) => [...prev, msgId]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: String(error),
+          timestamp: Date.now(),
+        },
+      ]);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end">
-      <div 
+    <Dialog
+      onClose={onClose}
+      label={t.aiAssistantTitle}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end"
+    >
+      <div
         id="drawer-ai-assistant"
         className="theme-surface w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 theme-border border-l"
       >
@@ -139,7 +176,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="text-sm font-bold theme-text">{t.aiAssistantTitle}</h3>
+                <h3 className="text-sm font-bold theme-text">
+                  {t.aiAssistantTitle}
+                </h3>
                 <span className="text-[10px] bg-violet-500/20 text-violet-400 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
                   Offline
                 </span>
@@ -162,6 +201,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             </button>
             <button
               id="btn-close-ai-drawer"
+              aria-label={t.close}
               onClick={onClose}
               className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
               title="Zamknij asystenta"
@@ -175,7 +215,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         {!aiSettings.enabled && (
           <div className="px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-500 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>Asystent jest obecnie wyłączony w opcjach. Przejdź do Ustawień, aby go włączyć.</span>
+            <span>
+              {language === 'pl'
+                ? 'Asystent jest wyłączony. Włącz go w ustawieniach.'
+                : 'The assistant is disabled. Enable it in settings.'}
+            </span>
           </div>
         )}
 
@@ -183,35 +227,67 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         <div className="px-3 py-2 theme-subtle theme-border border-b flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
           <button
             type="button"
-            onClick={() => handleSendMessage(language === 'pl' ? 'Kiedy mam wolne dzisiaj?' : 'When do I have free time today?')}
+            onClick={() =>
+              handleSendMessage(
+                language === 'pl'
+                  ? 'Kiedy mam wolne dzisiaj?'
+                  : 'When do I have free time today?',
+              )
+            }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>🔍</span> {language === 'pl' ? 'Wolny czas dzisiaj' : 'Free time today'}
+            <span>🔍</span>{' '}
+            {language === 'pl' ? 'Wolny czas dzisiaj' : 'Free time today'}
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage(language === 'pl' ? 'Co mam zaplanowane na dzisiaj?' : 'What is on for today?')}
+            onClick={() =>
+              handleSendMessage(
+                language === 'pl'
+                  ? 'Co mam zaplanowane na dzisiaj?'
+                  : 'What is on for today?',
+              )
+            }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
             <span>📅</span> {language === 'pl' ? 'Mój plan' : 'My schedule'}
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage(language === 'pl' ? 'Czy mam wolny czwartek?' : 'Am I free on Thursday?')}
+            onClick={() =>
+              handleSendMessage(
+                language === 'pl'
+                  ? 'Czy mam wolny czwartek?'
+                  : 'Am I free on Thursday?',
+              )
+            }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>🗓️</span> {language === 'pl' ? 'Wolny czwartek?' : 'Free Thursday?'}
+            <span>🗓️</span>{' '}
+            {language === 'pl' ? 'Wolny czwartek?' : 'Free Thursday?'}
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage(language === 'pl' ? 'Czy mam jakieś kolizje w terminach?' : 'Check for conflicting events')}
+            onClick={() =>
+              handleSendMessage(
+                language === 'pl'
+                  ? 'Czy mam jakieś kolizje w terminach?'
+                  : 'Check for conflicting events',
+              )
+            }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
             <span>⚠️</span> {language === 'pl' ? 'Kolizje' : 'Conflicts'}
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage(language === 'pl' ? 'Podsumuj mój nadchodzący tydzień' : 'Summary of this week')}
+            onClick={() =>
+              handleSendMessage(
+                language === 'pl'
+                  ? 'Podsumuj mój nadchodzący tydzień'
+                  : 'Summary of this week',
+              )
+            }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
             <span>📊</span> {language === 'pl' ? 'Tydzień' : 'Week'}
@@ -251,13 +327,20 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         <Clock className="w-3.5 h-3.5 opacity-70 shrink-0" />
                         <span>
                           {msg.suggestedEvent.startDate}
-                          {msg.suggestedEvent.startTime ? `, ${msg.suggestedEvent.startTime} – ${msg.suggestedEvent.endTime}` : (language === 'pl' ? ' (Cały dzień)' : ' (All day)')}
+                          {msg.suggestedEvent.startTime
+                            ? `, ${msg.suggestedEvent.startTime} – ${msg.suggestedEvent.endTime}`
+                            : language === 'pl'
+                              ? ' (Cały dzień)'
+                              : ' (All day)'}
                         </span>
                       </div>
 
                       {msg.suggestedEvent.location && (
                         <div className="theme-muted">
-                          {language === 'pl' ? 'Lokalizacja:' : 'Location:'} <span className="font-medium theme-text">{msg.suggestedEvent.location}</span>
+                          {language === 'pl' ? 'Lokalizacja:' : 'Location:'}{' '}
+                          <span className="font-medium theme-text">
+                            {msg.suggestedEvent.location}
+                          </span>
                         </div>
                       )}
 
@@ -265,17 +348,28 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         {isAdded ? (
                           <div className="flex items-center gap-1.5 text-xs text-emerald-500 font-semibold py-1">
                             <Check className="w-4 h-4" />
-                            <span>{language === 'pl' ? 'Dodano do Twojego kalendarza!' : 'Added to your calendar!'}</span>
+                            <span>
+                              {language === 'pl'
+                                ? 'Dodano do Twojego kalendarza!'
+                                : 'Added to your calendar!'}
+                            </span>
                           </div>
                         ) : (
                           <button
                             type="button"
                             id={`btn-confirm-ai-event-${msg.id}`}
-                            onClick={() => handleConfirmAdd(msg.id, msg.suggestedEvent!)}
+                            disabled={isProcessing}
+                            onClick={() =>
+                              handleConfirmAdd(msg.id, msg.suggestedEvent!)
+                            }
                             className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
                           >
                             <CalendarPlus className="w-3.5 h-3.5" />
-                            <span>{language === 'pl' ? 'Zatwierdź i dodaj do kalendarza' : 'Confirm and add to calendar'}</span>
+                            <span>
+                              {language === 'pl'
+                                ? 'Zatwierdź i dodaj do kalendarza'
+                                : 'Confirm and add to calendar'}
+                            </span>
                           </button>
                         )}
                       </div>
@@ -284,24 +378,29 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 </div>
 
                 {/* Dynamic Quick Prompt Suggestions */}
-                {!isUser && msg.suggestedPrompts && msg.suggestedPrompts.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2 pl-1 max-w-[90%]">
-                    {msg.suggestedPrompts.map((prompt, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSendMessage(prompt)}
-                        className="text-[11px] px-2.5 py-1 rounded-full theme-surface theme-hover theme-text theme-border border transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
-                      >
-                        <span className="text-violet-400">↳</span>
-                        <span>{prompt}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {!isUser &&
+                  msg.suggestedPrompts &&
+                  msg.suggestedPrompts.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2 pl-1 max-w-[90%]">
+                      {msg.suggestedPrompts.map((prompt, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSendMessage(prompt)}
+                          className="text-[11px] px-2.5 py-1 rounded-full theme-surface theme-hover theme-text theme-border border transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="text-violet-400">↳</span>
+                          <span>{prompt}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                 <span className="text-[10px] theme-muted mt-1 px-1">
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(msg.timestamp).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </span>
               </div>
             );
@@ -319,7 +418,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSendMessage();
             }}
-            placeholder={language === 'pl' ? 'Napisz np. Trening jutro o 18 na 1h...' : 'Type e.g. Workout tomorrow at 6pm for 1h...'}
+            placeholder={
+              language === 'pl'
+                ? 'Napisz np. Trening jutro o 18 na 1h...'
+                : 'Type e.g. Workout tomorrow at 6pm for 1h...'
+            }
             disabled={isProcessing}
             className="flex-1 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
@@ -333,6 +436,6 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 };

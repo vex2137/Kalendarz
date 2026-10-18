@@ -1,15 +1,15 @@
-export type GoogleCalendarColor = 
-  | 'tomato'      // #d50000
-  | 'flamingo'    // #e67c73
-  | 'tangerine'   // #f4511e
-  | 'banana'      // #f6bf26
-  | 'sage'        // #33b679
-  | 'basil'       // #0b8043
-  | 'peacock'     // #039be5
-  | 'blueberry'   // #3f51b5
-  | 'lavender'    // #7986cb
-  | 'grape'       // #8e24aa
-  | 'graphite';   // #616161
+export type GoogleCalendarColor =
+  | 'tomato' // #d50000
+  | 'flamingo' // #e67c73
+  | 'tangerine' // #f4511e
+  | 'banana' // #f6bf26
+  | 'sage' // #33b679
+  | 'basil' // #0b8043
+  | 'peacock' // #039be5
+  | 'blueberry' // #3f51b5
+  | 'lavender' // #7986cb
+  | 'grape' // #8e24aa
+  | 'graphite'; // #616161
 
 export interface CalendarColorDef {
   id: GoogleCalendarColor;
@@ -20,7 +20,13 @@ export interface CalendarColorDef {
   dot: string;
 }
 
-export type RecurrenceFreq = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM';
+export type RecurrenceFreq =
+  | 'NONE'
+  | 'DAILY'
+  | 'WEEKLY'
+  | 'MONTHLY'
+  | 'YEARLY'
+  | 'CUSTOM';
 
 export interface CustomRecurrenceRule {
   interval: number; // e.g. 1, 2, 3...
@@ -31,7 +37,16 @@ export interface CustomRecurrenceRule {
   count?: number; // total occurrences
 }
 
-export type ReminderInterval = 0 | 5 | 10 | 15 | 30 | 60 | 120 | 1440 | 'custom'; // minutes before
+export type ReminderInterval =
+  | 0
+  | 5
+  | 10
+  | 15
+  | 30
+  | 60
+  | 120
+  | 1440
+  | 'custom'; // minutes before
 
 export interface ReminderSetting {
   id: string;
@@ -56,6 +71,9 @@ export interface CalendarEvent {
   isCompletedTask?: boolean;
   createdAt: number;
   updatedAt: number;
+  rrule?: string;
+  exdates?: string[];
+  timeZone?: string;
 }
 
 export type CalendarViewMode = 'month' | 'week' | 'day' | 'agenda' | 'year';
@@ -71,12 +89,21 @@ export interface AiSettings {
 
 export interface SecuritySettings {
   pinEnabled: boolean;
-  pinCode: string;
+  pinCode: string; // legacy value, migrated to a salted hash
+  pinHash?: string;
+  pinSalt?: string;
   autoLockMinutes: number;
   isLocked: boolean;
 }
 
-export type AppTheme = 'light' | 'dark' | 'nord' | 'emerald' | 'sunset' | 'lavender' | 'moka';
+export type AppTheme =
+  | 'light'
+  | 'dark'
+  | 'nord'
+  | 'emerald'
+  | 'sunset'
+  | 'lavender'
+  | 'moka';
 
 import { AppLanguage } from './utils/i18n';
 

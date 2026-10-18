@@ -1,20 +1,16 @@
-import { CalendarEvent, CustomRecurrenceRule } from '../types';
-import { DAY_NAMES_SHORT_PL } from './constants';
-
-// Helper to parse YYYY-MM-DD into Date object at midnight UTC
-export function parseISODate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d));
-}
-
-// Convert Date to YYYY-MM-DD
-export function formatISODate(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
+import type { CalendarEvent } from '../types';
+import { RRule } from './ruleEngine';
+import {
+  addDays,
+  daysBetween,
+  parseDate,
+  utcDate,
+  localDate,
+  minutes,
+} from './dates';
+import { zonedDateTime, wallDateTime } from './timezone';
+export const parseISODate = parseDate;
+export const formatISODate = localDate;
 // Maps 0=Nd, 1=Pn, 2=Wt, 3=Śr, 4=Cz, 5=Pt, 6=So
 const DOW_LABELS_PL: Record<number, string> = {
   1: 'Pn',
@@ -29,7 +25,29 @@ const DOW_LABELS_PL: Record<number, string> = {
 /**
  * Returns a human-friendly Polish description of the event recurrence
  */
-export function getRecurrenceLabel(event: CalendarEvent): string {
+export function getRecurrenceLabel(
+  event: CalendarEvent,
+  language = 'pl',
+): string {
+  if (event.rrule) return event.rrule;
+  if (language === 'en') {
+    if (event.rrule) return event.rrule;
+    if (event.recurrence === 'CUSTOM' && event.customRecurrence) {
+      const r = event.customRecurrence;
+      return `Every ${r.interval} ${r.unit.toLowerCase()}${r.interval > 1 ? 's' : ''}${r.endType === 'COUNT' ? ` (${r.count} times)` : r.endType === 'UNTIL_DATE' ? ` (until ${r.untilDate})` : ''}`;
+    }
+    return (
+      (
+        {
+          NONE: 'Does not repeat',
+          DAILY: 'Daily',
+          WEEKLY: 'Weekly',
+          MONTHLY: 'Monthly',
+          YEARLY: 'Yearly',
+        } as Record<string, string>
+      )[event.recurrence] || 'Repeating'
+    );
+  }
   if (!event.recurrence || event.recurrence === 'NONE') {
     return 'Nie powtarza się';
   }
@@ -48,7 +66,8 @@ export function getRecurrenceLabel(event: CalendarEvent): string {
   }
 
   if (event.recurrence === 'CUSTOM' && event.customRecurrence) {
-    const { interval, unit, daysOfWeek, endType, untilDate, count } = event.customRecurrence;
+    const { interval, unit, daysOfWeek, endType, untilDate, count } =
+      event.customRecurrence;
     const intervalStr = interval > 1 ? `co ${interval} ` : 'co ';
 
     let unitStr = '';
@@ -80,134 +99,221 @@ export function getRecurrenceLabel(event: CalendarEvent): string {
   return 'Powtarza się';
 }
 
-/**
- * Checks whether an event occurs on a specific target date (YYYY-MM-DD)
- */
-export function isEventOccurringOnDate(event: CalendarEvent, targetDateStr: string): boolean {
-  if (targetDateStr < event.startDate) {
-    return false;
+const rules = new WeakMap<CalendarEvent, InstanceType<typeof RRule>>();
+export function eventRule(
+  event: CalendarEvent,
+): InstanceType<typeof RRule> | null {
+  if (event.recurrence === 'NONE' && !event.rrule) return null;
+  const cached = rules.get(event);
+  if (cached) return cached;
+  const r = event.customRecurrence;
+  const frequencies: Record<string, number> = {
+    DAY: RRule.DAILY,
+    WEEK: RRule.WEEKLY,
+    MONTH: RRule.MONTHLY,
+    YEAR: RRule.YEARLY,
+    DAILY: RRule.DAILY,
+    WEEKLY: RRule.WEEKLY,
+    MONTHLY: RRule.MONTHLY,
+    YEARLY: RRule.YEARLY,
+  };
+  const options: Partial<import('rrule').Options> = event.rrule
+    ? RRule.parseString(event.rrule)
+    : {
+        freq: frequencies[
+          event.recurrence === 'CUSTOM' ? r!.unit : event.recurrence
+        ],
+        interval: event.recurrence === 'CUSTOM' ? r!.interval : 1,
+        ...(event.recurrence === 'CUSTOM' &&
+        r?.unit === 'WEEK' &&
+        r.daysOfWeek?.length
+          ? {
+              byweekday: [...new Set(r.daysOfWeek)].map(
+                (d) =>
+                  [
+                    RRule.SU,
+                    RRule.MO,
+                    RRule.TU,
+                    RRule.WE,
+                    RRule.TH,
+                    RRule.FR,
+                    RRule.SA,
+                  ][d],
+              ),
+            }
+          : {}),
+        ...(r?.endType === 'COUNT' ? { count: r.count } : {}),
+        ...(r?.endType === 'UNTIL_DATE'
+          ? { until: parseDate(r.untilDate!) }
+          : {}),
+      };
+  if (event.rrule && options.until && !event.allDay) {
+    const encoded = /(?:^|;)UNTIL=(\d{8})(?:T(\d{6})(Z)?)?/.exec(event.rrule);
+    if (encoded?.[2]) {
+      const source = encoded[3]
+        ? wallDateTime(options.until, event.timeZone)
+        : {
+            date: utcDate(options.until),
+            time: options.until.toISOString().slice(11, 16),
+          };
+      options.until = parseDate(
+        source.time < event.startTime! ? addDays(source.date, -1) : source.date,
+      );
+    }
   }
-
-  // Exact match on start date
-  if (event.startDate === targetDateStr) {
-    return true;
+  const rule = new RRule({
+    ...options,
+    dtstart: parseDate(event.startDate),
+    wkst: options.wkst ?? RRule.MO,
+  });
+  rules.set(event, rule);
+  return rule;
+}
+export function getRRule(event: CalendarEvent) {
+  if (event.rrule) return event.rrule;
+  let rule = eventRule(event)?.toString().split('RRULE:')[1] || '';
+  if (event.customRecurrence?.endType === 'UNTIL_DATE') {
+    const date = event.customRecurrence.untilDate!;
+    let until = date.replaceAll('-', '');
+    if (!event.allDay)
+      until = event.timeZone
+        ? new Date(
+            zonedDateTime(date, '23:59', event.timeZone).getTime() + 59000,
+          )
+            .toISOString()
+            .replace(/[-:]/g, '')
+            .replace('.000', '')
+        : `${until}T235959`;
+    rule = rule.replace(/UNTIL=[^;]+/, `UNTIL=${until}`);
   }
-
-  // Non-recurring event: check multi-day range
-  if (!event.recurrence || event.recurrence === 'NONE') {
-    if (event.endDate && event.endDate >= targetDateStr && event.startDate <= targetDateStr) {
-      return true;
-    }
-    return false;
-  }
-
-  // If custom recurrence has untilDate
-  if (event.recurrence === 'CUSTOM' && event.customRecurrence?.endType === 'UNTIL_DATE' && event.customRecurrence.untilDate) {
-    if (targetDateStr > event.customRecurrence.untilDate) {
-      return false;
-    }
-  }
-
-  const dStart = parseISODate(event.startDate);
-  const dTarget = parseISODate(targetDateStr);
-
-  const diffDays = Math.round((dTarget.getTime() - dStart.getTime()) / (1000 * 3600 * 24));
-  if (diffDays < 0) return false;
-
-  // DAILY recurrence
-  if (event.recurrence === 'DAILY' || (event.recurrence === 'CUSTOM' && event.customRecurrence?.unit === 'DAY')) {
-    const interval = event.recurrence === 'CUSTOM' && event.customRecurrence?.interval ? event.customRecurrence.interval : 1;
-    if (diffDays % interval !== 0) return false;
-
-    if (event.recurrence === 'CUSTOM' && event.customRecurrence?.endType === 'COUNT' && event.customRecurrence.count) {
-      const occurrenceIndex = Math.floor(diffDays / interval);
-      if (occurrenceIndex >= event.customRecurrence.count) return false;
-    }
-    return true;
-  }
-
-  // WEEKLY recurrence
-  if (event.recurrence === 'WEEKLY' || (event.recurrence === 'CUSTOM' && event.customRecurrence?.unit === 'WEEK')) {
-    const interval = event.recurrence === 'CUSTOM' && event.customRecurrence?.interval ? event.customRecurrence.interval : 1;
-    const targetDow = dTarget.getUTCDay(); // 0=Sunday, 1=Monday...
-
-    const allowedDays = (event.recurrence === 'CUSTOM' && event.customRecurrence?.daysOfWeek && event.customRecurrence.daysOfWeek.length > 0)
-      ? event.customRecurrence.daysOfWeek
-      : [dStart.getUTCDay()];
-
-    if (!allowedDays.includes(targetDow)) {
-      return false;
-    }
-
-    // Check week interval from start date's week
-    // Find the Monday of start date's week and Monday of target date's week
-    const startDow = dStart.getUTCDay();
-    const startMondayOffset = startDow === 0 ? -6 : 1 - startDow;
-    const startMonday = new Date(dStart.getTime() + startMondayOffset * 86400000);
-
-    const targetMondayOffset = targetDow === 0 ? -6 : 1 - targetDow;
-    const targetMonday = new Date(dTarget.getTime() + targetMondayOffset * 86400000);
-
-    const diffWeeks = Math.round((targetMonday.getTime() - startMonday.getTime()) / (1000 * 3600 * 24 * 7));
-    if (diffWeeks < 0 || diffWeeks % interval !== 0) {
-      return false;
-    }
-
-    if (event.recurrence === 'CUSTOM' && event.customRecurrence?.endType === 'COUNT' && event.customRecurrence.count) {
-      // Rough occurrence count approximation
-      const totalOccurrencesSoFar = Math.floor(diffWeeks / interval) * allowedDays.length;
-      if (totalOccurrencesSoFar >= event.customRecurrence.count) return false;
-    }
-
-    return true;
-  }
-
-  // MONTHLY recurrence
-  if (event.recurrence === 'MONTHLY' || (event.recurrence === 'CUSTOM' && event.customRecurrence?.unit === 'MONTH')) {
-    const interval = event.recurrence === 'CUSTOM' && event.customRecurrence?.interval ? event.customRecurrence.interval : 1;
-    if (dTarget.getUTCDate() !== dStart.getUTCDate()) {
-      return false;
-    }
-
-    const diffMonths = (dTarget.getUTCFullYear() - dStart.getUTCFullYear()) * 12 + (dTarget.getUTCMonth() - dStart.getUTCMonth());
-    if (diffMonths < 0 || diffMonths % interval !== 0) {
-      return false;
-    }
-
-    if (event.recurrence === 'CUSTOM' && event.customRecurrence?.endType === 'COUNT' && event.customRecurrence.count) {
-      const occurrenceIndex = Math.floor(diffMonths / interval);
-      if (occurrenceIndex >= event.customRecurrence.count) return false;
-    }
-
-    return true;
-  }
-
-  // YEARLY recurrence
-  if (event.recurrence === 'YEARLY' || (event.recurrence === 'CUSTOM' && event.customRecurrence?.unit === 'YEAR')) {
-    const interval = event.recurrence === 'CUSTOM' && event.customRecurrence?.interval ? event.customRecurrence.interval : 1;
-    if (dTarget.getUTCMonth() !== dStart.getUTCMonth() || dTarget.getUTCDate() !== dStart.getUTCDate()) {
-      return false;
-    }
-
-    const diffYears = dTarget.getUTCFullYear() - dStart.getUTCFullYear();
-    if (diffYears < 0 || diffYears % interval !== 0) {
-      return false;
-    }
-
-    if (event.recurrence === 'CUSTOM' && event.customRecurrence?.endType === 'COUNT' && event.customRecurrence.count) {
-      const occurrenceIndex = Math.floor(diffYears / interval);
-      if (occurrenceIndex >= event.customRecurrence.count) return false;
-    }
-
-    return true;
-  }
-
-  return false;
+  return rule;
 }
 
-/**
- * Filter all events that occur on the specified date
- */
-export function getEventsForDate(events: CalendarEvent[], targetDateStr: string): CalendarEvent[] {
-  return events.filter((e) => isEventOccurringOnDate(e, targetDateStr));
+export interface CalendarOccurrence {
+  event: CalendarEvent;
+  date: string;
+  occurrenceDate: string;
+  startMinutes: number;
+  endMinutes: number;
+}
+export function occurrenceDates(
+  event: CalendarEvent,
+  from: string,
+  to: string,
+): string[] {
+  const rule = eventRule(event);
+  const dates = rule
+    ? rule.between(parseDate(from), parseDate(to), true).map(utcDate)
+    : event.startDate >= from && event.startDate <= to
+      ? [event.startDate]
+      : [];
+  return event.exdates?.length
+    ? dates.filter((d) => !event.exdates!.includes(d))
+    : dates;
+}
+/** Expand once per range, preserving original events for editing and split midnight spans. */
+const indexCache = new WeakMap<
+  CalendarEvent[],
+  Map<string, Map<string, CalendarOccurrence[]>>
+>();
+export function buildEventIndex(
+  events: CalendarEvent[],
+  from: string,
+  to: string,
+): Map<string, CalendarOccurrence[]> {
+  const key = `${from}:${to}`;
+  const previous = indexCache.get(events)?.get(key);
+  if (previous) return previous;
+  const result = new Map<string, CalendarOccurrence[]>();
+  for (const event of events) {
+    const span = daysBetween(event.startDate, event.endDate);
+    const first = addDays(from, -span - (event.timeZone ? 1 : 0));
+    if (
+      event.startDate > (event.timeZone ? addDays(to, 1) : to) ||
+      (event.recurrence === 'NONE' &&
+        !event.rrule &&
+        event.endDate < (event.timeZone ? addDays(from, -1) : from))
+    )
+      continue;
+    for (const occurrenceDate of occurrenceDates(
+      event,
+      first,
+      event.timeZone ? addDays(to, 1) : to,
+    )) {
+      let start = occurrenceDate,
+        end = addDays(start, span),
+        startTime = event.startTime,
+        endTime = event.endTime;
+      if (event.timeZone && !event.allDay) {
+        const startInstant = zonedDateTime(start, startTime!, event.timeZone),
+          endInstant = zonedDateTime(end, endTime!, event.timeZone);
+        start = localDate(startInstant);
+        end = localDate(endInstant);
+        startTime = `${String(startInstant.getHours()).padStart(2, '0')}:${String(startInstant.getMinutes()).padStart(2, '0')}`;
+        endTime = `${String(endInstant.getHours()).padStart(2, '0')}:${String(endInstant.getMinutes()).padStart(2, '0')}`;
+      }
+      for (
+        let date = start < from ? from : start;
+        date <= end && date <= to;
+        date = addDays(date, 1)
+      ) {
+        const startMinutes =
+          event.allDay || date !== start ? 0 : minutes(startTime);
+        const endMinutes =
+          event.allDay || date !== end ? 1440 : minutes(endTime);
+        if (!event.allDay && endMinutes <= startMinutes) continue;
+        const occurrence = {
+          event,
+          date,
+          occurrenceDate,
+          startMinutes,
+          endMinutes,
+        };
+        const bucket = result.get(date);
+        if (bucket) bucket.push(occurrence);
+        else result.set(date, [occurrence]);
+      }
+    }
+  }
+  for (const bucket of result.values())
+    bucket.sort(
+      (a, b) =>
+        Number(b.event.allDay) - Number(a.event.allDay) ||
+        a.startMinutes - b.startMinutes ||
+        a.event.title.localeCompare(b.event.title),
+    );
+  const cache = indexCache.get(events) || new Map();
+  if (cache.size >= 6) cache.delete(cache.keys().next().value!);
+  cache.set(key, result);
+  indexCache.set(events, cache);
+  return result;
+}
+export function isEventOccurringOnDate(
+  event: CalendarEvent,
+  date: string,
+): boolean {
+  return (buildEventIndex([event], date, date).get(date)?.length || 0) > 0;
+}
+export function getEventsForDate(
+  events: CalendarEvent[],
+  date: string,
+): CalendarEvent[] {
+  return (buildEventIndex(events, date, date).get(date) || []).map(
+    (o) => o.event,
+  );
+}
+/** Year view needs presence, not hundreds of thousands of materialized rows. */
+export function eventDatePresence(
+  events: CalendarEvent[],
+  from: string,
+  to: string,
+): Set<string> {
+  const dates = new Set<string>();
+  const length = daysBetween(from, to) + 1;
+  for (const event of events) {
+    for (const date of buildEventIndex([event], from, to).keys())
+      dates.add(date);
+    if (dates.size === length) break;
+  }
+  return dates;
 }

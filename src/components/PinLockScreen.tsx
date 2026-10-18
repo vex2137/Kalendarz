@@ -1,36 +1,54 @@
 import React, { useState } from 'react';
 import { Shield, Delete } from 'lucide-react';
 import { AppLanguage, getTranslation } from '../utils/i18n';
+import type { SecuritySettings } from '../types';
+import { verifyPin } from '../utils/security';
 
 interface PinLockScreenProps {
-  correctPin: string;
+  security: SecuritySettings;
   onUnlock: () => void;
   language?: AppLanguage;
 }
 
 export const PinLockScreen: React.FC<PinLockScreenProps> = ({
-  correctPin,
+  security,
   onUnlock,
   language = 'pl',
 }) => {
   const t = getTranslation(language);
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [blockedUntil, setBlockedUntil] = useState(() =>
+    Number(localStorage.getItem('pin-blocked-until') || 0),
+  );
 
-  const handleDigit = (digit: string) => {
+  const handleDigit = async (digit: string) => {
+    if (busy || Date.now() < blockedUntil) return;
     if (pin.length < 4) {
       const next = pin + digit;
       setPin(next);
       if (next.length === 4) {
-        if (next === correctPin) {
+        setBusy(true);
+        if (await verifyPin(next, security)) {
+          localStorage.removeItem('pin-failures');
           onUnlock();
         } else {
+          const failures =
+            Number(localStorage.getItem('pin-failures') || 0) + 1;
+          localStorage.setItem('pin-failures', String(failures));
+          if (failures >= 5) {
+            const until = Date.now() + Math.min(300000, 30000 * (failures - 4));
+            setBlockedUntil(until);
+            localStorage.setItem('pin-blocked-until', String(until));
+          }
           setError(true);
           setTimeout(() => {
             setPin('');
             setError(false);
           }, 600);
         }
+        setBusy(false);
       }
     }
   };
@@ -68,8 +86,12 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
         </div>
 
         {error && (
-          <p className="text-xs text-rose-400 font-semibold animate-shake">
-            {t.pinIncorrect}
+          <p role="alert" className="text-xs text-rose-400 font-semibold">
+            {Date.now() < blockedUntil
+              ? language === 'pl'
+                ? 'Zbyt wiele prób. Odczekaj chwilę.'
+                : 'Too many attempts. Please wait.'
+              : t.pinIncorrect}
           </p>
         )}
 
@@ -79,7 +101,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
             <button
               key={digit}
               type="button"
-              onClick={() => handleDigit(digit)}
+              disabled={busy}
+              onClick={() => void handleDigit(digit)}
               className="h-14 rounded-2xl bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-lg font-bold border border-neutral-800 transition-colors shadow-xs"
             >
               {digit}
@@ -88,7 +111,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
           <div />
           <button
             type="button"
-            onClick={() => handleDigit('0')}
+            disabled={busy}
+            onClick={() => void handleDigit('0')}
             className="h-14 rounded-2xl bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-lg font-bold border border-neutral-800 transition-colors shadow-xs"
           >
             0
@@ -96,9 +120,13 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
           <button
             type="button"
             onClick={handleDelete}
+            aria-label={language === 'pl' ? 'Usuń cyfrę' : 'Delete digit'}
             className="h-14 rounded-2xl bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 flex items-center justify-center border border-neutral-800 transition-colors shadow-xs"
           >
-            <Delete className="w-5 h-5 text-neutral-400" />
+            <Delete
+              aria-label="Delete / Usuń"
+              className="w-5 h-5 text-neutral-400"
+            />
           </button>
         </div>
       </div>

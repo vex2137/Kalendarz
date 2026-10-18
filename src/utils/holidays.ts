@@ -38,12 +38,41 @@ export function getPolishHolidays(year: number): PolishHoliday[] {
     { date: `${year}-01-01`, name: 'Nowy Rok', isFreeDay: true },
     { date: `${year}-01-06`, name: 'Święto Trzech Króli', isFreeDay: true },
     { date: `${year}-05-01`, name: 'Święto Pracy', isFreeDay: true },
-    { date: `${year}-05-03`, name: 'Święto Konstytucji 3 Maja', isFreeDay: true },
-    { date: `${year}-08-15`, name: 'Wniebowzięcie NMP / Święto Wojska Polskiego', isFreeDay: true },
+    {
+      date: `${year}-05-03`,
+      name: 'Święto Konstytucji 3 Maja',
+      isFreeDay: true,
+    },
+    {
+      date: `${year}-08-15`,
+      name: 'Wniebowzięcie NMP / Święto Wojska Polskiego',
+      isFreeDay: true,
+    },
     { date: `${year}-11-01`, name: 'Wszystkich Świętych', isFreeDay: true },
-    { date: `${year}-11-11`, name: 'Narodowe Święto Niepodległości', isFreeDay: true },
-    { date: `${year}-12-25`, name: 'Boże Narodzenie (pierwszy dzień)', isFreeDay: true },
-    { date: `${year}-12-26`, name: 'Boże Narodzenie (drugi dzień)', isFreeDay: true },
+    {
+      date: `${year}-11-11`,
+      name: 'Narodowe Święto Niepodległości',
+      isFreeDay: true,
+    },
+    ...(year >= 2025
+      ? [
+          {
+            date: `${year}-12-24`,
+            name: 'Wigilia Bożego Narodzenia',
+            isFreeDay: true,
+          },
+        ]
+      : []),
+    {
+      date: `${year}-12-25`,
+      name: 'Boże Narodzenie (pierwszy dzień)',
+      isFreeDay: true,
+    },
+    {
+      date: `${year}-12-26`,
+      name: 'Boże Narodzenie (drugi dzień)',
+      isFreeDay: true,
+    },
   ];
 
   // Święta ruchome na bazie Wielkanocy
@@ -91,7 +120,12 @@ export function getPolishHolidays(year: number): PolishHoliday[] {
  * Konwertuje polskie święta na obiekty CalendarEvent gotowe do zapisania w kalendarzu.
  * Domyślnie generuje na 5 lat do przodu: 2026-2031.
  */
-export function generateHolidayEvents(years: number[] = [2026, 2027, 2028, 2029, 2030, 2031]): CalendarEvent[] {
+export function generateHolidayEvents(
+  years: number[] = Array.from(
+    { length: 6 },
+    (_, i) => new Date().getFullYear() + i,
+  ),
+): CalendarEvent[] {
   const events: CalendarEvent[] = [];
 
   years.forEach((yr) => {
