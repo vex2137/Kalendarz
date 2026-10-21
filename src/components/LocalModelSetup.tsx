@@ -27,7 +27,7 @@ export function LocalModelSetup({ language, enabled = true }: { language: AppLan
         </label>
       </>}
       {busy && status.phase !== 'checking' && <button type="button" className="theme-border border px-3 py-2 rounded" onClick={cancelModelOperation}>{text.cancel}</button>}
-      {status.installed && !busy && <button type="button" className="theme-border border px-3 py-2 rounded" onClick={() => { setStorageError(false); void deleteLocalModel().catch(() => setStorageError(true)); }}>{text.remove}</button>}
+      {status.installed && !status.bundled && !busy && <button type="button" className="theme-border border px-3 py-2 rounded" onClick={() => { setStorageError(false); void deleteLocalModel().catch(() => setStorageError(true)); }}>{text.remove}</button>}
     </div>
     <p className="theme-muted">{text.note}</p>
   </section>;

@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { spawnSync } = require('node:child_process');
+const { join } = require('node:path');
+const tool = join(process.env.ANDROID_HOME, 'build-tools', '35.0.0', process.platform === 'win32' ? 'apksigner.bat' : 'apksigner');
+const result = spawnSync(tool, ['verify', '--print-certs', process.argv[2]], { encoding: 'utf8' });
+assert.equal(result.status, 0, result.stderr);
+const fingerprint = result.stdout.match(/Signer #1 certificate SHA-256 digest: ([a-f0-9]{64})/)?.[1];
+assert.equal(fingerprint, readFileSync(join(__dirname, '../android/release-certificate.sha256'), 'utf8').trim(), 'APK certificate must match the permanent release identity');
+console.log(`Verified permanent Android certificate: ${fingerprint}`);

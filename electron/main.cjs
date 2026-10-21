@@ -76,6 +76,16 @@ app.whenReady().then(() => {
   protocol.handle('calendar-asset', async request => {
     const target = new URL(request.url);
     const name = target.pathname.slice(1);
+    if (target.hostname === 'models') {
+      const model = require('../dist/models/manifest.json');
+      const allowed = new Set(['manifest.json', model.file, 'LICENSE.txt']);
+      if (request.method !== 'GET' || target.search || !allowed.has(name)) return new Response('', { status: 404 });
+      const response = await net.fetch(url.pathToFileURL(path.join(__dirname, '../dist/models', name)).href);
+      return new Response(response.body, { headers: {
+        'Content-Type': name.endsWith('.json') ? 'application/json' : 'application/octet-stream',
+        'Access-Control-Allow-Origin': '*',
+      } });
+    }
     if (request.method !== 'GET' || target.hostname !== 'runtime' || target.search || !wasmFiles.has(name)) {
       return new Response('', { status: 404 });
     }

@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { LOCAL_MODEL } from './localModelManifest';
+import { LOCAL_MODEL, bundledModelUrl } from './localModelManifest';
 
 const database = () => openDB('calendar-local-model', 1, {
   upgrade(db) { db.createObjectStore('models'); },
@@ -68,5 +68,25 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   const blob = new Blob(chunks, { type: 'application/octet-stream' });
   chunks.length = 0;
+  return blob;
+}
+
+
+// The build stages the exact verified weights beside this small metadata file.
+// Availability is cheap; inference independently verifies the actual GGUF bytes.
+export async function bundledModelAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(bundledModelUrl('manifest.json'), { credentials: 'omit' });
+    if (!response.ok) return false;
+    const model = await response.json();
+    return model.file === LOCAL_MODEL.file && model.bytes === LOCAL_MODEL.bytes && model.sha256 === LOCAL_MODEL.sha256;
+  } catch { return false; }
+}
+
+export async function loadBundledModel(signal: AbortSignal): Promise<Blob> {
+  const response = await fetch(bundledModelUrl(LOCAL_MODEL.file), { signal, credentials: 'omit' });
+  if (!response.ok) throw new Error('model-missing');
+  const blob = await response.blob();
+  if (blob.size !== LOCAL_MODEL.bytes) throw new Error('model-size');
   return blob;
 }

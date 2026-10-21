@@ -32,3 +32,9 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Generated bundled weights and private signing material
+public/models/
+*.keystore
+*.jks
+*.p12

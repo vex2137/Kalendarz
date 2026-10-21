@@ -3,8 +3,6 @@
 const assert = require('node:assert/strict');
 const { createReadStream, statSync } = require('node:fs');
 const { createHash } = require('node:crypto');
-const { spawn } = require('node:child_process');
-const { pipeline } = require('node:stream/promises');
 const { _android } = require('playwright');
 const pkg = process.env.MODEL_TEST_ANDROID_PACKAGE || 'com.kalendarz.offline';
 const adb = process.env.ADB || 'adb';
@@ -33,15 +31,7 @@ async function records(page) {
   assert.ok(device, 'Connect an Android device with the debug APK installed');
   let page;
   try {
-    await device.shell(`run-as ${pkg} mkdir -p files`);
-    console.log('Copying verified GGUF to app-private storage on', device.serial());
-    // exec-in does not drain remote stdout: tee would fill the transport and deadlock.
-    const copy = spawn(adb, ['-s', device.serial(), 'exec-in', 'run-as', pkg, 'dd', 'of=files/calendar-model.gguf', 'bs=1048576'], { stdio: ['pipe', 'ignore', 'pipe'] });
-    let copyError = '';
-    copy.stderr.on('data', data => { copyError += data; });
-    const copied = new Promise((resolve, reject) => { copy.on('error', reject); copy.on('close', code => code === 0 ? resolve() : reject(new Error(copyError))); });
-    await Promise.all([pipeline(createReadStream(file), copy.stdin), copied]);
-    console.log('GGUF transfer completed');
+    console.log('Testing the model bundled inside the APK; no import or model transfer');
     await device.shell(`am start -n ${pkg}/.MainActivity`);
     const view = await device.webView({ pkg }, { timeout: 180000 });
     page = await view.page();
@@ -67,11 +57,6 @@ async function records(page) {
       await page.clock.setFixedTime(new Date('2026-10-21T08:00:00Z'));
       await page.reload();
       await page.locator('#btn-open-ai-assistant').click();
-      if (await page.getByLabel(example.import, { exact: true }).count()) {
-        const { root } = await cdp.send('DOM.getDocument');
-        const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#drawer-ai-assistant input[type=file]' });
-        await cdp.send('DOM.setFileInputFiles', { nodeId, files: [`/data/user/0/${pkg}/files/calendar-model.gguf`] });
-      }
       await page.getByText(example.installed, { exact: true }).waitFor();
       console.log('Android runtime:', await page.evaluate(() => JSON.stringify({ ua: navigator.userAgent, isolated: crossOriginIsolated, jspi: typeof WebAssembly.Suspending === 'function', language: document.documentElement.lang })));
       const before = await records(page), started = performance.now();

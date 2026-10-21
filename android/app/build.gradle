@@ -3,6 +3,11 @@ apply plugin: 'com.android.application'
 def calendarPackage = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
 def calendarVersion = calendarPackage.version.tokenize('.').collect { it as int }
 def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
+def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
+if (System.getenv('CALENDAR_REQUIRE_RELEASE_SIGNING') == 'true' && !calendarKeystore) {
+    throw new GradleException('Stable Android signing is required; configure the CALENDAR_ANDROID_* GitHub secrets.')
+}
+
 
 android {
     testBuildType providers.gradleProperty('calendarAndroidTestBuildType').orElse('debug').get()
@@ -21,10 +26,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (calendarKeystore) {
+            stableRelease {
+                storeFile file(calendarKeystore)
+                storePassword System.getenv('CALENDAR_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('CALENDAR_KEY_ALIAS')
+                keyPassword System.getenv('CALENDAR_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         // Opt in only for downloadable test APKs; production signing stays external.
         release {
-            if (calendarTestSigning) {
+            if (calendarKeystore) {
+                signingConfig signingConfigs.stableRelease
+            } else if (calendarTestSigning) {
                 signingConfig signingConfigs.debug
             }
             minifyEnabled true
@@ -63,3 +80,21 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
+
+
+// cap sync must have copied the verified weights before any APK can be assembled.
+tasks.register('verifyBundledModel') {
+    doLast {
+        def model = new groovy.json.JsonSlurper().parse(rootProject.file('../src/utils/localModelManifest.json'))
+        def weights = file("src/main/assets/public/models/${model.file}")
+        if (!weights.isFile() || weights.length() != model.bytes) throw new GradleException('Bundled model missing: run npm run build and npx cap sync android')
+        def hash = java.security.MessageDigest.getInstance('SHA-256')
+        weights.withInputStream { stream ->
+            byte[] buffer = new byte[1024 * 1024]
+            int count
+            while ((count = stream.read(buffer)) != -1) hash.update(buffer, 0, count)
+        }
+        if (hash.digest().encodeHex().toString() != model.sha256) throw new GradleException('Bundled model checksum mismatch')
+    }
+}
+tasks.named('preBuild').configure { dependsOn('verifyBundledModel') }

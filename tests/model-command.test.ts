@@ -1,3 +1,4 @@
+import { LOCAL_MODEL } from '../src/utils/localModelManifest';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
@@ -5,7 +6,7 @@ import { calendarSystemPrompt, commandSchemaForRequest, COMMAND_SCHEMA, parseMod
 import { DEFAULT_PLANNING } from '../src/utils/assistantPlanning';
 import { changesForPlan } from '../src/utils/assistantChanges';
 import { applyAssistantChanges } from '../src/utils/calendarStore';
-import { verifyModel, savedModel } from '../src/utils/localModelStore';
+import { verifyModel, savedModel, bundledModelAvailable, loadBundledModel } from '../src/utils/localModelStore';
 import { event } from './fixtures';
 
 const now = new Date(2026, 9, 21, 10);
@@ -167,4 +168,23 @@ test('search ignores model date filters absent from the request', async () => {
 test('an invalid model file is rejected and cannot be mistaken for an installation', async () => {
   await assert.rejects(verifyModel(new Blob(['not a model'])), /model-size/);
   assert.equal(await savedModel(), undefined);
+});
+
+test('bundled discovery requires pinned metadata and rejects wrong weight size', async () => {
+  const documentBefore = globalThis.document, fetchBefore = globalThis.fetch;
+  try {
+    globalThis.document = { baseURI: 'https://localhost/index.html' } as Document;
+    globalThis.fetch = async input => {
+      assert.match(String(input), /^https:\/\/localhost\/models\//);
+      return new Response(JSON.stringify({ file: LOCAL_MODEL.file, bytes: LOCAL_MODEL.bytes, sha256: LOCAL_MODEL.sha256 }));
+    };
+    assert.equal(await bundledModelAvailable(), true);
+    globalThis.fetch = async () => new Response(JSON.stringify({ file: LOCAL_MODEL.file, bytes: LOCAL_MODEL.bytes, sha256: 'wrong' }));
+    assert.equal(await bundledModelAvailable(), false);
+    globalThis.fetch = async () => new Response('not weights');
+    await assert.rejects(loadBundledModel(new AbortController().signal), /model-size/);
+  } finally {
+    globalThis.fetch = fetchBefore;
+    if (documentBefore) globalThis.document = documentBefore; else Reflect.deleteProperty(globalThis, 'document');
+  }
 });

@@ -60,3 +60,8 @@ Plain JSON file exports remain **unencrypted**. Old app versions cannot read KAL
 update both devices before exchanging encrypted codes. Web Crypto requires a secure
 browser origin (HTTPS or localhost); Android uses the existing HTTPS WebView origin,
 and the desktop bundle uses its local file origin.
+
+
+## Android language changes
+
+Interface text and the activity title change immediately. The selected launcher name is persisted, but launcher aliases are changed only in the activity's `onStop` background transition, never while the user is changing language in a visible activity. API 33+ updates all aliases atomically; older systems enable the replacement before disabling others. Exactly one localized launcher entry remains enabled. Configuration changes alone do not apply a pending launcher change.
