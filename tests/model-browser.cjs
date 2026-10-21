@@ -60,9 +60,15 @@ async function records(page) {
     page = await context.newPage();
     page.setDefaultTimeout(180000);
     const errors = [];
+    const inferenceMetrics = [];
     page.on('pageerror', e => errors.push(e.message));
     page.on('console', message => {
       if (message.type() === 'error') console.error('Browser:', message.text());
+      if (message.text().startsWith('Local model performance:')) {
+        const metrics = JSON.parse(message.text().slice('Local model performance:'.length));
+        inferenceMetrics.push(metrics);
+        console.log('Inference metrics:', JSON.stringify(metrics));
+      }
       if (message.text().startsWith('Model JSON:')) console.log(message.text());
       if (message.text().startsWith('Model tokens:')) console.log(message.text());
     });
@@ -108,6 +114,15 @@ async function records(page) {
       return response;
     };
     const confirm = () => page.locator('[id^="btn-confirm-ai-event-"]').last();
+    for (const greeting of language === 'pl' ? ['Cześć', 'Co?'] : ['Hello', 'What?']) {
+      const before = performance.now();
+      const reply = await send(greeting);
+      assert.ok(performance.now() - before < 5000, 'Social messages must not wait for inference');
+      assert.equal(inferenceMetrics.length, 0, 'Social messages must not invoke the model');
+      assert.equal(await confirm().count(), 0);
+      assert.equal((await records(page)).length, 0);
+      assert.ok(!/nie znaleziono wydarzeń|no events found/i.test(reply));
+    }
     await send(copy.create);
     assert.equal(await confirm().count(), 1, 'Create request must produce a reviewable proposal');
     assert.equal((await records(page)).length, 0, 'Inference must not write automatically');
@@ -119,7 +134,9 @@ async function records(page) {
     assert.equal(original.startTime, '15:00');
     assert.equal(original.endDate, '2026-10-22');
     assert.equal(original.endTime, '16:00');
+    await page.clock.setFixedTime(new Date('2026-10-21T08:02:00Z'));
     await send(copy.move);
+    assert.ok(inferenceMetrics.at(-1).cachedTokens >= 500, 'Changing the minute must retain the cached system prefix');
     assert.equal(await confirm().count(), 1, 'Move request must produce a reviewable proposal');
     assert.equal((await records(page))[0].startDate, original.startDate);
     await confirm().click();

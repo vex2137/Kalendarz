@@ -64,6 +64,9 @@ export async function inferCalendarJson(system: string, prompt: string, schema: 
   if (operation) throw new Error('model-busy');
   const controller = operation = new AbortController();
   clearTimeout(idleTimer);
+  const started = performance.now();
+  let loadMs = 0;
+  const threads = globalThis.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
   const timeout = setTimeout(() => controller.abort(), 120_000);
   try {
     if (!engine) {
@@ -87,11 +90,12 @@ export async function inferCalendarJson(system: string, prompt: string, schema: 
       await instance.loadModel([blob], {
         n_ctx: 2048, n_batch: 128, n_ubatch: 64, n_parallel: 1,
         n_gpu_layers: 0, // Portable CPU SIMD path, including Android WebView and older GPUs.
-        n_threads: globalThis.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1,
+        n_threads: threads,
         cache_type_k: 'f16', cache_type_v: 'f16', warmup: false,
       });
     }
     controller.signal.throwIfAborted();
+    loadMs = performance.now() - started;
     update({ phase: 'running' });
     const result = await engine.createChatCompletion({
       messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: prompt }],
@@ -102,6 +106,7 @@ export async function inferCalendarJson(system: string, prompt: string, schema: 
     if (result.choices[0]?.finish_reason !== 'stop') throw new Error('model-incomplete');
     const text = result.choices[0]?.message.content;
     if (!text) throw new Error('model-response');
+    console.info('Local model performance:', JSON.stringify({ threads, isolated: globalThis.crossOriginIsolated, loadMs: Math.round(loadMs), totalMs: Math.round(performance.now() - started), promptTokens: result.usage?.prompt_tokens, cachedTokens: result.usage?.prompt_tokens_details?.cached_tokens, completionTokens: result.usage?.completion_tokens }));
     update({ phase: 'ready' });
     idleTimer = setTimeout(() => { void unloadLocalModel(); }, 60_000);
     return text;
