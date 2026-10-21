@@ -110,23 +110,39 @@ public class CalendarSmokeTest {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()))) {
             until(scenario, "document.querySelector('#btn-open-settings')");
             evaluate(scenario, "window.__languageSurvival = 'same-webview'; document.querySelector('#btn-open-settings').click()");
+            String previous = launcherLabel(scenario);
             String[][] languages = {
                 {"pl", "Polski", "Kalendarz"}, {"ru", "Русский", "Календарь"},
-                {"de", "Deutsch", "Kalender"}, {"en", "English", "Calendar"}
+                {"de", "Deutsch", "Kalender"}, {"en", "English", "Calendar"}, {"pl", "Polski", "Kalendarz"}
             };
             for (String[] language : languages) {
-                String previous = launcherLabel(scenario);
                 until(scenario, "document.querySelector('#modal-settings button[aria-label=\"" + language[1] + "\"]')");
                 evaluate(scenario, "document.querySelector('#modal-settings button[aria-label=\"" + language[1] + "\"]').click()");
                 until(scenario, "document.title === '" + language[2] + "'");
+                // Await a completed native call, so a merely delayed foreground alias
+                // switch cannot produce a false pass.
+                evaluate(scenario, "window.__languageQueued=false; window.Capacitor.nativePromise('CalendarDevice','setLanguage',{language:'" + language[0] + "'}).then(()=>window.__languageQueued=true)");
+                until(scenario, "window.__languageQueued");
                 assertEquals(previous, launcherLabel(scenario));
                 assertEquals("\"same-webview\"", evaluate(scenario, "window.__languageSurvival"));
-                scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED);
-                scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED);
-                assertEquals(language[2], launcherLabel(scenario));
-                assertEquals("\"same-webview\"", evaluate(scenario, "window.__languageSurvival"));
-                until(scenario, "document.title === '" + language[2] + "'");
             }
+        }
+        // Leaving the app may legitimately finish the old alias's task. Do not
+        // require that disabled launcher component to resume; reopen the new one.
+        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(context.getPackageName());
+        java.util.List<android.content.pm.ResolveInfo> entries = context.getPackageManager().queryIntentActivities(intent, 0);
+        assertEquals(1, entries.size());
+        assertEquals("Kalendarz", entries.get(0).loadLabel(context.getPackageManager()).toString());
+        try (ActivityScenario<MainActivity> reopened = ActivityScenario.launch(context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()))) {
+            until(reopened, "document.title === 'Kalendarz' && document.querySelector('#btn-open-settings')");
+            // Restore English for the other independent smoke tests.
+            evaluate(reopened, "document.querySelector('#btn-open-settings').click()");
+            until(reopened, "document.querySelector('#modal-settings button[aria-label=English]')");
+            evaluate(reopened, "document.querySelector('#modal-settings button[aria-label=English]').click()");
+            until(reopened, "document.title === 'Calendar'");
+            evaluate(reopened, "window.__languageQueued=false; window.Capacitor.nativePromise('CalendarDevice','setLanguage',{language:'en'}).then(()=>window.__languageQueued=true)");
+            until(reopened, "window.__languageQueued");
         }
     }
 

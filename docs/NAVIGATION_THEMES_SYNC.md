@@ -65,3 +65,5 @@ and the desktop bundle uses its local file origin.
 ## Android language changes
 
 Interface text and the activity title change immediately. The selected launcher name is persisted, but launcher aliases are changed only in the activity's `onStop` background transition, never while the user is changing language in a visible activity. API 33+ updates all aliases atomically; older systems enable the replacement before disabling others. Exactly one localized launcher entry remains enabled. Configuration changes alone do not apply a pending launcher change.
+
+Android may finish the task associated with an alias when that alias is disabled, even with `DONT_KILL_APP`. This now occurs only after leaving the app; selecting a language in the foreground does not disable any alias. Reopening through the new icon restores the saved language and calendar storage.
