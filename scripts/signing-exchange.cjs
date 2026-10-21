@@ -29,7 +29,7 @@ function api(method, endpoint, payload, optional = false) {
   const r = spawnSync('gh', args, { input: payload ? JSON.stringify(payload) : undefined, encoding: 'utf8', maxBuffer: 1024 * 1024 });
   if (r.status !== 0) {
     if (optional && /HTTP 404/.test(r.stderr)) return undefined;
-    throw new Error('GitHub exchange request failed: ' + r.stderr);
+    throw new Error(`GitHub exchange request failed (${method} ${endpoint}): ${r.stderr}`);
   }
   return r.stdout.trim() ? JSON.parse(r.stdout) : undefined;
 }
@@ -42,9 +42,12 @@ async function main() {
     if (process.env.GITHUB_REPOSITORY !== repository || process.env.GITHUB_RUN_ID !== runId || !/^[a-f0-9]{40}$/.test(source)) throw new Error('Invalid runner identity/source');
     const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 3072 });
     const binding = JSON.stringify({ repository, runId, source });
-    api('POST', `repos/${repository}/git/refs`, { ref: `refs/heads/${branch}`, sha: source });
+    const publicName = `calendar-signing-public-${runId}.json`;
+    const publicFile = path.join(process.env.RUNNER_TEMP, publicName);
+    fs.writeFileSync(publicFile, JSON.stringify({ repository, runId, source, binding, publicKey: publicKey.export({ type: 'spki', format: 'pem' }) }));
+    const publish = spawnSync('gh', ['release', 'upload', `v${require('../package.json').version}`, publicFile], { encoding: 'utf8' });
+    if (publish.status !== 0) throw new Error('Cannot publish one-use public key: ' + publish.stderr);
     try {
-      api('PUT', `${endpoint}/public.json`, { branch, message: '[skip ci] Publish one-use signing public key', content: Buffer.from(JSON.stringify({ repository, runId, source, binding, publicKey: publicKey.export({ type: 'spki', format: 'pem' }) })).toString('base64') });
       console.log(`Waiting for an encrypted signing envelope for run ${runId}; no private material is published.`);
       const deadline = Date.now() + 10 * 60_000;
       while (Date.now() < deadline) {
@@ -63,16 +66,21 @@ async function main() {
       }
       throw new Error('Encrypted signing handoff timed out');
     } finally {
-      api('DELETE', `repos/${repository}/git/refs/heads/${branch}`);
+      const cleanup = spawnSync('gh', ['release', 'delete-asset', `v${require('../package.json').version}`, publicName, '--yes'], { encoding: 'utf8' });
+      if (cleanup.status !== 0) console.error('Could not remove temporary public key asset');
+      fs.rmSync(publicFile, { force: true });
     }
   } else {
-    const response = api('GET', `${endpoint}/public.json?ref=${branch}`);
-    const info = JSON.parse(Buffer.from(response.content, 'base64').toString());
+    const response = spawnSync('gh', ['release', 'download', `v${require('../package.json').version}`, '--pattern', `calendar-signing-public-${runId}.json`, '--output', '-'], { encoding: 'utf8' });
+    if (response.status !== 0) throw new Error('Runner public key is not ready: ' + response.stderr);
+    const info = JSON.parse(response.stdout);
     if (info.repository !== repository || info.runId !== runId || info.source !== source || info.binding !== JSON.stringify({ repository, runId, source })) throw new Error('Runner public key does not match the expected run/source');
     const run = api('GET', `repos/${repository}/actions/runs/${runId}`);
     if (run.event !== 'workflow_dispatch' || run.status !== 'in_progress' || run.path !== '.github/workflows/release.yml') throw new Error('Signing runner is not an active manually dispatched release workflow');
     const config = JSON.parse(fs.readFileSync(path.join(directory, 'signing.json')));
     const envelope = seal({ ...config, keystore: fs.readFileSync(path.join(directory, 'calendar-release.p12')).toString('base64') }, info.publicKey, info.binding);
+    const pushed = spawnSync('git', ['push', 'origin', `${source}:refs/heads/${branch}`], { encoding: 'utf8' });
+    if (pushed.status !== 0) throw new Error('Cannot create encrypted transport branch: ' + pushed.stderr);
     api('PUT', `${endpoint}/envelope.json`, { branch, message: '[skip ci] Deliver encrypted one-use signing envelope', content: Buffer.from(JSON.stringify(envelope)).toString('base64') });
     console.log('Encrypted signing envelope delivered; no plaintext signing material was uploaded.');
   }
