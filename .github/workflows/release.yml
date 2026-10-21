@@ -308,7 +308,7 @@ jobs:
       - name: Publish all verified packages
         run: |
           version=$(node -p 'require("./package.json").version')
-          gh release upload "v$version" release/* --clobber
+          gh release upload "v$version" release/*.apk release/*.exe release/*.zip release/*.AppImage release/*.flatpak release/SHA256SUMS.txt --clobber
           gh release edit "v$version" --draft=false --latest --target "$CALENDAR_RELEASE_COMMIT" --notes-file ".github/release-notes/v$version.md"
       - name: Remove temporary private signing files
         if: always()
