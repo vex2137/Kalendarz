@@ -1,3 +1,4 @@
+import { tr } from '../utils/i18n';
 import { reminderLabel, colorLabel } from '../utils/i18n';
 import { Dialog } from './Dialog';
 import { localDate, addDays, minutes } from '../utils/dates';
@@ -223,12 +224,10 @@ export const EventModal: React.FC<EventModalProps> = ({
 
               <div>
                 <h4 className="text-base font-bold theme-text">
-                  {language === 'pl' ? 'Usuń wydarzenie' : 'Delete event'}
+                  {tr(language, 'Usuń wydarzenie', 'Delete event')}
                 </h4>
                 <p className="text-xs theme-muted mt-1 leading-relaxed">
-                  {language === 'pl'
-                    ? 'Czy na pewno chcesz usunąć to wydarzenie z kalendarza?'
-                    : 'Are you sure you want to delete this event?'}
+                  {tr(language, 'Czy na pewno chcesz usunąć to wydarzenie z kalendarza?', 'Are you sure you want to delete this event?')}
                 </p>
                 {eventToEdit && (
                   <p className="text-xs font-semibold theme-text mt-2 px-3 py-1.5 rounded-lg theme-subtle truncate">
@@ -245,7 +244,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                   onClick={() => setShowDeleteConfirm(false)}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-bold shadow-xs transition-colors"
                 >
-                  {language === 'pl' ? 'Nie' : 'No'}
+                  {tr(language, 'Nie', 'No')}
                 </button>
                 {/* Przycisk TAK */}
                 <button
@@ -267,7 +266,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                   disabled={saving}
                   className="flex-1 px-4 py-2.5 rounded-xl theme-subtle theme-hover theme-border border theme-text text-xs font-bold transition-colors"
                 >
-                  {language === 'pl' ? 'Tak, usuń' : 'Yes, delete'}
+                  {tr(language, 'Tak, usuń', 'Yes, delete')}
                 </button>
               </div>
             </div>
@@ -326,9 +325,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 checked={preserveRule}
                 onChange={(e) => setPreserveRule(e.target.checked)}
               />{' '}
-              {language === 'pl'
-                ? 'Zachowaj regułę powtarzania z ICS'
-                : 'Keep imported ICS recurrence'}
+              {tr(language, 'Zachowaj regułę powtarzania z ICS', 'Keep imported ICS recurrence')}
               : {eventToEdit.rrule}
             </label>
           )}
@@ -354,9 +351,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <div className="flex items-center gap-2 text-xs font-semibold theme-text">
                 <Clock className="w-4 h-4 theme-muted" />
                 <span>
-                  {language === 'pl'
-                    ? 'Termin i czas trwania'
-                    : 'Date and duration'}
+                  {tr(language, 'Termin i czas trwania', 'Date and duration')}
                 </span>
               </div>
               <label className="flex items-center gap-2 text-xs cursor-pointer theme-muted select-none">
@@ -367,14 +362,14 @@ export const EventModal: React.FC<EventModalProps> = ({
                   onChange={(e) => setAllDay(e.target.checked)}
                   className="rounded-sm accent-blue-600 focus:ring-blue-500"
                 />
-                <span>{language === 'pl' ? 'Cały dzień' : 'All day'}</span>
+                <span>{tr(language, 'Cały dzień', 'All day')}</span>
               </label>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="space-y-1">
                 <label className="text-[11px] theme-muted">
-                  {language === 'pl' ? 'Początek' : 'Start'}
+                  {tr(language, 'Początek', 'Start')}
                 </label>
                 <input
                   id="input-start-date"
@@ -401,7 +396,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
               <div className="space-y-1">
                 <label className="text-[11px] theme-muted">
-                  {language === 'pl' ? 'Koniec' : 'End'}
+                  {tr(language, 'Koniec', 'End')}
                 </label>
                 <input
                   id="input-end-date"
@@ -442,22 +437,22 @@ export const EventModal: React.FC<EventModalProps> = ({
                   className="w-full px-2.5 py-1.5 rounded-xl theme-input text-xs focus:outline-none"
                 >
                   <option value="NONE">
-                    {language === 'pl' ? 'Nie powtarza się' : 'Does not repeat'}
+                    {tr(language, 'Nie powtarza się', 'Does not repeat')}
                   </option>
                   <option value="DAILY">
-                    {language === 'pl' ? 'Codziennie' : 'Daily'}
+                    {tr(language, 'Codziennie', 'Daily')}
                   </option>
                   <option value="WEEKLY">
-                    {language === 'pl' ? 'Co tydzień' : 'Weekly'}
+                    {tr(language, 'Co tydzień', 'Weekly')}
                   </option>
                   <option value="MONTHLY">
-                    {language === 'pl' ? 'Co miesiąc' : 'Monthly'}
+                    {tr(language, 'Co miesiąc', 'Monthly')}
                   </option>
                   <option value="YEARLY">
-                    {language === 'pl' ? 'Co rok' : 'Yearly'}
+                    {tr(language, 'Co rok', 'Yearly')}
                   </option>
                   <option value="CUSTOM">
-                    {language === 'pl' ? 'Niestandardowe...' : 'Custom...'}
+                    {tr(language, 'Niestandardowe...', 'Custom...')}
                   </option>
                 </select>
               </div>
@@ -468,14 +463,14 @@ export const EventModal: React.FC<EventModalProps> = ({
               <div className="ml-7 p-3 rounded-2xl theme-subtle theme-border border space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="theme-muted text-xs">
-                    {language === 'pl' ? 'Powtarzaj co:' : 'Repeat every:'}
+                    {tr(language, 'Powtarzaj co:', 'Repeat every:')}
                   </span>
                   <input
                     type="number"
                     min={1}
                     max={99}
                     aria-label={
-                      language === 'pl' ? 'Co ile okresów' : 'Repeat interval'
+                      tr(language, 'Co ile okresów', 'Repeat interval')
                     }
                     value={customRecurrence.interval}
                     onChange={(e) =>
@@ -491,9 +486,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                   />
                   <select
                     aria-label={
-                      language === 'pl'
-                        ? 'Jednostka powtarzania'
-                        : 'Repeat unit'
+                      tr(language, 'Jednostka powtarzania', 'Repeat unit')
                     }
                     value={customRecurrence.unit}
                     onChange={(e) =>
@@ -509,16 +502,16 @@ export const EventModal: React.FC<EventModalProps> = ({
                     className="px-2.5 py-1 rounded-lg theme-input font-medium"
                   >
                     <option value="DAY">
-                      {language === 'pl' ? 'Dni' : 'Days'}
+                      {tr(language, 'Dni', 'Days')}
                     </option>
                     <option value="WEEK">
-                      {language === 'pl' ? 'Tygodnie' : 'Weeks'}
+                      {tr(language, 'Tygodnie', 'Weeks')}
                     </option>
                     <option value="MONTH">
-                      {language === 'pl' ? 'Miesiące' : 'Months'}
+                      {tr(language, 'Miesiące', 'Months')}
                     </option>
                     <option value="YEAR">
-                      {language === 'pl' ? 'Lata' : 'Years'}
+                      {tr(language, 'Lata', 'Years')}
                     </option>
                   </select>
                 </div>
@@ -527,17 +520,17 @@ export const EventModal: React.FC<EventModalProps> = ({
                 {customRecurrence.unit === 'WEEK' && (
                   <div className="space-y-1.5">
                     <span className="theme-muted text-[11px] block font-semibold">
-                      {language === 'pl' ? 'W dniach:' : 'On days:'}
+                      {tr(language, 'W dniach:', 'On days:')}
                     </span>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {[
-                        { dow: 1, label: language === 'pl' ? 'Pn' : 'Mon' },
-                        { dow: 2, label: language === 'pl' ? 'Wt' : 'Tue' },
-                        { dow: 3, label: language === 'pl' ? 'Śr' : 'Wed' },
-                        { dow: 4, label: language === 'pl' ? 'Cz' : 'Thu' },
-                        { dow: 5, label: language === 'pl' ? 'Pt' : 'Fri' },
-                        { dow: 6, label: language === 'pl' ? 'So' : 'Sat' },
-                        { dow: 0, label: language === 'pl' ? 'Nd' : 'Sun' },
+                        { dow: 1, label: tr(language, 'Pn', 'Mon') },
+                        { dow: 2, label: tr(language, 'Wt', 'Tue') },
+                        { dow: 3, label: tr(language, 'Śr', 'Wed') },
+                        { dow: 4, label: tr(language, 'Cz', 'Thu') },
+                        { dow: 5, label: tr(language, 'Pt', 'Fri') },
+                        { dow: 6, label: tr(language, 'So', 'Sat') },
+                        { dow: 0, label: tr(language, 'Nd', 'Sun') },
                       ].map(({ dow, label }) => {
                         const isSelected = (
                           customRecurrence.daysOfWeek || []
@@ -573,9 +566,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 {/* End type */}
                 <div className="space-y-2 pt-2 border-t theme-border">
                   <span className="theme-muted text-[11px] block font-semibold">
-                    {language === 'pl'
-                      ? 'Koniec powtarzania:'
-                      : 'Repeat until:'}
+                    {tr(language, 'Koniec powtarzania:', 'Repeat until:')}
                   </span>
 
                   {/* Radio 1: Nigdy */}
@@ -593,7 +584,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                       className="text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-xs theme-text">
-                      {language === 'pl' ? 'Nigdy' : 'Never'}
+                      {tr(language, 'Nigdy', 'Never')}
                     </span>
                   </label>
 
@@ -613,13 +604,13 @@ export const EventModal: React.FC<EventModalProps> = ({
                       className="text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-xs theme-text">
-                      {language === 'pl' ? 'W dniu:' : 'On date:'}
+                      {tr(language, 'W dniu:', 'On date:')}
                     </span>
                     {customRecurrence.endType === 'UNTIL_DATE' && (
                       <input
                         type="date"
                         aria-label={
-                          language === 'pl' ? 'Powtarzaj do' : 'Repeat until'
+                          tr(language, 'Powtarzaj do', 'Repeat until')
                         }
                         value={customRecurrence.untilDate || startDate}
                         min={startDate}
@@ -650,7 +641,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                       className="text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-xs theme-text">
-                      {language === 'pl' ? 'Po:' : 'After:'}
+                      {tr(language, 'Po:', 'After:')}
                     </span>
                     {customRecurrence.endType === 'COUNT' && (
                       <div className="flex items-center gap-1.5">
@@ -671,7 +662,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                           className="w-14 px-1.5 py-0.5 rounded-lg theme-input text-xs text-center font-bold"
                         />
                         <span className="text-xs theme-muted">
-                          {language === 'pl' ? 'wystąpieniach' : 'occurrences'}
+                          {tr(language, 'wystąpieniach', 'occurrences')}
                         </span>
                       </div>
                     )}
@@ -685,7 +676,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           <div className="space-y-1.5 pt-1">
             <div className="flex items-center gap-2 text-xs font-semibold theme-text">
               <Palette className="w-4 h-4 theme-muted" />
-              <span>{language === 'pl' ? 'Kolor:' : 'Color:'} </span>
+              <span>{tr(language, 'Kolor:', 'Color:')} </span>
               <span className="font-bold">
                 {colorLabel(
                   color,
@@ -722,7 +713,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             <div className="flex items-center justify-between text-xs font-semibold theme-text">
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 theme-muted" />
-                <span>{language === 'pl' ? 'Powiadomienia' : 'Reminders'}</span>
+                <span>{tr(language, 'Powiadomienia', 'Reminders')}</span>
               </div>
               <button
                 type="button"
@@ -731,7 +722,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 className="text-blue-500 hover:text-blue-400 text-xs font-bold flex items-center gap-1"
               >
                 <Plus className="w-3.5 h-3.5" />
-                {language === 'pl' ? 'Dodaj alert' : 'Add reminder'}
+                {tr(language, 'Dodaj alert', 'Add reminder')}
               </button>
             </div>
 
@@ -749,7 +740,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleRemoveReminder(min)}
-                      aria-label={`${language === 'pl' ? 'Usuń przypomnienie' : 'Remove reminder'}: ${label}`}
+                      aria-label={`${tr(language, 'Usuń przypomnienie', 'Remove reminder')}: ${label}`}
                       className="theme-muted hover:theme-text ml-1"
                     >
                       <X className="w-3 h-3" />
@@ -776,9 +767,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                   defaultValue=""
                 >
                   <option value="" disabled>
-                    {language === 'pl'
-                      ? 'Wybierz typowy czas...'
-                      : 'Choose a reminder...'}
+                    {tr(language, 'Wybierz typowy czas...', 'Choose a reminder...')}
                   </option>
                   {STANDARD_REMINDER_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -788,7 +777,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 </select>
 
                 <span className="text-xs theme-muted">
-                  {language === 'pl' ? 'lub' : 'or'}
+                  {tr(language, 'lub', 'or')}
                 </span>
 
                 <div className="flex items-center gap-1">
@@ -850,7 +839,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-xs font-medium theme-muted hover:theme-text rounded-xl theme-hover transition-colors"
             >
-              {language === 'pl' ? 'Anuluj' : 'Cancel'}
+              {tr(language, 'Anuluj', 'Cancel')}
             </button>
             <button
               type="submit"
@@ -858,7 +847,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               disabled={saving}
               className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
             >
-              {language === 'pl' ? 'Zapisz' : 'Save'}
+              {tr(language, 'Zapisz', 'Save')}
             </button>
           </div>
         </form>

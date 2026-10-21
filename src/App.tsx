@@ -1,3 +1,4 @@
+import { tr } from './utils/i18n';
 import { applyAssistantChanges, signalCalendarChange, type AssistantChange } from './utils/calendarStore';
 import { changesForPlan } from './utils/assistantChanges';
 import type { AssistantPlan } from './utils/assistantPlanning';
@@ -79,7 +80,7 @@ const CalendarPanel = memo(function CalendarPanel({
   onSelectEvent: (event: CalendarEvent) => void;
   onCreateAtTime: (date: string, hour: number) => void;
   onSelectMonth: (month: number) => void;
-  language: 'pl' | 'en';
+  language: import('./utils/i18n').AppLanguage;
   now: Date;
 }) {
   return (
@@ -203,7 +204,7 @@ export default function App() {
     }
   }, [settings, updateSettings]);
   useEffect(() => {
-    document.title = language === 'en' ? 'Calendar' : 'Kalendarz';
+    document.title = tr(language, 'Kalendarz', 'Calendar');
     document.querySelector('meta[property="og:title"]')?.setAttribute('content', document.title);
     document.documentElement.lang = language;
     document.documentElement.dataset.theme = settings.theme;
@@ -389,19 +390,19 @@ export default function App() {
   return (
     <div className="h-dvh overflow-hidden theme-bg theme-text flex flex-col w-full max-w-full">
       {!Capacitor.isNativePlatform() && location.protocol !== 'file:' && (
-        <AppUpdate />
+        <AppUpdate language={language} />
       )}
       {(error || settingsError) && (
         <div role="alert" className="p-3 bg-red-800 text-white">
           {error || settingsError}
           <button className="ml-3 underline" onClick={() => location.reload()}>
-            {language === 'pl' ? 'Spróbuj ponownie' : 'Retry'}
+            {tr(language, 'Spróbuj ponownie', 'Retry')}
           </button>
         </div>
       )}
       {!ready ? (
         <p role="status" className="p-4">
-          {language === 'pl' ? 'Wczytywanie kalendarza…' : 'Loading calendar…'}
+          {tr(language, 'Wczytywanie kalendarza…', 'Loading calendar…')}
         </p>
       ) : (
         <>
@@ -422,6 +423,7 @@ export default function App() {
             language={language}
           />
           <NotificationBanner
+            language={language}
             activeNotification={activeNotification}
             onDismiss={() => setActiveNotification(null)}
             onOpenEvent={select}
@@ -449,7 +451,7 @@ export default function App() {
           <button
             id="btn-mobile-fab-create"
             onClick={() => create()}
-            aria-label={language === 'pl' ? 'Dodaj wydarzenie' : 'Create event'}
+            aria-label={tr(language, 'Dodaj wydarzenie', 'Create event')}
             className="sm:hidden fixed bottom-18 right-5 w-13 h-13 rounded-full bg-blue-600 text-white shadow-xl z-40 flex items-center justify-center"
           >
             <Plus />
@@ -460,7 +462,7 @@ export default function App() {
                 role="status"
                 className="fixed bottom-2 left-2 theme-surface p-2"
               >
-                {language === 'pl' ? 'Wczytywanie…' : 'Loading…'}
+                {tr(language, 'Wczytywanie…', 'Loading…')}
               </p>
             }
           >

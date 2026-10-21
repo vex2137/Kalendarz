@@ -30,6 +30,14 @@ export function getRecurrenceLabel(
   language = 'pl',
 ): string {
   if (event.rrule) return event.rrule;
+  if (language === 'ru') {
+    if (event.recurrence === 'CUSTOM' && event.customRecurrence) {
+      const r = event.customRecurrence;
+      const unit = { DAY: 'дн.', WEEK: 'нед.', MONTH: 'мес.', YEAR: 'г.' }[r.unit];
+      return `Каждые ${r.interval} ${unit}${r.endType === 'COUNT' ? ` (${r.count} повт.)` : r.endType === 'UNTIL_DATE' ? ` (до ${r.untilDate})` : ''}`;
+    }
+    return ({ NONE: 'Не повторяется', DAILY: 'Ежедневно', WEEKLY: 'Еженедельно', MONTHLY: 'Ежемесячно', YEARLY: 'Ежегодно' } as Record<string, string>)[event.recurrence] || 'Повторяется';
+  }
   if (language === 'en') {
     if (event.rrule) return event.rrule;
     if (event.recurrence === 'CUSTOM' && event.customRecurrence) {

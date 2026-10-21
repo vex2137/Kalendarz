@@ -1,7 +1,7 @@
 # Offline assistant
 
 The assistant uses local language rules and the calendar's recurrence engine. It
-supports English and Polish without sending calendar data to a server. English is
+supports English, Polish, and Russian without sending calendar data to a server. English is
 the default for new installations; an explicitly saved language is retained. The
 app is called **Calendar** in English and **Kalendarz** in Polish.
 
@@ -68,3 +68,20 @@ npm run dev -- --host 127.0.0.1 --port 4176 --strictPort
 # In another terminal; optionally set BROWSER_EXECUTABLE:
 node tests/assistant-browser.cjs
 ```
+
+## Russian
+
+Select **Русский** in Settings to use Russian throughout the interface. The app
+displays **Календарь**; the language choice is retained after reload. Basic local
+assistant examples include:
+
+- `Добавь встречу завтра в 15 на 30 минут`
+- `Что у меня сегодня?`
+- `Когда я свободен завтра на 60 минут?`
+- `Найди встречу`
+- `Перенеси встречу на пятницу в 16`
+- `Запланируй три часовые тренировки на следующую неделю`
+
+The assistant normalizes supported command grammar locally; it does not translate
+saved event names, descriptions, or imported calendars. Unsupported wording may
+need rephrasing. Russian language support does not add another country's holidays.

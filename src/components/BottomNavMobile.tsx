@@ -1,3 +1,4 @@
+import { tr } from '../utils/i18n';
 import React from 'react';
 import { 
   Calendar as MonthIcon, 
@@ -21,15 +22,16 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
   viewMode,
   onViewModeChange,
   todayDayNumber,
-  language = 'pl',
+  language = 'en',
 }) => {
   const t = getTranslation(language);
 
   return (
-    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 theme-header theme-border border-t safe-bottom px-1 py-1.5 shadow-lg backdrop-blur-md">
+    <nav aria-label={tr(language, 'Widoki kalendarza', 'Calendar views')} className="sm:hidden fixed bottom-0 left-0 right-0 z-30 theme-header theme-border border-t safe-bottom px-1 py-1.5 shadow-lg backdrop-blur-md">
       <div className="flex items-center justify-around max-w-md mx-auto">
         {/* Rok */}
         <button
+          aria-pressed={viewMode === 'year'}
           onClick={() => onViewModeChange('year')}
           className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
             viewMode === 'year'
@@ -43,6 +45,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
 
         {/* Miesiąc */}
         <button
+          aria-pressed={viewMode === 'month'}
           onClick={() => onViewModeChange('month')}
           className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
             viewMode === 'month'
@@ -56,6 +59,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
 
         {/* Tydzień */}
         <button
+          aria-pressed={viewMode === 'week'}
           onClick={() => onViewModeChange('week')}
           className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
             viewMode === 'week'
@@ -69,6 +73,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
 
         {/* Dzień */}
         <button
+          aria-pressed={viewMode === 'day'}
           onClick={() => onViewModeChange('day')}
           className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
             viewMode === 'day'
@@ -85,6 +90,7 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
 
         {/* Plan / Agenda */}
         <button
+          aria-pressed={viewMode === 'agenda'}
           onClick={() => onViewModeChange('agenda')}
           className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
             viewMode === 'agenda'

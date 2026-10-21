@@ -1,6 +1,8 @@
-export type AppLanguage = 'pl' | 'en';
+import { RUSSIAN_UI } from './russian';
+export type AppLanguage = 'pl' | 'en' | 'ru';
 
 export const MONTH_NAMES: Record<AppLanguage, string[]> = {
+  ru: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
   pl: [
     'Styczeń',
     'Luty',
@@ -32,11 +34,13 @@ export const MONTH_NAMES: Record<AppLanguage, string[]> = {
 };
 
 export const DAY_NAMES_SHORT: Record<AppLanguage, string[]> = {
+  ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
   pl: ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'],
   en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
 };
 
 export const DAY_NAMES_FULL: Record<AppLanguage, string[]> = {
+  ru: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
   pl: [
     'Poniedziałek',
     'Wtorek',
@@ -57,7 +61,7 @@ export const DAY_NAMES_FULL: Record<AppLanguage, string[]> = {
   ],
 };
 
-export const TRANSLATIONS = {
+const BASE_TRANSLATIONS = {
   pl: {
     appName: 'Kalendarz',
     today: 'Dziś',
@@ -100,7 +104,7 @@ export const TRANSLATIONS = {
     theme: 'Motyw kolorystyczny',
     themeDesc: 'Dostosuj styl całej aplikacji',
     language: 'Język / Language',
-    languageDesc: 'Wybierz język interfejsu (Polski / English)',
+    languageDesc: 'Wybierz język interfejsu (Polski / English / Русский)',
     defaultEventSettings: 'Domyślne ustawienia wydarzeń',
     defaultDuration: 'Domyślny czas trwania:',
     defaultReminderLabel: 'Domyślne przypomnienie:',
@@ -173,7 +177,7 @@ export const TRANSLATIONS = {
     theme: 'Color Theme',
     themeDesc: 'Customize the look and feel of the app',
     language: 'Language / Język',
-    languageDesc: 'Choose interface language (Polski / English)',
+    languageDesc: 'Choose interface language (Polski / English / Русский)',
     defaultEventSettings: 'Default Event Options',
     defaultDuration: 'Default event duration:',
     defaultReminderLabel: 'Default reminder:',
@@ -205,16 +209,50 @@ export const TRANSLATIONS = {
   },
 };
 
+const russianPatterns = Object.entries(RUSSIAN_UI)
+  .filter(([key]) => key.includes('{{'))
+  .sort((a, b) => b[0].length - a[0].length)
+  .map(([key, value]) => {
+    const slots: number[] = [];
+    const pattern = key.split(/(\{\{\d+\}\})/).map(part => {
+      if (/^\{\{\d+\}\}$/.test(part)) { slots.push(Number(part.slice(2, -2))); return '(.*?)'; }
+      return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }).join('');
+    return { pattern: new RegExp(`^${pattern}$`, 's'), value, slots };
+  });
+export function translateRussian(text: string): string {
+  if (Object.hasOwn(RUSSIAN_UI, text)) return RUSSIAN_UI[text];
+  for (const { pattern, value, slots } of russianPatterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    return value.replace(/\{\{(\d+)\}\}/g, (_, i) => match[slots.indexOf(Number(i)) + 1] ?? '');
+  }
+  return text;
+}
+function russianValue<T>(value: T): T {
+  if (typeof value === 'string') return translateRussian(value) as T;
+  if (Array.isArray(value)) return value.map(russianValue) as T;
+  return value;
+}
+/** Select existing Polish/English copy and localize only UI text for Russian. */
+export function tr<P, E>(language: string, polish: P, english: E): P | E {
+  return language === 'pl' ? polish : language === 'ru' ? russianValue(english) : english;
+}
+export const TRANSLATIONS = {
+  ...BASE_TRANSLATIONS,
+  ru: Object.fromEntries(Object.entries(BASE_TRANSLATIONS.en).map(([key, value]) => [key, translateRussian(value)])) as Record<keyof typeof BASE_TRANSLATIONS.en, string>,
+};
+
 export const getTranslation = (lang: AppLanguage = 'en') =>
   TRANSLATIONS[lang] || TRANSLATIONS.en;
 
 export function reminderLabel(value: number, language: AppLanguage = 'pl') {
   if (value === 0)
-    return language === 'pl' ? 'W momencie rozpoczęcia' : 'At start';
-  return language === 'pl' ? `${value} min wcześniej` : `${value} min before`;
+    return tr(language, 'W momencie rozpoczęcia', 'At start');
+  return tr(language, `${value} min wcześniej`, `${value} min before`);
 }
 export const colorLabel = (
   id: string,
   language: AppLanguage = 'pl',
   fallback = id,
-) => (language === 'pl' ? fallback : id.charAt(0).toUpperCase() + id.slice(1));
+) => language === 'pl' ? fallback : language === 'ru' ? ({ tomato: 'Красный', flamingo: 'Розовый', tangerine: 'Оранжевый', banana: 'Жёлтый', sage: 'Шалфейный', basil: 'Зелёный', peacock: 'Бирюзовый', blueberry: 'Синий', lavender: 'Лавандовый', grape: 'Фиолетовый', graphite: 'Графитовый' }[id] || id) : id.charAt(0).toUpperCase() + id.slice(1);

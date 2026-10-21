@@ -33,5 +33,5 @@ export function shiftMonth(date: Date, delta: number): Date {
   );
   return result;
 }
-export const locale = (language = 'pl') =>
-  language === 'en' ? 'en-GB' : 'pl-PL';
+export const locale = (language = 'en') =>
+  language === 'ru' ? 'ru-RU' : language === 'pl' ? 'pl-PL' : 'en-GB';

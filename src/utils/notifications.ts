@@ -1,3 +1,4 @@
+import { getTranslation, tr, type AppLanguage } from './i18n';
 import { CalendarEvent } from '../types';
 import { Capacitor } from '@capacitor/core';
 import { occurrenceDates } from './recurrence';
@@ -59,7 +60,7 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
       '@capacitor/local-notifications'
     );
     const result = await LocalNotifications.requestPermissions();
-    return result.display === 'granted' ? 'granted' : 'denied';
+    return result?.display === 'granted' ? 'granted' : 'denied';
   }
   if (typeof Notification === 'undefined') return 'denied';
   return Notification.requestPermission();
@@ -130,12 +131,9 @@ export function checkEventReminders(
       typeof Notification !== 'undefined' &&
       Notification.permission === 'granted'
     ) {
-      const notificationTitle = showSystem ? due.event.title : 'Kalendarz';
-      const text = !showSystem
-        ? 'Przypomnienie / Reminder'
-        : document.documentElement.lang === 'en'
-          ? `Starts at ${due.event.startTime}`
-          : `Początek o ${due.event.startTime}`;
+      const language = (document.documentElement.lang || 'en') as AppLanguage;
+      const notificationTitle = showSystem ? due.event.title : getTranslation(language).appName;
+      const text = !showSystem ? tr(language, 'Przypomnienie', 'Reminder') : tr(language, `Początek o ${due.event.startTime}`, `Starts at ${due.event.startTime}`);
       try {
         new Notification(notificationTitle, {
           body: text,
@@ -165,7 +163,7 @@ export function checkEventReminders(
 async function replaceNativeReminders(events: CalendarEvent[], locked = false) {
   if (!Capacitor.isNativePlatform()) return;
   const { LocalNotifications } = await import('@capacitor/local-notifications');
-  if ((await LocalNotifications.checkPermissions()).display !== 'granted')
+  if ((await LocalNotifications.checkPermissions())?.display !== 'granted')
     return;
   const pending = await LocalNotifications.getPending();
   if (pending.notifications.length) await LocalNotifications.cancel(pending);
@@ -175,7 +173,7 @@ async function replaceNativeReminders(events: CalendarEvent[], locked = false) {
     await LocalNotifications.schedule({
       notifications: upcoming.map((due, index) => ({
         id: index + 1,
-        title: locked ? 'Kalendarz' : due.event.title,
+        title: locked ? getTranslation((typeof document !== 'undefined' ? document.documentElement.lang : 'en') as AppLanguage).appName : due.event.title,
         body: locked ? 'Przypomnienie / Reminder' : due.event.startTime!,
         schedule: { at: new Date(due.triggerAt) },
         extra: { key: due.key },

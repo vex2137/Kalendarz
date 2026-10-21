@@ -1,3 +1,4 @@
+import { tr } from '../utils/i18n';
 import type { AssistantPlan } from '../utils/assistantPlanning';
 import { planningPreferences } from '../utils/assistantPlanning';
 import { Dialog } from './Dialog';
@@ -42,24 +43,20 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     id: 'msg-welcome',
     role: 'assistant',
     content:
-      language === 'pl'
-        ? 'Dzień dobry! 👋 Jestem Twoim lokalnym asystentem kalendarza (100% Offline).\n\nPracuję bezpośrednio na Twoim urządzeniu z zerową telemetrią. Oto co potrafię:\n• **Odpowiedzieć na pytania** o grafik i wolny czas na dowolny dzień\n• **Sprawdzić wolne okienka** (np. *„Czy mam wolny czwartek?”*)\n• **Wykryć kolizje terminów** i nakładające się spotkania\n• **Dodać nowe wydarzenie** ze zdania (np. *„Trening jutro o 18:00 na godzinę”*)\n\nMożesz też przenosić zapisane wydarzenia, planować kilka spotkań i cofać ostatnią operację asystenta.\n\nW czym mogę Ci pomóc?'
-        : 'Hello! 👋 I am your local calendar assistant (100% Offline).\n\nI run directly on your device with zero telemetry. Here is what I can do:\n• **Answer questions** about your schedule and free time on any day\n• **Check free slots** (e.g. *“Do I have free time on Friday?”*)\n• **Detect schedule conflicts** and overlapping events\n• **Schedule new events** from natural language (e.g. *“Workout tomorrow at 6pm for 1 hour”*)\n\nYou can also reschedule saved events, plan multiple sessions, and undo the last assistant operation.\n\nHow can I help you?',
+      tr(language, 'Dzień dobry! 👋 Jestem Twoim lokalnym asystentem kalendarza (100% Offline).\n\nPracuję bezpośrednio na Twoim urządzeniu z zerową telemetrią. Oto co potrafię:\n• **Odpowiedzieć na pytania** o grafik i wolny czas na dowolny dzień\n• **Sprawdzić wolne okienka** (np. *„Czy mam wolny czwartek?”*)\n• **Wykryć kolizje terminów** i nakładające się spotkania\n• **Dodać nowe wydarzenie** ze zdania (np. *„Trening jutro o 18:00 na godzinę”*)\n\nMożesz też przenosić zapisane wydarzenia, planować kilka spotkań i cofać ostatnią operację asystenta.\n\nW czym mogę Ci pomóc?', 'Hello! 👋 I am your local calendar assistant (100% Offline).\n\nI run directly on your device with zero telemetry. Here is what I can do:\n• **Answer questions** about your schedule and free time on any day\n• **Check free slots** (e.g. *“Do I have free time on Friday?”*)\n• **Detect schedule conflicts** and overlapping events\n• **Schedule new events** from natural language (e.g. *“Workout tomorrow at 6pm for 1 hour”*)\n\nYou can also reschedule saved events, plan multiple sessions, and undo the last assistant operation.\n\nHow can I help you?'),
     timestamp: Date.now(),
     suggestedPrompts:
-      language === 'pl'
-        ? [
+      tr(language, [
             'Co mam dzisiaj w planie?',
             'Kiedy mam wolne dzisiaj?',
             'Czy mam wolny czwartek?',
             'Sprawdź kolizje terminów',
-          ]
-        : [
+          ], [
             'What is on my schedule today?',
             'When do I have free time today?',
             'Check for conflicting events',
             'Summary of this week',
-          ],
+          ]),
   };
 
   const [messages, setMessages] = useState<AiChatMessage[]>([defaultMsg]);
@@ -126,17 +123,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           id: crypto.randomUUID(),
           role: 'assistant',
           content:
-            language === 'pl'
-              ? 'Wystąpił błąd lokalnego asystenta. Spróbuj zadać pytanie inaczej.'
-              : 'An error occurred. Try rephrasing your question.',
+            tr(language, 'Wystąpił błąd lokalnego asystenta. Spróbuj zadać pytanie inaczej.', 'An error occurred. Try rephrasing your question.'),
           timestamp: Date.now(),
           suggestedPrompts:
-            language === 'pl'
-              ? ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?']
-              : [
+            tr(language, ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?'], [
                   'What is on my schedule today?',
                   'When do I have free time today?',
-                ],
+                ]),
         },
       ]);
     } finally {
@@ -173,7 +166,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     try {
       await onUndo();
       conversationRef.current = {};
-      setMessages(prev => [...prev.map(m => ({ ...m, suggestedEvent: undefined, suggestedPlan: undefined })), { id: crypto.randomUUID(), role: 'assistant', content: language === 'pl' ? 'Cofnięto ostatnią operację asystenta.' : 'The last assistant operation was undone.', timestamp: Date.now() }]);
+      setMessages(prev => [...prev.map(m => ({ ...m, suggestedEvent: undefined, suggestedPlan: undefined })), { id: crypto.randomUUID(), role: 'assistant', content: tr(language, 'Cofnięto ostatnią operację asystenta.', 'The last assistant operation was undone.'), timestamp: Date.now() }]);
     } catch (error) {
       setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: String(error), timestamp: Date.now() }]);
     } finally {
@@ -209,7 +202,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               </div>
               <div className="flex items-center gap-1 text-[11px] theme-muted">
                 <Cpu className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span>{language === 'pl' ? '100% lokalny silnik NLP • zero sieci' : '100% local NLP engine • no network'}</span>
+                <span>{tr(language, '100% lokalny silnik NLP • zero sieci', '100% local NLP engine • no network')}</span>
               </div>
             </div>
           </div>
@@ -219,7 +212,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               type="button"
               onClick={handleClearChat}
               className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
-              title={language === 'pl' ? 'Wyczyść rozmowę' : 'Clear conversation'}
+              title={tr(language, 'Wyczyść rozmowę', 'Clear conversation')}
               disabled={isProcessing || !aiSettings.enabled}
             >
               <RotateCcw className="w-4 h-4" />
@@ -229,7 +222,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               aria-label={t.close}
               onClick={onClose}
               className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
-              title={language === 'pl' ? 'Zamknij asystenta' : 'Close assistant'}
+              title={tr(language, 'Zamknij asystenta', 'Close assistant')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -237,7 +230,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         </div>
 
         {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 px-3 py-2 rounded theme-surface theme-text theme-border border text-sm">
-          {language === 'pl' ? 'Cofnij ostatnią operację asystenta' : 'Undo last assistant operation'}
+          {tr(language, 'Cofnij ostatnią operację asystenta', 'Undo last assistant operation')}
         </button>}
 
         {/* Warning if AI is disabled in settings */}
@@ -245,9 +238,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           <div className="px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-500 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
             <span>
-              {language === 'pl'
-                ? 'Asystent jest wyłączony. Włącz go w ustawieniach.'
-                : 'The assistant is disabled. Enable it in settings.'}
+              {tr(language, 'Asystent jest wyłączony. Włącz go w ustawieniach.', 'The assistant is disabled. Enable it in settings.')}
             </span>
           </div>
         )}
@@ -258,68 +249,58 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             type="button"
             onClick={() =>
               handleSendMessage(
-                language === 'pl'
-                  ? 'Kiedy mam wolne dzisiaj?'
-                  : 'When do I have free time today?',
+                tr(language, 'Kiedy mam wolne dzisiaj?', 'When do I have free time today?'),
               )
             }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
             <span>🔍</span>{' '}
-            {language === 'pl' ? 'Wolny czas dzisiaj' : 'Free time today'}
+            {tr(language, 'Wolny czas dzisiaj', 'Free time today')}
           </button>
           <button
             type="button"
             onClick={() =>
               handleSendMessage(
-                language === 'pl'
-                  ? 'Co mam zaplanowane na dzisiaj?'
-                  : 'What is on for today?',
+                tr(language, 'Co mam zaplanowane na dzisiaj?', 'What is on for today?'),
               )
             }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>📅</span> {language === 'pl' ? 'Mój plan' : 'My schedule'}
+            <span>📅</span> {tr(language, 'Mój plan', 'My schedule')}
           </button>
           <button
             type="button"
             onClick={() =>
               handleSendMessage(
-                language === 'pl'
-                  ? 'Czy mam wolny czwartek?'
-                  : 'Am I free on Thursday?',
+                tr(language, 'Czy mam wolny czwartek?', 'Am I free on Thursday?'),
               )
             }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
             <span>🗓️</span>{' '}
-            {language === 'pl' ? 'Wolny czwartek?' : 'Free Thursday?'}
+            {tr(language, 'Wolny czwartek?', 'Free Thursday?')}
           </button>
           <button
             type="button"
             onClick={() =>
               handleSendMessage(
-                language === 'pl'
-                  ? 'Czy mam jakieś kolizje w terminach?'
-                  : 'Check for conflicting events',
+                tr(language, 'Czy mam jakieś kolizje w terminach?', 'Check for conflicting events'),
               )
             }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>⚠️</span> {language === 'pl' ? 'Kolizje' : 'Conflicts'}
+            <span>⚠️</span> {tr(language, 'Kolizje', 'Conflicts')}
           </button>
           <button
             type="button"
             onClick={() =>
               handleSendMessage(
-                language === 'pl'
-                  ? 'Podsumuj mój nadchodzący tydzień'
-                  : 'Summary of this week',
+                tr(language, 'Podsumuj mój nadchodzący tydzień', 'Summary of this week'),
               )
             }
             className="whitespace-nowrap px-2.5 py-1 theme-surface theme-hover theme-text rounded-lg theme-border border transition-colors shadow-2xs shrink-0 flex items-center gap-1"
           >
-            <span>📊</span> {language === 'pl' ? 'Tydzień' : 'Week'}
+            <span>📊</span> {tr(language, 'Tydzień', 'Week')}
           </button>
         </div>
 
@@ -347,18 +328,18 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
                   {plan && (
                     <div className="mt-3 p-3 theme-subtle rounded-xl theme-border border theme-text space-y-3 text-xs">
-                      <p className="font-semibold">{plan.kind === 'move' ? (language === 'pl' ? 'Propozycja zmiany terminu' : 'Proposed reschedule') : (language === 'pl' ? 'Propozycje wydarzeń' : 'Proposed events')}</p>
+                      <p className="font-semibold">{plan.kind === 'move' ? (tr(language, 'Propozycja zmiany terminu', 'Proposed reschedule')) : (tr(language, 'Propozycje wydarzeń', 'Proposed events'))}</p>
                       {plan.events.map((draft, index) => (
                         <div key={index} className="space-y-1 theme-border border-b pb-2">
                           <p className="font-semibold">{draft.title}</p>
-                          {plan.originals[index] && <p className="theme-muted">{language === 'pl' ? 'Przed:' : 'Before:'} {plan.originals[index].startDate} {plan.originals[index].startTime} – {plan.originals[index].endDate} {plan.originals[index].endTime}</p>}
-                          <p>{plan.kind === 'move' ? (language === 'pl' ? 'Po:' : 'After:') : ''} {draft.startDate} {draft.startTime || (language === 'pl' ? 'Cały dzień' : 'All day')} – {draft.endDate} {draft.endTime}</p>
-                          {draft.location && <p>{language === 'pl' ? 'Miejsce:' : 'Location:'} {draft.location}</p>}
-                          {draft.recurrence && draft.recurrence !== 'NONE' && <p>{language === 'pl' ? 'Powtarzanie:' : 'Repeats:'} {({ DAILY: language === 'pl' ? 'codziennie' : 'daily', WEEKLY: language === 'pl' ? 'co tydzień' : 'weekly', MONTHLY: language === 'pl' ? 'co miesiąc' : 'monthly' } as Record<string, string>)[draft.recurrence] || draft.recurrence}</p>}
+                          {plan.originals[index] && <p className="theme-muted">{tr(language, 'Przed:', 'Before:')} {plan.originals[index].startDate} {plan.originals[index].startTime} – {plan.originals[index].endDate} {plan.originals[index].endTime}</p>}
+                          <p>{plan.kind === 'move' ? (tr(language, 'Po:', 'After:')) : ''} {draft.startDate} {draft.startTime || (tr(language, 'Cały dzień', 'All day'))} – {draft.endDate} {draft.endTime}</p>
+                          {draft.location && <p>{tr(language, 'Miejsce:', 'Location:')} {draft.location}</p>}
+                          {draft.recurrence && draft.recurrence !== 'NONE' && <p>{tr(language, 'Powtarzanie:', 'Repeats:')} {({ DAILY: tr(language, 'codziennie', 'daily'), WEEKLY: tr(language, 'co tydzień', 'weekly'), MONTHLY: tr(language, 'co miesiąc', 'monthly') } as Record<string, string>)[draft.recurrence] || draft.recurrence}</p>}
                         </div>
                       ))}
-                      {isAdded ? <p role="status">{language === 'pl' ? 'Zapisano zmiany.' : 'Changes saved.'}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 bg-blue-600 text-white rounded-xl disabled:opacity-50">
-                        {language === 'pl' ? 'Zatwierdź wszystkie zmiany' : 'Confirm all changes'}
+                      {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 bg-blue-600 text-white rounded-xl disabled:opacity-50">
+                        {tr(language, 'Zatwierdź wszystkie zmiany', 'Confirm all changes')}
                       </button>}
                     </div>
                   )}
@@ -406,9 +387,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               if (e.key === 'Enter') handleSendMessage();
             }}
             placeholder={
-              language === 'pl'
-                ? 'Napisz np. Trening jutro o 18 na 1h...'
-                : 'Type e.g. Workout tomorrow at 6pm for 1h...'
+              tr(language, 'Napisz np. Trening jutro o 18 na 1h...', 'Type e.g. Workout tomorrow at 6pm for 1h...')
             }
             disabled={isProcessing || !aiSettings.enabled}
             className="flex-1 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"

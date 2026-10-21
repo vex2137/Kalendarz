@@ -1,3 +1,4 @@
+import { tr } from '../utils/i18n';
 import React, {
   useState,
   useEffect,
@@ -126,7 +127,7 @@ export function SyncModal({
         if (data.startsWith('KAL2P:')) {
           const result = assembler.current.add(data);
           setStatus(
-            `${result.received}/${result.total} ${pl ? 'części QR' : 'QR parts'}`,
+            `${result.received}/${result.total} ${tr(language, 'części QR', 'QR parts')}`,
           );
           if (!result.code) return;
           data = result.code;
@@ -140,7 +141,7 @@ export function SyncModal({
           if (decoded.theme) onSyncTheme?.(decoded.theme);
         }
         setScanning(false);
-        setStatus(pl ? 'Zapisano i scalono dane.' : 'Data saved and merged.');
+        setStatus(tr(language, 'Zapisano i scalono dane.', 'Data saved and merged.'));
       } catch (e) {
         setStatus(String(e));
       } finally {
@@ -247,7 +248,7 @@ export function SyncModal({
       } catch (e) {
         if (!cancelled) {
           setStatus(
-            `${pl ? 'Aparat niedostępny. Użyj zdjęcia lub pliku.' : 'Camera unavailable. Use an image or file.'} ${String(e)}`,
+            `${tr(language, 'Aparat niedostępny. Użyj zdjęcia lub pliku.', 'Camera unavailable. Use an image or file.')} ${String(e)}`,
           );
           setScanning(false);
         }
@@ -267,7 +268,7 @@ export function SyncModal({
     try {
       if (file.size > MAX_IMPORT_BYTES)
         throw new Error(
-          pl ? 'Maksymalny rozmiar: 10 MB' : 'Maximum size: 10 MB',
+          tr(language, 'Maksymalny rozmiar: 10 MB', 'Maximum size: 10 MB'),
         );
       if (image) {
         const bitmap = await createImageBitmap(file);
@@ -288,7 +289,7 @@ export function SyncModal({
             inversionAttempts: 'attemptBoth',
           });
           if (!result)
-            throw new Error(pl ? 'Nie znaleziono QR' : 'No QR found');
+            throw new Error(tr(language, 'Nie znaleziono QR', 'No QR found'));
           await incoming(result.data);
         } finally {
           bitmap.close();
@@ -299,24 +300,24 @@ export function SyncModal({
     }
   };
   const tabs = [
-    ['show', pl ? 'Pokaż QR' : 'Show QR'],
-    ['scan', pl ? 'Skanuj' : 'Scan'],
-    ['code', pl ? 'Kod tekstowy' : 'Text code'],
-    ['file', pl ? 'Plik' : 'File'],
+    ['show', tr(language, 'Pokaż QR', 'Show QR')],
+    ['scan', tr(language, 'Skanuj', 'Scan')],
+    ['code', tr(language, 'Kod tekstowy', 'Text code')],
+    ['file', tr(language, 'Plik', 'File')],
   ] as const;
   return (
     <Dialog
       onClose={onClose}
-      label={pl ? 'Synchronizacja' : 'Sync'}
+      label={tr(language, 'Synchronizacja', 'Sync')}
       className="fixed inset-0 z-50 bg-black/60 p-3 flex items-center justify-center"
     >
       <div className="theme-surface theme-border border rounded-2xl max-w-lg w-full max-h-[92dvh] overflow-auto p-4 space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="font-bold">
-            {pl ? 'Synchronizacja PC ⇄ Telefon' : 'PC ⇄ Phone sync'}
+            {tr(language, 'Synchronizacja PC ⇄ Telefon', 'PC ⇄ Phone sync')}
           </h3>
           <button
-            aria-label={pl ? 'Zamknij' : 'Close'}
+            aria-label={tr(language, 'Zamknij', 'Close')}
             onClick={onClose}
             className="p-2"
           >
@@ -324,9 +325,7 @@ export function SyncModal({
           </button>
         </div>
         <p className="text-xs theme-muted">
-          {pl
-            ? 'Dane są kompresowane, nie szyfrowane. Udostępniaj je zaufanym osobom.'
-            : 'Data is compressed, not encrypted. Share it only with people you trust.'}
+          {tr(language, 'Dane są kompresowane, nie szyfrowane. Udostępniaj je zaufanym osobom.', 'Data is compressed, not encrypted. Share it only with people you trust.')}
         </p>
         <div className="grid grid-cols-4 gap-1">
           {tabs.map(([id, label]) => (
@@ -354,7 +353,7 @@ export function SyncModal({
               checked={includeHolidays}
               onChange={(e) => setIncludeHolidays(e.target.checked)}
             />{' '}
-            {pl ? 'Dołącz polskie święta' : 'Include Polish holidays'}
+            {tr(language, 'Dołącz polskie święta', 'Include Polish holidays')}
           </label>
         )}
         {tab === 'show' && (
@@ -364,18 +363,14 @@ export function SyncModal({
                 src={qr}
                 width={360}
                 height={360}
-                alt={pl ? 'Kod synchronizacji' : 'Sync QR'}
+                alt={tr(language, 'Kod synchronizacji', 'Sync QR')}
                 className="mx-auto max-w-full rounded-lg"
               />
             ) : (
               <p>
                 {encoded && !encoded.frames.length
-                  ? pl
-                    ? 'Zbyt dużo danych na QR — użyj pliku.'
-                    : 'Too much data for QR — use a file.'
-                  : pl
-                    ? 'Przygotowywanie…'
-                    : 'Preparing…'}
+                  ? tr(language, 'Zbyt dużo danych na QR — użyj pliku.', 'Too much data for QR — use a file.')
+                  : tr(language, 'Przygotowywanie…', 'Preparing…')}
               </p>
             )}
             {!!encoded?.frames.length && (
@@ -399,12 +394,8 @@ export function SyncModal({
                     </button>
                     <button onClick={() => setAuto((v) => !v)}>
                       {auto
-                        ? pl
-                          ? 'Wstrzymaj'
-                          : 'Pause'
-                        : pl
-                          ? 'Odtwarzaj kody'
-                          : 'Play QR codes'}
+                        ? tr(language, 'Wstrzymaj', 'Pause')
+                        : tr(language, 'Odtwarzaj kody', 'Play QR codes')}
                     </button>
                     <button
                       onClick={() =>
@@ -427,12 +418,8 @@ export function SyncModal({
               onClick={() => setScanning((v) => !v)}
             >
               {scanning
-                ? pl
-                  ? 'Zatrzymaj aparat'
-                  : 'Stop camera'
-                : pl
-                  ? 'Uruchom aparat'
-                  : 'Start camera'}
+                ? tr(language, 'Zatrzymaj aparat', 'Stop camera')
+                : tr(language, 'Uruchom aparat', 'Start camera')}
             </button>
             <video
               ref={video}
@@ -456,11 +443,11 @@ export function SyncModal({
                   }
                 }}
               >
-                {pl ? 'Latarka' : 'Torch'}
+                {tr(language, 'Latarka', 'Torch')}
               </button>
             )}
             <label className="block text-xs">
-              {pl ? 'Wczytaj zdjęcie QR' : 'Upload QR image'}
+              {tr(language, 'Wczytaj zdjęcie QR', 'Upload QR image')}
               <input
                 type="file"
                 accept="image/*"
@@ -476,18 +463,18 @@ export function SyncModal({
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(encoded!.code);
-                  setStatus(pl ? 'Skopiowano' : 'Copied');
+                  setStatus(tr(language, 'Skopiowano', 'Copied'));
                 } catch (e) {
                   setStatus(String(e));
                 }
               }}
               className="theme-input p-2 rounded"
             >
-              {pl ? 'Kopiuj mój kod' : 'Copy my code'}
+              {tr(language, 'Kopiuj mój kod', 'Copy my code')}
             </button>
             <textarea
               aria-label={
-                pl ? 'Kod z drugiego urządzenia' : 'Code from other device'
+                tr(language, 'Kod z drugiego urządzenia', 'Code from other device')
               }
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -499,7 +486,7 @@ export function SyncModal({
               onClick={() => void incoming(input.trim())}
               className="bg-blue-600 text-white rounded p-2"
             >
-              {pl ? 'Scal dane' : 'Merge data'}
+              {tr(language, 'Scal dane', 'Merge data')}
             </button>
           </div>
         )}
@@ -511,12 +498,10 @@ export function SyncModal({
               }
               className="theme-input p-2 rounded"
             >
-              {pl ? 'Eksportuj pełny pakiet' : 'Export full package'}
+              {tr(language, 'Eksportuj pełny pakiet', 'Export full package')}
             </button>
             <label className="block text-sm">
-              {pl
-                ? 'Importuj JSON lub ICS (scalanie)'
-                : 'Import JSON or ICS (merge)'}
+              {tr(language, 'Importuj JSON lub ICS (scalanie)', 'Import JSON or ICS (merge)')}
               <input
                 type="file"
                 accept=".json,.ics"
