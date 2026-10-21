@@ -52,7 +52,8 @@ public class CalendarSmokeTest {
             if ("true".equals(evaluate(scenario, "Boolean(" + predicate + ")"))) return;
             Thread.sleep(200);
         }
-        fail("Release WebView did not satisfy: " + predicate);
+        fail("Release WebView did not satisfy: " + predicate + "; state=" + evaluate(scenario,
+            "JSON.stringify({url:location.href,ready:document.readyState,title:document.title,dialog:document.querySelector('[role=dialog]')?.textContent?.slice(0,1200)})"));
     }
 
     @Test
@@ -69,8 +70,9 @@ public class CalendarSmokeTest {
             until(scenario, "document.querySelector('#input-event-title').value === '" + title + "'");
             evaluate(scenario, "document.querySelector('#btn-save-event-form').click()");
             until(scenario, "!document.querySelector('#input-event-title') && document.body.textContent.includes('" + title + "')");
+            evaluate(scenario, "window.__calendarSmokeBeforeReload = true");
             scenario.onActivity(activity -> webView(activity).reload());
-            until(scenario, "document.querySelector('#btn-create-event-top') && document.body.textContent.includes('" + title + "')");
+            until(scenario, "!window.__calendarSmokeBeforeReload && document.querySelector('#btn-create-event-top') && document.body.textContent.includes('" + title + "')");
             evaluate(scenario, "document.querySelector('#btn-open-download').click()");
             AtomicReference<String> version = new AtomicReference<>();
             scenario.onActivity(activity -> {
