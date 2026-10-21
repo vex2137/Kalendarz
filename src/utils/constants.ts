@@ -97,11 +97,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   ai: {
     planning: DEFAULT_PLANNING,
     enabled: true,
-    model: 'lightweight-nlp',
+    model: 'lfm2.5-350m-q4-k-m',
     autoExtractEvents: true,
     temperature: 0.2,
-    modelLoaded: true,
-    downloadProgress: 100,
+    modelLoaded: false,
+    downloadProgress: 0,
   },
   security: {
     pinEnabled: false,

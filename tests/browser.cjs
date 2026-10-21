@@ -138,7 +138,7 @@ async function until(fn) {
       'PASS create/edit/persist, local default date, validation and zero-minute reminder',
     );
     await page.locator('#btn-open-settings').click();
-    await page.locator('#modal-settings input[type=file]').setInputFiles({
+    await page.locator('#modal-settings input[type=file][accept*=".ics"]').setInputFiles({
       name: 'calendar.ics',
       mimeType: 'text/calendar',
       buffer: Buffer.from(
@@ -259,7 +259,7 @@ async function until(fn) {
       .waitFor({ state: 'detached' });
     await a.locator('#btn-open-sync').click();
     await a.getByRole('button', { name: 'Plik', exact: true }).click();
-    await a.locator('input[type=file]').setInputFiles({
+    await a.locator('input[type=file][accept*=".ics"]').setInputFiles({
       name: 'old-sync.json',
       mimeType: 'application/json',
       buffer: Buffer.from(

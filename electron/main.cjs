@@ -1,6 +1,13 @@
-const { app, BrowserWindow, Menu, shell } = require('electron');
+const { app, BrowserWindow, Menu, shell, protocol, net } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const url = require('url');
+
+// Preserve the existing file:// profile/origin, including its calendar IndexedDB.
+// Fetch cannot read WASM over file://; expose only packaged WASM files, never user paths.
+protocol.registerSchemesAsPrivileged([{ scheme: 'calendar-asset', privileges: {
+  standard: true, secure: true, supportFetchAPI: true, corsEnabled: true,
+} }]);
 
 // Keep the profile used by older releases when the desktop product name changes.
 // Explicit profiles (including isolated smoke tests) still take precedence.
@@ -64,6 +71,19 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  const assetDirectory = path.join(__dirname, '../dist/assets');
+  const wasmFiles = new Set(fs.readdirSync(assetDirectory).filter(name => /^wllama-[a-zA-Z0-9_-]+\.wasm$/.test(name)));
+  protocol.handle('calendar-asset', async request => {
+    const target = new URL(request.url);
+    const name = target.pathname.slice(1);
+    if (request.method !== 'GET' || target.hostname !== 'runtime' || target.search || !wasmFiles.has(name)) {
+      return new Response('', { status: 404 });
+    }
+    const response = await net.fetch(url.pathToFileURL(path.join(assetDirectory, name)).href);
+    return new Response(response.body, { headers: {
+      'Content-Type': 'application/wasm', 'Access-Control-Allow-Origin': '*',
+    } });
+  });
   createWindow();
 
   app.on('activate', () => {

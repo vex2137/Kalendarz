@@ -4,6 +4,12 @@ import type { AssistantChange } from './calendarStore';
 import { validateEvents } from './validation';
 
 export function changesForPlan(plan: AssistantPlan): AssistantChange[] {
+  if (!['create', 'move', 'delete'].includes(plan.kind)) throw new Error('Invalid assistant action');
+  if (plan.kind === 'delete') {
+    if (plan.originals.length !== 1 || plan.events.length !== 1 || plan.events[0].id !== plan.originals[0].id) throw new Error('Invalid assistant deletion');
+    validateEvents(plan.originals);
+    return plan.originals.map(before => ({ before }));
+  }
   if (!plan.events.length || plan.events.length > 20 || (plan.kind === 'move' && plan.originals.length !== plan.events.length) || (plan.kind === 'create' && plan.originals.length)) throw new Error('Invalid assistant plan');
   const at = Date.now();
   const after: CalendarEvent[] = plan.events.map((draft, i) => {

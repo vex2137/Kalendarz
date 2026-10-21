@@ -18,7 +18,8 @@
     "test:e2e": "node tests/browser.cjs",
     "check": "npm run lint && npm test && npm run build",
     "build:android": "npm run build && cap sync android && cd android && ./gradlew assembleRelease --no-daemon",
-    "test:desktop": "node tests/electron.cjs"
+    "test:desktop": "node tests/electron.cjs",
+    "test:model": "node tests/model-browser.cjs"
   },
   "build": {
     "appId": "com.vex2137.kalendarz",
@@ -84,7 +85,10 @@
     "idb": "8.0.4",
     "fflate": "0.8.2",
     "@tanstack/react-virtual": "3.14.21",
-    "@capacitor/local-notifications": "^8.0.0"
+    "@capacitor/local-notifications": "^8.0.0",
+    "@noble/hashes": "2.0.1",
+    "@wllama/wllama": "3.8.1",
+    "@wllama/wllama-compat": "3.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -53,6 +53,11 @@ export default defineConfig(() => {
           ],
         },
         devOptions: { enabled: false },
+        workbox: {
+          // Both CPU runtimes must be available after installation without contacting a CDN.
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+          maximumFileSizeToCacheInBytes: 18 * 1024 * 1024,
+        },
       }),
     ],
     resolve: {

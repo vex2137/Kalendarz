@@ -88,7 +88,7 @@ export interface PlanningPreferences {
 export interface AiSettings {
   planning?: PlanningPreferences;
   enabled: boolean;
-  model: 'gemma-2-2b-local' | 'lightweight-nlp';
+  model: 'lfm2.5-350m-q4-k-m' | 'gemma-2-2b-local' | 'lightweight-nlp'; // Legacy values are accepted on import only.
   autoExtractEvents: boolean;
   temperature: number;
   modelLoaded: boolean;

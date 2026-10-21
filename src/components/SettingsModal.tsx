@@ -1,3 +1,4 @@
+import { LocalModelSetup } from './LocalModelSetup';
 import { CustomThemeEditor } from './CustomThemeEditor';
 import { tr } from '../utils/i18n';
 import { SystemNotificationSettings } from './SystemNotificationSettings';
@@ -534,6 +535,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
           </div>
+
+          <LocalModelSetup language={lang} enabled={settings.ai.enabled} />
 
           {/* Section 4: Lokalny Asystent Kalendarza (Offline NLP) */}
           <div className="space-y-3 pt-5">

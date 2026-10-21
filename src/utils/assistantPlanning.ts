@@ -5,7 +5,7 @@ import { addDays, localDate, timeString, isValidTime } from './dates';
 import { buildEventIndex } from './recurrence';
 
 export interface AssistantPlan {
-  kind: 'create' | 'move';
+  kind: 'create' | 'move' | 'delete';
   events: Partial<CalendarEvent>[];
   originals: CalendarEvent[];
 }

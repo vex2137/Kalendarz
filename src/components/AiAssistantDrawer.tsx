@@ -2,9 +2,12 @@ import { tr } from '../utils/i18n';
 import type { AssistantPlan } from '../utils/assistantPlanning';
 import { planningPreferences } from '../utils/assistantPlanning';
 import { Dialog } from './Dialog';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { CalendarEvent, AiChatMessage, AiSettings } from '../types';
-import { runLocalAiAssistant, type AiConversationContext } from '../utils/aiEngine';
+import { runModelAssistant, type ModelConversation } from '../utils/modelAssistant';
+import { cancelModelOperation, modelStatus, subscribeModel } from '../utils/localModelRuntime';
+import { localModelText } from '../utils/localModelText';
+import { LocalModelSetup } from './LocalModelSetup';
 import { MarkdownMessage } from './MarkdownMessage';
 import { getTranslation, AppLanguage } from '../utils/i18n';
 import {
@@ -38,12 +41,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   language = 'en',
 }) => {
   const t = getTranslation(language);
+  const model = useSyncExternalStore(subscribeModel, modelStatus);
+  const modelText = localModelText(language);
 
   const defaultMsg: AiChatMessage = {
     id: 'msg-welcome',
     role: 'assistant',
-    content:
-      tr(language, 'Dzień dobry! 👋 Jestem Twoim lokalnym asystentem kalendarza (100% Offline).\n\nPracuję bezpośrednio na Twoim urządzeniu z zerową telemetrią. Oto co potrafię:\n• **Odpowiedzieć na pytania** o grafik i wolny czas na dowolny dzień\n• **Sprawdzić wolne okienka** (np. *„Czy mam wolny czwartek?”*)\n• **Wykryć kolizje terminów** i nakładające się spotkania\n• **Dodać nowe wydarzenie** ze zdania (np. *„Trening jutro o 18:00 na godzinę”*)\n\nMożesz też przenosić zapisane wydarzenia, planować kilka spotkań i cofać ostatnią operację asystenta.\n\nW czym mogę Ci pomóc?', 'Hello! 👋 I am your local calendar assistant (100% Offline).\n\nI run directly on your device with zero telemetry. Here is what I can do:\n• **Answer questions** about your schedule and free time on any day\n• **Check free slots** (e.g. *“Do I have free time on Friday?”*)\n• **Detect schedule conflicts** and overlapping events\n• **Schedule new events** from natural language (e.g. *“Workout tomorrow at 6pm for 1 hour”*)\n\nYou can also reschedule saved events, plan multiple sessions, and undo the last assistant operation.\n\nHow can I help you?'),
+    content: localModelText(language).introduction,
     timestamp: Date.now(),
     suggestedPrompts:
       tr(language, [
@@ -64,7 +68,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [addedEventsIds, setAddedEventsIds] = useState<string[]>([]);
   const operationRef = useRef(false);
-  const conversationRef = useRef<AiConversationContext>({});
+  const conversationRef = useRef<ModelConversation>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -84,11 +88,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setAddedEventsIds([]);
   }, [language]);
 
+  useEffect(() => {
+    if (!isOpen || !aiSettings.enabled) cancelModelOperation();
+  }, [isOpen, aiSettings.enabled]);
+
   if (!isOpen) return null;
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputQuery).trim();
-    if (!text || operationRef.current || !aiSettings.enabled) return;
+    if (!text || operationRef.current || !aiSettings.enabled || !model.installed) return;
     operationRef.current = true;
 
     const userMessage: AiChatMessage = {
@@ -99,11 +107,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     };
 
     setMessages((prev) => [...prev.slice(-199), userMessage]);
+    setMessages(prev => prev.map(message => ({ ...message, suggestedEvent: undefined, suggestedPlan: undefined })));
     setInputQuery('');
     setIsProcessing(true);
 
     try {
-      const response = await runLocalAiAssistant(text, events, language, new Date(), conversationRef.current, planningPreferences(aiSettings.planning));
+      const response = await runModelAssistant(text, events, language, new Date(), conversationRef.current, planningPreferences(aiSettings.planning));
       conversationRef.current = response.context || {};
       setMessages(prev => prev.map(message => ({ ...message, suggestedEvent: undefined, suggestedPlan: undefined })));
       const assistantMessage: AiChatMessage = {
@@ -123,7 +132,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           id: crypto.randomUUID(),
           role: 'assistant',
           content:
-            tr(language, 'Wystąpił błąd lokalnego asystenta. Spróbuj zadać pytanie inaczej.', 'An error occurred. Try rephrasing your question.'),
+            modelText.inputError,
           timestamp: Date.now(),
           suggestedPrompts:
             tr(language, ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?'], [
@@ -202,7 +211,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               </div>
               <div className="flex items-center gap-1 text-[11px] theme-muted">
                 <Cpu className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span>{tr(language, '100% lokalny silnik NLP • zero sieci', '100% local NLP engine • no network')}</span>
+                <span>LFM2.5 · llama.cpp · offline</span>
               </div>
             </div>
           </div>
@@ -228,6 +237,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             </button>
           </div>
         </div>
+
+        <LocalModelSetup language={language} enabled={aiSettings.enabled} />
 
         {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 px-3 py-2 rounded theme-surface theme-text theme-border border text-sm">
           {tr(language, 'Cofnij ostatnią operację asystenta', 'Undo last assistant operation')}
@@ -328,7 +339,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
                   {plan && (
                     <div className="mt-3 p-3 theme-subtle rounded-xl theme-border border theme-text space-y-3 text-xs">
-                      <p className="font-semibold">{plan.kind === 'move' ? (tr(language, 'Propozycja zmiany terminu', 'Proposed reschedule')) : (tr(language, 'Propozycje wydarzeń', 'Proposed events'))}</p>
+                      <p className="font-semibold">{plan.kind === 'delete' ? modelText.deletion : plan.kind === 'move' ? modelText.edit : (tr(language, 'Propozycje wydarzeń', 'Proposed events'))}</p>
                       {plan.events.map((draft, index) => (
                         <div key={index} className="space-y-1 theme-border border-b pb-2">
                           <p className="font-semibold">{draft.title}</p>
@@ -339,7 +350,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         </div>
                       ))}
                       {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 theme-primary bg-blue-600 text-white rounded-xl disabled:opacity-50">
-                        {tr(language, 'Zatwierdź wszystkie zmiany', 'Confirm all changes')}
+                        {plan.kind === 'delete' ? modelText.delete : tr(language, 'Zatwierdź wszystkie zmiany', 'Confirm all changes')}
                       </button>}
                     </div>
                   )}
@@ -389,13 +400,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             placeholder={
               tr(language, 'Napisz np. Trening jutro o 18 na 1h...', 'Type e.g. Workout tomorrow at 6pm for 1h...')
             }
-            disabled={isProcessing || !aiSettings.enabled}
+            disabled={isProcessing || !aiSettings.enabled || !model.installed}
+            maxLength={1000}
             className="flex-1 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
           <button
             id="btn-send-ai-message"
             onClick={() => handleSendMessage()}
-            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled}
+            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !model.installed}
             className="p-2.5 theme-primary bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             <Send className="w-4 h-4" />
