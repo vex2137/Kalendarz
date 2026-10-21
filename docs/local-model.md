@@ -42,3 +42,13 @@ CALENDAR_MODEL_FILE=/absolute/path/LFM2.5-350M-Q4_K_M.gguf npm run test:model:an
 ```
 
 Set `ADB` if adb is not on PATH and optionally `ANDROID_SERIAL` to select a device. This test blocks network access and uses the weights shipped inside the APK in the actual System WebView, and checks Polish and English creation, confirmation, exact dates/times and persistence. It changes the test app's language and creates two events; use a dedicated test installation. APK compilation alone does not establish successful inference or acceptable latency on Android. See [the verification report](local-model-verification.md) for measured results and platform limitations.
+
+## Conversation routing and prompt reuse
+
+The bundled model is LiquidAI's pretrained instruction-tuned LFM2.5-350M; this integration does not fine-tune its weights. Polish is not listed among its primary supported languages. Selected command tests do not establish general conversational competence.
+
+Exact greetings, thanks and requests for help use localized deterministic replies instead of asking the model to emit a calendar action. Exact built-in schedule/free-time/conflict shortcuts use the existing calendar calculations, without proposing calendar mutations. Other calendar requests still use real model extraction and retain confirmation requirements. These routes are application behavior, not evidence of additional model training.
+
+The shared system prompt contains the current day and timezone, while minute-sensitive requests carry the current clock in their user message. A changing minute no longer invalidates almost the entire prompt prefix on every request. Actual weights verify reuse after advancing the clock by two minutes. Cache reuse requires the model to remain loaded; cold starts, idle unloading, different dates and memory pressure still cost time. Android WebView without cross-origin isolation uses one CPU thread. Physical-device latency remains unverified after this patch.
+
+Numeric performance logs report thread count, isolation, load/total milliseconds and prompt/cache/output token counts; they do not log requests or calendar contents.

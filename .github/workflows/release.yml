@@ -18,6 +18,10 @@ on:
       - 'android/app/build.gradle'
   workflow_dispatch:
     inputs:
+      android_apk_only:
+        type: boolean
+        default: false
+        description: Build and attach only the patched Android APK to the existing release
       manual_publish:
         type: boolean
         default: false
@@ -41,7 +45,7 @@ concurrency:
 
 jobs:
   web:
-    if: inputs.manual_publish != true
+    if: inputs.manual_publish != true && inputs.android_apk_only != true
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +80,7 @@ jobs:
           if-no-files-found: error
 
   desktop:
-    if: inputs.manual_publish != true
+    if: inputs.manual_publish != true && inputs.android_apk_only != true
     strategy:
       fail-fast: false
       matrix:
@@ -123,7 +127,7 @@ jobs:
           if-no-files-found: error
 
   flatpak:
-    if: inputs.manual_publish != true
+    if: inputs.manual_publish != true && inputs.android_apk_only != true
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -153,7 +157,7 @@ jobs:
           if-no-files-found: error
 
   android:
-    if: inputs.manual_publish != true
+    if: inputs.manual_publish != true && inputs.android_apk_only != true
     runs-on: ubuntu-24.04
     env:
       CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
@@ -260,7 +264,7 @@ jobs:
 
 
   manual-publish:
-    if: inputs.manual_publish == true
+    if: inputs.manual_publish == true && inputs.android_apk_only != true
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -310,6 +314,60 @@ jobs:
           version=$(node -p 'require("./package.json").version')
           gh release upload "v$version" release/*.apk release/*.exe release/*.zip release/*.AppImage release/*.flatpak release/SHA256SUMS.txt --clobber
           gh release edit "v$version" --draft=false --latest --target "$CALENDAR_RELEASE_COMMIT" --notes-file ".github/release-notes/v$version.md"
+      - name: Remove temporary private signing files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/calendar-signing"
+
+
+  android-apk-only:
+    if: inputs.android_apk_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android SDK packages
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Receive permanent key through one-use encrypted handoff
+        run: node scripts/signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP/calendar-signing" "$GITHUB_SHA"
+      - name: Build signed Android APK
+        run: node scripts/with-android-signing.cjs "$RUNNER_TEMP/calendar-signing" bash android/gradlew -p android :app:assembleRelease --no-daemon --console=plain --max-workers=2
+      - name: Verify signature, version and bundled model
+        run: |
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          node scripts/verify-android-signature.cjs "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | head -n 1
+          python - <<'PYVERIFY'
+          import zipfile, hashlib, json
+          manifest = json.load(open('src/utils/localModelManifest.json'))
+          with zipfile.ZipFile('android/app/build/outputs/apk/release/app-release.apk') as z:
+              with z.open('assets/public/models/' + manifest['file']) as f:
+                  assert hashlib.file_digest(f, 'sha256').hexdigest() == manifest['sha256']
+              assert 'assets/public/models/LICENSE.txt' in z.namelist()
+          PYVERIFY
+      - name: Attach only patched APK and its checksum
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          mkdir -p apk-release
+          cp android/app/build/outputs/apk/release/app-release.apk "apk-release/Calendar-$version-android-assistant-fix.apk"
+          (cd apk-release && sha256sum *.apk > "Calendar-$version-android-assistant-fix.apk.sha256")
+          gh release upload "v$version" apk-release/*
       - name: Remove temporary private signing files
         if: always()
         run: rm -rf "$RUNNER_TEMP/calendar-signing"
