@@ -33,3 +33,17 @@ ANDROID_HOME=/path/to/android-sdk node scripts/verify-android-signature.cjs andr
 ```
 
 For a completely new project only, `node scripts/android-signing.cjs generate /private/directory` creates a key and refuses to overwrite existing signing material. Do not use this to create a new key for each release. Test future upgrades with `adb install -r` over the previous permanent-key APK and verify that stored calendar records and settings survive.
+
+## Manual publication when the integration cannot manage secrets
+
+The release workflow also supports `manual_publish` with existing successful platform artifacts and a successful Android compatibility run. It verifies that Android application sources match the release source, then re-signs the tested APK with the permanent key and checks the pinned certificate, version, bundled weights/license and full package checksums before publication.
+
+The temporary signing exchange uses a newly generated RSA-OAEP public key per runner. Only that public key and an AES-256-GCM envelope bound to repository/run/source are committed to a short-lived transport branch; the permanent keystore and password are encrypted together. The ephemeral private key remains inside the runner process, is never committed/logged/uploaded, and the transport branch is deleted after receipt. Plaintext signing files exist only in private runner temporary storage and are removed after publication. This does not configure persistent repository secrets; future automatic builds still need the four secrets above, or another explicit one-use handoff with the same permanent backup.
+
+Client command after the runner publishes its public key:
+
+```sh
+node scripts/signing-exchange.cjs send RUN_ID /path/to/private/signing-backup EXACT_SOURCE_SHA
+```
+
+Never send a key to an untrusted workflow. The helper checks the active workflow identity and binds the envelope to the selected source/run; the publication job checks the resulting certificate against the pinned release identity.
