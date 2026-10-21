@@ -1,4 +1,5 @@
 import { tr } from './utils/i18n';
+import { updateNativeAppName } from './utils/nativeDevice';
 import { applyAssistantChanges, signalCalendarChange, type AssistantChange } from './utils/calendarStore';
 import { changesForPlan } from './utils/assistantChanges';
 import type { AssistantPlan } from './utils/assistantPlanning';
@@ -217,6 +218,9 @@ export default function App() {
           .trim(),
       );
   }, [language, settings.theme]);
+  useEffect(() => {
+    void updateNativeAppName(language).catch(error => setSettingsError(String(error)));
+  }, [language]);
   const lock = useCallback(() => {
     setModal(null);
     setIsPinLocked(true);

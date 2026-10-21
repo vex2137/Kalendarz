@@ -1,11 +1,8 @@
 import { tr } from '../utils/i18n';
+import { SystemNotificationSettings } from './SystemNotificationSettings';
 import { planningPreferences } from '../utils/assistantPlanning';
 import { reminderLabel, colorLabel } from '../utils/i18n';
 import { hashPin } from '../utils/security';
-import {
-  requestNotificationPermission,
-  scheduleNativeReminders,
-} from '../utils/notifications';
 import { MAX_IMPORT_BYTES, validateEvents } from '../utils/validation';
 import { downloadFile } from '../utils/storage';
 import { Dialog } from './Dialog';
@@ -208,29 +205,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         className="theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border flex flex-col max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-3 space-y-2 theme-subtle text-xs">
-          <button
-            className="underline"
-            onClick={async () => {
-              try {
-                const result = await requestNotificationPermission();
-                if (result === 'granted') await scheduleNativeReminders(events);
-                setImportStatus(
-                  result === 'granted'
-                    ? tr(lang, 'Powiadomienia włączone', 'Notifications enabled')
-                    : tr(lang, 'Brak zgody na powiadomienia', 'Notification permission denied'),
-                );
-              } catch (error) {
-                setImportStatus(String(error));
-              }
-            }}
-          >
-            {tr(lang, 'Włącz powiadomienia systemowe', 'Enable system notifications')}
-          </button>
-          <p>
-            {tr(lang, 'W przeglądarce przypomnienia wymagają działającej aplikacji. Android może planować je systemowo.', 'Browser reminders require the app to be running. Android can schedule them with the system.')}
-          </p>
-        </div>
+        <SystemNotificationSettings language={lang} events={events} />
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 theme-border border-b theme-subtle">
           <h3 className="text-base font-bold theme-text">{t.settingsTitle}</h3>
@@ -258,45 +233,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdateSettings({ ...settings, language: 'pl' })
-                }
-                aria-pressed={lang === 'pl'}
-                className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                  lang === 'pl' ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text' : 'theme-border theme-subtle theme-muted hover:theme-text'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🇵🇱</span>
-                  <span className="text-xs">Polski</span>
-                </div>
-                {lang === 'pl' && <Check className="w-4 h-4 text-blue-500" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdateSettings({ ...settings, language: 'en' })
-                }
-                aria-pressed={lang === 'en'}
-                className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                  lang === 'en' ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text' : 'theme-border theme-subtle theme-muted hover:theme-text'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🇬🇧</span>
-                  <span className="text-xs">English</span>
-                </div>
-                {lang === 'en' && <Check className="w-4 h-4 text-blue-500" />}
-              </button>
-              <button type="button" aria-pressed={lang === 'ru'} onClick={() => onUpdateSettings({ ...settings, language: 'ru' })}
-                className={`col-span-2 sm:col-span-1 p-3 rounded-2xl border text-left flex items-center justify-between ${lang === 'ru' ? 'border-blue-500 ring-2 ring-blue-500/30 theme-text' : 'theme-border theme-subtle theme-muted'}`}>
-                <span className="text-xs">Русский</span>
-                {lang === 'ru' && <Check className="w-4 h-4 text-blue-500" />}
-              </button>
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              {([
+                { code: 'pl', flag: '🇵🇱', name: 'Polski' },
+                { code: 'en', flag: '🇬🇧', name: 'English' },
+                { code: 'ru', flag: '🇷🇺', name: 'Русский' },
+                { code: 'de', flag: '🇩🇪', name: 'Deutsch' },
+              ] as const).map(({ code, flag, name }) => (
+                <button key={code} type="button" aria-label={name} aria-pressed={lang === code}
+                  onClick={() => onUpdateSettings({ ...settings, language: code })}
+                  className={`min-w-0 p-3 rounded-2xl border text-left transition-all flex items-center justify-between gap-1 ${
+                    lang === code ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text' : 'theme-border theme-subtle theme-muted hover:theme-text'
+                  }`}>
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="text-lg" aria-hidden="true">{flag}</span>
+                    <span className="text-xs">{name}</span>
+                  </span>
+                  {lang === code && <Check className="w-4 h-4 shrink-0 text-blue-500" />}
+                </button>
+              ))}
             </div>
           </div>
 

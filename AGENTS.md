@@ -40,5 +40,5 @@ Podawaj zwięzły raport: co zmieniono, jakie testy rzeczywiście wykonano i jak
 ## Language for updates
 
 - Write future changelogs, release notes, and GitHub update descriptions in English.
-- Keep application features and assistant commands available in English, Polish, and Russian.
+- Keep application features and assistant commands available in English, Polish, Russian, and German.
 - Default new installations to English; preserve an existing explicit language choice.

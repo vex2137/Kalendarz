@@ -1,10 +1,11 @@
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
+const { existsSync } = require('node:fs');
 const base = process.env.CALENDAR_TEST_URL || 'http://127.0.0.1:4176';
 (async () => {
-  const browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
+  const browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE || (existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined), headless: true, args: ['--no-sandbox'] });
   try {
-    for (const language of ['en', 'pl', 'ru']) {
+    for (const language of ['en', 'pl', 'ru', 'de']) {
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
       await context.addInitScript(lang => {
         localStorage.setItem('offline_calendar_events_v2', '[]');
@@ -15,7 +16,7 @@ const base = process.env.CALENDAR_TEST_URL || 'http://127.0.0.1:4176';
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(base);
       await page.locator('#btn-open-settings').waitFor();
-      const label = { en: 'Calendar views', pl: 'Widoki kalendarza', ru: 'Виды календаря' }[language];
+      const label = { en: 'Calendar views', pl: 'Widoki kalendarza', ru: 'Виды календаря', de: 'Kalenderansichten' }[language];
       for (const width of [320, 390, 430, 768, 1280]) {
         await page.setViewportSize({ width, height: 844 });
         const nav = page.getByRole('navigation', { name: label, exact: true });
@@ -43,6 +44,6 @@ const base = process.env.CALENDAR_TEST_URL || 'http://127.0.0.1:4176';
       if (language === 'en' && process.env.CALENDAR_SCREENSHOT) await page.screenshot({ path: process.env.CALENDAR_SCREENSHOT });
       await context.close();
     }
-    console.log('PASS: one visible view selector at 320/390/430/768/1280px, all views work, colored actions open correctly, PL/EN/RU, no horizontal overflow or browser errors.');
+    console.log('PASS: one visible view selector at 320/390/430/768/1280px, all views work, colored actions open correctly, PL/EN/RU/DE, no horizontal overflow or browser errors.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

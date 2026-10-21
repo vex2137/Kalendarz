@@ -1,7 +1,9 @@
 import { RUSSIAN_UI } from './russian';
-export type AppLanguage = 'pl' | 'en' | 'ru';
+import { GERMAN_UI } from './german';
+export type AppLanguage = 'pl' | 'en' | 'ru' | 'de';
 
 export const MONTH_NAMES: Record<AppLanguage, string[]> = {
+  de: ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
   ru: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
   pl: [
     'Styczeń',
@@ -34,12 +36,14 @@ export const MONTH_NAMES: Record<AppLanguage, string[]> = {
 };
 
 export const DAY_NAMES_SHORT: Record<AppLanguage, string[]> = {
+  de: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
   ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
   pl: ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'],
   en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
 };
 
 export const DAY_NAMES_FULL: Record<AppLanguage, string[]> = {
+  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
   ru: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
   pl: [
     'Poniedziałek',
@@ -104,7 +108,7 @@ const BASE_TRANSLATIONS = {
     theme: 'Motyw kolorystyczny',
     themeDesc: 'Dostosuj styl całej aplikacji',
     language: 'Język / Language',
-    languageDesc: 'Wybierz język interfejsu (Polski / English / Русский)',
+    languageDesc: 'Wybierz język interfejsu (Polski / English / Русский / Deutsch)',
     defaultEventSettings: 'Domyślne ustawienia wydarzeń',
     defaultDuration: 'Domyślny czas trwania:',
     defaultReminderLabel: 'Domyślne przypomnienie:',
@@ -177,7 +181,7 @@ const BASE_TRANSLATIONS = {
     theme: 'Color Theme',
     themeDesc: 'Customize the look and feel of the app',
     language: 'Language / Język',
-    languageDesc: 'Choose interface language (Polski / English / Русский)',
+    languageDesc: 'Choose interface language (Polski / English / Русский / Deutsch)',
     defaultEventSettings: 'Default Event Options',
     defaultDuration: 'Default event duration:',
     defaultReminderLabel: 'Default reminder:',
@@ -209,37 +213,42 @@ const BASE_TRANSLATIONS = {
   },
 };
 
-const russianPatterns = Object.entries(RUSSIAN_UI)
-  .filter(([key]) => key.includes('{{'))
-  .sort((a, b) => b[0].length - a[0].length)
-  .map(([key, value]) => {
-    const slots: number[] = [];
-    const pattern = key.split(/(\{\{\d+\}\})/).map(part => {
-      if (/^\{\{\d+\}\}$/.test(part)) { slots.push(Number(part.slice(2, -2))); return '(.*?)'; }
-      return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }).join('');
-    return { pattern: new RegExp(`^${pattern}$`, 's'), value, slots };
-  });
-export function translateRussian(text: string): string {
-  if (Object.hasOwn(RUSSIAN_UI, text)) return RUSSIAN_UI[text];
-  for (const { pattern, value, slots } of russianPatterns) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    return value.replace(/\{\{(\d+)\}\}/g, (_, i) => match[slots.indexOf(Number(i)) + 1] ?? '');
-  }
-  return text;
+function makeTranslator(messages: Record<string, string>) {
+  const patterns = Object.entries(messages)
+    .filter(([key]) => key.includes('{{'))
+    .sort((a, b) => b[0].length - a[0].length)
+    .map(([key, value]) => {
+      const slots: number[] = [];
+      const pattern = key.split(/(\{\{\d+\}\})/).map(part => {
+        if (/^\{\{\d+\}\}$/.test(part)) { slots.push(Number(part.slice(2, -2))); return '(.*?)'; }
+        return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }).join('');
+      return { pattern: new RegExp(`^${pattern}$`, 's'), value, slots };
+    });
+  return (text: string): string => {
+    if (Object.hasOwn(messages, text)) return messages[text];
+    for (const { pattern, value, slots } of patterns) {
+      const match = text.match(pattern);
+      if (!match) continue;
+      return value.replace(/\{\{(\d+)\}\}/g, (_, i) => match[slots.indexOf(Number(i)) + 1] ?? '');
+    }
+    return text;
+  };
 }
-function russianValue<T>(value: T): T {
-  if (typeof value === 'string') return translateRussian(value) as T;
-  if (Array.isArray(value)) return value.map(russianValue) as T;
+export const translateRussian = makeTranslator(RUSSIAN_UI);
+export const translateGerman = makeTranslator(GERMAN_UI);
+function localizedValue<T>(value: T, translate: (text: string) => string): T {
+  if (typeof value === 'string') return translate(value) as T;
+  if (Array.isArray(value)) return value.map(item => localizedValue(item, translate)) as T;
   return value;
 }
-/** Select existing Polish/English copy and localize only UI text for Russian. */
+/** Translate UI templates while leaving interpolated user data intact. */
 export function tr<P, E>(language: string, polish: P, english: E): P | E {
-  return language === 'pl' ? polish : language === 'ru' ? russianValue(english) : english;
+  return language === 'pl' ? polish : language === 'ru' ? localizedValue(english, translateRussian) : language === 'de' ? localizedValue(english, translateGerman) : english;
 }
 export const TRANSLATIONS = {
   ...BASE_TRANSLATIONS,
+  de: Object.fromEntries(Object.entries(BASE_TRANSLATIONS.en).map(([key, value]) => [key, translateGerman(value)])) as Record<keyof typeof BASE_TRANSLATIONS.en, string>,
   ru: Object.fromEntries(Object.entries(BASE_TRANSLATIONS.en).map(([key, value]) => [key, translateRussian(value)])) as Record<keyof typeof BASE_TRANSLATIONS.en, string>,
 };
 
@@ -255,4 +264,4 @@ export const colorLabel = (
   id: string,
   language: AppLanguage = 'pl',
   fallback = id,
-) => language === 'pl' ? fallback : language === 'ru' ? ({ tomato: 'Красный', flamingo: 'Розовый', tangerine: 'Оранжевый', banana: 'Жёлтый', sage: 'Шалфейный', basil: 'Зелёный', peacock: 'Бирюзовый', blueberry: 'Синий', lavender: 'Лавандовый', grape: 'Фиолетовый', graphite: 'Графитовый' }[id] || id) : id.charAt(0).toUpperCase() + id.slice(1);
+) => language === 'pl' ? fallback : language === 'de' ? ({ tomato: 'Rot', flamingo: 'Rosa', tangerine: 'Orange', banana: 'Gelb', sage: 'Salbei', basil: 'Grün', peacock: 'Türkis', blueberry: 'Blau', lavender: 'Lavendel', grape: 'Violett', graphite: 'Graphit' }[id] || id) : language === 'ru' ? ({ tomato: 'Красный', flamingo: 'Розовый', tangerine: 'Оранжевый', banana: 'Жёлтый', sage: 'Шалфейный', basil: 'Зелёный', peacock: 'Бирюзовый', blueberry: 'Синий', lavender: 'Лавандовый', grape: 'Фиолетовый', graphite: 'Графитовый' }[id] || id) : id.charAt(0).toUpperCase() + id.slice(1);

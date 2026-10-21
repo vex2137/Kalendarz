@@ -11,7 +11,7 @@ if (process.env.GITHUB_REF_TYPE === 'tag') {
     'Release tag must match application version',
   );
 }
-const prefix = `Kalendarz-Offline-${version}`;
+const prefix = `Calendar-${version}`;
 const files = [
   `${prefix}-android-test.apk`,
   `${prefix}-windows-x64-setup.exe`,

@@ -1,5 +1,6 @@
 import { normalizeRussianInput } from './russianQuery';
-import { translateRussian } from './i18n';
+import { translateRussian, translateGerman } from './i18n';
+import { normalizeGermanInput } from './germanQuery';
 import { tr } from './i18n';
 import { buildEventIndex } from './recurrence';
 import { localDate, addDays, timeString } from './dates';
@@ -210,10 +211,10 @@ export function parseDateFromNaturalLanguage(
   referenceDate: Date = new Date(),
   lang: AppLanguage = 'en',
 ): { date: Date; dateStr: string; label: string; matched: boolean } {
-  const normalized = normalizeRussianInput(text);
+  const normalized = lang === 'de' ? normalizeGermanInput(text) : normalizeRussianInput(text);
   if (normalized !== text) {
     const parsed = parseDateFromNaturalLanguage(normalized, referenceDate, 'en');
-    return { ...parsed, label: lang === 'ru' ? translateRussian(parsed.label) : parsed.label };
+    return { ...parsed, label: lang === 'ru' ? translateRussian(parsed.label) : lang === 'de' ? translateGerman(parsed.label) : parsed.label };
   }
   const lower = text.toLowerCase();
   const target = new Date(referenceDate);
@@ -394,6 +395,10 @@ export const extractEventFromPromptOffline = (
   referenceDate: Date = new Date(),
   lang: AppLanguage = 'en',
 ): ExtractedEventSuggestion | null => {
+  if (lang === 'de') {
+    const draft = extractEventFromPromptOffline(normalizeGermanInput(prompt), referenceDate, 'en');
+    return draft ? { ...draft, description: `Vom lokalen Assistenten hinzugefügt: „${prompt}“` } : null;
+  }
   if (lang === 'ru') {
     const draft = extractEventFromPromptOffline(normalizeRussianInput(prompt), referenceDate, 'en');
     return draft ? { ...draft, description: `Добавлено локальным помощником: «${prompt}»` } : null;
@@ -560,6 +565,10 @@ export const runLocalAiAssistant = async (
   context: AiConversationContext = {},
   preferences: PlanningPreferences = DEFAULT_PLANNING,
 ): Promise<AiResponseResult> => {
+  if (lang === 'de') {
+    const result = await runLocalAiAssistant(normalizeGermanInput(query), events, 'en', now, context, preferences);
+    return { ...result, text: translateGerman(result.text), suggestedPrompts: result.suggestedPrompts?.map(translateGerman) };
+  }
   if (lang === 'ru') {
     const result = await runLocalAiAssistant(normalizeRussianInput(query), events, 'en', now, context, preferences);
     return { ...result,

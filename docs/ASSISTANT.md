@@ -1,9 +1,9 @@
 # Offline assistant
 
 The assistant uses local language rules and the calendar's recurrence engine. It
-supports English, Polish, and Russian without sending calendar data to a server. English is
+supports English, Polish, Russian, and German without sending calendar data to a server. English is
 the default for new installations; an explicitly saved language is retained. The
-app is called **Calendar** in English and **Kalendarz** in Polish.
+app is called **Calendar**, **Kalendarz**, **Календарь**, or **Kalender** according to the selected language.
 
 ## Commands
 
@@ -85,3 +85,24 @@ assistant examples include:
 The assistant normalizes supported command grammar locally; it does not translate
 saved event names, descriptions, or imported calendars. Unsupported wording may
 need rephrasing. Russian language support does not add another country's holidays.
+
+## German
+
+Select **🇩🇪 Deutsch** in Settings. The interface and date formatting use German;
+the choice is retained after reload. Basic offline commands include:
+
+- `Füge Zahnarzt morgen um 15 Uhr für 30 Minuten hinzu`
+- `Was habe ich heute?`
+- `Wann habe ich morgen frei für 60 Minuten?`
+- `Suche Zahnarzt`
+- `Verschiebe Zahnarzt auf Freitag um 16 Uhr`
+- `Plane drei einstündige Trainings nächste Woche`
+- `Prüfe Überschneidungen`
+
+Review proposals before confirming. The assistant uses supported language rules;
+complex phrasing may need rewording. German support does not add German holidays.
+
+On Android, the launcher name follows the language selected in the app. Some
+launchers may take a moment to refresh the displayed label. Installed web shortcuts
+and desktop installer names are controlled by their platform, separately from the
+live application title.
