@@ -42,9 +42,20 @@ const { _electron } = require('playwright');
     await page.getByText('Desktop smoke event', { exact: true }).waitFor();
     await page.reload();
     await page.getByText('Desktop smoke event', { exact: true }).waitFor();
+    // Exercise the actual file-origin Web Crypto and worker paths in packaged CI.
+    const before = await page.getByTestId('calendar-navigation').getAttribute('data-date-key');
+    await page.keyboard.press('ArrowRight');
+    assert.notEqual(await page.getByTestId('calendar-navigation').getAttribute('data-date-key'), before);
+    await page.keyboard.press('ArrowLeft');
+    await page.locator('#btn-open-sync').click();
+    await page.getByLabel('Sync password', { exact: true }).fill('Desktop encrypted sync password');
+    await page.getByRole('button', { name: 'Generate encrypted code', exact: true }).click();
+    await page.getByAltText('Sync QR', { exact: true }).waitFor();
+    assert.equal(await page.getByLabel('Sync password', { exact: true }).inputValue(), '');
+    await page.keyboard.press('Escape');
     assert.deepEqual(errors, []);
     console.log(
-      'PASS packaged Electron: file-origin startup, lazy form, IndexedDB save and reload',
+      'PASS packaged Electron: file-origin startup, IndexedDB persistence, keyboard navigation and encrypted QR generation',
     );
   } finally {
     await application?.close();

@@ -158,7 +158,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
                   }}
                   className={`inline-flex items-center justify-center text-[11px] sm:text-xs font-medium rounded-full w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-105 ${
                     cell.isToday
-                      ? 'bg-blue-600 text-white font-bold shadow-xs'
+                      ? 'theme-accent-fill bg-blue-600 text-white font-bold shadow-xs'
                       : cell.isCurrentMonth
                         ? 'theme-text'
                         : 'theme-muted opacity-50'

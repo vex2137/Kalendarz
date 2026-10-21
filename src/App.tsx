@@ -1,3 +1,5 @@
+import { CalendarNavigation } from './components/CalendarNavigation';
+import { applyTheme } from './utils/themes';
 import { tr } from './utils/i18n';
 import { updateNativeAppName } from './utils/nativeDevice';
 import { applyAssistantChanges, signalCalendarChange, type AssistantChange } from './utils/calendarStore';
@@ -8,6 +10,7 @@ import React, {
   Suspense,
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   memo,
   useRef,
@@ -126,6 +129,7 @@ const CalendarPanel = memo(function CalendarPanel({
       {viewMode === 'agenda' && (
         <AgendaView
           {...{ events, onSelectEvent, onSelectDay, language, now }}
+          startDate={localDate(currentDate)}
         />
       )}
     </main>
@@ -170,10 +174,12 @@ export default function App() {
       saveStoredSettings(next);
       setSettings(next);
       setSettingsError('');
+      return true;
     } catch (e) {
       setSettingsError(
         `Nie zapisano ustawień / Settings were not saved: ${String(e)}`,
       );
+      return false;
     }
   }, []);
   useEffect(() => {
@@ -204,11 +210,11 @@ export default function App() {
       };
     }
   }, [settings, updateSettings]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.title = tr(language, 'Kalendarz', 'Calendar');
     document.querySelector('meta[property="og:title"]')?.setAttribute('content', document.title);
     document.documentElement.lang = language;
-    document.documentElement.dataset.theme = settings.theme;
+    applyTheme(document.documentElement, settings);
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute(
@@ -217,7 +223,7 @@ export default function App() {
           .getPropertyValue('--bg-main')
           .trim(),
       );
-  }, [language, settings.theme]);
+  }, [language, settings.theme, settings.customThemes]);
   useEffect(() => {
     void updateNativeAppName(language).catch(error => setSettingsError(String(error)));
   }, [language]);
@@ -432,6 +438,7 @@ export default function App() {
             onDismiss={() => setActiveNotification(null)}
             onOpenEvent={select}
           />
+          <CalendarNavigation enabled={ready && !isPinLocked && !modal} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
           <CalendarPanel
             {...{
               currentDate,
@@ -445,6 +452,7 @@ export default function App() {
               now,
             }}
           />
+          </CalendarNavigation>
           <BottomNavMobile
             viewMode={viewMode}
             onViewModeChange={setViewMode}
@@ -456,7 +464,7 @@ export default function App() {
             id="btn-mobile-fab-create"
             onClick={() => create()}
             aria-label={tr(language, 'Dodaj wydarzenie', 'Create event')}
-            className="sm:hidden fixed bottom-18 right-5 w-13 h-13 rounded-full bg-blue-600 text-white shadow-xl z-40 flex items-center justify-center"
+            className="sm:hidden fixed bottom-18 right-5 w-13 h-13 rounded-full theme-primary bg-blue-600 text-white shadow-xl z-40 flex items-center justify-center"
           >
             <Plus />
           </button>
@@ -524,7 +532,8 @@ export default function App() {
                 deletions={deletions}
                 onSyncMergeEvents={commit}
                 currentTheme={settings.theme}
-                onSyncTheme={(theme) => updateSettings({ ...settings, theme })}
+                currentCustomTheme={settings.customThemes?.find(theme => theme.id === settings.theme)}
+                onSyncTheme={(theme, customTheme) => updateSettings({ ...settings, theme, customThemes: customTheme ? [...(settings.customThemes || []).filter(value => value.id !== customTheme.id), customTheme] : settings.customThemes })}
                 language={language}
               />
             )}

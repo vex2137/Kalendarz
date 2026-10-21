@@ -551,7 +551,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                             }}
                             className={`w-7 h-7 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                               isSelected
-                                ? 'bg-blue-600 text-white shadow-xs'
+                                ? 'theme-primary bg-blue-600 text-white shadow-xs'
                                 : 'theme-surface theme-text theme-border border hover:opacity-80'
                             }`}
                           >
@@ -794,7 +794,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                   <button
                     type="button"
                     onClick={handleAddCustomReminder}
-                    className="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold"
+                    className="px-2.5 py-1 theme-primary bg-blue-600 text-white rounded-lg text-xs font-bold"
                   >
                     OK
                   </button>
@@ -845,7 +845,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               type="submit"
               id="btn-save-event-form"
               disabled={saving}
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+              className="px-5 py-2 text-xs font-bold text-white theme-primary bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
             >
               {tr(language, 'Zapisz', 'Save')}
             </button>

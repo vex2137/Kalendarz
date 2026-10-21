@@ -11,6 +11,7 @@ interface Props {
   onSelectDay: (date: string) => void;
   language?: AppLanguage;
   now?: Date;
+  startDate?: string;
 }
 export function AgendaView({
   events,
@@ -18,11 +19,12 @@ export function AgendaView({
   onSelectDay,
   language = 'pl',
   now = new Date(),
+  startDate = localDate(now),
 }: Props) {
   const today = localDate(now),
     t = getTranslation(language);
   const rows = useMemo(() => {
-    const index = buildEventIndex(events, today, addDays(today, 59));
+    const index = buildEventIndex(events, startDate, addDays(startDate, 59));
     const result: { date: string; occurrence?: CalendarOccurrence }[] = [];
     for (const [date, bucket] of [...index].sort(([a], [b]) =>
       a.localeCompare(b),
@@ -31,7 +33,7 @@ export function AgendaView({
       for (const occurrence of bucket) result.push({ date, occurrence });
     }
     return result;
-  }, [events, today]);
+  }, [events, startDate]);
   const parent = useRef<HTMLDivElement>(null);
   const virtual = useVirtualizer({
     count: rows.length,

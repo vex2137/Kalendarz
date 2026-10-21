@@ -23,12 +23,13 @@ Check the [Releases](https://github.com/vex2137/Kalendarz/releases) section to d
 
 - 🔒 **100% Offline & Private:** All events, reminders, and settings are stored locally on your device storage (IndexedDB / native sandbox; settings in localStorage).
 - 🤖 **Offline Smart Assistant (NLP):** Natural language engine in Polish, English, Russian & German. Ask for your schedule (_"What do I have today?"_), detect schedule collisions (_"Check conflicts"_), find available free time slots (_"When am I free?"_), or create events with natural sentences (_"Meeting with team tomorrow at 2pm for 1h"_).
-- 📲 **P2P QR Code Sync (PC ⇄ Mobile):** Seamless offline sync between PC and phone by scanning a compressed multipart QR code directly from screen to screen. No servers, accounts, or internet needed.
+- 📲 **P2P QR Code Sync (PC ⇄ Mobile):** Seamless offline sync between PC and phone by scanning an AES-256-GCM encrypted, gzip-compressed multipart QR code directly from screen to screen. No servers, accounts, or internet needed.
 - 📆 **Comprehensive Calendar Views:** Month, Week, Day, Year, and Agenda views with fluid navigation and responsive mobile-first UI.
 - 🇵🇱 **Polish Holidays & Custom Holidays:** Built-in calculation of Polish statutory holidays (including movable holidays like Easter and Corpus Christi) with one-click addition/removal.
 - 🔁 **Recurring Events & Reminders:** Daily, weekly, monthly, and yearly recurring schedules with local notifications and alarms.
 - 🔐 **PIN Lock Screen:** Optional 4-digit PIN security lock with auto-lock options.
-- 🎨 **Adaptive Themes:** Light, Dark OLED, Nord Frost, Emerald, Sunset, Lavender, and Mocha themes.
+- 🎨 **Adaptive Themes:** All seven built-in themes plus editable, locally saved custom palettes with 13 color options.
+- 👆 **Calendar Navigation:** Swipe between periods, or use Left/Right arrows and A/D on desktop. Editing and dialogs do not trigger navigation.
 - 📦 **Standard .ICS Import & Export:** Full interoperability with Google Calendar, Microsoft Outlook, Apple Calendar, and Mozilla Thunderbird.
 - 🌐 **Four Interface Languages:** Switch between English, Polish, Russian, and German. English is the default for new installations.
 
@@ -66,8 +67,10 @@ with the calendar. JSON backups preserve every event field; ICS supports stable
 UIDs, common recurrence rules, exclusions, timezone-tagged times and alarms.
 Unsupported ICS constructs are rejected instead of being silently discarded.
 
-QR synchronization uses compressed, integrity-checked multipart packets, including
-removal records. Compression is **not encryption**. The screen PIN is salted and
+QR synchronization uses AES-256-GCM encrypted, gzip-compressed multipart packets,
+including removal records. Keys use PBKDF2-SHA-256 with a random salt and 600,000
+iterations; every packet has a random IV. Passwords are never saved. Plain JSON
+file exports remain unencrypted. The screen PIN is salted and
 hashed but does not encrypt the event database. Browser reminders require an open
 app; Android schedules the next seven days (up to 64 pending reminders) using
 native notifications and refreshes the schedule when the app is opened.
@@ -89,9 +92,13 @@ verification coverage and native packaging details.
 Calendar allows data synchronization without passing through external servers or cloud accounts:
 
 1. On your PC, click the **Sync** button in the navigation bar.
-2. A compressed multipart QR code containing your calendar database will be generated on screen.
-3. On your mobile app, open **Sync ➔ Scan QR Code** tab and point the camera at your monitor.
-4. Your events and preferences will instantly synchronize.
+2. Set a password of at least 12 characters and choose **Generate encrypted code**.
+3. On your mobile app, open **Sync ➔ Scan** and scan all QR frames, or upload their images.
+4. Enter the sender’s password and choose **Decrypt and merge**. Wrong passwords leave the calendar unchanged.
+
+The same encrypted packet is available as a text code. Both devices need a version
+that supports KAL3. Older unencrypted codes remain importable with explicit confirmation.
+See [navigation, themes and encrypted sync](docs/NAVIGATION_THEMES_SYNC.md) for details.
 
 ---
 

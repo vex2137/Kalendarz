@@ -1,3 +1,4 @@
+import { featureText as ft } from '../utils/featureCopy';
 import { tr } from '../utils/i18n';
 import React, {
   useState,
@@ -8,18 +9,21 @@ import React, {
 } from 'react';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
-import type { CalendarEvent, AppTheme } from '../types';
+import type { CalendarEvent, AppTheme, CustomTheme } from '../types';
 import type { Deletion } from '../utils/calendarStore';
 import {
   encodeSync,
   decodeSync,
   QRAssembler,
+  isEncryptedSync,
+  SyncCryptoError,
   type SyncPayload,
 } from '../utils/sync';
 import { parseICSToEvents, downloadFile } from '../utils/storage';
 import { MAX_IMPORT_BYTES } from '../utils/validation';
 import { Dialog } from './Dialog';
 import type { AppLanguage } from '../utils/i18n';
+const EMPTY_DELETIONS: Deletion[] = [];
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -30,19 +34,30 @@ interface Props {
     deletions?: Deletion[],
   ) => void | Promise<void>;
   currentTheme?: AppTheme;
-  onSyncTheme?: (theme: AppTheme) => void;
+  currentCustomTheme?: CustomTheme;
+  onSyncTheme?: (theme: AppTheme, customTheme?: CustomTheme) => boolean | void;
   language?: AppLanguage;
 }
 export function SyncModal({
   onClose,
   events,
-  deletions = [],
+  deletions = EMPTY_DELETIONS,
   onSyncMergeEvents,
   currentTheme = 'dark',
+  currentCustomTheme,
   onSyncTheme,
   language = 'pl',
 }: Props) {
-  const pl = language === 'pl';
+  const [sendPassword, setSendPassword] = useState('');
+  const [receivePassword, setReceivePassword] = useState('');
+  const [pendingEncrypted, setPendingEncrypted] = useState('');
+  const [pendingPlain, setPendingPlain] = useState<SyncPayload | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const alive = useRef(true);
+  const generation = useRef(0);
+  const receiving = useRef(false);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; ++generation.current; }; }, []);
+  const errorText = (error: unknown) => error instanceof SyncCryptoError ? ft(language, error.message as Parameters<typeof ft>[1]) : String(error);
   const [tab, setTab] = useState<'show' | 'scan' | 'code' | 'file'>('show');
   const [includeHolidays, setIncludeHolidays] = useState(false);
   const [encoded, setEncoded] = useState<{
@@ -71,35 +86,33 @@ export function SyncModal({
         : events.filter((e) => !e.id.startsWith('pl-holiday-')),
       deletions,
       theme: currentTheme,
+      ...(currentCustomTheme ? { customTheme: currentCustomTheme } : {}),
     }),
-    [events, deletions, currentTheme, includeHolidays],
+    [events, deletions, currentTheme, currentCustomTheme, includeHolidays],
   );
-  const wantsCode = tab === 'show' || tab === 'code';
   useEffect(() => {
-    if (!wantsCode) return;
-    let active = true;
-    setEncoded(null);
-    void encodeSync(payload)
-      .then((result) => {
-        if (active) {
-          setEncoded(result);
-          setFrame(0);
-        }
-      })
-      .catch((e) => {
-        if (active) setStatus(String(e));
-      });
-    return () => {
-      active = false;
-    };
-  }, [payload, wantsCode]);
+    ++generation.current;
+    setEncoded(null); setQr(''); setGenerating(false); setAuto(false);
+  }, [payload]);
+  async function generate() {
+    if (generating) return;
+    const token = ++generation.current;
+    setGenerating(true); setEncoded(null); setQr(''); setStatus('');
+    try {
+      const result = await encodeSync(payload, sendPassword);
+      if (alive.current && generation.current === token) { setEncoded(result); setFrame(0); setSendPassword(''); }
+    } catch (error) {
+      if (alive.current && generation.current === token) setStatus(errorText(error));
+    } finally { if (alive.current && generation.current === token) setGenerating(false); }
+  }
   const frameText = encoded?.frames[frame];
   useEffect(() => {
+    setQr('');
     if (tab !== 'show' || !frameText) return;
     let active = true;
     void QRCode.toDataURL(frameText, {
       width: 360,
-      margin: 2,
+      margin: 4,
       errorCorrectionLevel: 'M',
     })
       .then((url) => {
@@ -120,36 +133,46 @@ export function SyncModal({
     );
     return () => clearInterval(timer);
   }, [auto, encoded, tab]);
-  const incoming = useCallback(
-    async (data: string) => {
-      if (busy) return;
-      try {
-        if (data.startsWith('KAL2P:')) {
-          const result = assembler.current.add(data);
-          setStatus(
-            `${result.received}/${result.total} ${tr(language, 'części QR', 'QR parts')}`,
-          );
-          if (!result.code) return;
-          data = result.code;
-        }
-        setBusy(true);
-        if (data.includes('BEGIN:VCALENDAR')) {
-          await onSyncMergeEvents(parseICSToEvents(data));
-        } else {
-          const decoded = await decodeSync(data);
-          await onSyncMergeEvents(decoded.events, decoded.deletions);
-          if (decoded.theme) onSyncTheme?.(decoded.theme);
-        }
-        setScanning(false);
-        setStatus(tr(language, 'Zapisano i scalono dane.', 'Data saved and merged.'));
-      } catch (e) {
-        setStatus(String(e));
-      } finally {
-        setBusy(false);
+  const incoming = useCallback(async (original: string) => {
+    if (receiving.current) return;
+    let data = original;
+    try {
+      if (/^KAL[23]P:/.test(data)) {
+        const result = assembler.current.add(data);
+        setStatus(`${result.received}/${result.total} ${tr(language, 'części QR', 'QR parts')}`);
+        if (!result.code) return;
+        data = result.code;
       }
-    },
-    [busy, onSyncMergeEvents, onSyncTheme, pl],
-  );
+      setScanning(false);
+      if (isEncryptedSync(data)) {
+        setPendingEncrypted(data); setReceivePassword(''); setPendingPlain(null);
+        setStatus(ft(language, 'Encrypted data received. Enter the sender’s password.'));
+      } else {
+        const decoded: SyncPayload = data.includes('BEGIN:VCALENDAR')
+          ? { v: 2, app: 'cal-offline', events: parseICSToEvents(data), deletions: [] }
+          : await decodeSync(data);
+        if (!alive.current) return;
+        setPendingPlain(decoded); setPendingEncrypted(''); setReceivePassword('');
+        setStatus(ft(language, 'Ready to import unencrypted data.'));
+      }
+    } catch (error) { if (alive.current) setStatus(errorText(error)); }
+  }, [language]);
+  async function mergeIncoming() {
+    if (receiving.current) return;
+    receiving.current = true; setBusy(true); setStatus('');
+    try {
+      const decoded = pendingEncrypted ? await decodeSync(pendingEncrypted, receivePassword) : pendingPlain;
+      if (!decoded || !alive.current) return;
+      await onSyncMergeEvents(decoded.events, decoded.deletions);
+      if (!alive.current) return;
+      if (decoded.theme && onSyncTheme?.(decoded.theme, decoded.customTheme) === false) throw new SyncCryptoError('Could not save the theme.');
+      setPendingEncrypted(''); setPendingPlain(null); setReceivePassword(''); setInput('');
+      assembler.current = new QRAssembler();
+      setStatus(tr(language, 'Zapisano i scalono dane.', 'Data saved and merged.'));
+    } catch (error) {
+      if (alive.current) { setStatus(errorText(error)); setReceivePassword(''); }
+    } finally { receiving.current = false; if (alive.current) setBusy(false); }
+  }
   const incomingRef = useRef(incoming);
   incomingRef.current = incoming;
   useEffect(() => {
@@ -262,7 +285,7 @@ export function SyncModal({
       if (video.current) video.current.srcObject = null;
       setTorch(false);
     };
-  }, [tab, scanning, pl]);
+  }, [tab, scanning, language]);
   const readFile = async (file?: File, image = false) => {
     if (!file) return;
     try {
@@ -325,7 +348,7 @@ export function SyncModal({
           </button>
         </div>
         <p className="text-xs theme-muted">
-          {tr(language, 'Dane są kompresowane, nie szyfrowane. Udostępniaj je zaufanym osobom.', 'Data is compressed, not encrypted. Share it only with people you trust.')}
+          {ft(language, 'QR sync is encrypted. Share the password separately. Plain JSON file exports are not encrypted.')}
         </p>
         <div className="grid grid-cols-4 gap-1">
           {tabs.map(([id, label]) => (
@@ -337,7 +360,7 @@ export function SyncModal({
                 setTab(id);
                 setStatus('');
               }}
-              className={`p-2 rounded-lg text-xs ${tab === id ? 'bg-blue-600 text-white' : 'theme-subtle'}`}
+              className={`p-2 rounded-lg text-xs ${tab === id ? 'theme-primary bg-blue-600 text-white' : 'theme-subtle'}`}
             >
               {label}
             </button>
@@ -346,6 +369,30 @@ export function SyncModal({
         <p role="status" className="text-xs break-words">
           {status}
         </p>
+        {(pendingEncrypted || pendingPlain) && <div className="theme-border border rounded-xl p-3 space-y-2" data-testid="incoming-sync">
+          {pendingEncrypted ? <label className="block text-xs">{ft(language, 'Sender’s password')}
+            <input type="password" autoComplete="off" spellCheck={false} value={receivePassword} disabled={busy} maxLength={256}
+              onChange={event => setReceivePassword(event.target.value)} className="theme-input w-full rounded p-2 mt-1" />
+          </label> : <p className="text-xs">{ft(language, 'Legacy unencrypted data. Merge only if you trust the sender.')}</p>}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="theme-primary bg-blue-600 text-white rounded p-2 text-xs" disabled={busy || Boolean(pendingEncrypted && !receivePassword)} onClick={() => void mergeIncoming()}>
+              {busy ? ft(language, 'Decrypting…') : pendingEncrypted ? ft(language, 'Decrypt and merge') : ft(language, 'Merge unencrypted data')}
+            </button>
+            <button type="button" className="theme-input rounded p-2 text-xs" disabled={busy} onClick={() => {
+              setPendingEncrypted(''); setPendingPlain(null); setReceivePassword(''); setStatus(''); assembler.current = new QRAssembler();
+            }}>{ft(language, 'Cancel')}</button>
+          </div>
+        </div>}
+        {(tab === 'show' || tab === 'code') && <div className="space-y-2">
+          <label className="block text-xs">{ft(language, 'Sync password')}
+            <input type="password" autoComplete="new-password" spellCheck={false} value={sendPassword} maxLength={256} disabled={generating}
+              onChange={event => { setSendPassword(event.target.value); setEncoded(null); setQr(''); }} className="theme-input w-full rounded p-2 mt-1" />
+          </label>
+          <p className="text-xs theme-muted">{ft(language, 'Use at least 12 characters. The password is not saved.')}</p>
+          <button type="button" className="theme-primary bg-blue-600 text-white rounded p-2 text-xs" disabled={generating || sendPassword.length < 12} onClick={() => void generate()}>
+            {ft(language, generating ? 'Encrypting…' : 'Generate encrypted code')}
+          </button>
+        </div>}
         {(tab === 'show' || tab === 'code') && (
           <label className="block text-xs">
             <input
@@ -370,7 +417,7 @@ export function SyncModal({
               <p>
                 {encoded && !encoded.frames.length
                   ? tr(language, 'Zbyt dużo danych na QR — użyj pliku.', 'Too much data for QR — use a file.')
-                  : tr(language, 'Przygotowywanie…', 'Preparing…')}
+                  : ft(language, generating ? 'Encrypting…' : 'Enter a password to generate encrypted QR codes.')}
               </p>
             )}
             {!!encoded?.frames.length && (
@@ -484,7 +531,7 @@ export function SyncModal({
             <button
               disabled={busy || !input.trim()}
               onClick={() => void incoming(input.trim())}
-              className="bg-blue-600 text-white rounded p-2"
+              className="theme-primary bg-blue-600 text-white rounded p-2"
             >
               {tr(language, 'Scal dane', 'Merge data')}
             </button>

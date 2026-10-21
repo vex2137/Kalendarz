@@ -1,3 +1,4 @@
+import { CustomThemeEditor } from './CustomThemeEditor';
 import { tr } from '../utils/i18n';
 import { SystemNotificationSettings } from './SystemNotificationSettings';
 import { planningPreferences } from '../utils/assistantPlanning';
@@ -50,7 +51,7 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   settings: AppSettings;
-  onUpdateSettings: (newSettings: AppSettings) => void;
+  onUpdateSettings: (newSettings: AppSettings) => boolean | void;
   events: CalendarEvent[];
   onImportEvents: (importedEvents: CalendarEvent[]) => void | Promise<void>;
   onRemoveHolidays?: () => void | Promise<void>;
@@ -318,6 +319,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               })}
             </div>
           </div>
+
+          <CustomThemeEditor settings={settings} onUpdateSettings={onUpdateSettings} />
 
           {/* Section 2: Domyślne parametry nowych wydarzeń */}
           <div className="space-y-3 pt-5">
@@ -711,7 +714,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     type="button"
                     onClick={handleAddHolidays}
-                    className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
+                    className="w-full py-2 rounded-xl theme-primary bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center justify-center gap-2"
                   >
                     <Flag className="w-3.5 h-3.5" />
                     {t.updateHolidaysBtn}
@@ -887,7 +890,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
+            className="px-4 py-2 rounded-xl theme-primary bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
           >
             {t.close}
           </button>

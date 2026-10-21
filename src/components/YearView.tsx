@@ -89,7 +89,7 @@ export const YearView: React.FC<YearViewProps> = ({
                       }}
                       className={`h-6 w-6 mx-auto rounded-full flex flex-col items-center justify-center text-[11px] relative transition-all ${
                         isToday
-                          ? 'bg-blue-600 text-white font-bold shadow-xs'
+                          ? 'theme-accent-fill bg-blue-600 text-white font-bold shadow-xs'
                           : 'theme-text hover:bg-stone-500/10'
                       }`}
                     >

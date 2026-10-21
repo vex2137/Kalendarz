@@ -104,7 +104,7 @@ export interface SecuritySettings {
   isLocked: boolean;
 }
 
-export type AppTheme =
+export type BuiltinTheme =
   | 'light'
   | 'dark'
   | 'nord'
@@ -112,6 +112,14 @@ export type AppTheme =
   | 'sunset'
   | 'lavender'
   | 'moka';
+
+export type AppTheme = BuiltinTheme | `custom:${string}`;
+export type ThemeColorKey = 'background' | 'surface' | 'header' | 'subtle' | 'hover' | 'border' | 'text' | 'muted' | 'accent' | 'accentText' | 'button' | 'buttonHover' | 'buttonText';
+export interface CustomTheme {
+  id: `custom:${string}`;
+  name: string;
+  colors: Record<ThemeColorKey, string>;
+}
 
 import { AppLanguage } from './utils/i18n';
 
@@ -123,6 +131,7 @@ export interface AppSettings {
   vibrationEnabled: boolean;
   startOfWeek: 1; // 1 = Monday
   theme: AppTheme;
+  customThemes?: CustomTheme[];
   defaultEventDuration: number; // np. 30, 45, 60 minut
   defaultReminder: number; // np. 0, 5, 10, 15, 30, 60 minut
   defaultView: CalendarViewMode;

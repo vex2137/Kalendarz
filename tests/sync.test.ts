@@ -19,7 +19,7 @@ test('default holidays fit into decodable multipart QR; empty reminders survive'
     deletions: [{ id: 'deleted', updatedAt: 1 }],
     theme: 'dark' as const,
   };
-  const encoded = await encodeSync(original);
+  const encoded = await encodeSync(original, 'correct horse battery');
   assert.ok(encoded.frames.length > 0 && encoded.frames.length <= 256);
   for (const frame of encoded.frames)
     assert.doesNotThrow(() =>
@@ -31,7 +31,7 @@ test('default holidays fit into decodable multipart QR; empty reminders survive'
     const progress = assembler.add(frame);
     if (progress.code) code = progress.code;
   }
-  const restored = await decodeSync(code);
+  const restored = await decodeSync(code, 'correct horse battery');
   assert.deepEqual(restored, original);
   assert.deepEqual(restored.events.at(-1)!.reminders, []);
 });

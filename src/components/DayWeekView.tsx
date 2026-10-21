@@ -54,7 +54,7 @@ export function DayWeekView({
           <div key={date} className="text-center p-1 text-xs min-w-0">
             <button
               onClick={() => onCreateAtTime(date, 10)}
-              className={`rounded p-1 ${date === today ? 'bg-blue-600 text-white' : ''}`}
+              className={`rounded p-1 ${date === today ? 'theme-accent-fill bg-blue-600 text-white' : ''}`}
             >
               {new Date(`${date}T12:00:00`).toLocaleDateString(
                 locale(language),

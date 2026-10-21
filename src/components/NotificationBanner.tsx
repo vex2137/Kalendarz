@@ -26,7 +26,7 @@ export const NotificationBanner: React.FC<NotificationBannerProps> = ({
   return (
     <div className="fixed top-4 right-4 left-4 sm:left-auto sm:w-96 z-50 animate-in slide-in-from-top-4 duration-300">
       <div className="p-4 rounded-3xl bg-neutral-900 border border-blue-500/50 shadow-2xl text-white flex items-start gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center shrink-0 shadow-xs">
+        <div className="w-10 h-10 rounded-2xl theme-primary bg-blue-600 flex items-center justify-center shrink-0 shadow-xs">
           <Bell className="w-5 h-5 text-white" />
         </div>
 
@@ -64,7 +64,7 @@ export const NotificationBanner: React.FC<NotificationBannerProps> = ({
                 onOpenEvent(event);
                 onDismiss();
               }}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs"
+              className="px-3 py-1.5 theme-primary bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs"
             >
               {tr(language, 'Pokaż szczegóły', 'Show details')}
             </button>

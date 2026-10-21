@@ -133,4 +133,83 @@ public class CalendarSmokeTest {
         }
     }
 
+    private void clickText(ActivityScenario<MainActivity> scenario, String text) throws Exception {
+        String expression = "[...document.querySelectorAll('button')].find(button => button.textContent.trim() === " + org.json.JSONObject.quote(text) + ")";
+        until(scenario, expression);
+        evaluate(scenario, expression + ".click()");
+    }
+
+    private void fill(ActivityScenario<MainActivity> scenario, String selector, String value) throws Exception {
+        String input = "document.querySelector(" + org.json.JSONObject.quote(selector) + ")";
+        until(scenario, input);
+        evaluate(scenario, "(()=>{const input=" + input + ";const prototype=input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;"
+            + "Object.getOwnPropertyDescriptor(prototype,'value').set.call(input," + org.json.JSONObject.quote(value) + ");"
+            + "input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
+    }
+
+    @Test
+    public void encryptedQrAndCustomThemeWorkOfflineInReleaseWebView() throws Exception {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            until(scenario, "document.querySelector('#btn-open-settings')");
+            evaluate(scenario, "document.querySelector('#btn-open-settings').click()");
+            until(scenario, "document.querySelector('button[aria-label=\"English\"]')");
+            evaluate(scenario, "document.querySelector('button[aria-label=\"English\"]').click()");
+            clickText(scenario, "Create theme");
+            fill(scenario, "input[maxlength='50']", "Android custom palette");
+            fill(scenario, "input[type='color']", "#112233");
+            clickText(scenario, "Save theme");
+            until(scenario, "document.documentElement.style.getPropertyValue('--bg-main') === '#112233'");
+            evaluate(scenario, "window.__calendarSmokeBeforeReload = true");
+            scenario.onActivity(activity -> webView(activity).reload());
+            until(scenario, "!window.__calendarSmokeBeforeReload && document.querySelector('#btn-open-settings') && document.documentElement.style.getPropertyValue('--bg-main') === '#112233'");
+            evaluate(scenario, "document.querySelector('#btn-open-settings').click()");
+            until(scenario, "document.querySelector('button[aria-label=\"Delete theme: Android custom palette\"]')");
+            evaluate(scenario, "document.querySelector('button[aria-label=\"Delete theme: Android custom palette\"]').click()");
+            clickText(scenario, "Delete");
+            until(scenario, "document.documentElement.dataset.theme === 'dark'");
+            evaluate(scenario, "document.querySelector('#btn-close-settings-modal').click()");
+            evaluate(scenario, "document.querySelector('#btn-open-sync').click()");
+            fill(scenario, "input[type='password']", "Android encrypted sync password");
+            clickText(scenario, "Generate encrypted code");
+            until(scenario, "document.querySelector('img[alt=\"Sync QR\"]') && document.querySelector('input[type=password]').value === ''");
+            clickText(scenario, "Text code");
+            evaluate(scenario, "Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__androidEncryptedPacket=text}}})");
+            clickText(scenario, "Copy my code");
+            until(scenario, "window.__androidEncryptedPacket && window.__androidEncryptedPacket.startsWith('KAL3:')");
+            String packetJson = evaluate(scenario, "window.__androidEncryptedPacket");
+            fill(scenario, "textarea", new org.json.JSONTokener(packetJson).nextValue().toString());
+            clickText(scenario, "Merge data");
+            fill(scenario, "[data-testid='incoming-sync'] input[type=password]", "Android encrypted sync password");
+            clickText(scenario, "Decrypt and merge");
+            until(scenario, "document.querySelector('[role=dialog]').textContent.includes('Data saved and merged.')");
+            assertEquals("false", evaluate(scenario, "JSON.stringify({...localStorage}).includes('Android encrypted sync password')"));
+        }
+    }
+
+    @Test
+    public void realFingerSwipeNavigatesWithoutOpeningAnEvent() throws Exception {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            until(scenario, "document.querySelector('[data-testid=calendar-navigation]')");
+            String before = evaluate(scenario, "document.querySelector('[data-testid=calendar-navigation]').dataset.dateKey.slice(0,7)");
+            AtomicReference<int[]> bounds = new AtomicReference<>();
+            scenario.onActivity(activity -> {
+                WebView view = webView(activity);
+                int[] location = new int[2]; view.getLocationOnScreen(location);
+                bounds.set(new int[] { location[0], location[1], view.getWidth(), view.getHeight() });
+            });
+            int[] area = bounds.get();
+            float start = area[0] + area[2] * 0.8f, finish = area[0] + area[2] * 0.2f;
+            float y = area[1] + area[3] * 0.5f;
+            long down = android.os.SystemClock.uptimeMillis();
+            android.app.Instrumentation instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation();
+            for (int i = 0; i <= 8; i++) {
+                int action = i == 0 ? android.view.MotionEvent.ACTION_DOWN : i == 8 ? android.view.MotionEvent.ACTION_UP : android.view.MotionEvent.ACTION_MOVE;
+                android.view.MotionEvent motion = android.view.MotionEvent.obtain(down, android.os.SystemClock.uptimeMillis(), action, start + (finish-start)*i/8, y, 0);
+                instrumentation.sendPointerSync(motion); motion.recycle(); Thread.sleep(20);
+            }
+            until(scenario, "document.querySelector('[data-testid=calendar-navigation]').dataset.dateKey.slice(0,7) !== " + before);
+            assertEquals("false", evaluate(scenario, "Boolean(document.querySelector('[role=dialog]'))"));
+        }
+    }
+
 }

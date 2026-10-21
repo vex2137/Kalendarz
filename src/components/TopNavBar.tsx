@@ -75,7 +75,7 @@ export function TopNavBar(p: Props) {
             </button>
           ))}
           <button id="btn-create-event-top" onClick={p.onOpenCreateModal}
-            className="hidden sm:flex items-center gap-1 min-h-10 px-3 bg-blue-600 text-white rounded-lg text-xs">
+            className="hidden sm:flex items-center gap-1 min-h-10 px-3 theme-primary bg-blue-600 text-white rounded-lg text-xs">
             <Plus size={18} />{t.create}
           </button>
         </div>

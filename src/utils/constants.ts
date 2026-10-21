@@ -140,10 +140,10 @@ export const MONTH_NAMES_PL = [
 export const DAY_NAMES_SHORT_PL = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'];
 export const DAY_NAMES_FULL_PL = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
 
-import { AppTheme } from '../types';
+import { BuiltinTheme } from '../types';
 
 export interface ThemeDefinition {
-  id: AppTheme;
+  id: BuiltinTheme;
   name: string;
   badge: string;
   bgClass: string;

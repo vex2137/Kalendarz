@@ -216,9 +216,14 @@ async function until(fn) {
     assert.ok(security.pinHash && security.pinSalt);
     console.log('PASS PIN hashing, explicit lock and lock after reload');
     await page.locator('#btn-open-sync').click();
-    await page.getByRole('img', { name: 'Kod synchronizacji' }).waitFor();
+    const generateQR = async () => {
+      await page.getByLabel('Hasło synchronizacji', { exact: true }).fill('Regression QR password 123');
+      await page.getByRole('button', { name: 'Generuj szyfrowany kod', exact: true }).click();
+      await page.getByRole('img', { name: 'Kod synchronizacji' }).waitFor();
+    };
+    await generateQR();
     await page.getByRole('checkbox', { name: 'Dołącz polskie święta' }).check();
-    await page.getByRole('img', { name: 'Kod synchronizacji' }).waitFor();
+    await generateQR();
     await page.keyboard.press('Escape');
     assert.deepEqual(errors, []);
     await context.close();
@@ -266,6 +271,7 @@ async function until(fn) {
         }),
       ),
     });
+    await a.getByRole('button', { name: 'Scal nieszyfrowane dane', exact: true }).click();
     await a
       .getByRole('status')
       .filter({ hasText: 'Zapisano i scalono dane.' })
@@ -442,6 +448,8 @@ async function until(fn) {
     await off.locator('#btn-save-event-form').click();
     await off.getByText('Offline event', { exact: true }).waitFor();
     await off.locator('#btn-open-sync').click();
+    await off.getByLabel('Sync password', { exact: true }).fill('Offline regression QR password');
+    await off.getByRole('button', { name: 'Generate encrypted code', exact: true }).click();
     await off.getByRole('img', { name: 'Sync QR' }).waitFor();
     console.log(
       'PASS offline reload, lazy-loaded event form/sync and IndexedDB persistence',

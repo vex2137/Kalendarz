@@ -319,7 +319,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 <div
                   className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm shadow-xs ${
                     isUser
-                      ? 'bg-blue-600 text-white rounded-tr-xs'
+                      ? 'theme-primary bg-blue-600 text-white rounded-tr-xs'
                       : 'theme-surface theme-text theme-border border rounded-tl-xs'
                   }`}
                 >
@@ -338,7 +338,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                           {draft.recurrence && draft.recurrence !== 'NONE' && <p>{tr(language, 'Powtarzanie:', 'Repeats:')} {({ DAILY: tr(language, 'codziennie', 'daily'), WEEKLY: tr(language, 'co tydzień', 'weekly'), MONTHLY: tr(language, 'co miesiąc', 'monthly') } as Record<string, string>)[draft.recurrence] || draft.recurrence}</p>}
                         </div>
                       ))}
-                      {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 bg-blue-600 text-white rounded-xl disabled:opacity-50">
+                      {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 theme-primary bg-blue-600 text-white rounded-xl disabled:opacity-50">
                         {tr(language, 'Zatwierdź wszystkie zmiany', 'Confirm all changes')}
                       </button>}
                     </div>
@@ -396,7 +396,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             id="btn-send-ai-message"
             onClick={() => handleSendMessage()}
             disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled}
-            className="p-2.5 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
+            className="p-2.5 theme-primary bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             <Send className="w-4 h-4" />
           </button>

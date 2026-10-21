@@ -45,6 +45,7 @@ jobs:
           curl --fail --silent --retry 20 --retry-connrefused --retry-delay 1 -o /dev/null http://127.0.0.1:4176/
           node tests/language-notifications.cjs
           node tests/mobile-navigation.cjs
+          node tests/navigation-themes-sync.cjs
       - name: Package self-hosted web application
         run: |
           mkdir -p release

@@ -33,7 +33,7 @@ export function DownloadModal({
           href="https://github.com/vex2137/Kalendarz/releases/latest"
           target="_blank"
           rel="noopener noreferrer"
-          className="block rounded-lg bg-blue-600 text-white p-3 text-center"
+          className="block rounded-lg theme-primary bg-blue-600 text-white p-3 text-center"
         >
           {tr(language, 'Otwórz najnowsze wydanie', 'Open latest release')}
         </a>

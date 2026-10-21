@@ -167,3 +167,41 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Custom palettes override semantic controls, while event colors keep their meaning. */
+[data-theme^='custom:'] .theme-primary {
+  background-color: var(--button-bg) !important;
+  color: var(--button-text) !important;
+}
+[data-theme^='custom:'] .theme-primary:hover {
+  background-color: var(--button-hover) !important;
+}
+[data-theme^='custom:'] .theme-accent-fill {
+  background-color: var(--accent-color) !important;
+  color: var(--accent-text) !important;
+}
+[data-theme^='custom:'] :is(.text-blue-400, .text-blue-500, .text-blue-600) {
+  color: var(--accent-color) !important;
+}
+[data-theme^='custom:'] :is(.border-blue-500, .border-blue-600) {
+  border-color: var(--accent-color) !important;
+}
+[data-theme^='custom:'] :is(input[type='checkbox'], input[type='radio'], input[type='range']) {
+  accent-color: var(--accent-color);
+}
+[data-theme^='custom:'] :is(.bg-neutral-950, .bg-neutral-900) {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-main) !important;
+}
+[data-theme^='custom:'] :is(.bg-neutral-800, .bg-neutral-700) {
+  background-color: var(--bg-subtle) !important;
+}
+[data-theme^='custom:'] :is(.text-neutral-300, .text-neutral-400) {
+  color: var(--text-muted) !important;
+}
+[data-theme^='custom:'] [class~='bg-stone-500/5'] { background-color: var(--bg-subtle) !important; }
+[data-theme^='custom:'] :is([class~='hover:bg-stone-500/5'], [class~='hover:bg-stone-500/10']):hover { background-color: var(--bg-hover) !important; }
+[data-theme^='custom:'] :is(.bg-neutral-900, .bg-neutral-950) h4 { color: var(--text-main) !important; }
+/* Touch negotiation stops at the first scroll container, including nested agendas. */
+.calendar-gesture-area,
+.calendar-gesture-area * { touch-action: pan-y pinch-zoom; }
