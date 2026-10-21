@@ -1,5 +1,6 @@
 // Russian UI messages. {{n}} placeholders preserve user data in formatted messages.
 export const RUSSIAN_UI: Record<string, string> = {
+  'The model added details absent from the request. Please clarify the event; nothing was changed.': 'Модель добавила сведения, которых не было в запросе. Уточните событие; ничего не изменено.',
   "100% local NLP engine • no network": "Локальный NLP • без интернета",
   "Add reminder": "Добавить напоминание",
   "After:": "После:",

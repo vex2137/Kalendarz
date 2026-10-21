@@ -1,5 +1,6 @@
 // UI templates only. Inserted event names and other user data are preserved.
 export const GERMAN_UI: Record<string, string> = {
+  'The model added details absent from the request. Please clarify the event; nothing was changed.': 'Das Modell hat Angaben ergänzt, die nicht in der Anfrage stehen. Bitte präzisiere den Termin; es wurde nichts geändert.',
   'Calendar': 'Kalender', 'Calendar views': 'Kalenderansichten', 'Calendar — downloads': 'Kalender — Downloads',
   'Today': 'Heute', 'Tomorrow': 'Morgen', 'Day after tomorrow': 'Übermorgen',
   'Year': 'Jahr', 'Month': 'Monat', 'Week': 'Woche', 'Day': 'Tag', 'Schedule': 'Terminübersicht',

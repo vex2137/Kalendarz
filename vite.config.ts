@@ -5,6 +5,10 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
+  const modelHeaders = {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+  };
   return {
     base: './',
     plugins: [
@@ -66,10 +70,12 @@ export default defineConfig(() => {
       },
     },
     server: {
+      headers: modelHeaders,
       // Cloud tasks may disable HMR and watching while applying edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
+    preview: { headers: modelHeaders },
   };
 });

@@ -1,6 +1,6 @@
-# Android — Calendar 1.2.3
+# Android — Calendar 1.3.0
 
-A ready-to-install test APK is available in the [v1.2.3 release](https://github.com/vex2137/Kalendarz/releases/tag/v1.2.3).
+A ready-to-install test APK is available in the [v1.3.0 release](https://github.com/vex2137/Kalendarz/releases/tag/v1.3.0).
 It is signed with an Android development key; it is not a Google Play release.
 Export a calendar backup before installing. If your existing APK was signed with a different
 key, you must uninstall the old app first, which deletes its local data.
@@ -27,7 +27,7 @@ signing key and keep it stored securely outside the repository. Do not commit ke
 or passwords to Git.
 
 The `versionName` and increasing `versionCode` are derived from `package.json`:
-1.2.3 → 10203. To install on a device using ADB:
+1.3.0 → 10300. To install on a device using ADB:
 
 ```bash
 adb install -r app/build/outputs/apk/release/app-release.apk

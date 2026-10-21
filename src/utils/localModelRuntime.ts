@@ -59,7 +59,7 @@ function assetUrl(path: string) {
   return url.protocol === 'file:' ? `calendar-asset://runtime/${url.pathname.split('/').pop()}` : url.href;
 }
 
-export async function inferCalendarJson(system: string, prompt: string, schema: unknown): Promise<string> {
+export async function inferCalendarJson(system: string, prompt: string, schema: unknown, history: { role: 'user' | 'assistant'; content: string }[] = []): Promise<string> {
   if (operation) throw new Error('model-busy');
   const controller = operation = new AbortController();
   clearTimeout(idleTimer);
@@ -93,8 +93,8 @@ export async function inferCalendarJson(system: string, prompt: string, schema: 
     controller.signal.throwIfAborted();
     update({ phase: 'running' });
     const result = await engine.createChatCompletion({
-      messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }],
-      max_tokens: 384, temperature: 0.1, top_k: 50, penalty_repeat: 1.05,
+      messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: prompt }],
+      max_tokens: 384, temperature: 0, top_k: 50, penalty_repeat: 1.05,
       response_format: { type: 'json_schema', json_schema: { name: 'calendar_command', schema, strict: true } },
       abortSignal: controller.signal,
     });
@@ -105,6 +105,7 @@ export async function inferCalendarJson(system: string, prompt: string, schema: 
     idleTimer = setTimeout(() => { void unloadLocalModel(); }, 60_000);
     return text;
   } catch (error) {
+    console.error('Local model inference failed', error);
     try { await unloadLocalModel(); } catch { engine = undefined; }
     update({ phase: 'error', error: controller.signal.aborted ? 'model-cancelled' : error instanceof Error ? error.message : 'model-inference' });
     throw new Error(controller.signal.aborted ? 'model-cancelled' : 'model-inference');
