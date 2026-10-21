@@ -77,9 +77,12 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
     if (!section || section === 'touch') {
     const touch = await context({ mobile: true, events: [event()] });
     const session = await touch.ctx.newCDPSession(touch.page);
-    async function swipe(x1, y1, x2, y2) {
+    async function swipe(x1, y1, x2, y2, duration = 0) {
       await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x1, y: y1 }] });
-      for (let i = 1; i <= 6; i++) await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x1 + (x2-x1)*i/6, y: y1 + (y2-y1)*i/6 }] });
+      for (let i = 1; i <= 6; i++) {
+        await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x1 + (x2-x1)*i/6, y: y1 + (y2-y1)*i/6 }] });
+        if (duration) await touch.page.waitForTimeout(duration / 6);
+      }
       await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     }
     const labels = { year: 'Year', month: 'Month', week: 'Week', day: 'Day', agenda: 'Schedule' };
@@ -93,6 +96,10 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
       assert.ok((await dateKey(touch.page)).startsWith('2026-10-21'));
       const before = await dateKey(touch.page); await swipe(180, 620, 184, 320); assert.equal(await dateKey(touch.page), before);
     }
+    await touch.page.getByRole('navigation', { name: 'Calendar views', exact: true }).getByRole('button', { name: 'Month', exact: true }).click();
+    await touch.page.locator('#btn-nav-today').click();
+    await swipe(330, 330, 65, 333, 1600);
+    assert.ok((await dateKey(touch.page)).startsWith(expected.month), 'slow gestures remain valid');
     await touch.ctx.close();
     console.log('PASS real touch swipes in all five views, reverse swipes, vertical-scroll exclusion and no accidental click.');
 

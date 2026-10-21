@@ -8,7 +8,7 @@ export function CalendarNavigation({ enabled, dateKey, onNavigate, children }: {
   enabled: boolean; dateKey: string; onNavigate: (direction: number) => void; children: React.ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  const gesture = useRef<{ id: number; x: number; y: number; at: number; vertical: boolean } | null>(null);
+  const gesture = useRef<{ id: number; x: number; y: number; vertical: boolean } | null>(null);
   const suppressClick = useRef(0);
   const previous = useRef(dateKey);
   const animation = useRef<Animation | null>(null);
@@ -42,7 +42,7 @@ export function CalendarNavigation({ enabled, dateKey, onNavigate, children }: {
     style={{ touchAction: 'pan-y pinch-zoom' }}
     onPointerDownCapture={event => {
       if (!enabled || event.pointerType !== 'touch' || !event.isPrimary || editing(event.target)) { gesture.current = null; return; }
-      gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, at: performance.now(), vertical: false };
+      gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, vertical: false };
     }}
     onPointerMoveCapture={event => {
       const start = gesture.current;
@@ -53,7 +53,7 @@ export function CalendarNavigation({ enabled, dateKey, onNavigate, children }: {
     onPointerUpCapture={event => {
       const start = gesture.current;
       gesture.current = null;
-      if (!enabled || !start || start.id !== event.pointerId || start.vertical || performance.now() - start.at > 1200) return;
+      if (!enabled || !start || start.id !== event.pointerId || start.vertical) return;
       const dx = event.clientX - start.x, dy = event.clientY - start.y;
       const threshold = Math.max(48, Math.min(96, (root.current?.clientWidth || 320) * 0.15));
       if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.5) return;
