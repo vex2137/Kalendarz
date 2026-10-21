@@ -1,4 +1,4 @@
-# 📅 Kalendarz Offline 1.2.1 (Offline Calendar)
+# 📅 Kalendarz Offline 1.2.2 (Offline Calendar)
 
 A modern, private, and 100% local calendar application inspired by Google Calendar. Built for **Android (APK)**, **Linux (Flatpak & AppImage)**, **Windows (.exe)**, and the **Web**.
 
@@ -22,7 +22,7 @@ Check the [Releases](https://github.com/vex2137/Kalendarz/releases) section to d
 ## ✨ Key Features
 
 - 🔒 **100% Offline & Private:** All events, reminders, and settings are stored locally on your device storage (IndexedDB / native sandbox; settings in localStorage).
-- 🤖 **Offline Smart Assistant (NLP):** Natural language engine in Polish & English. Ask for your schedule (_"What do I have today?"_), detect schedule collisions (_"Check conflicts"_), find available free time slots (_"When am I free?"_), or create events with natural sentences (_"Meeting with team tomorrow at 2pm for 1h"_).
+- 🤖 **Offline Smart Assistant (NLP):** Natural language engine in Polish, English & Russian. Ask for your schedule (_"What do I have today?"_), detect schedule collisions (_"Check conflicts"_), find available free time slots (_"When am I free?"_), or create events with natural sentences (_"Meeting with team tomorrow at 2pm for 1h"_).
 - 📲 **P2P QR Code Sync (PC ⇄ Mobile):** Seamless offline sync between PC and phone by scanning a compressed multipart QR code directly from screen to screen. No servers, accounts, or internet needed.
 - 📆 **Comprehensive Calendar Views:** Month, Week, Day, Year, and Agenda views with fluid navigation and responsive mobile-first UI.
 - 🇵🇱 **Polish Holidays & Custom Holidays:** Built-in calculation of Polish statutory holidays (including movable holidays like Easter and Corpus Christi) with one-click addition/removal.
@@ -30,7 +30,7 @@ Check the [Releases](https://github.com/vex2137/Kalendarz/releases) section to d
 - 🔐 **PIN Lock Screen:** Optional 4-digit PIN security lock with auto-lock options.
 - 🎨 **Adaptive Themes:** Light, Dark OLED, Nord Frost, Emerald, Sunset, Lavender, and Mocha themes.
 - 📦 **Standard .ICS Import & Export:** Full interoperability with Google Calendar, Microsoft Outlook, Apple Calendar, and Mozilla Thunderbird.
-- 🌐 **Bilingual Interface:** Instant switching between Polish 🇵🇱 and English 🇬🇧.
+- 🌐 **Three Interface Languages:** Switch between English, Polish, and Russian. English is the default for new installations.
 
 ---
 

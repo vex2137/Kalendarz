@@ -1,8 +1,10 @@
+import { tr, type AppLanguage } from '../utils/i18n';
 import React from 'react';
 import { CalendarEvent } from '../types';
 import { Bell, X, Calendar, Clock } from 'lucide-react';
 
 interface NotificationBannerProps {
+  language?: AppLanguage;
   activeNotification: {
     event: CalendarEvent;
     minutesBefore: number;
@@ -12,6 +14,7 @@ interface NotificationBannerProps {
 }
 
 export const NotificationBanner: React.FC<NotificationBannerProps> = ({
+  language = 'en',
   activeNotification,
   onDismiss,
   onOpenEvent,
@@ -30,7 +33,7 @@ export const NotificationBanner: React.FC<NotificationBannerProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">
-              {minutesBefore === 0 ? 'Wydarzenie teraz' : `Przypomnienie za ${minutesBefore} min`}
+              {minutesBefore === 0 ? tr(language, 'Wydarzenie teraz', 'Event starting now') : tr(language, `Przypomnienie za ${minutesBefore} min`, `Event starts in ${minutesBefore} min`)}
             </span>
             <button
               onClick={onDismiss}
@@ -63,13 +66,13 @@ export const NotificationBanner: React.FC<NotificationBannerProps> = ({
               }}
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs"
             >
-              Pokaż szczegóły
+              {tr(language, 'Pokaż szczegóły', 'Show details')}
             </button>
             <button
               onClick={onDismiss}
               className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl text-xs font-semibold"
             >
-              Odrzuć
+              {tr(language, 'Odrzuć', 'Dismiss')}
             </button>
           </div>
         </div>

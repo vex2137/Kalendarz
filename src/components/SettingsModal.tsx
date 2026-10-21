@@ -1,3 +1,4 @@
+import { tr } from '../utils/i18n';
 import { planningPreferences } from '../utils/assistantPlanning';
 import { reminderLabel, colorLabel } from '../utils/i18n';
 import { hashPin } from '../utils/security';
@@ -95,9 +96,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (settings.security.pinEnabled) {
       if (pinInput.length !== 4 || !/^\d{4}$/.test(pinInput)) {
         setPinError(
-          lang === 'pl'
-            ? 'PIN musi składać się z 4 cyfr!'
-            : 'PIN must be 4 digits!',
+          tr(lang, 'PIN musi składać się z 4 cyfr!', 'PIN must be 4 digits!'),
         );
         return;
       }
@@ -115,9 +114,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
     setPinSuccess(
-      lang === 'pl'
-        ? 'PIN został zaktualizowany.'
-        : 'PIN successfully updated.',
+      tr(lang, 'PIN został zaktualizowany.', 'PIN successfully updated.'),
     );
     setTimeout(() => setPinSuccess(null), 3000);
   };
@@ -125,7 +122,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleTogglePin = async (enabled: boolean) => {
     if (enabled && !settings.security.pinHash && !/^\d{4}$/.test(pinInput)) {
       setPinError(
-        lang === 'pl' ? 'Wprowadź 4 cyfry PIN!' : 'Enter 4 digits PIN!',
+        tr(lang, 'Wprowadź 4 cyfry PIN!', 'Enter 4 digits PIN!'),
       );
       return;
     }
@@ -169,9 +166,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (!file) return;
     if (file.size > MAX_IMPORT_BYTES) {
       setImportStatus(
-        lang === 'pl'
-          ? 'Plik jest zbyt duży (maks. 10 MB)'
-          : 'File too large (max 10 MB)',
+        tr(lang, 'Plik jest zbyt duży (maks. 10 MB)', 'File too large (max 10 MB)'),
       );
       return;
     }
@@ -186,15 +181,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (parsed.length > 0) {
           await onImportEvents(parsed);
           setImportStatus(
-            lang === 'pl'
-              ? `Pomyślnie zaimportowano ${parsed.length} wydarzeń z pliku .ics!`
-              : `Successfully imported ${parsed.length} events from .ics file!`,
+            tr(lang, `Pomyślnie zaimportowano ${parsed.length} wydarzeń z pliku .ics!`, `Successfully imported ${parsed.length} events from .ics file!`),
           );
         } else {
           setImportStatus(
-            lang === 'pl'
-              ? 'Nie znaleziono poprawnych wydarzeń w pliku .ics.'
-              : 'No valid events found in .ics file.',
+            tr(lang, 'Nie znaleziono poprawnych wydarzeń w pliku .ics.', 'No valid events found in .ics file.'),
           );
         }
       } catch (error) {
@@ -226,26 +217,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 if (result === 'granted') await scheduleNativeReminders(events);
                 setImportStatus(
                   result === 'granted'
-                    ? lang === 'pl'
-                      ? 'Powiadomienia włączone'
-                      : 'Notifications enabled'
-                    : lang === 'pl'
-                      ? 'Brak zgody na powiadomienia'
-                      : 'Notification permission denied',
+                    ? tr(lang, 'Powiadomienia włączone', 'Notifications enabled')
+                    : tr(lang, 'Brak zgody na powiadomienia', 'Notification permission denied'),
                 );
               } catch (error) {
                 setImportStatus(String(error));
               }
             }}
           >
-            {lang === 'pl'
-              ? 'Włącz powiadomienia systemowe'
-              : 'Enable system notifications'}
+            {tr(lang, 'Włącz powiadomienia systemowe', 'Enable system notifications')}
           </button>
           <p>
-            {lang === 'pl'
-              ? 'W przeglądarce przypomnienia wymagają działającej aplikacji. Android może planować je systemowo.'
-              : 'Browser reminders require the app to be running. Android can schedule them with the system.'}
+            {tr(lang, 'W przeglądarce przypomnienia wymagają działającej aplikacji. Android może planować je systemowo.', 'Browser reminders require the app to be running. Android can schedule them with the system.')}
           </p>
         </div>
         {/* Header */}
@@ -275,16 +258,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={() =>
                   onUpdateSettings({ ...settings, language: 'pl' })
                 }
+                aria-pressed={lang === 'pl'}
                 className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                  lang === 'pl'
-                    ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text'
-                    : 'theme-border theme-subtle theme-muted hover:theme-text'
+                  lang === 'pl' ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text' : 'theme-border theme-subtle theme-muted hover:theme-text'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -299,10 +281,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClick={() =>
                   onUpdateSettings({ ...settings, language: 'en' })
                 }
+                aria-pressed={lang === 'en'}
                 className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                  lang === 'en'
-                    ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text'
-                    : 'theme-border theme-subtle theme-muted hover:theme-text'
+                  lang === 'en' ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10 font-bold theme-text' : 'theme-border theme-subtle theme-muted hover:theme-text'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -310,6 +291,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span className="text-xs">English</span>
                 </div>
                 {lang === 'en' && <Check className="w-4 h-4 text-blue-500" />}
+              </button>
+              <button type="button" aria-pressed={lang === 'ru'} onClick={() => onUpdateSettings({ ...settings, language: 'ru' })}
+                className={`col-span-2 sm:col-span-1 p-3 rounded-2xl border text-left flex items-center justify-between ${lang === 'ru' ? 'border-blue-500 ring-2 ring-blue-500/30 theme-text' : 'theme-border theme-subtle theme-muted'}`}>
+                <span className="text-xs">Русский</span>
+                {lang === 'ru' && <Check className="w-4 h-4 text-blue-500" />}
               </button>
             </div>
           </div>
@@ -357,13 +343,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span
                         className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${th.chipClass}`}
                       >
-                        {th.badge}
+                        {tr(lang, th.badge, ({ light: 'Classic', dark: 'Night', nord: 'Arctic', emerald: 'Calm', sunset: 'Amber', lavender: 'Pastel', moka: 'Cafe' })[th.id])}
                       </span>
                     </div>
 
                     <div>
                       <p className="text-xs font-bold theme-text leading-tight">
-                        {th.name}
+                        {tr(lang, th.name, ({ light: 'Light', dark: 'Dark OLED', nord: 'Nordic Frost', emerald: 'Emerald Forest', sunset: 'Warm Sunset', lavender: 'Cyber Lavender', moka: 'Warm Mocha' })[th.id])}
                       </p>
                     </div>
 
@@ -389,9 +375,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {t.defaultEventSettings}
                 </h4>
                 <p className="text-xs theme-muted">
-                  {lang === 'pl'
-                    ? 'Ułatw szybkie dodawanie terminów'
-                    : 'Create events faster'}
+                  {tr(lang, 'Ułatw szybkie dodawanie terminów', 'Create events faster')}
                 </p>
               </div>
             </div>
@@ -412,12 +396,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }}
                   className="w-full text-xs font-medium px-3 py-2 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value={15}>15 minut</option>
-                  <option value={30}>30 minut</option>
-                  <option value={45}>45 minut</option>
-                  <option value={60}>1 godzina (60 min)</option>
-                  <option value={90}>1.5 godziny (90 min)</option>
-                  <option value={120}>2 godziny (120 min)</option>
+                  <option value={15}>{tr(lang, '15 minut', '15 min')}</option>
+                  <option value={30}>{tr(lang, '30 minut', '30 min')}</option>
+                  <option value={45}>{tr(lang, '45 minut', '45 min')}</option>
+                  <option value={60}>{tr(lang, '1 godzina (60 min)', '1 hour (60 min)')}</option>
+                  <option value={90}>{tr(lang, '1.5 godziny (90 min)', '1.5 hours (90 min)')}</option>
+                  <option value={120}>{tr(lang, '2 godziny (120 min)', '2 hours (120 min)')}</option>
                 </select>
               </div>
 
@@ -490,9 +474,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {/* Domyślny widok po otwarciu */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold theme-text">
-                  {lang === 'pl'
-                    ? 'Domyślny widok kalendarza:'
-                    : 'Default calendar view:'}
+                  {tr(lang, 'Domyślny widok kalendarza:', 'Default calendar view:')}
                 </label>
                 <select
                   value={settings.defaultView || 'month'}
@@ -505,16 +487,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="w-full text-xs font-medium px-3 py-2 rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="month">
-                    {lang === 'pl' ? 'Miesiąc' : 'Month'}
+                    {tr(lang, 'Miesiąc', 'Month')}
                   </option>
                   <option value="week">
-                    {lang === 'pl' ? 'Tydzień' : 'Week'}
+                    {tr(lang, 'Tydzień', 'Week')}
                   </option>
-                  <option value="day">{lang === 'pl' ? 'Dzień' : 'Day'}</option>
+                  <option value="day">{tr(lang, 'Dzień', 'Day')}</option>
                   <option value="agenda">
-                    {lang === 'pl' ? 'Harmonogram' : 'Schedule'}
+                    {tr(lang, 'Harmonogram', 'Schedule')}
                   </option>
-                  <option value="year">{lang === 'pl' ? 'Rok' : 'Year'}</option>
+                  <option value="year">{tr(lang, 'Rok', 'Year')}</option>
                 </select>
               </div>
             </div>
@@ -531,9 +513,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {t.soundAndVib}
                 </h4>
                 <p className="text-xs theme-muted">
-                  {lang === 'pl'
-                    ? 'Dźwięki powiadomień i wibracja'
-                    : 'Notification sounds and vibration'}
+                  {tr(lang, 'Dźwięki powiadomień i wibracja', 'Notification sounds and vibration')}
                 </p>
               </div>
             </div>
@@ -631,32 +611,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <p className="text-xs theme-muted leading-relaxed">
-              {lang === 'pl'
-                ? 'Asystent działa w 100% lokalnie na Twoim urządzeniu. Analizuje grafik, wolny czas, wykrywa kolizje i planuje spotkania ze zdań.'
-                : 'The assistant runs 100% locally on your device. It analyzes your schedule, checks free time, and extracts events from natural language.'}
+              {tr(lang, 'Asystent działa w 100% lokalnie na Twoim urządzeniu. Analizuje grafik, wolny czas, wykrywa kolizje i planuje spotkania ze zdań.', 'The assistant runs 100% locally on your device. It analyzes your schedule, checks free time, and extracts events from natural language.')}
             </p>
           </div>
 
           <fieldset className="space-y-3 py-4 theme-border border-t">
-            <legend className="text-sm font-semibold theme-text">{lang === 'pl' ? 'Preferencje planowania asystenta' : 'Assistant planning preferences'}</legend>
+            <legend className="text-sm font-semibold theme-text">{tr(lang, 'Preferencje planowania asystenta', 'Assistant planning preferences')}</legend>
             <div className="flex flex-wrap gap-3">
-              <label className="text-xs theme-muted">{lang === 'pl' ? 'Od godziny' : 'Start time'}
-                <input aria-label={lang === 'pl' ? 'Początek dnia' : 'Day start'} type="time" value={planning.dayStart} max={planning.dayEnd} onChange={e => { if (e.target.value && e.target.value < planning.dayEnd) updatePlanning({ dayStart: e.target.value }); }} className="block theme-surface theme-text p-2 rounded" />
+              <label className="text-xs theme-muted">{tr(lang, 'Od godziny', 'Start time')}
+                <input aria-label={tr(lang, 'Początek dnia', 'Day start')} type="time" value={planning.dayStart} max={planning.dayEnd} onChange={e => { if (e.target.value && e.target.value < planning.dayEnd) updatePlanning({ dayStart: e.target.value }); }} className="block theme-surface theme-text p-2 rounded" />
               </label>
-              <label className="text-xs theme-muted">{lang === 'pl' ? 'Do godziny' : 'End time'}
-                <input aria-label={lang === 'pl' ? 'Koniec dnia' : 'Day end'} type="time" value={planning.dayEnd} min={planning.dayStart} onChange={e => { if (e.target.value > planning.dayStart) updatePlanning({ dayEnd: e.target.value }); }} className="block theme-surface theme-text p-2 rounded" />
+              <label className="text-xs theme-muted">{tr(lang, 'Do godziny', 'End time')}
+                <input aria-label={tr(lang, 'Koniec dnia', 'Day end')} type="time" value={planning.dayEnd} min={planning.dayStart} onChange={e => { if (e.target.value > planning.dayStart) updatePlanning({ dayEnd: e.target.value }); }} className="block theme-surface theme-text p-2 rounded" />
               </label>
-              <label className="text-xs theme-muted">{lang === 'pl' ? 'Przerwa między wydarzeniami (min)' : 'Buffer between events (min)'}
+              <label className="text-xs theme-muted">{tr(lang, 'Przerwa między wydarzeniami (min)', 'Buffer between events (min)')}
                 <input type="number" min="0" max="180" value={planning.bufferMinutes} onChange={e => { const value = Number(e.target.value); if (Number.isInteger(value) && value >= 0 && value <= 180) updatePlanning({ bufferMinutes: value }); }} className="block w-24 theme-surface theme-text p-2 rounded" />
               </label>
             </div>
             <div className="flex flex-wrap gap-3">
               {[1, 2, 3, 4, 5, 6, 0].map((day, i) => <label key={day} className="flex gap-1 items-center text-xs theme-text">
                 <input type="checkbox" checked={planning.workingDays.includes(day)} onChange={e => updatePlanning({ workingDays: e.target.checked ? [...planning.workingDays, day] : planning.workingDays.filter(d => d !== day) })} />
-                {(lang === 'pl' ? ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])[i]}
+                {(tr(lang, ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']))[i]}
               </label>)}
             </div>
-            <p className="text-xs theme-muted">{lang === 'pl' ? 'Dotyczy propozycji asystenta i wolnych okienek. Nie zmienia istniejących wydarzeń.' : 'Used for assistant suggestions and free slots. Existing events are not changed.'}</p>
+            <p className="text-xs theme-muted">{tr(lang, 'Dotyczy propozycji asystenta i wolnych okienek. Nie zmienia istniejących wydarzeń.', 'Used for assistant suggestions and free slots. Existing events are not changed.')}</p>
           </fieldset>
 
           {/* Section 5: Blokada kodem PIN */}
@@ -671,9 +649,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <p className="text-xs theme-muted">
                     {t.pinLockDesc}
                     <span className="block text-xs theme-muted">
-                      {lang === 'pl'
-                        ? 'Blokada ekranu nie szyfruje wydarzeń.'
-                        : 'The screen lock does not encrypt your events.'}
+                      {tr(lang, 'Blokada ekranu nie szyfruje wydarzeń.', 'The screen lock does not encrypt your events.')}
                     </span>
                   </p>
                 </div>
@@ -695,9 +671,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-emerald-400" />
                   <span className="text-xs font-bold text-emerald-300">
-                    {lang === 'pl'
-                      ? 'Ustaw kod PIN (4 cyfry):'
-                      : 'Set a 4-digit PIN:'}
+                    {tr(lang, 'Ustaw kod PIN (4 cyfry):', 'Set a 4-digit PIN:')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -719,7 +693,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onClick={handleSavePin}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs"
                   >
-                    {lang === 'pl' ? 'Zapisz PIN' : 'Save PIN'}
+                    {tr(lang, 'Zapisz PIN', 'Save PIN')}
                   </button>
                   {onLockApp && settings.security.pinEnabled && (
                     <button
@@ -730,7 +704,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }}
                       className="px-3 py-1.5 theme-subtle theme-hover theme-border border theme-text rounded-xl text-xs font-medium transition-colors"
                     >
-                      {lang === 'pl' ? 'Zablokuj teraz' : 'Lock now'}
+                      {tr(lang, 'Zablokuj teraz', 'Lock now')}
                     </button>
                   )}
                 </div>
@@ -816,9 +790,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           <label className="block text-xs theme-muted">
-            {lang === 'pl'
-              ? 'Automatyczna blokada po minutach bezczynności'
-              : 'Auto-lock after minutes of inactivity'}{' '}
+            {tr(lang, 'Automatyczna blokada po minutach bezczynności', 'Auto-lock after minutes of inactivity')}{' '}
             <input
               aria-label="Auto-lock minutes"
               className="theme-input w-16 p-1 rounded"
@@ -851,16 +823,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {t.backupAndData}
                 </h4>
                 <p className="text-xs theme-muted">
-                  {lang === 'pl' ? 'Lokalne wydarzenia:' : 'Local events:'}{' '}
+                  {tr(lang, 'Lokalne wydarzenia:', 'Local events:')}{' '}
                   <strong>{events.length}</strong>
                 </p>
               </div>
             </div>
 
             <p className="text-xs theme-muted">
-              {lang === 'pl'
-                ? 'Import scala wydarzenia z obecnym kalendarzem. JSON zachowuje wszystkie dane wydarzeń.'
-                : 'Import merges events with your calendar. JSON preserves all event fields.'}
+              {tr(lang, 'Import scala wydarzenia z obecnym kalendarzem. JSON zachowuje wszystkie dane wydarzeń.', 'Import merges events with your calendar. JSON preserves all event fields.')}
             </p>
             <button
               className="theme-input rounded-lg p-2 text-xs"
@@ -871,9 +841,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 )
               }
             >
-              {lang === 'pl'
-                ? 'Pełna kopia wydarzeń JSON'
-                : 'Full event backup (JSON)'}
+              {tr(lang, 'Pełna kopia wydarzeń JSON', 'Full event backup (JSON)')}
             </button>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <button

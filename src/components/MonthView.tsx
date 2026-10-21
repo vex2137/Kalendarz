@@ -1,3 +1,4 @@
+import { tr } from '../utils/i18n';
 import React, { useMemo } from 'react';
 import { buildEventIndex } from '../utils/recurrence';
 import {
@@ -206,7 +207,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
                 {sortedEvents.length > 3 && (
                   <span className="text-[10px] font-medium theme-muted pl-1">
                     +{sortedEvents.length - 3}{' '}
-                    {language === 'pl' ? 'więcej' : 'more'}
+                    {tr(language, 'więcej', 'more')}
                   </span>
                 )}
               </div>

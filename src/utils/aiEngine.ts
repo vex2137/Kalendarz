@@ -1,3 +1,6 @@
+import { normalizeRussianInput } from './russianQuery';
+import { translateRussian } from './i18n';
+import { tr } from './i18n';
 import { buildEventIndex } from './recurrence';
 import { localDate, addDays, timeString } from './dates';
 import { CalendarEvent, GoogleCalendarColor } from '../types';
@@ -207,6 +210,11 @@ export function parseDateFromNaturalLanguage(
   referenceDate: Date = new Date(),
   lang: AppLanguage = 'en',
 ): { date: Date; dateStr: string; label: string; matched: boolean } {
+  const normalized = normalizeRussianInput(text);
+  if (normalized !== text) {
+    const parsed = parseDateFromNaturalLanguage(normalized, referenceDate, 'en');
+    return { ...parsed, label: lang === 'ru' ? translateRussian(parsed.label) : parsed.label };
+  }
   const lower = text.toLowerCase();
   const target = new Date(referenceDate);
 
@@ -228,7 +236,7 @@ export function parseDateFromNaturalLanguage(
     return {
       date: target,
       dateStr: formatDateISO(target),
-      label: lang === 'pl' ? 'Pojutrze' : 'Day after tomorrow',
+      label: tr(lang, 'Pojutrze', 'Day after tomorrow'),
       matched: true,
     };
   }
@@ -242,7 +250,7 @@ export function parseDateFromNaturalLanguage(
     return {
       date: target,
       dateStr: formatDateISO(target),
-      label: lang === 'pl' ? `Za ${dCount} dni` : `In ${dCount} days`,
+      label: tr(lang, `Za ${dCount} dni`, `In ${dCount} days`),
       matched: true,
     };
   }
@@ -261,7 +269,7 @@ export function parseDateFromNaturalLanguage(
     return {
       date: target,
       dateStr: formatDateISO(target),
-      label: lang === 'pl' ? 'Jutro' : 'Tomorrow',
+      label: tr(lang, 'Jutro', 'Tomorrow'),
       matched: true,
     };
   }
@@ -276,7 +284,7 @@ export function parseDateFromNaturalLanguage(
     return {
       date: target,
       dateStr: formatDateISO(target),
-      label: lang === 'pl' ? 'Dzisiaj' : 'Today',
+      label: tr(lang, 'Dzisiaj', 'Today'),
       matched: true,
     };
   }
@@ -303,7 +311,7 @@ export function parseDateFromNaturalLanguage(
       return {
         date: nextDate,
         dateStr: formatDateISO(nextDate),
-        label: lang === 'pl' ? dayEntry.labelPl : dayEntry.labelEn,
+        label: tr(lang, dayEntry.labelPl, dayEntry.labelEn),
         matched: true,
       };
     }
@@ -373,7 +381,7 @@ export function parseDateFromNaturalLanguage(
   return {
     date: target,
     dateStr: formatDateISO(target),
-    label: lang === 'pl' ? 'Dzisiaj' : 'Today',
+    label: tr(lang, 'Dzisiaj', 'Today'),
     matched: false,
   };
 }
@@ -386,6 +394,10 @@ export const extractEventFromPromptOffline = (
   referenceDate: Date = new Date(),
   lang: AppLanguage = 'en',
 ): ExtractedEventSuggestion | null => {
+  if (lang === 'ru') {
+    const draft = extractEventFromPromptOffline(normalizeRussianInput(prompt), referenceDate, 'en');
+    return draft ? { ...draft, description: `Добавлено локальным помощником: «${prompt}»` } : null;
+  }
   const text = prompt.trim();
   if (!text) return null;
 
@@ -447,7 +459,7 @@ export const extractEventFromPromptOffline = (
         durationMinutes = 90;
       } else {
         const durationMatch = text.match(
-          /(?:na|przez|trwa|for)\s*(\d+)\s*(min(?:ut[y]?)?|h|godz(?:in[yę]?)?|hour[s]?)/i,
+          /(?:na|przez|trwa|for)\s*(\d+)\s*(min(?:ut(?:es?|[yęa])?|s)?|hours?|h|godz(?:in[yę]?)?|hour[s]?)/i,
         );
         if (durationMatch) {
           const amount = parseInt(durationMatch[1], 10);
@@ -466,7 +478,7 @@ export const extractEventFromPromptOffline = (
   // Location extraction
   let location: string | undefined;
   const locationMatch = text.match(
-    /(?:w|we|w lokalizacji|w biurze|u|na sali|na|at|in)\s+([A-ZĄĆĘŁŃÓŚŹŻa-ząćęłńóśźż0-9\s\-]+?)(?=\s+(?:o|godz|od|na|jutro|pojutrze|at|in|tomorrow|$))/i,
+    /(?:w|we|w lokalizacji|w biurze|u|na sali|na|at|in)\s+([A-ZĄĆĘŁŃÓŚŹŻa-ząćęłńóśźżА-Яа-яЁё0-9\s\-]+?)(?=\s+(?:o|godz|od|na|jutro|pojutrze|at|in|tomorrow|$))/i,
   );
   if (locationMatch && locationMatch[1].trim().length > 2) {
     const locCandidate = locationMatch[1].trim();
@@ -497,7 +509,7 @@ export const extractEventFromPromptOffline = (
       '',
     )
     .replace(
-      /(?:na|przez|trwa|for)\s*(?:p[óo][łl]\s+godziny|p[óo][łl]torej\s+godziny|half an hour|\d+\s*(?:min(?:ut[y]?)?|h|godz(?:in[yę]?)?|hour[s]?))/gi,
+      /(?:na|przez|trwa|for)\s*(?:p[óo][łl]\s+godziny|p[óo][łl]torej\s+godziny|half an hour|\d+\s*(?:min(?:ut(?:es?|[yęa])?|s)?|hours?|h|godz(?:in[yę]?)?|hour[s]?))/gi,
       '',
     )
     .replace(
@@ -510,9 +522,10 @@ export const extractEventFromPromptOffline = (
   if (title.length > 0) {
     title = title.charAt(0).toUpperCase() + title.slice(1);
   } else {
-    title = lang === 'pl' ? 'Nowe spotkanie' : 'New Meeting';
+    title = tr(lang, 'Nowe spotkanie', 'New Meeting');
   }
 
+  title = title.replace(/^Встречу(?=\s|$)/iu, 'Встреча').replace(/^Тренировку(?=\s|$)/iu, 'Тренировка').replace(/^Стоматолога(?=\s|$)/iu, 'Стоматолог');
   const color = deduceEventColor(text);
   const formattedDate = formatDateISO(targetDate);
 
@@ -528,9 +541,7 @@ export const extractEventFromPromptOffline = (
     allDay: isAllDay,
     location,
     description:
-      lang === 'pl'
-        ? `Dodane przez lokalnego asystenta: "${text}"`
-        : `Added by local assistant: "${text}"`,
+      tr(lang, `Dodane przez lokalnego asystenta: "${text}"`, `Added by local assistant: "${text}"`),
     color,
     recurrence: /codziennie|every day|daily/i.test(text) ? 'DAILY'
       : /co tydzień|co tydzien|co (?:poniedziałek|wtorek|środę|czwartek|piątek|sobotę|niedzielę)|every (?:week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|weekly/i.test(text) ? 'WEEKLY'
@@ -549,6 +560,13 @@ export const runLocalAiAssistant = async (
   context: AiConversationContext = {},
   preferences: PlanningPreferences = DEFAULT_PLANNING,
 ): Promise<AiResponseResult> => {
+  if (lang === 'ru') {
+    const result = await runLocalAiAssistant(normalizeRussianInput(query), events, 'en', now, context, preferences);
+    return { ...result,
+      text: result.text.startsWith('Hello!') ? 'Здравствуйте! Я ваш локальный помощник. Попробуйте: «Что у меня сегодня?» или «Добавь встречу завтра в 15».' : translateRussian(result.text),
+      suggestedPrompts: result.suggestedPrompts?.map(translateRussian),
+    };
+  }
   // Ultra-responsive local NLP processing
 
   const prefs = planningPreferences(preferences);
@@ -577,19 +595,19 @@ export const runLocalAiAssistant = async (
     const candidates = move ? searchCalendar(events, move[1]) : choice ? [choice] : context.movingEvent ? [context.movingEvent] : [];
     const request = move ? move[2] || '' : choice ? context.moveRequest || '' : raw;
     if (candidates.length !== 1) return {
-      text: candidates.length ? (lang === 'pl' ? 'Wybierz wydarzenie, wpisując numer:\n' : 'Select an event by number:\n') + candidates.slice(0, 20).map((e, i) => `${i + 1}. ${e.title} — ${e.startDate} ${e.startTime || ''}`).join('\n') : lang === 'pl' ? 'Nie znalazłem pasującego wydarzenia. Podaj jego tytuł.' : 'No matching event was found. Please provide its title.',
+      text: candidates.length ? (tr(lang, 'Wybierz wydarzenie, wpisując numer:\n', 'Select an event by number:\n')) + candidates.slice(0, 20).map((e, i) => `${i + 1}. ${e.title} — ${e.startDate} ${e.startTime || ''}`).join('\n') : tr(lang, 'Nie znalazłem pasującego wydarzenia. Podaj jego tytuł.', 'No matching event was found. Please provide its title.'),
       context: candidates.length ? { moveChoices: candidates.slice(0, 20), moveRequest: request } : {},
       suggestedPrompts: candidates.slice(0, 20).map((_, i) => String(i + 1)),
     };
     const original = candidates[0];
-    if (original.recurrence !== 'NONE' || original.rrule || original.exdates?.length) return { text: lang === 'pl' ? 'To wydarzenie należy do serii. Otwórz je w kalendarzu, aby wybrać zakres zmiany serii.' : 'This event belongs to a recurring series. Open it in the calendar to choose the scope of the series change.' };
+    if (original.recurrence !== 'NONE' || original.rrule || original.exdates?.length) return { text: tr(lang, 'To wydarzenie należy do serii. Otwórz je w kalendarzu, aby wybrać zakres zmiany serii.', 'This event belongs to a recurring series. Open it in the calendar to choose the scope of the series change.') };
     const parsed = parseDateFromNaturalLanguage(request, now, lang);
-    if (!parsed.matched) return { text: lang === 'pl' ? `Na jaki dzień przenieść „${original.title}”?` : `Which date should I move “${original.title}” to?`, context: { movingEvent: original } };
+    if (!parsed.matched) return { text: tr(lang, `Na jaki dzień przenieść „${original.title}”?`, `Which date should I move “${original.title}” to?`), context: { movingEvent: original } };
     const clock = request.match(/(?:o|at)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
     let time: string | undefined;
     if (clock) {
       const hour = Number(clock[1]), minute = Number(clock[2] || 0);
-      if (hour > (clock[3] ? 12 : 23) || (clock[3] && hour < 1) || minute > 59) return { text: lang === 'pl' ? 'Podaj poprawną godzinę.' : 'Please provide a valid time.', context: { movingEvent: original } };
+      if (hour > (clock[3] ? 12 : 23) || (clock[3] && hour < 1) || minute > 59) return { text: tr(lang, 'Podaj poprawną godzinę.', 'Please provide a valid time.'), context: { movingEvent: original } };
       time = timeString((clock[3] ? hour % 12 + (clock[3].toLowerCase() === 'pm' ? 12 : 0) : hour) * 60 + minute);
     }
     const plan = moveDraft(original, parsed.dateStr, time);
@@ -600,7 +618,7 @@ export const runLocalAiAssistant = async (
       const to = o.date === draft.endDate ? minutes(draft.endTime || '24:00') : 1440;
       return original.allDay || o.event.allDay || (o.startMinutes < to && o.endMinutes > from);
     });
-    return { text: (lang === 'pl' ? 'Sprawdź zmianę przed zatwierdzeniem.' : 'Review the change before confirming.') + (collides ? (lang === 'pl' ? ' Uwaga: nowy termin koliduje z innym wydarzeniem.' : ' Warning: the new time conflicts with another event.') : ''), suggestedPlan: plan };
+    return { text: (tr(lang, 'Sprawdź zmianę przed zatwierdzeniem.', 'Review the change before confirming.')) + (collides ? (tr(lang, ' Uwaga: nowy termin koliduje z innym wydarzeniem.', ' Warning: the new time conflicts with another event.')) : ''), suggestedPlan: plan };
   }
 
   // Only explicit follow-ups use the previous draft; calendar data is never changed here.
@@ -626,7 +644,7 @@ export const runLocalAiAssistant = async (
     if (!shift && time) {
       const hour = Number(time[1]) % (time[3] ? 12 : 24) + (time[3]?.toLowerCase() === 'pm' ? 12 : 0);
       const minute = Number(time[2] || 0);
-      if (Number(time[1]) > (time[3] ? 12 : 23) || minute > 59) return { text: lang === 'pl' ? 'Podaj poprawną godzinę.' : 'Please provide a valid time.', context };
+      if (Number(time[1]) > (time[3] ? 12 : 23) || minute > 59) return { text: tr(lang, 'Podaj poprawną godzinę.', 'Please provide a valid time.'), context };
       const oldStart = draft.startTime?.split(':').map(Number);
       const oldEnd = draft.endTime?.split(':').map(Number);
       const duration = oldStart && oldEnd ? ((oldEnd[0] * 60 + oldEnd[1] - oldStart[0] * 60 - oldStart[1] + 1440) % 1440 || 60) : 60;
@@ -635,9 +653,9 @@ export const runLocalAiAssistant = async (
       draft.endDate = addDays(draft.startDate!, Math.floor((hour * 60 + minute + duration) / 1440));
       draft.allDay = false;
     } else if (!shift && !date.matched) {
-      return { text: lang === 'pl' ? 'Podaj nową datę, godzinę albo przesunięcie, np. „jednak godzinę później”.' : 'Provide a new date, time, or offset, e.g. “actually one hour later”.', context };
+      return { text: tr(lang, 'Podaj nową datę, godzinę albo przesunięcie, np. „jednak godzinę później”.', 'Provide a new date, time, or offset, e.g. “actually one hour later”.'), context };
     }
-    return { text: lang === 'pl' ? 'Zaktualizowałem propozycję. Zatwierdź ją, aby dodać wydarzenie.' : 'The draft has been updated. Confirm it to add the event.', suggestedEvent: draft, context: { suggestedEvent: draft } };
+    return { text: tr(lang, 'Zaktualizowałem propozycję. Zatwierdź ją, aby dodać wydarzenie.', 'The draft has been updated. Confirm it to add the event.'), suggestedEvent: draft, context: { suggestedEvent: draft } };
   }
 
   if (context.pendingPrompt && !/^(?:dodaj|add|create|zaplanuj|schedule|co mam|what|kiedy|when|usuń|delete|remove)\b/i.test(raw) && (parseDateFromNaturalLanguage(raw, now, lang).matched || /^(?:o |at |cały dzień|caly dzien|all.day)/i.test(raw))) {
@@ -690,13 +708,9 @@ export const runLocalAiAssistant = async (
   ) {
     return {
       text:
-        lang === 'pl'
-          ? `Nie ma za co, cieszę się, że mogłem pomóc! 😊\n\nDaj znać, jeśli chcesz sprawdzić grafik lub zaplanować kolejne spotkanie.`
-          : `You're welcome! Glad I could help! 😊\n\nLet me know if you want to check your schedule or plan another event.`,
+        tr(lang, `Nie ma za co, cieszę się, że mogłem pomóc! 😊\n\nDaj znać, jeśli chcesz sprawdzić grafik lub zaplanować kolejne spotkanie.`, `You're welcome! Glad I could help! 😊\n\nLet me know if you want to check your schedule or plan another event.`),
       suggestedPrompts:
-        lang === 'pl'
-          ? ['Kiedy mam wolne dzisiaj?', 'Co mam zaplanowane na jutro?']
-          : ['When do I have free time today?', 'What is on for tomorrow?'],
+        tr(lang, ['Kiedy mam wolne dzisiaj?', 'Co mam zaplanowane na jutro?'], ['When do I have free time today?', 'What is on for tomorrow?']),
     };
   }
 
@@ -735,13 +749,9 @@ export const runLocalAiAssistant = async (
     if (conflicts.length === 0) {
       return {
         text:
-          lang === 'pl'
-            ? `✅ **Brak kolizji terminów!**\n\nPrzeanalizowałem nadchodzące 60 dni — żadne wydarzenia godzinowe nie nakładają się na siebie. Wszystko jest idealnie zorganizowane.`
-            : `✅ **No schedule conflicts found!**\n\nI analyzed the next 60 days — none of your timed events overlap. Everything is well-organized.`,
+          tr(lang, `✅ **Brak kolizji terminów!**\n\nPrzeanalizowałem nadchodzące 60 dni — żadne wydarzenia godzinowe nie nakładają się na siebie. Wszystko jest idealnie zorganizowane.`, `✅ **No schedule conflicts found!**\n\nI analyzed the next 60 days — none of your timed events overlap. Everything is well-organized.`),
         suggestedPrompts:
-          lang === 'pl'
-            ? ['Kiedy mam wolne dzisiaj?', 'Podsumuj mój tydzień']
-            : ['Free time today?', 'Weekly summary'],
+          tr(lang, ['Kiedy mam wolne dzisiaj?', 'Podsumuj mój tydzień'], ['Free time today?', 'Weekly summary']),
       };
     }
 
@@ -754,13 +764,9 @@ export const runLocalAiAssistant = async (
     return {
       suggestedPlan,
       text:
-        lang === 'pl'
-          ? `⚠️ **Kolizje w nadchodzących 60 dniach (maks. 100 wyników; ${conflicts.length})**:\n\n${conflicts.join('\n')}`
-          : `⚠️ **Conflicts in the next 60 days (up to 100 shown; ${conflicts.length})**:\n\n${conflicts.join('\n')}`,
+        tr(lang, `⚠️ **Kolizje w nadchodzących 60 dniach (maks. 100 wyników; ${conflicts.length})**:\n\n${conflicts.join('\n')}`, `⚠️ **Conflicts in the next 60 days (up to 100 shown; ${conflicts.length})**:\n\n${conflicts.join('\n')}`),
       suggestedPrompts:
-        lang === 'pl'
-          ? ['Kiedy mam wolne dzisiaj?', 'Co mam na jutro?']
-          : ['When am I free today?', 'What is on tomorrow?'],
+        tr(lang, ['Kiedy mam wolne dzisiaj?', 'Co mam na jutro?'], ['When am I free today?', 'What is on tomorrow?']),
     };
   }
 
@@ -782,15 +788,15 @@ export const runLocalAiAssistant = async (
     const clockMinutes = (h: string, m: string, ampm: string) => (ampm ? Number(h) % 12 + (ampm.toLowerCase() === 'pm' ? 12 : 0) : Number(h)) * 60 + Number(m || 0);
     const start = hours ? clockMinutes(hours[1], hours[2], hours[3]) : minutes(prefs.dayStart);
     const end = hours ? clockMinutes(hours[4], hours[5], hours[6]) : minutes(prefs.dayEnd);
-    if (start >= end || end >= 1440 || (hours && (Number(hours[1]) > (hours[3] ? 12 : 23) || Number(hours[4]) > (hours[6] ? 12 : 23) || Number(hours[2] || 0) > 59 || Number(hours[5] || 0) > 59))) return { text: lang === 'pl' ? 'Podaj poprawny zakres godzin.' : 'Please provide a valid time range.' };
+    if (start >= end || end >= 1440 || (hours && (Number(hours[1]) > (hours[3] ? 12 : 23) || Number(hours[4]) > (hours[6] ? 12 : 23) || Number(hours[2] || 0) > 59 || Number(hours[5] || 0) > 59))) return { text: tr(lang, 'Podaj poprawny zakres godzin.', 'Please provide a valid time range.') };
     const minimum = requestedDuration(raw) ?? 15;
     const slots = availableSlots(events, targetDateStr, targetDateStr, minimum, { ...prefs, dayStart: timeString(start), dayEnd: timeString(end) }, now);
-    return { text: (lang === 'pl' ? `📅 Wolne okienka ${targetDateStr} (minimum ${minimum} min, przerwa ${prefs.bufferMinutes} min):\n` : `📅 Free slots ${targetDateStr} (minimum ${minimum} min, buffer ${prefs.bufferMinutes} min):\n`) + (slots.map(s => `• **${timeString(s.start)} – ${timeString(s.end)}**`).join('\n') || (lang === 'pl' ? 'Brak okienek o wymaganej długości w wybranych dniach i godzinach.' : 'No slots of the requested length within your preferred days and hours.')) };
+    return { text: (tr(lang, `📅 Wolne okienka ${targetDateStr} (minimum ${minimum} min, przerwa ${prefs.bufferMinutes} min):\n`, `📅 Free slots ${targetDateStr} (minimum ${minimum} min, buffer ${prefs.bufferMinutes} min):\n`)) + (slots.map(s => `• **${timeString(s.start)} – ${timeString(s.end)}**`).join('\n') || (tr(lang, 'Brak okienek o wymaganej długości w wybranych dniach i godzinach.', 'No slots of the requested length within your preferred days and hours.'))) };
   }
 
   // 5. Search specific event by term
   const searchMatch = lower.match(
-    /(?:kiedy mam|o której mam|gdzie mam|znajdź|szukaj|when is|where is|find|search)\s+([a-ząćęłńóśźż0-9\s\-]+)/i,
+    /(?:kiedy mam|o której mam|gdzie mam|znajdź|szukaj|when is|where is|find|search)\s+([a-ząćęłńóśźżа-яё0-9\s\-]+)/i,
   );
   if (
     searchMatch &&
@@ -806,13 +812,9 @@ export const runLocalAiAssistant = async (
       if (found.length === 0) {
         return {
           text:
-            lang === 'pl'
-              ? `🔍 Nie znalazłem w kalendarzu żadnego wpisu pasującego do: **„${term}”**.\n\nCzy chcesz dodać to spotkanie? Napisz np. *„Dodaj ${term} w piątek o 14:00”*.`
-              : `🔍 Could not find any event matching: **“${term}”**.\n\nWould you like to schedule it? Try typing *“Add ${term} on Friday at 2pm”*.`,
+            tr(lang, `🔍 Nie znalazłem w kalendarzu żadnego wpisu pasującego do: **„${term}”**.\n\nCzy chcesz dodać to spotkanie? Napisz np. *„Dodaj ${term} w piątek o 14:00”*.`, `🔍 Could not find any event matching: **“${term}”**.\n\nWould you like to schedule it? Try typing *“Add ${term} on Friday at 2pm”*.`),
           suggestedPrompts: [
-            lang === 'pl'
-              ? `Dodaj ${term} jutro o 15:00`
-              : `Add ${term} tomorrow at 3pm`,
+            tr(lang, `Dodaj ${term} jutro o 15:00`, `Add ${term} tomorrow at 3pm`),
           ],
         };
       }
@@ -821,9 +823,7 @@ export const runLocalAiAssistant = async (
         .slice(0, 100)
         .map((e) => {
           const timeStr = e.allDay
-            ? lang === 'pl'
-              ? 'całodniowe'
-              : 'all-day'
+            ? tr(lang, 'całodniowe', 'all-day')
             : `${e.startTime || ''} – ${e.endTime || ''}`;
           const locStr = e.location ? ` [📍 ${e.location}]` : '';
           return `• **${e.startDate}** (${timeStr}): **${e.title}**${locStr}`;
@@ -831,10 +831,10 @@ export const runLocalAiAssistant = async (
         .join('\n');
 
       return {
-        text: `🔍 **${lang === 'pl' ? `Znaleziono wydarzenia pasujące do „${term}”` : `Found events matching “${term}”`} (${found.length})**:\n\n${list}`,
+        text: `🔍 **${tr(lang, `Znaleziono wydarzenia pasujące do „${term}”`, `Found events matching “${term}”`)} (${found.length})**:\n\n${list}`,
         suggestedPrompts: [
-          lang === 'pl' ? 'Kiedy mam wolne dzisiaj?' : 'Free time today?',
-          lang === 'pl' ? 'Co mam w tym tygodniu?' : 'This week plan',
+          tr(lang, 'Kiedy mam wolne dzisiaj?', 'Free time today?'),
+          tr(lang, 'Co mam w tym tygodniu?', 'This week plan'),
         ],
       };
     }
@@ -858,9 +858,7 @@ export const runLocalAiAssistant = async (
     }
     const occurrences = [...buildEventIndex(events, start, end).values()].flat();
     const list = occurrences.slice(0, 20).map(o => `• **${o.date}**: ${o.event.title}`).join('\n');
-    return { text: lang === 'pl'
-      ? `📊 **Podsumowanie ${start} – ${end}**\n\nLiczba wystąpień w dniach zakresu: **${occurrences.length}**.\n${list || 'Brak wydarzeń.'}`
-      : `📊 **Summary ${start} – ${end}**\n\nEvent occurrences across these days: **${occurrences.length}**.\n${list || 'No events.'}` };
+    return { text: tr(lang, `📊 **Podsumowanie ${start} – ${end}**\n\nLiczba wystąpień w dniach zakresu: **${occurrences.length}**.\n${list || 'Brak wydarzeń.'}`, `📊 **Summary ${start} – ${end}**\n\nEvent occurrences across these days: **${occurrences.length}**.\n${list || 'No events.'}`) };
   }
 
   // 7. Schedule for specific day ("Co mam dzisiaj?", "What is on tomorrow?")
@@ -887,14 +885,10 @@ export const runLocalAiAssistant = async (
     if (dayEvents.length === 0) {
       return {
         text:
-          lang === 'pl'
-            ? `📅 **${label} (${targetDateStr})**: brak zaplanowanych wydarzeń.\n\nTwój dzień jest wolny.`
-            : `📅 **${label} (${targetDateStr})**: no scheduled events.\n\nYour day is clear.`,
+          tr(lang, `📅 **${label} (${targetDateStr})**: brak zaplanowanych wydarzeń.\n\nTwój dzień jest wolny.`, `📅 **${label} (${targetDateStr})**: no scheduled events.\n\nYour day is clear.`),
         suggestedPrompts: [
-          lang === 'pl'
-            ? `Dodaj spotkanie ${label.toLowerCase()} o 14:00`
-            : `Add meeting ${label.toLowerCase()} at 2pm`,
-          lang === 'pl' ? 'Kiedy mam wolne dzisiaj?' : 'Free time today?',
+          tr(lang, `Dodaj spotkanie ${label.toLowerCase()} o 14:00`, `Add meeting ${label.toLowerCase()} at 2pm`),
+          tr(lang, 'Kiedy mam wolne dzisiaj?', 'Free time today?'),
         ],
       };
     }
@@ -903,7 +897,7 @@ export const runLocalAiAssistant = async (
       .slice(0, 100)
       .map((e) => {
         const timeInfo = e.allDay
-          ? `*(${lang === 'pl' ? 'Cały dzień' : 'All day'})*`
+          ? `*(${tr(lang, 'Cały dzień', 'All day')})*`
           : `**${e.startTime} - ${e.endTime}**`;
         const locInfo = e.location ? ` [📍 ${e.location}]` : '';
         return `• ${timeInfo} – **${e.title}**${locInfo}`;
@@ -911,12 +905,10 @@ export const runLocalAiAssistant = async (
       .join('\n');
 
     return {
-      text: `📅 **${lang === 'pl' ? `Twój plan na dzień: ${label}` : `Your schedule for: ${label}`} (${targetDateStr})**:\n\n${items}`,
+      text: `📅 **${tr(lang, `Twój plan na dzień: ${label}`, `Your schedule for: ${label}`)} (${targetDateStr})**:\n\n${items}`,
       suggestedPrompts: [
-        lang === 'pl'
-          ? `Kiedy mam wolne ${label.toLowerCase()}?`
-          : `Free time ${label.toLowerCase()}?`,
-        lang === 'pl' ? 'Sprawdź kolizje terminów' : 'Check for conflicts',
+        tr(lang, `Kiedy mam wolne ${label.toLowerCase()}?`, `Free time ${label.toLowerCase()}?`),
+        tr(lang, 'Sprawdź kolizje terminów', 'Check for conflicts'),
       ],
     };
   }
@@ -927,39 +919,31 @@ export const runLocalAiAssistant = async (
   const unsupported = /^(?:usuń|usun|skasuj|delete|remove|przenieś|przenies|move|edytuj|edit)\s/i.test(raw);
   const extracted = !unsupported && (creation || (parsed.matched && /(?:o|at)\s*\d|\d{1,2}:\d{2}/i.test(raw) && !raw.includes('?'))) ? extractEventFromPromptOffline(query, now, lang) : null;
   if (extracted) {
-    if (!parsed.matched) return { text: lang === 'pl' ? 'Na jaki dzień zaplanować wydarzenie?' : 'Which date should I schedule the event for?', context: { pendingPrompt: raw } };
-    if (extracted.allDay && !/cały dzień|caly dzien|całodniow|all.day/i.test(raw)) return { text: lang === 'pl' ? 'O której godzinie? Możesz też napisać „cały dzień”.' : 'At what time? You can also say “all day”.', context: { pendingPrompt: raw } };
+    if (!parsed.matched) return { text: tr(lang, 'Na jaki dzień zaplanować wydarzenie?', 'Which date should I schedule the event for?'), context: { pendingPrompt: raw } };
+    if (extracted.allDay && !/cały dzień|caly dzien|całodniow|all.day/i.test(raw)) return { text: tr(lang, 'O której godzinie? Możesz też napisać „cały dzień”.', 'At what time? You can also say “all day”.'), context: { pendingPrompt: raw } };
     return {
       text:
-        lang === 'pl'
-          ? `Zrozumiałem! Przygotowałem propozycję wydarzenia **„${extracted.title}”**:\n\n• Data: **${extracted.startDate}**\n• Godzina: **${extracted.startTime ? `${extracted.startTime} – ${extracted.endTime}` : 'Cały dzień'}**${extracted.location ? `\n• Lokalizacja: **${extracted.location}**` : ''}\n• Kolor: **${extracted.color}**\n\nKliknij przycisk poniżej, aby zatwierdzić dodanie do kalendarza:`
-          : `Got it! Here is the proposed event **“${extracted.title}”**:\n\n• Date: **${extracted.startDate}**\n• Time: **${extracted.startTime ? `${extracted.startTime} – ${extracted.endTime}` : 'All day'}**${extracted.location ? `\n• Location: **${extracted.location}**` : ''}\n• Color: **${extracted.color}**\n\nClick the button below to confirm:`,
+        tr(lang, `Zrozumiałem! Przygotowałem propozycję wydarzenia **„${extracted.title}”**:\n\n• Data: **${extracted.startDate}**\n• Godzina: **${extracted.startTime ? `${extracted.startTime} – ${extracted.endTime}` : 'Cały dzień'}**${extracted.location ? `\n• Lokalizacja: **${extracted.location}**` : ''}\n• Kolor: **${extracted.color}**\n\nKliknij przycisk poniżej, aby zatwierdzić dodanie do kalendarza:`, `Got it! Here is the proposed event **“${extracted.title}”**:\n\n• Date: **${extracted.startDate}**\n• Time: **${extracted.startTime ? `${extracted.startTime} – ${extracted.endTime}` : 'All day'}**${extracted.location ? `\n• Location: **${extracted.location}**` : ''}\n• Color: **${extracted.color}**\n\nClick the button below to confirm:`),
       suggestedEvent: extracted,
       context: { suggestedEvent: extracted },
       suggestedPrompts:
-        lang === 'pl'
-          ? ['Kiedy mam wolne dzisiaj?', 'Co mam w ten dzień?']
-          : ['Free time today?', 'What is on this day?'],
+        tr(lang, ['Kiedy mam wolne dzisiaj?', 'Co mam w ten dzień?'], ['Free time today?', 'What is on this day?']),
     };
   }
 
   // 9. Default Fallback
   return {
     text:
-      lang === 'pl'
-        ? `Nie rozpoznałem polecenia: *„${raw}”*.\n\nJestem asystentem kalendarza działającym w 100% lokalnie. Oto co potrafię:\n\n1. **Planowanie:** *„Jutro o 16:00 dentysta na 45 minut”* lub *„Obiad w niedzielę o 14:00”*.\n2. **Wolny czas:** *„Kiedy mam wolne dzisiaj?”* lub *„Czy mam wolny czwartek?”*.\n3. **Przegląd:** *„Co mam w piątek?”* lub *„Plan na weekend”*.\n4. **Szukanie:** *„Kiedy mam spotkanie z klientem?”*.\n5. **Kolizje:** *„Czy mam jakieś kolizje w terminach?”*.`
-        : `I could not recognize the command: *“${raw}”*.\n\nI am your 100% offline local calendar assistant. Here is what I can do:\n\n1. **Schedule:** *“Dentist tomorrow at 4pm for 45 mins”* or *“Dinner on Sunday at 2pm”*.\n2. **Free time:** *“When do I have free time today?”* or *“Am I free on Friday?”*.\n3. **Agenda:** *“What is on Friday?”* or *“Summary of this week”*.\n4. **Search:** *“Find doctor appointment”*.\n5. **Conflicts:** *“Check for schedule conflicts”*.`,
+      tr(lang, `Nie rozpoznałem polecenia: *„${raw}”*.\n\nJestem asystentem kalendarza działającym w 100% lokalnie. Oto co potrafię:\n\n1. **Planowanie:** *„Jutro o 16:00 dentysta na 45 minut”* lub *„Obiad w niedzielę o 14:00”*.\n2. **Wolny czas:** *„Kiedy mam wolne dzisiaj?”* lub *„Czy mam wolny czwartek?”*.\n3. **Przegląd:** *„Co mam w piątek?”* lub *„Plan na weekend”*.\n4. **Szukanie:** *„Kiedy mam spotkanie z klientem?”*.\n5. **Kolizje:** *„Czy mam jakieś kolizje w terminach?”*.`, `I could not recognize the command: *“${raw}”*.\n\nI am your 100% offline local calendar assistant. Here is what I can do:\n\n1. **Schedule:** *“Dentist tomorrow at 4pm for 45 mins”* or *“Dinner on Sunday at 2pm”*.\n2. **Free time:** *“When do I have free time today?”* or *“Am I free on Friday?”*.\n3. **Agenda:** *“What is on Friday?”* or *“Summary of this week”*.\n4. **Search:** *“Find doctor appointment”*.\n5. **Conflicts:** *“Check for schedule conflicts”*.`),
     suggestedPrompts:
-      lang === 'pl'
-        ? [
+      tr(lang, [
             'Kiedy mam wolne dzisiaj?',
             'Co mam zaplanowane na jutro?',
             'Czy mam wolny czwartek?',
-          ]
-        : [
+          ], [
             'When do I have free time today?',
             'What is on for tomorrow?',
             'Check for conflicts',
-          ],
+          ]),
   };
 };

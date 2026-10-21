@@ -1,3 +1,4 @@
+import { tr } from '../utils/i18n';
 import React, { useMemo, useState, useDeferredValue, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { CalendarEvent } from '../types';
@@ -71,7 +72,7 @@ export function SearchModal({
         </div>
         <p className="text-xs theme-muted p-2" role="status">
           {query
-            ? `${results.length} ${language === 'pl' ? 'wyników' : 'results'}`
+            ? `${results.length} ${tr(language, 'wyników', 'results')}`
             : t.searchPlaceholder}
         </p>
         <div

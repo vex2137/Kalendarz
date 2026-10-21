@@ -1,3 +1,4 @@
+import { tr } from '../utils/i18n';
 import React, { useState } from 'react';
 import { Shield, Delete } from 'lucide-react';
 import { AppLanguage, getTranslation } from '../utils/i18n';
@@ -88,9 +89,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
         {error && (
           <p role="alert" className="text-xs text-rose-400 font-semibold">
             {Date.now() < blockedUntil
-              ? language === 'pl'
-                ? 'Zbyt wiele prób. Odczekaj chwilę.'
-                : 'Too many attempts. Please wait.'
+              ? tr(language, 'Zbyt wiele prób. Odczekaj chwilę.', 'Too many attempts. Please wait.')
               : t.pinIncorrect}
           </p>
         )}
@@ -120,7 +119,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
           <button
             type="button"
             onClick={handleDelete}
-            aria-label={language === 'pl' ? 'Usuń cyfrę' : 'Delete digit'}
+            aria-label={tr(language, 'Usuń cyfrę', 'Delete digit')}
             className="h-14 rounded-2xl bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 flex items-center justify-center border border-neutral-800 transition-colors shadow-xs"
           >
             <Delete
