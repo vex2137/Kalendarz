@@ -442,7 +442,7 @@ async function until(fn) {
     await off.locator('#btn-save-event-form').click();
     await off.getByText('Offline event', { exact: true }).waitFor();
     await off.locator('#btn-open-sync').click();
-    await off.getByRole('img', { name: 'Kod synchronizacji' }).waitFor();
+    await off.getByRole('img', { name: 'Sync QR' }).waitFor();
     console.log(
       'PASS offline reload, lazy-loaded event form/sync and IndexedDB persistence',
     );
