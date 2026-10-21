@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { readFileSync, writeFileSync, statSync } = require('node:fs');
 const { join } = require('node:path');
-const { version } = require('../package.json');
+const { version, productName } = require('../package.json');
 
 if (process.env.GITHUB_REF_TYPE === 'tag') {
   assert.equal(
@@ -11,7 +11,7 @@ if (process.env.GITHUB_REF_TYPE === 'tag') {
     'Release tag must match application version',
   );
 }
-const prefix = `Calendar-${version}`;
+const prefix = `${productName}-${version}`;
 const files = [
   `${prefix}-android-test.apk`,
   `${prefix}-windows-x64-setup.exe`,
