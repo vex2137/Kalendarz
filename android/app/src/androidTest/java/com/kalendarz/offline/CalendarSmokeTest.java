@@ -126,7 +126,9 @@ public class CalendarSmokeTest {
             until(scenario, "window.__calendarNativeStatus && typeof window.__calendarNativeStatus.enabled === 'boolean'"
                 + " && ['ready', 'silent', 'blocked'].includes(window.__calendarNativeStatus.channel)");
             AtomicReference<Boolean> enabled = new AtomicReference<>();
-            scenario.onActivity(activity -> enabled.set(androidx.core.app.NotificationManagerCompat.from(activity).areNotificationsEnabled()));
+            // Query the framework independently: R8 may inline AndroidX helpers in
+            // the release APK, so the separate instrumentation APK must not call them.
+            scenario.onActivity(activity -> enabled.set(activity.getSystemService(android.app.NotificationManager.class).areNotificationsEnabled()));
             assertEquals(enabled.get().toString(), evaluate(scenario, "window.__calendarNativeStatus.enabled"));
         }
     }

@@ -54,6 +54,8 @@ const base = process.env.CALENDAR_TEST_URL || 'http://127.0.0.1:4176';
     await page.locator('#btn-mobile-fab-create').click();
     await page.locator('#input-event-title').fill('Besprechung mit Anna');
     await page.locator('#btn-save-event-form').click();
+    // The modal closes only after the asynchronous IndexedDB commit succeeds.
+    await page.locator('#input-event-title').waitFor({ state: 'detached' });
     await page.reload();
     await page.getByRole('navigation', { name: 'Kalenderansichten', exact: true }).getByRole('button', { name: 'Terminübersicht', exact: true }).click();
     await page.getByText('Besprechung mit Anna', { exact: true }).waitFor();
