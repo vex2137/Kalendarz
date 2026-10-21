@@ -1,3 +1,4 @@
+import { planningPreferences } from '../utils/assistantPlanning';
 import { reminderLabel, colorLabel } from '../utils/i18n';
 import { hashPin } from '../utils/security';
 import {
@@ -70,8 +71,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClearAllEvents,
   onLockApp,
 }) => {
-  const lang: AppLanguage = settings.language || 'pl';
+  const lang: AppLanguage = settings.language || 'en';
   const t = getTranslation(lang);
+  const planning = planningPreferences(settings.ai.planning);
+  const updatePlanning = (patch: Partial<typeof planning>) => onUpdateSettings({ ...settings, ai: { ...settings.ai, planning: { ...planning, ...patch } } });
 
   const [pinInput, setPinInput] = useState(settings.security.pinCode);
   const [pinError, setPinError] = useState<string | null>(null);
@@ -633,6 +636,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 : 'The assistant runs 100% locally on your device. It analyzes your schedule, checks free time, and extracts events from natural language.'}
             </p>
           </div>
+
+          <fieldset className="space-y-3 py-4 theme-border border-t">
+            <legend className="text-sm font-semibold theme-text">{lang === 'pl' ? 'Preferencje planowania asystenta' : 'Assistant planning preferences'}</legend>
+            <div className="flex flex-wrap gap-3">
+              <label className="text-xs theme-muted">{lang === 'pl' ? 'Od godziny' : 'Start time'}
+                <input aria-label={lang === 'pl' ? 'Początek dnia' : 'Day start'} type="time" value={planning.dayStart} max={planning.dayEnd} onChange={e => { if (e.target.value && e.target.value < planning.dayEnd) updatePlanning({ dayStart: e.target.value }); }} className="block theme-surface theme-text p-2 rounded" />
+              </label>
+              <label className="text-xs theme-muted">{lang === 'pl' ? 'Do godziny' : 'End time'}
+                <input aria-label={lang === 'pl' ? 'Koniec dnia' : 'Day end'} type="time" value={planning.dayEnd} min={planning.dayStart} onChange={e => { if (e.target.value > planning.dayStart) updatePlanning({ dayEnd: e.target.value }); }} className="block theme-surface theme-text p-2 rounded" />
+              </label>
+              <label className="text-xs theme-muted">{lang === 'pl' ? 'Przerwa między wydarzeniami (min)' : 'Buffer between events (min)'}
+                <input type="number" min="0" max="180" value={planning.bufferMinutes} onChange={e => { const value = Number(e.target.value); if (Number.isInteger(value) && value >= 0 && value <= 180) updatePlanning({ bufferMinutes: value }); }} className="block w-24 theme-surface theme-text p-2 rounded" />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {[1, 2, 3, 4, 5, 6, 0].map((day, i) => <label key={day} className="flex gap-1 items-center text-xs theme-text">
+                <input type="checkbox" checked={planning.workingDays.includes(day)} onChange={e => updatePlanning({ workingDays: e.target.checked ? [...planning.workingDays, day] : planning.workingDays.filter(d => d !== day) })} />
+                {(lang === 'pl' ? ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])[i]}
+              </label>)}
+            </div>
+            <p className="text-xs theme-muted">{lang === 'pl' ? 'Dotyczy propozycji asystenta i wolnych okienek. Nie zmienia istniejących wydarzeń.' : 'Used for assistant suggestions and free slots. Existing events are not changed.'}</p>
+          </fieldset>
 
           {/* Section 5: Blokada kodem PIN */}
           <div className="space-y-3 pt-5">

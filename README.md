@@ -1,4 +1,4 @@
-# 📅 Kalendarz Offline 1.2.0 (Offline Calendar)
+# 📅 Kalendarz Offline 1.2.1 (Offline Calendar)
 
 A modern, private, and 100% local calendar application inspired by Google Calendar. Built for **Android (APK)**, **Linux (Flatpak & AppImage)**, **Windows (.exe)**, and the **Web**.
 
@@ -75,6 +75,9 @@ native notifications and refreshes the schedule when the app is opened.
 For Android release builds install JDK 21 and Android SDK 36, then run
 `npm run build:android`. Release APKs use R8/resource shrinking and remain unsigned
 until you sign them with your own key. Web checks also run before Android CI builds.
+
+See the [offline assistant guide](docs/ASSISTANT.md) for bilingual commands, planning
+preferences, rescheduling, and undo.
 
 See [development notes](docs/DEVELOPMENT.md) for data recovery, sync compatibility,
 verification coverage and native packaging details.

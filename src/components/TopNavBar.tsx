@@ -28,7 +28,7 @@ interface Props {
   language?: AppLanguage;
 }
 export function TopNavBar(p: Props) {
-  const t = getTranslation(p.language || 'pl');
+  const t = getTranslation(p.language || 'en');
   const modes = [
     ['year', t.year],
     ['month', t.month],
@@ -63,8 +63,9 @@ export function TopNavBar(p: Props) {
           >
             <ChevronRight size={18} />
           </button>
+          <span className="text-sm font-semibold" aria-label={t.appName}>{t.appName}</span>
           <h2 className="text-sm sm:text-lg font-semibold whitespace-nowrap">
-            {MONTH_NAMES[p.language || 'pl'][p.currentDate.getMonth()]}{' '}
+            {MONTH_NAMES[p.language || 'en'][p.currentDate.getMonth()]}{' '}
             <span className="theme-muted font-normal">
               {p.currentDate.getFullYear()}
             </span>

@@ -1,3 +1,6 @@
+import { applyAssistantChanges, signalCalendarChange, type AssistantChange } from './utils/calendarStore';
+import { changesForPlan } from './utils/assistantChanges';
+import type { AssistantPlan } from './utils/assistantPlanning';
 import React, {
   lazy,
   Suspense,
@@ -136,6 +139,7 @@ export default function App() {
     commit,
     save: saveRecords,
     remove,
+    refresh,
   } = useCalendar();
   const [settings, setSettings] = useState<AppSettings>(loadStoredSettings);
   const [settingsError, setSettingsError] = useState('');
@@ -157,7 +161,8 @@ export default function App() {
     minutesBefore: number;
   } | null>(null);
   const now = useNow();
-  const language = settings.language || 'pl';
+  const language = settings.language || 'en';
+  const [assistantUndo, setAssistantUndo] = useState<AssistantChange[] | null>(null);
   const updateSettings = useCallback((next: AppSettings) => {
     try {
       saveStoredSettings(next);
@@ -199,6 +204,7 @@ export default function App() {
   }, [settings, updateSettings]);
   useEffect(() => {
     document.title = language === 'en' ? 'Calendar' : 'Kalendarz';
+    document.querySelector('meta[property="og:title"]')?.setAttribute('content', document.title);
     document.documentElement.lang = language;
     document.documentElement.dataset.theme = settings.theme;
     document
@@ -359,30 +365,19 @@ export default function App() {
     },
     [remove],
   );
-  const addFromAi = useCallback(
-    async (partial: Partial<CalendarEvent>) => {
-      const at = Date.now();
-      const date = partial.startDate || localDate();
-      await save({
-        id: crypto.randomUUID(),
-        title: partial.title || 'Event',
-        description: partial.description || '',
-        location: partial.location || '',
-        startDate: date,
-        startTime: partial.startTime || '12:00',
-        endDate: partial.endDate || date,
-        endTime: partial.endTime || '13:00',
-        allDay: partial.allDay ?? false,
-        color: partial.color || 'lavender',
-        recurrence: partial.recurrence || 'NONE',
-        customRecurrence: partial.customRecurrence,
-        reminders: partial.reminders ?? [15],
-        createdAt: at,
-        updatedAt: at,
-      });
-    },
-    [save],
-  );
+  const applyAiPlan = useCallback(async (plan: AssistantPlan) => {
+    const inverse = await applyAssistantChanges(changesForPlan(plan));
+    setAssistantUndo(inverse);
+    signalCalendarChange();
+    await refresh();
+  }, [refresh]);
+  const undoAiPlan = useCallback(async () => {
+    if (!assistantUndo) return;
+    await applyAssistantChanges(assistantUndo);
+    setAssistantUndo(null);
+    signalCalendarChange();
+    await refresh();
+  }, [assistantUndo, refresh]);
   if (isPinLocked && settings.security.pinEnabled)
     return (
       <PinLockScreen
@@ -508,7 +503,9 @@ export default function App() {
                 isOpen
                 onClose={close}
                 events={events}
-                onAddEventFromAi={addFromAi}
+                onApplyPlan={applyAiPlan}
+                onUndo={undoAiPlan}
+                canUndo={Boolean(assistantUndo)}
                 aiSettings={settings.ai}
                 language={language}
               />

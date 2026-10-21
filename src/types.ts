@@ -78,7 +78,15 @@ export interface CalendarEvent {
 
 export type CalendarViewMode = 'month' | 'week' | 'day' | 'agenda' | 'year';
 
+export interface PlanningPreferences {
+  dayStart: string;
+  dayEnd: string;
+  workingDays: number[];
+  bufferMinutes: number;
+}
+
 export interface AiSettings {
+  planning?: PlanningPreferences;
   enabled: boolean;
   model: 'gemma-2-2b-local' | 'lightweight-nlp';
   autoExtractEvents: boolean;
@@ -129,5 +137,6 @@ export interface AiChatMessage {
   content: string;
   timestamp: number;
   suggestedEvent?: Partial<CalendarEvent>;
+  suggestedPlan?: import("./utils/assistantPlanning").AssistantPlan;
   suggestedPrompts?: string[];
 }

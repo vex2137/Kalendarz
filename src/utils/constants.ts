@@ -1,3 +1,4 @@
+import { DEFAULT_PLANNING } from './assistantPlanning';
 import { CalendarColorDef, GoogleCalendarColor, AppSettings } from '../types';
 
 export const GOOGLE_CALENDAR_COLORS: Record<GoogleCalendarColor, CalendarColorDef> = {
@@ -92,8 +93,9 @@ export const GOOGLE_CALENDAR_COLORS: Record<GoogleCalendarColor, CalendarColorDe
 };
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  language: 'pl',
+  language: 'en',
   ai: {
+    planning: DEFAULT_PLANNING,
     enabled: true,
     model: 'lightweight-nlp',
     autoExtractEvents: true,

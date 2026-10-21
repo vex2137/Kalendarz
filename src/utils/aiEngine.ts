@@ -2,6 +2,8 @@ import { buildEventIndex } from './recurrence';
 import { localDate, addDays, timeString } from './dates';
 import { CalendarEvent, GoogleCalendarColor } from '../types';
 import { AppLanguage } from './i18n';
+import { availableSlots, DEFAULT_PLANNING, minutes, moveDraft, planGroup, planningPreferences, requestedDuration, searchCalendar, type AssistantPlan } from './assistantPlanning';
+import type { PlanningPreferences } from '../types';
 
 export interface ExtractedEventSuggestion {
   title: string;
@@ -13,9 +15,20 @@ export interface ExtractedEventSuggestion {
   location?: string;
   description?: string;
   color?: GoogleCalendarColor;
+  recurrence?: CalendarEvent["recurrence"];
+}
+
+export interface AiConversationContext {
+  pendingPrompt?: string;
+  movingEvent?: CalendarEvent;
+  moveChoices?: CalendarEvent[];
+  moveRequest?: string;
+  suggestedEvent?: Partial<CalendarEvent>;
 }
 
 export interface AiResponseResult {
+  context?: AiConversationContext;
+  suggestedPlan?: AssistantPlan;
   text: string;
   suggestedEvent?: Partial<CalendarEvent>;
   eventToDelete?: CalendarEvent;
@@ -192,10 +205,17 @@ export const deduceEventColor = (text: string): GoogleCalendarColor => {
 export function parseDateFromNaturalLanguage(
   text: string,
   referenceDate: Date = new Date(),
-  lang: AppLanguage = 'pl',
+  lang: AppLanguage = 'en',
 ): { date: Date; dateStr: string; label: string; matched: boolean } {
   const lower = text.toLowerCase();
   const target = new Date(referenceDate);
+
+  const weeks = lower.match(/(?:za|in)\s+(\d+|dwa|dwie|two|jeden|one)\s+(?:tygodni\w*|weeks?)/i);
+  if (weeks) {
+    const count = /^(dwa|dwie|two)$/.test(weeks[1]) ? 2 : /^(jeden|one)$/.test(weeks[1]) ? 1 : Number(weeks[1]);
+    target.setDate(target.getDate() + count * 7);
+    return { date: target, dateStr: formatDateISO(target), label: formatDateISO(target), matched: true };
+  }
 
   // Relative: Pojutrze / In 2 days
   if (
@@ -214,9 +234,10 @@ export function parseDateFromNaturalLanguage(
   }
 
   // Relative: Za 3 dni / in 3 days
-  const inDaysMatch = lower.match(/(?:za|in)\s+(\d+)\s*(?:dni|day[s]?)/i);
+  const inDaysMatch = lower.match(/(?:za|in)\s+(\d+|dwa|dwie|trzy|cztery|pięć|piec|two|three|four|five)\s*(?:dni|days?)/i);
   if (inDaysMatch) {
-    const dCount = parseInt(inDaysMatch[1], 10);
+    const dayCounts: Record<string, number> = { dwa: 2, dwie: 2, trzy: 3, cztery: 4, pięć: 5, piec: 5, two: 2, three: 3, four: 4, five: 5 };
+    const dCount = dayCounts[inDaysMatch[1]] || Number(inDaysMatch[1]);
     target.setDate(target.getDate() + dCount);
     return {
       date: target,
@@ -224,6 +245,14 @@ export function parseDateFromNaturalLanguage(
       label: lang === 'pl' ? `Za ${dCount} dni` : `In ${dCount} days`,
       matched: true,
     };
+  }
+
+  const monthFirst = lower.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/i);
+  if (monthFirst) {
+    const month = ENGLISH_MONTHS.findIndex(m => monthFirst[1].startsWith(m.name));
+    const day = Number(monthFirst[2]), year = Number(monthFirst[3] || referenceDate.getFullYear());
+    target.setFullYear(year, month, day);
+    return { date: target, dateStr: formatDateISO(target), label: formatDateISO(target), matched: target.getMonth() === month && target.getDate() === day };
   }
 
   // Relative: Jutro / Tomorrow
@@ -252,10 +281,25 @@ export function parseDateFromNaturalLanguage(
     };
   }
 
+  if (/ostatni|ostatnią|last/i.test(lower)) {
+    const day = DAYS_MAP.find(entry => entry.pattern.test(lower));
+    if (day && /miesiąc|miesiac|month/i.test(lower)) {
+      const offset = /następn|nastepn|next/i.test(lower) ? 1 : 0;
+      const last = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + offset + 1, 0);
+      last.setDate(last.getDate() - (last.getDay() - day.targetDay + 7) % 7);
+      return { date: last, dateStr: formatDateISO(last), label: formatDateISO(last), matched: true };
+    }
+  }
+
   // Check days of week
   for (const dayEntry of DAYS_MAP) {
-    if (dayEntry.pattern.test(lower)) {
+    if (new RegExp(`(?<![\\p{L}])(?:${dayEntry.pattern.source})(?![\\p{L}])`, 'iu').test(lower)) {
       const nextDate = getNextDayOfWeek(referenceDate, dayEntry.targetDay);
+      if (/next|przyszł|przyszl|następn|nastepn/i.test(lower)) {
+        const monday = addDays(localDate(referenceDate), 7 - ((referenceDate.getDay() + 6) % 7));
+        const exact = new Date(`${addDays(monday, (dayEntry.targetDay + 6) % 7)}T12:00:00`);
+        nextDate.setFullYear(exact.getFullYear(), exact.getMonth(), exact.getDate());
+      }
       return {
         date: nextDate,
         dateStr: formatDateISO(nextDate),
@@ -275,8 +319,10 @@ export function parseDateFromNaturalLanguage(
     const match = text.match(reg);
     if (match) {
       const dNum = parseInt(match[1], 10);
+      target.setDate(1);
       target.setMonth(monthItem.index);
       target.setDate(dNum);
+      if (target.getMonth() !== monthItem.index) continue;
       return {
         date: target,
         dateStr: formatDateISO(target),
@@ -295,6 +341,9 @@ export function parseDateFromNaturalLanguage(
       ? parseInt(dotDateMatch[3], 10)
       : referenceDate.getFullYear();
     target.setFullYear(y, m, d);
+    if (target.getFullYear() !== y || target.getMonth() !== m || target.getDate() !== d) {
+      return { date: referenceDate, dateStr: formatDateISO(referenceDate), label: "", matched: false };
+    }
     return {
       date: target,
       dateStr: formatDateISO(target),
@@ -310,6 +359,9 @@ export function parseDateFromNaturalLanguage(
     const m = parseInt(isoMatch[2], 10) - 1;
     const d = parseInt(isoMatch[3], 10);
     target.setFullYear(y, m, d);
+    if (target.getFullYear() !== y || target.getMonth() !== m || target.getDate() !== d) {
+      return { date: referenceDate, dateStr: formatDateISO(referenceDate), label: "", matched: false };
+    }
     return {
       date: target,
       dateStr: formatDateISO(target),
@@ -332,7 +384,7 @@ export function parseDateFromNaturalLanguage(
 export const extractEventFromPromptOffline = (
   prompt: string,
   referenceDate: Date = new Date(),
-  lang: AppLanguage = 'pl',
+  lang: AppLanguage = 'en',
 ): ExtractedEventSuggestion | null => {
   const text = prompt.trim();
   if (!text) return null;
@@ -348,7 +400,7 @@ export const extractEventFromPromptOffline = (
 
   // Time range regex (e.g. od 15:30 do 17:00, 14:00 - 15:00, from 10 to 12)
   const timeRangeMatch = text.match(
-    /(?:od|from\s*)?(\d{1,2})(?:[:.](\d{2}))?\s*(?:do|-|to)\s*(\d{1,2})(?:[:.](\d{2}))?/i,
+    /(?<![\d.\-])(?:od\s*|from\s*)?(\d{1,2})(?:[:.](\d{2}))?\s*(?:do|-|to)\s*(\d{1,2})(?:[:.](\d{2}))?(?![\d.\-])/i,
   );
   // Single time regex (e.g. o 18, o 18:30, at 3pm, godzina 15, o 9:00 rano)
   const singleTimeMatch =
@@ -362,7 +414,7 @@ export const extractEventFromPromptOffline = (
     const endH = parseInt(timeRangeMatch[3], 10);
     const endM = timeRangeMatch[4] ? parseInt(timeRangeMatch[4], 10) : 0;
 
-    if (startH >= 0 && startH < 24 && endH >= 0 && endH < 24) {
+    if (startH >= 0 && startH < 24 && endH >= 0 && endH < 24 && startM < 60 && endM < 60) {
       isAllDay = false;
       startTime = `${pad2(startH)}:${pad2(startM)}`;
       endTime = `${pad2(endH)}:${pad2(endM)}`;
@@ -429,6 +481,9 @@ export const extractEventFromPromptOffline = (
 
   // Title extraction: remove common prefixes and filler words
   let title = text
+    .replace(/\d{4}-\d{2}-\d{2}/g, '')
+    .replace(/(?:za|in)\s+(?:\d+|dwa|dwie|two|jeden|one)\s+(?:tygodni\w*|weeks?)/gi, '')
+    .replace(/(?:co tydzień|co tydzien|codziennie|co miesiąc|co miesiac|every week|every day|every month|all.day|cały dzień|caly dzien)/gi, '')
     .replace(
       /^(dodaj|zaplanuj|ustaw|wpisz|utwórz|stwórz|muszę pójść do|muszę zrobić|chcę dodać|przypomnij o|przypomnij mi o|mam|add|create|schedule|set|remind me to|plan)\s+/i,
       '',
@@ -446,7 +501,7 @@ export const extractEventFromPromptOffline = (
       '',
     )
     .replace(
-      /(dzisiaj|dziś|jutro|pojutrze|w ten weekend|w ten piątek|w najbliższy piątek|w poniedziałek|we wtorek|w środę|w srode|w czwartek|w piątek|w piatek|w sobotę|w sobote|w niedzielę|w niedziele|w weekend|today|tomorrow|day after tomorrow|this weekend|next monday|on friday)/gi,
+      /(dzisiaj|dziś|pojutrze|jutro|w ten weekend|w ten piątek|w najbliższy piątek|w poniedziałek|we wtorek|w środę|w srode|w czwartek|w piątek|w piatek|w sobotę|w sobote|w niedzielę|w niedziele|w weekend|today|day after tomorrow|tomorrow|this weekend|next monday|on friday)/gi,
       '',
     )
     .replace(/\s+/g, ' ')
@@ -477,6 +532,9 @@ export const extractEventFromPromptOffline = (
         ? `Dodane przez lokalnego asystenta: "${text}"`
         : `Added by local assistant: "${text}"`,
     color,
+    recurrence: /codziennie|every day|daily/i.test(text) ? 'DAILY'
+      : /co tydzień|co tydzien|co (?:poniedziałek|wtorek|środę|czwartek|piątek|sobotę|niedzielę)|every (?:week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|weekly/i.test(text) ? 'WEEKLY'
+      : /co miesiąc|co miesiac|every month|monthly/i.test(text) ? 'MONTHLY' : 'NONE',
   };
 };
 
@@ -486,11 +544,14 @@ export const extractEventFromPromptOffline = (
 export const runLocalAiAssistant = async (
   query: string,
   events: CalendarEvent[],
-  lang: AppLanguage = 'pl',
+  lang: AppLanguage = 'en',
   now = new Date(),
+  context: AiConversationContext = {},
+  preferences: PlanningPreferences = DEFAULT_PLANNING,
 ): Promise<AiResponseResult> => {
   // Ultra-responsive local NLP processing
 
+  const prefs = planningPreferences(preferences);
   const raw = query.trim();
   const lower = raw.toLowerCase();
   const todayStr = localDate(now);
@@ -506,6 +567,82 @@ export const runLocalAiAssistant = async (
           ? '24:00'
           : timeString(o.endMinutes),
     }));
+
+  const group = planGroup(raw, events, prefs, now, lang);
+  if (group) return group;
+
+  const move = raw.match(/^(?:przenieś|przenies|przełóż|przeloz|move|reschedule)\s+(.+?)(?:\s+(?:na|to)\s+(.+))?$/i);
+  const choice = context.moveChoices && /^\d+$/.test(raw) ? context.moveChoices[Number(raw) - 1] : undefined;
+  if (move || (context.movingEvent && parseDateFromNaturalLanguage(raw, now, lang).matched && !/^(?:dodaj|add|schedule|zaplanuj|what|co mam)/i.test(raw)) || choice) {
+    const candidates = move ? searchCalendar(events, move[1]) : choice ? [choice] : context.movingEvent ? [context.movingEvent] : [];
+    const request = move ? move[2] || '' : choice ? context.moveRequest || '' : raw;
+    if (candidates.length !== 1) return {
+      text: candidates.length ? (lang === 'pl' ? 'Wybierz wydarzenie, wpisując numer:\n' : 'Select an event by number:\n') + candidates.slice(0, 20).map((e, i) => `${i + 1}. ${e.title} — ${e.startDate} ${e.startTime || ''}`).join('\n') : lang === 'pl' ? 'Nie znalazłem pasującego wydarzenia. Podaj jego tytuł.' : 'No matching event was found. Please provide its title.',
+      context: candidates.length ? { moveChoices: candidates.slice(0, 20), moveRequest: request } : {},
+      suggestedPrompts: candidates.slice(0, 20).map((_, i) => String(i + 1)),
+    };
+    const original = candidates[0];
+    if (original.recurrence !== 'NONE' || original.rrule || original.exdates?.length) return { text: lang === 'pl' ? 'To wydarzenie należy do serii. Otwórz je w kalendarzu, aby wybrać zakres zmiany serii.' : 'This event belongs to a recurring series. Open it in the calendar to choose the scope of the series change.' };
+    const parsed = parseDateFromNaturalLanguage(request, now, lang);
+    if (!parsed.matched) return { text: lang === 'pl' ? `Na jaki dzień przenieść „${original.title}”?` : `Which date should I move “${original.title}” to?`, context: { movingEvent: original } };
+    const clock = request.match(/(?:o|at)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    let time: string | undefined;
+    if (clock) {
+      const hour = Number(clock[1]), minute = Number(clock[2] || 0);
+      if (hour > (clock[3] ? 12 : 23) || (clock[3] && hour < 1) || minute > 59) return { text: lang === 'pl' ? 'Podaj poprawną godzinę.' : 'Please provide a valid time.', context: { movingEvent: original } };
+      time = timeString((clock[3] ? hour % 12 + (clock[3].toLowerCase() === 'pm' ? 12 : 0) : hour) * 60 + minute);
+    }
+    const plan = moveDraft(original, parsed.dateStr, time);
+    const draft = plan.events[0];
+    const overlap = buildEventIndex(events.filter(e => e.id !== original.id), draft.startDate!, draft.endDate!);
+    const collides = [...overlap.values()].flat().some(o => {
+      const from = o.date === draft.startDate ? minutes(draft.startTime || '00:00') : 0;
+      const to = o.date === draft.endDate ? minutes(draft.endTime || '24:00') : 1440;
+      return original.allDay || o.event.allDay || (o.startMinutes < to && o.endMinutes > from);
+    });
+    return { text: (lang === 'pl' ? 'Sprawdź zmianę przed zatwierdzeniem.' : 'Review the change before confirming.') + (collides ? (lang === 'pl' ? ' Uwaga: nowy termin koliduje z innym wydarzeniem.' : ' Warning: the new time conflicts with another event.') : ''), suggestedPlan: plan };
+  }
+
+  // Only explicit follow-ups use the previous draft; calendar data is never changed here.
+  if (context.suggestedEvent && /^(?:jednak|zmień|zmien|przesuń|przesun|actually|instead|move|make it)/i.test(raw)) {
+    const draft = { ...context.suggestedEvent };
+    const shift = raw.match(/(?:o\s+)?(godzinę|godzine|hour|\d+\s*(?:minut|min|hours?|godzin\w*))\s*(później|pozniej|wcześniej|wczesniej|later|earlier)/i);
+    const date = parseDateFromNaturalLanguage(raw, now, lang);
+    const time = raw.match(/(?:o|at)\s+(\d{1,2})(?::(\d{2}))?(?:\s*(am|pm))?/i);
+    if (shift && draft.startTime && draft.endTime && draft.startDate && draft.endDate) {
+      const amount = Number(shift[1].match(/\d+/)?.[0] || 1) * (/min/i.test(shift[1]) ? 1 : 60);
+      const delta = amount * (/wcze|earlier/i.test(shift[2]) ? -1 : 1);
+      for (const edge of ['start', 'end'] as const) {
+        const [h, m] = draft[`${edge}Time`]!.split(':').map(Number);
+        const total = h * 60 + m + delta;
+        draft[`${edge}Date`] = addDays(draft[`${edge}Date`]!, Math.floor(total / 1440));
+        draft[`${edge}Time`] = timeString(((total % 1440) + 1440) % 1440);
+      }
+    } else if (date.matched && draft.startDate && draft.endDate) {
+      const days = Math.round((Date.parse(draft.endDate) - Date.parse(draft.startDate)) / 86400000);
+      draft.startDate = date.dateStr;
+      draft.endDate = addDays(date.dateStr, days);
+    }
+    if (!shift && time) {
+      const hour = Number(time[1]) % (time[3] ? 12 : 24) + (time[3]?.toLowerCase() === 'pm' ? 12 : 0);
+      const minute = Number(time[2] || 0);
+      if (Number(time[1]) > (time[3] ? 12 : 23) || minute > 59) return { text: lang === 'pl' ? 'Podaj poprawną godzinę.' : 'Please provide a valid time.', context };
+      const oldStart = draft.startTime?.split(':').map(Number);
+      const oldEnd = draft.endTime?.split(':').map(Number);
+      const duration = oldStart && oldEnd ? ((oldEnd[0] * 60 + oldEnd[1] - oldStart[0] * 60 - oldStart[1] + 1440) % 1440 || 60) : 60;
+      draft.startTime = timeString(hour * 60 + minute);
+      draft.endTime = timeString((hour * 60 + minute + duration) % 1440);
+      draft.endDate = addDays(draft.startDate!, Math.floor((hour * 60 + minute + duration) / 1440));
+      draft.allDay = false;
+    } else if (!shift && !date.matched) {
+      return { text: lang === 'pl' ? 'Podaj nową datę, godzinę albo przesunięcie, np. „jednak godzinę później”.' : 'Provide a new date, time, or offset, e.g. “actually one hour later”.', context };
+    }
+    return { text: lang === 'pl' ? 'Zaktualizowałem propozycję. Zatwierdź ją, aby dodać wydarzenie.' : 'The draft has been updated. Confirm it to add the event.', suggestedEvent: draft, context: { suggestedEvent: draft } };
+  }
+
+  if (context.pendingPrompt && !/^(?:dodaj|add|create|zaplanuj|schedule|co mam|what|kiedy|when|usuń|delete|remove)\b/i.test(raw) && (parseDateFromNaturalLanguage(raw, now, lang).matched || /^(?:o |at |cały dzień|caly dzien|all.day)/i.test(raw))) {
+    return runLocalAiAssistant(`${context.pendingPrompt} ${raw}`, events, lang, now, {}, prefs);
+  }
 
   // 1. Greetings
   if (
@@ -573,6 +710,7 @@ export const runLocalAiAssistant = async (
     lower.includes('overlap')
   ) {
     const conflicts: string[] = [];
+    let conflictEvent: CalendarEvent | undefined;
 
     const byDate = buildEventIndex(events, todayStr, addDays(todayStr, 59));
     outer: for (const [date, bucket] of byDate) {
@@ -585,6 +723,7 @@ export const runLocalAiAssistant = async (
         ) {
           const a = timed[i],
             b = timed[j];
+          if (!conflictEvent) conflictEvent = [a.event, b.event].find(e => e.recurrence === 'NONE' && !e.rrule && !e.allDay);
           conflicts.push(
             `• **${date}**: „${a.event.title}” (${timeString(a.startMinutes)} – ${timeString(a.endMinutes)}) ⇄ „${b.event.title}” (${timeString(b.startMinutes)} – ${timeString(b.endMinutes)})`,
           );
@@ -606,7 +745,14 @@ export const runLocalAiAssistant = async (
       };
     }
 
+    let suggestedPlan: AssistantPlan | undefined;
+    if (conflictEvent) {
+      const duration = Math.round((Date.parse(conflictEvent.endDate) - Date.parse(conflictEvent.startDate)) / 86400000) * 1440 + minutes(conflictEvent.endTime!) - minutes(conflictEvent.startTime!);
+      const slot = availableSlots(events.filter(e => e.id !== conflictEvent!.id), todayStr, addDays(todayStr, 59), duration, prefs, now)[0];
+      if (slot) suggestedPlan = moveDraft(conflictEvent, slot.date, timeString(slot.start));
+    }
     return {
+      suggestedPlan,
       text:
         lang === 'pl'
           ? `⚠️ **Kolizje w nadchodzących 60 dniach (maks. 100 wyników; ${conflicts.length})**:\n\n${conflicts.join('\n')}`
@@ -626,81 +772,20 @@ export const runLocalAiAssistant = async (
     lower.includes('wolny czas') ||
     lower.includes('czy mam woln') ||
     lower.includes('free time') ||
-    lower.includes('available')
+    lower.includes('available') || lower.includes('am i free') || lower.includes('when am i free')
   ) {
     const parsed = parseDateFromNaturalLanguage(raw, now, lang);
     const targetDateStr = parsed.dateStr;
     const label = parsed.label;
 
-    const dayEvents = eventsOn(targetDateStr)
-      .filter((e) => !e.id.startsWith('pl-holiday-'))
-      .map((e) =>
-        e.allDay ? { ...e, startTime: '08:00', endTime: '20:00' } : e,
-      )
-      .filter((e) => e.startTime && e.endTime)
-      .sort((a, b) => a.startTime!.localeCompare(b.startTime!));
-
-    if (dayEvents.length === 0) {
-      return {
-        text:
-          lang === 'pl'
-            ? `🟢 **${label} (${targetDateStr})** Twój grafik jest w 100% wolny!\n\nNie masz zaplanowanych żadnych spotkań godzinowych.`
-            : `🟢 **${label} (${targetDateStr})** Your schedule is 100% free!\n\nYou have no scheduled timed meetings.`,
-        suggestedPrompts: [
-          lang === 'pl'
-            ? `Dodaj spotkanie ${label.toLowerCase()} o 12:00`
-            : `Add meeting ${label.toLowerCase()} at 12:00`,
-          lang === 'pl' ? 'Co mam w pozostałe dni?' : 'What is on other days?',
-        ],
-      };
-    }
-
-    const slots: string[] = [];
-    let currentMin = 8 * 60; // 08:00 AM
-
-    dayEvents.forEach((ev) => {
-      const [sh, sm] = ev.startTime!.split(':').map(Number);
-      const [eh, em] = ev.endTime!.split(':').map(Number);
-      const evStartMin = Math.max(8 * 60, Math.min(20 * 60, sh * 60 + sm));
-      const evEndMin = Math.max(8 * 60, Math.min(20 * 60, eh * 60 + em));
-
-      if (evStartMin >= currentMin + 15) {
-        const fromH = Math.floor(currentMin / 60);
-        const fromM = currentMin % 60;
-        const toH = Math.floor(evStartMin / 60);
-        const toM = evStartMin % 60;
-        const diffHours = ((evStartMin - currentMin) / 60)
-          .toFixed(1)
-          .replace('.0', '');
-        slots.push(
-          `• **${pad2(fromH)}:${pad2(fromM)} – ${pad2(toH)}:${pad2(toM)}** (${diffHours}h ${lang === 'pl' ? 'wolnego' : 'free'})`,
-        );
-      }
-      if (evEndMin > currentMin) {
-        currentMin = evEndMin;
-      }
-    });
-
-    if (currentMin < 20 * 60) {
-      const fromH = Math.floor(currentMin / 60);
-      const fromM = currentMin % 60;
-      slots.push(
-        `• **${lang === 'pl' ? 'od' : 'from'} ${pad2(fromH)}:${pad2(fromM)} ${lang === 'pl' ? 'do wieczora' : 'till evening'}**`,
-      );
-    }
-
-    return {
-      text:
-        lang === 'pl'
-          ? `📅 **Analiza wolnego czasu (${label}, ${targetDateStr})**:\n\nMasz ${dayEvents.length} spotkań. Twoje wolne okienka:\n${slots.join('\n')}`
-          : `📅 **Free time analysis (${label}, ${targetDateStr})**:\n\nYou have ${dayEvents.length} meetings. Free slots:\n${slots.join('\n')}`,
-      suggestedPrompts: [
-        lang === 'pl'
-          ? `Co dokładnie mam ${label.toLowerCase()}?`
-          : `What exactly is on ${label.toLowerCase()}?`,
-        lang === 'pl' ? 'Sprawdź kolizje terminów' : 'Check for conflicts',
-      ],
-    };
+    const hours = raw.match(/(?:od|from)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s+(?:do|to)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    const clockMinutes = (h: string, m: string, ampm: string) => (ampm ? Number(h) % 12 + (ampm.toLowerCase() === 'pm' ? 12 : 0) : Number(h)) * 60 + Number(m || 0);
+    const start = hours ? clockMinutes(hours[1], hours[2], hours[3]) : minutes(prefs.dayStart);
+    const end = hours ? clockMinutes(hours[4], hours[5], hours[6]) : minutes(prefs.dayEnd);
+    if (start >= end || end >= 1440 || (hours && (Number(hours[1]) > (hours[3] ? 12 : 23) || Number(hours[4]) > (hours[6] ? 12 : 23) || Number(hours[2] || 0) > 59 || Number(hours[5] || 0) > 59))) return { text: lang === 'pl' ? 'Podaj poprawny zakres godzin.' : 'Please provide a valid time range.' };
+    const minimum = requestedDuration(raw) ?? 15;
+    const slots = availableSlots(events, targetDateStr, targetDateStr, minimum, { ...prefs, dayStart: timeString(start), dayEnd: timeString(end) }, now);
+    return { text: (lang === 'pl' ? `📅 Wolne okienka ${targetDateStr} (minimum ${minimum} min, przerwa ${prefs.bufferMinutes} min):\n` : `📅 Free slots ${targetDateStr} (minimum ${minimum} min, buffer ${prefs.bufferMinutes} min):\n`) + (slots.map(s => `• **${timeString(s.start)} – ${timeString(s.end)}**`).join('\n') || (lang === 'pl' ? 'Brak okienek o wymaganej długości w wybranych dniach i godzinach.' : 'No slots of the requested length within your preferred days and hours.')) };
   }
 
   // 5. Search specific event by term
@@ -716,14 +801,7 @@ export const runLocalAiAssistant = async (
   ) {
     const term = searchMatch[1].trim().replace(/\?$/, '');
     if (term.length >= 2) {
-      const found = events
-        .filter(
-          (e) =>
-            e.title.toLowerCase().includes(term) ||
-            (e.location && e.location.toLowerCase().includes(term)) ||
-            (e.description && e.description.toLowerCase().includes(term)),
-        )
-        .sort((a, b) => a.startDate.localeCompare(b.startDate));
+      const found = searchCalendar(events, term);
 
       if (found.length === 0) {
         return {
@@ -762,56 +840,27 @@ export const runLocalAiAssistant = async (
     }
   }
 
-  // 6. Summary of Week / Weekend / Month
-  if (
-    lower.includes('podsumuj') ||
-    lower.includes('tydzień') ||
-    lower.includes('tydzien') ||
-    lower.includes('summary') ||
-    lower.includes('week')
-  ) {
-    const in7Days = new Date(now);
-    in7Days.setDate(now.getDate() + 7);
-    const in7DaysStr = formatDateISO(in7Days);
-
-    const weekEvents = Array.from({ length: 7 }, (_, i) =>
-      eventsOn(addDays(todayStr, i)),
-    ).flat();
-
-    if (weekEvents.length === 0) {
-      return {
-        text:
-          lang === 'pl'
-            ? `📊 **Podsumowanie nadchodzących 7 dni**: Twój grafik jest całkowicie czysty. Brak zaplanowanych wydarzeń!`
-            : `📊 **7-Day Summary**: Your calendar is completely open. No scheduled events!`,
-        suggestedPrompts: [
-          lang === 'pl' ? 'Dodaj spotkanie jutro' : 'Add event tomorrow',
-        ],
-      };
+  // Explicit ranges, using the shared recurrence index.
+  if (/podsumuj|podsumowanie|tydzień|tydzien|summary|week|miesiąc|miesiac|month/i.test(raw) && !/^(dodaj|zaplanuj|add|create|schedule)\s/i.test(raw) && !/(?:o|at)\s+\d/i.test(raw)) {
+    let start = todayStr;
+    let end = addDays(start, 6);
+    if (/weekend/i.test(raw)) {
+      const day = now.getDay();
+      start = addDays(start, day === 0 ? -1 : (6 - day + 7) % 7);
+      end = addDays(start, 1);
+    } else if (/miesiąc|miesiac|month/i.test(raw)) {
+      const offset = /następn|nastepn|next/i.test(raw) ? 1 : 0;
+      start = localDate(new Date(now.getFullYear(), now.getMonth() + offset, 1));
+      end = localDate(new Date(now.getFullYear(), now.getMonth() + offset + 1, 0));
+    } else if (/tym tygodniu|this week|przyszł|przyszl|next week/i.test(raw)) {
+      start = addDays(todayStr, -((now.getDay() + 6) % 7) + (/przyszł|przyszl|next week/i.test(raw) ? 7 : 0));
+      end = addDays(start, 6);
     }
-
-    const previewList = weekEvents
-      .slice(0, 6)
-      .map((e) => {
-        const t = e.allDay
-          ? lang === 'pl'
-            ? 'cały dzień'
-            : 'all-day'
-          : `${e.startTime} - ${e.endTime}`;
-        return `• **${e.startDate}** (${t}): **${e.title}**`;
-      })
-      .join('\n');
-
-    return {
-      text:
-        lang === 'pl'
-          ? `📊 **Podsumowanie nadchodzącego tygodnia**:\n\nMasz zaplanowane **${weekEvents.length} wydarzeń** w ciągu najbliższych 7 dni.\n\nNajbliższe terminy:\n${previewList}`
-          : `📊 **Upcoming Week Summary**:\n\nYou have **${weekEvents.length} events** scheduled over the next 7 days.\n\nUpcoming items:\n${previewList}`,
-      suggestedPrompts: [
-        lang === 'pl' ? 'Czy mam jakieś kolizje?' : 'Check for conflicts',
-        lang === 'pl' ? 'Kiedy mam wolne jutro?' : 'Free time tomorrow?',
-      ],
-    };
+    const occurrences = [...buildEventIndex(events, start, end).values()].flat();
+    const list = occurrences.slice(0, 20).map(o => `• **${o.date}**: ${o.event.title}`).join('\n');
+    return { text: lang === 'pl'
+      ? `📊 **Podsumowanie ${start} – ${end}**\n\nLiczba wystąpień w dniach zakresu: **${occurrences.length}**.\n${list || 'Brak wydarzeń.'}`
+      : `📊 **Summary ${start} – ${end}**\n\nEvent occurrences across these days: **${occurrences.length}**.\n${list || 'No events.'}` };
   }
 
   // 7. Schedule for specific day ("Co mam dzisiaj?", "What is on tomorrow?")
@@ -821,8 +870,8 @@ export const runLocalAiAssistant = async (
     lower.includes('mój plan') ||
     lower.includes('moj plan') ||
     lower.includes('harmonogram') ||
-    lower.includes('what is on') ||
-    lower.includes('schedule') ||
+    /what(?: is|'s) on|what do i have|show my/i.test(lower) ||
+    /(?:what.*schedule|show.*schedule)/i.test(lower) ||
     lower.includes('my plan')
   ) {
     const parsed = parseDateFromNaturalLanguage(raw, now, lang);
@@ -873,14 +922,20 @@ export const runLocalAiAssistant = async (
   }
 
   // 8. Event Creation via NLP
-  const extracted = extractEventFromPromptOffline(query, now, lang);
-  if (extracted && (extracted.title.length > 2 || extracted.startTime)) {
+  const creation = /^(?:dodaj|zaplanuj|ustaw|wpisz|utwórz|stwórz|przypomnij|add|create|schedule|set|remind|plan)\s/i.test(raw);
+  const parsed = parseDateFromNaturalLanguage(raw, now, lang);
+  const unsupported = /^(?:usuń|usun|skasuj|delete|remove|przenieś|przenies|move|edytuj|edit)\s/i.test(raw);
+  const extracted = !unsupported && (creation || (parsed.matched && /(?:o|at)\s*\d|\d{1,2}:\d{2}/i.test(raw) && !raw.includes('?'))) ? extractEventFromPromptOffline(query, now, lang) : null;
+  if (extracted) {
+    if (!parsed.matched) return { text: lang === 'pl' ? 'Na jaki dzień zaplanować wydarzenie?' : 'Which date should I schedule the event for?', context: { pendingPrompt: raw } };
+    if (extracted.allDay && !/cały dzień|caly dzien|całodniow|all.day/i.test(raw)) return { text: lang === 'pl' ? 'O której godzinie? Możesz też napisać „cały dzień”.' : 'At what time? You can also say “all day”.', context: { pendingPrompt: raw } };
     return {
       text:
         lang === 'pl'
           ? `Zrozumiałem! Przygotowałem propozycję wydarzenia **„${extracted.title}”**:\n\n• Data: **${extracted.startDate}**\n• Godzina: **${extracted.startTime ? `${extracted.startTime} – ${extracted.endTime}` : 'Cały dzień'}**${extracted.location ? `\n• Lokalizacja: **${extracted.location}**` : ''}\n• Kolor: **${extracted.color}**\n\nKliknij przycisk poniżej, aby zatwierdzić dodanie do kalendarza:`
           : `Got it! Here is the proposed event **“${extracted.title}”**:\n\n• Date: **${extracted.startDate}**\n• Time: **${extracted.startTime ? `${extracted.startTime} – ${extracted.endTime}` : 'All day'}**${extracted.location ? `\n• Location: **${extracted.location}**` : ''}\n• Color: **${extracted.color}**\n\nClick the button below to confirm:`,
       suggestedEvent: extracted,
+      context: { suggestedEvent: extracted },
       suggestedPrompts:
         lang === 'pl'
           ? ['Kiedy mam wolne dzisiaj?', 'Co mam w ten dzień?']
@@ -892,8 +947,8 @@ export const runLocalAiAssistant = async (
   return {
     text:
       lang === 'pl'
-        ? `Rozumiem Twoją wiadomość: *„${raw}”*.\n\nJestem asystentem kalendarza działającym w 100% lokalnie. Oto co potrafię:\n\n1. **Planowanie:** *„Jutro o 16:00 dentysta na 45 minut”* lub *„Obiad w niedzielę o 14:00”*.\n2. **Wolny czas:** *„Kiedy mam wolne dzisiaj?”* lub *„Czy mam wolny czwartek?”*.\n3. **Przegląd:** *„Co mam w piątek?”* lub *„Plan na weekend”*.\n4. **Szukanie:** *„Kiedy mam spotkanie z klientem?”*.\n5. **Kolizje:** *„Czy mam jakieś kolizje w terminach?”*.`
-        : `I received your message: *“${raw}”*.\n\nI am your 100% offline local calendar assistant. Here is what I can do:\n\n1. **Schedule:** *“Dentist tomorrow at 4pm for 45 mins”* or *“Dinner on Sunday at 2pm”*.\n2. **Free time:** *“When do I have free time today?”* or *“Am I free on Friday?”*.\n3. **Agenda:** *“What is on Friday?”* or *“Summary of this week”*.\n4. **Search:** *“Find doctor appointment”*.\n5. **Conflicts:** *“Check for schedule conflicts”*.`,
+        ? `Nie rozpoznałem polecenia: *„${raw}”*.\n\nJestem asystentem kalendarza działającym w 100% lokalnie. Oto co potrafię:\n\n1. **Planowanie:** *„Jutro o 16:00 dentysta na 45 minut”* lub *„Obiad w niedzielę o 14:00”*.\n2. **Wolny czas:** *„Kiedy mam wolne dzisiaj?”* lub *„Czy mam wolny czwartek?”*.\n3. **Przegląd:** *„Co mam w piątek?”* lub *„Plan na weekend”*.\n4. **Szukanie:** *„Kiedy mam spotkanie z klientem?”*.\n5. **Kolizje:** *„Czy mam jakieś kolizje w terminach?”*.`
+        : `I could not recognize the command: *“${raw}”*.\n\nI am your 100% offline local calendar assistant. Here is what I can do:\n\n1. **Schedule:** *“Dentist tomorrow at 4pm for 45 mins”* or *“Dinner on Sunday at 2pm”*.\n2. **Free time:** *“When do I have free time today?”* or *“Am I free on Friday?”*.\n3. **Agenda:** *“What is on Friday?”* or *“Summary of this week”*.\n4. **Search:** *“Find doctor appointment”*.\n5. **Conflicts:** *“Check for schedule conflicts”*.`,
     suggestedPrompts:
       lang === 'pl'
         ? [

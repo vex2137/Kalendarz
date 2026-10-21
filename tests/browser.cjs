@@ -94,7 +94,7 @@ async function until(fn) {
         );
         localStorage.setItem(
           'offline_calendar_settings_v2',
-          JSON.stringify({ defaultReminder: 0 }),
+          JSON.stringify({ defaultReminder: 0, language: 'pl' }),
         );
       }
     }, fixture());
@@ -226,9 +226,10 @@ async function until(fn) {
       serviceWorkers: 'block',
       viewport: { width: 1440, height: 1000 },
     });
-    await shared.addInitScript(() =>
-      localStorage.setItem('offline_calendar_events_v2', '[]'),
-    );
+    await shared.addInitScript(() => {
+      localStorage.setItem('offline_calendar_events_v2', '[]');
+      if (!localStorage.getItem('offline_calendar_settings_v2')) localStorage.setItem('offline_calendar_settings_v2', JSON.stringify({ language: 'pl' }));
+    });
     const a = await shared.newPage(),
       b = await shared.newPage();
     await Promise.all([a.goto(base), b.goto(base)]);
@@ -330,6 +331,7 @@ async function until(fn) {
       localStorage.setItem(
         'offline_calendar_settings_v2',
         JSON.stringify({
+          language: 'pl',
           security: { ...security, pinEnabled: true, autoLockMinutes: 1 },
         }),
       );

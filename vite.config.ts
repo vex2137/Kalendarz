@@ -21,10 +21,11 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'Kalendarz',
-          short_name: 'Kalendarz',
+          name: 'Calendar',
+          lang: 'en',
+          short_name: 'Calendar',
           description:
-            'Prywatny kalendarz w stylu Google Calendar z lokalnym modelem AI i powiadomieniami',
+            'A private offline calendar with a local assistant and reminders',
           theme_color: '#2563eb',
           background_color: '#ffffff',
           display: 'standalone',

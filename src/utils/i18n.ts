@@ -205,8 +205,8 @@ export const TRANSLATIONS = {
   },
 };
 
-export const getTranslation = (lang: AppLanguage = 'pl') =>
-  TRANSLATIONS[lang] || TRANSLATIONS.pl;
+export const getTranslation = (lang: AppLanguage = 'en') =>
+  TRANSLATIONS[lang] || TRANSLATIONS.en;
 
 export function reminderLabel(value: number, language: AppLanguage = 'pl') {
   if (value === 0)
