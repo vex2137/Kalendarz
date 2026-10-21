@@ -4,6 +4,28 @@ import { Capacitor } from '@capacitor/core';
 import { occurrenceDates } from './recurrence';
 import { addDays, localDate } from './dates';
 import { zonedDateTime } from './timezone';
+import { CalendarDevice } from './nativeDevice';
+
+export type SystemNotificationState = 'enabled' | 'silent' | 'blocked' | 'permission-required' | 'unsupported' | 'unknown';
+
+/** Read the OS every time; never infer current permission from saved app settings. */
+export async function readSystemNotificationState(): Promise<SystemNotificationState> {
+  if (!Capacitor.isNativePlatform()) {
+    if (typeof Notification === 'undefined') return 'unsupported';
+    return Notification.permission === 'granted' ? 'enabled' : Notification.permission === 'denied' ? 'blocked' : 'permission-required';
+  }
+  const { LocalNotifications } = await import('@capacitor/local-notifications');
+  const permission = (await LocalNotifications.checkPermissions())?.display;
+  if (permission === 'denied') return 'blocked';
+  if (permission === 'prompt' || permission === 'prompt-with-rationale') return 'permission-required';
+  if (permission !== 'granted') return 'unknown';
+  if (Capacitor.getPlatform() !== 'android') return 'enabled';
+  const status = await CalendarDevice.notificationStatus();
+  if (status?.enabled === false || status?.channel === 'blocked') return 'blocked';
+  if (status?.enabled !== true) return 'unknown';
+  if (status.channel === 'silent') return 'silent';
+  return status.channel === 'ready' ? 'enabled' : 'unknown';
+}
 
 let audioCtx: AudioContext | null = null;
 

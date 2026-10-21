@@ -216,7 +216,7 @@ Object.assign(RUSSIAN_UI, {
   'Incorrect PIN. Please try again.': 'Неверный PIN. Попробуйте ещё раз.',
   'Calendar Settings': 'Настройки календаря', 'Color Theme': 'Цветовая тема',
   'Customize the look and feel of the app': 'Настройте оформление приложения',
-  'Language / Język': 'Язык', 'Choose interface language (Polski / English / Русский)': 'Выберите язык интерфейса (Polski / English / Русский)',
+  'Language / Język': 'Язык', 'Choose interface language (Polski / English / Русский / Deutsch)': 'Выберите язык интерфейса (Polski / English / Русский / Deutsch)',
   'Default Event Options': 'Параметры событий по умолчанию', 'Default event duration:': 'Длительность события по умолчанию:',
   'Default reminder:': 'Напоминание по умолчанию:', 'Default color:': 'Цвет по умолчанию:',
   'Sounds & Vibration': 'Звук и вибрация', 'Notification sound': 'Звук уведомлений',
@@ -250,4 +250,19 @@ Object.assign(RUSSIAN_UI, {
   '🔍 **Found events matching “{{0}}” ({{1}})**:\n\n{{2}}': '🔍 **Найденные события по запросу «{{0}}» ({{1}})**:\n\n{{2}}',
   '📅 Free slots {{0}} (minimum {{1}} min, buffer {{2}} min):\n{{3}}': '📅 Свободные интервалы {{0}} (минимум {{1}} мин, перерыв {{2}} мин):\n{{3}}',
   '📅 **Your schedule for: {{0}} ({{1}})**:\n\n{{2}}': '📅 **Ваш план на {{1}}**:\n\n{{2}}',
+});
+
+Object.assign(RUSSIAN_UI, {
+  "Checking notifications…": "Проверка уведомлений…",
+  "System notifications enabled": "Системные уведомления включены",
+  "The reminder category is silent in Android": "Категория напоминаний отключена от звука в Android",
+  "System notifications are blocked": "Системные уведомления заблокированы",
+  "Notification permission is required": "Нужно разрешение на уведомления",
+  "This browser does not support system notifications": "Этот браузер не поддерживает системные уведомления",
+  "Could not check notification status": "Не удалось проверить состояние уведомлений",
+  "Open Android notification settings": "Открыть настройки уведомлений Android",
+  "Check again": "Проверить ещё раз",
+  "Allow notifications in your browser’s site settings.": "Разрешите уведомления в настройках сайта в браузере.",
+  "Sound also depends on your phone volume and Do Not Disturb mode.": "Звук также зависит от громкости телефона и режима «Не беспокоить».",
+  "Could not change notification settings": "Не удалось изменить настройки уведомлений"
 });

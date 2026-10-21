@@ -16,9 +16,11 @@ for case in cases:
     for failure in [*case.findall("failure"), *case.findall("error")]:
         annotation(f"{case.get('classname')}.{case.get('name')}: {failure.get('message', '')}\n{(failure.text or '')[:2000]}")
         failed = True
-smoke = [case for case in cases if case.get("name") == "createsPersistsAndDisplaysVersion"]
-if not smoke or all(case.find("skipped") is not None for case in smoke):
-    annotation(f"The release APK create/save/reload/version test did not execute. Reports: {[str(report) for report in reports]}")
-    failed = True
-print(f"Android: {len(cases)} test cases, {len(smoke)} release WebView smoke test(s).")
+required = ["createsPersistsAndDisplaysVersion", "languageSelectionUpdatesExactlyOneLauncher", "nativeNotificationStatusReturnsCurrentSystemPermission"]
+for name in required:
+    matching = [case for case in cases if case.get("name") == name]
+    if not matching or all(case.find("skipped") is not None for case in matching):
+        annotation(f"Required release APK test did not execute: {name}. Reports: {[str(report) for report in reports]}")
+        failed = True
+print(f"Android: {len(cases)} test cases; required release checks: {', '.join(required)}.")
 sys.exit(1 if failed else 0)

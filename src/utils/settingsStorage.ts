@@ -9,7 +9,7 @@ export function loadStoredSettings(): AppSettings {
     ...DEFAULT_APP_SETTINGS,
     ...parsed,
     ai: { ...DEFAULT_APP_SETTINGS.ai, ...parsed.ai, planning: planningPreferences(parsed.ai?.planning) },
-    language: parsed.language === 'pl' || parsed.language === 'ru' ? parsed.language : 'en',
+    language: parsed.language === 'pl' || parsed.language === 'ru' || parsed.language === 'de' ? parsed.language : 'en',
     security: { ...DEFAULT_APP_SETTINGS.security, ...parsed.security },
   };
 }

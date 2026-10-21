@@ -12,8 +12,8 @@ const { _electron } = require('playwright');
         process.env.ELECTRON_EXECUTABLE ||
         resolve(
           process.platform === 'win32'
-            ? 'release/win-unpacked/Kalendarz Offline.exe'
-            : 'release/linux-unpacked/kalendarz-offline',
+            ? 'release/win-unpacked/Calendar.exe'
+            : 'release/linux-unpacked/calendar',
         ),
       env: {
         ...process.env,
@@ -27,6 +27,7 @@ const { _electron } = require('playwright');
       ],
       timeout: 20000,
     });
+    assert.equal(await application.evaluate(({ app }) => app.getPath('userData')), join(profile, 'data'));
     const page = await application.firstWindow();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));

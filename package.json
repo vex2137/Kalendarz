@@ -1,8 +1,8 @@
 {
   "name": "kalendarz-offline",
-  "productName": "Kalendarz Offline",
+  "productName": "Calendar",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -22,7 +22,7 @@
   },
   "build": {
     "appId": "com.vex2137.kalendarz",
-    "productName": "Kalendarz Offline",
+    "productName": "Calendar",
     "directories": {
       "output": "release"
     },
@@ -38,7 +38,8 @@
       "category": "Office",
       "icon": "public/pwa-512x512.png",
       "syncDesktopName": true,
-      "artifactName": "Kalendarz-Offline-${version}-linux-${arch}.${ext}"
+      "artifactName": "Calendar-${version}-linux-${arch}.${ext}",
+      "executableName": "calendar"
     },
     "win": {
       "target": [
@@ -46,21 +47,21 @@
         "nsis"
       ],
       "icon": "public/pwa-512x512.png",
-      "artifactName": "Kalendarz-Offline-${version}-windows-${arch}.${ext}",
+      "artifactName": "Calendar-${version}-windows-${arch}.${ext}",
       "signExecutable": false
     },
     "nsis": {
       "differentialPackage": false,
-      "artifactName": "Kalendarz-Offline-${version}-windows-${arch}-setup.${ext}"
+      "artifactName": "Calendar-${version}-windows-${arch}-setup.${ext}"
     },
     "asar": true,
     "portable": {
-      "artifactName": "Kalendarz-Offline-${version}-windows-${arch}-portable.${ext}"
+      "artifactName": "Calendar-${version}-windows-${arch}-portable.${ext}"
     },
     "flatpak": {
       "runtimeVersion": "24.08",
       "baseVersion": "24.08",
-      "artifactName": "Kalendarz-Offline-${version}-linux-${arch}.${ext}",
+      "artifactName": "Calendar-${version}-linux-${arch}.${ext}",
       "finishArgs": [
         "--socket=wayland",
         "--socket=x11",

@@ -37,11 +37,19 @@ jobs:
       - run: npm run check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - name: Verify language settings, navigation and notification status
+        run: |
+          node node_modules/vite/bin/vite.js preview --host=127.0.0.1 --port=4176 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          curl --fail --silent --retry 20 --retry-connrefused --retry-delay 1 -o /dev/null http://127.0.0.1:4176/
+          node tests/language-notifications.cjs
+          node tests/mobile-navigation.cjs
       - name: Package self-hosted web application
         run: |
           mkdir -p release
           version=$(node -p 'require("./package.json").version')
-          (cd dist && zip -qr "../release/Kalendarz-Offline-${version}-web.zip" .)
+          (cd dist && zip -qr "../release/Calendar-${version}-web.zip" .)
       - uses: actions/upload-artifact@v4
         with:
           name: release-web
@@ -83,8 +91,8 @@ jobs:
         shell: bash
         run: |
           version=$(node -p 'require("./package.json").version')
-          chmod +x "release/Kalendarz-Offline-${version}-linux-x86_64.AppImage"
-          APPIMAGE_EXTRACT_AND_RUN=1 ELECTRON_EXECUTABLE="$PWD/release/Kalendarz-Offline-${version}-linux-x86_64.AppImage" xvfb-run -a npm run test:desktop
+          chmod +x "release/Calendar-${version}-linux-x86_64.AppImage"
+          APPIMAGE_EXTRACT_AND_RUN=1 ELECTRON_EXECUTABLE="$PWD/release/Calendar-${version}-linux-x86_64.AppImage" xvfb-run -a npm run test:desktop
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}
@@ -115,7 +123,7 @@ jobs:
       - name: Verify installable bundle
         run: |
           version=$(node -p 'require("./package.json").version')
-          flatpak install --user -y --noninteractive "release/Kalendarz-Offline-${version}-linux-x86_64.flatpak"
+          flatpak install --user -y --noninteractive "release/Calendar-${version}-linux-x86_64.flatpak"
           flatpak info --user com.vex2137.kalendarz
       - uses: actions/upload-artifact@v4
         with:
@@ -177,7 +185,7 @@ jobs:
           "$tools/aapt" dump badging android/app/build/outputs/apk/release/app-release.apk | tee /tmp/kalendarz-apk.txt
           grep -F "versionName='$version'" /tmp/kalendarz-apk.txt
           mkdir -p release
-          cp android/app/build/outputs/apk/release/app-release.apk "release/Kalendarz-Offline-${version}-android-test.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "release/Calendar-${version}-android-test.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: release-android
@@ -205,7 +213,7 @@ jobs:
       - name: Publish tested release
         uses: softprops/action-gh-release@v2
         with:
-          name: Kalendarz Offline ${{ github.ref_name }} (Android, Windows, Linux, Web)
+          name: Calendar ${{ github.ref_name }} (Android, Windows, Linux, Web)
           body_path: .github/release-notes/${{ github.ref_name }}.md
           fail_on_unmatched_files: true
           make_latest: true

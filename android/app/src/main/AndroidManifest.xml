@@ -18,12 +18,45 @@
             android:screenOrientation="unspecified"
             android:exported="true">
 
+
+
+        </activity>
+
+        <activity-alias android:name=".Launcher_en"
+            android:targetActivity=".MainActivity" android:exported="true"
+            android:enabled="true" android:label="@string/launcher_name_en">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity-alias>
 
-        </activity>
+        <activity-alias android:name=".Launcher_pl"
+            android:targetActivity=".MainActivity" android:exported="true"
+            android:enabled="false" android:label="@string/launcher_name_pl">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias android:name=".Launcher_ru"
+            android:targetActivity=".MainActivity" android:exported="true"
+            android:enabled="false" android:label="@string/launcher_name_ru">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias android:name=".Launcher_de"
+            android:targetActivity=".MainActivity" android:exported="true"
+            android:enabled="false" android:label="@string/launcher_name_de">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <provider
             android:name="androidx.core.content.FileProvider"

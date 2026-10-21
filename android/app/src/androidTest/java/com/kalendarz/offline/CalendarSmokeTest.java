@@ -87,4 +87,48 @@ public class CalendarSmokeTest {
                 "document.querySelector('[role=dialog]').textContent.match(/\\d+\\.\\d+\\.\\d+/)[0]"));
         }
     }
+    @Test
+    public void languageSelectionUpdatesExactlyOneLauncher() throws Exception {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            until(scenario, "document.querySelector('#btn-open-settings')");
+            evaluate(scenario, "document.querySelector('#btn-open-settings').click()");
+            String[][] languages = {
+                {"pl", "Polski", "Kalendarz"}, {"ru", "Русский", "Календарь"},
+                {"de", "Deutsch", "Kalender"}, {"en", "English", "Calendar"}
+            };
+            for (String[] language : languages) {
+                until(scenario, "document.querySelector('#modal-settings button[aria-label=\"" + language[1] + "\"]')");
+                evaluate(scenario, "document.querySelector('#modal-settings button[aria-label=\"" + language[1] + "\"]').click()");
+                until(scenario, "document.title === '" + language[2] + "'");
+                AtomicReference<String> launcherLabel = new AtomicReference<>("");
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                do {
+                    scenario.onActivity(activity -> {
+                        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MAIN)
+                            .addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(activity.getPackageName());
+                        java.util.List<android.content.pm.ResolveInfo> entries = activity.getPackageManager().queryIntentActivities(intent, 0);
+                        if (entries.size() == 1) launcherLabel.set(entries.get(0).loadLabel(activity.getPackageManager()).toString());
+                    });
+                    if (language[2].equals(launcherLabel.get())) break;
+                    Thread.sleep(100);
+                } while (System.nanoTime() < deadline);
+                assertEquals(language[2], launcherLabel.get());
+            }
+        }
+    }
+
+    @Test
+    public void nativeNotificationStatusReturnsCurrentSystemPermission() throws Exception {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            until(scenario, "document.querySelector('#btn-open-settings')");
+            evaluate(scenario, "window.__calendarNativeStatus = null; window.Capacitor.nativePromise('CalendarDevice', 'notificationStatus', {})"
+                + ".then(status => window.__calendarNativeStatus = status)");
+            until(scenario, "window.__calendarNativeStatus && typeof window.__calendarNativeStatus.enabled === 'boolean'"
+                + " && ['ready', 'silent', 'blocked'].includes(window.__calendarNativeStatus.channel)");
+            AtomicReference<Boolean> enabled = new AtomicReference<>();
+            scenario.onActivity(activity -> enabled.set(androidx.core.app.NotificationManagerCompat.from(activity).areNotificationsEnabled()));
+            assertEquals(enabled.get().toString(), evaluate(scenario, "window.__calendarNativeStatus.enabled"));
+        }
+    }
+
 }

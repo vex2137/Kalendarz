@@ -1,7 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Kalendarz</string>
-    <string name="title_activity_main">Kalendarz</string>
+    <string name="app_name">Calendar</string>
+    <string name="title_activity_main">Calendar</string>
     <string name="package_name">com.kalendarz.offline</string>
     <string name="custom_url_scheme">com.kalendarz.offline</string>
+    <string name="launcher_name_en" translatable="false">Calendar</string>
+    <string name="launcher_name_pl" translatable="false">Kalendarz</string>
+    <string name="launcher_name_ru" translatable="false">Календарь</string>
+    <string name="launcher_name_de" translatable="false">Kalender</string>
 </resources>
