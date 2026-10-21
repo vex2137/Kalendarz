@@ -78,4 +78,8 @@ async function main() {
   }
 }
 module.exports = { seal, open };
-if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
+if (require.main === module) main().catch(error => {
+  const message = String(error.message).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  console.error(process.env.GITHUB_ACTIONS ? `::error title=Signing exchange::${message}` : error.message);
+  process.exitCode = 1;
+});
