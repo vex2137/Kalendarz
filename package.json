@@ -2,7 +2,7 @@
   "name": "kalendarz-offline",
   "productName": "Calendar",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.3.1",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -20,7 +20,8 @@
     "build:android": "npm run build && cap sync android && cd android && ./gradlew assembleRelease --no-daemon",
     "test:desktop": "node tests/electron.cjs",
     "test:model": "node tests/model-browser.cjs",
-    "test:model:android": "node tests/model-android.cjs"
+    "test:model:android": "node tests/model-android.cjs",
+    "prebuild": "node scripts/prepare-model.cjs"
   },
   "build": {
     "appId": "com.vex2137.kalendarz",
@@ -72,7 +73,8 @@
         "--filesystem=xdg-download",
         "--talk-name=org.freedesktop.Notifications"
       ]
-    }
+    },
+    "beforePack": "scripts/verify-packaged-model.cjs"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.2",

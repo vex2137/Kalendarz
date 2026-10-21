@@ -47,7 +47,11 @@ public class CalendarSmokeTest {
     }
 
     private void until(ActivityScenario<MainActivity> scenario, String predicate) throws Exception {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(40);
+        until(scenario, predicate, 40);
+    }
+
+    private void until(ActivityScenario<MainActivity> scenario, String predicate, int seconds) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
         while (System.nanoTime() < deadline) {
             if ("true".equals(evaluate(scenario, "Boolean(" + predicate + ")"))) return;
             Thread.sleep(200);
@@ -87,32 +91,88 @@ public class CalendarSmokeTest {
                 "document.querySelector('[role=dialog]').textContent.match(/\\d+\\.\\d+\\.\\d+/)[0]"));
         }
     }
+    private String launcherLabel(ActivityScenario<MainActivity> scenario) {
+        AtomicReference<String> label = new AtomicReference<>("");
+        scenario.onActivity(activity -> {
+            android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MAIN)
+                .addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(activity.getPackageName());
+            java.util.List<android.content.pm.ResolveInfo> entries = activity.getPackageManager().queryIntentActivities(intent, 0);
+            assertEquals(1, entries.size());
+            label.set(entries.get(0).loadLabel(activity.getPackageManager()).toString());
+        });
+        return label.get();
+    }
+
     @Test
     public void languageSelectionUpdatesExactlyOneLauncher() throws Exception {
-        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+        android.content.Context context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().getTargetContext();
+        // Launch through the real enabled alias, as a phone launcher does.
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()))) {
             until(scenario, "document.querySelector('#btn-open-settings')");
-            evaluate(scenario, "document.querySelector('#btn-open-settings').click()");
+            evaluate(scenario, "window.__languageSurvival = 'same-webview'; document.querySelector('#btn-open-settings').click()");
+            String previous = launcherLabel(scenario);
             String[][] languages = {
                 {"pl", "Polski", "Kalendarz"}, {"ru", "Русский", "Календарь"},
-                {"de", "Deutsch", "Kalender"}, {"en", "English", "Calendar"}
+                {"de", "Deutsch", "Kalender"}, {"en", "English", "Calendar"}, {"pl", "Polski", "Kalendarz"}
             };
             for (String[] language : languages) {
                 until(scenario, "document.querySelector('#modal-settings button[aria-label=\"" + language[1] + "\"]')");
                 evaluate(scenario, "document.querySelector('#modal-settings button[aria-label=\"" + language[1] + "\"]').click()");
                 until(scenario, "document.title === '" + language[2] + "'");
-                AtomicReference<String> launcherLabel = new AtomicReference<>("");
-                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-                do {
-                    scenario.onActivity(activity -> {
-                        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MAIN)
-                            .addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(activity.getPackageName());
-                        java.util.List<android.content.pm.ResolveInfo> entries = activity.getPackageManager().queryIntentActivities(intent, 0);
-                        if (entries.size() == 1) launcherLabel.set(entries.get(0).loadLabel(activity.getPackageManager()).toString());
-                    });
-                    if (language[2].equals(launcherLabel.get())) break;
-                    Thread.sleep(100);
-                } while (System.nanoTime() < deadline);
-                assertEquals(language[2], launcherLabel.get());
+                // Await a completed native call, so a merely delayed foreground alias
+                // switch cannot produce a false pass.
+                evaluate(scenario, "window.__languageQueued=false; window.Capacitor.nativePromise('CalendarDevice','setLanguage',{language:'" + language[0] + "'}).then(()=>window.__languageQueued=true)");
+                until(scenario, "window.__languageQueued");
+                assertEquals(previous, launcherLabel(scenario));
+                assertEquals("\"same-webview\"", evaluate(scenario, "window.__languageSurvival"));
+            }
+        }
+        // Leaving the app may legitimately finish the old alias's task. Do not
+        // require that disabled launcher component to resume; reopen the new one.
+        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(context.getPackageName());
+        java.util.List<android.content.pm.ResolveInfo> entries = context.getPackageManager().queryIntentActivities(intent, 0);
+        assertEquals(1, entries.size());
+        assertEquals("Kalendarz", entries.get(0).loadLabel(context.getPackageManager()).toString());
+        try (ActivityScenario<MainActivity> reopened = ActivityScenario.launch(context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()))) {
+            until(reopened, "document.title === 'Kalendarz' && document.querySelector('#btn-open-settings')");
+            // Restore English for the other independent smoke tests.
+            evaluate(reopened, "document.querySelector('#btn-open-settings').click()");
+            until(reopened, "document.querySelector('#modal-settings button[aria-label=English]')");
+            evaluate(reopened, "document.querySelector('#modal-settings button[aria-label=English]').click()");
+            until(reopened, "document.title === 'Calendar'");
+            evaluate(reopened, "window.__languageQueued=false; window.Capacitor.nativePromise('CalendarDevice','setLanguage',{language:'en'}).then(()=>window.__languageQueued=true)");
+            until(reopened, "window.__languageQueued");
+        }
+    }
+
+    @Test
+    public void bundledModelUnderstandsPolishAndEnglishOffline() throws Exception {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            until(scenario, "document.querySelector('#btn-open-settings')");
+            // Block all external main-thread fetches. Weights and both WASM builds must be local.
+            evaluate(scenario, "window.__externalModelRequests=[]; const originalFetch=window.fetch; window.fetch=(input,options)=>{const url=new URL(typeof input==='string'?input:input.url,document.baseURI);if(/^https?:$/.test(url.protocol)&&url.hostname!=='localhost'){window.__externalModelRequests.push(url.href);throw new Error('External request blocked by offline model test')}return originalFetch(input,options)}");
+            String[][] cases = {
+                {"Polski", "Dodaj wydarzenie Kontrola 2026-11-15 o 15:00 do 16:00", "Kontrola"},
+                {"English", "Add event Checkup on 2026-11-15 at 15:00 until 16:00", "Checkup"}
+            };
+            for (String[] example : cases) {
+                evaluate(scenario, "document.querySelector('#btn-open-settings').click()");
+                until(scenario, "document.querySelector('#modal-settings button[aria-label=\"" + example[0] + "\"]')");
+                evaluate(scenario, "document.querySelector('#modal-settings button[aria-label=\"" + example[0] + "\"]').click()");
+                evaluate(scenario, "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+                until(scenario, "!document.querySelector('#modal-settings')");
+                evaluate(scenario, "document.querySelector('#btn-open-ai-assistant').click()");
+                until(scenario, "document.querySelector('#drawer-ai-assistant input[type=text]') && !document.querySelector('#drawer-ai-assistant input[type=text]').disabled");
+                evaluate(scenario, "(()=>{const input=document.querySelector('#drawer-ai-assistant input[type=text]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'" + example[1] + "');input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+                until(scenario, "!document.querySelector('#btn-send-ai-message').disabled");
+                evaluate(scenario, "document.querySelector('#btn-send-ai-message').click()");
+                until(scenario, "document.querySelector('[id^=btn-confirm-ai-event-]') && !document.querySelector('#drawer-ai-assistant input[type=text]').disabled", 180);
+                String proposal = evaluate(scenario, "document.querySelector('#drawer-ai-assistant').innerText");
+                org.junit.Assert.assertTrue(proposal, proposal.contains(example[2]) && proposal.contains("2026-11-15 15:00") && proposal.contains("16:00"));
+                assertEquals("0", evaluate(scenario, "window.__externalModelRequests.length"));
+                evaluate(scenario, "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+                until(scenario, "!document.querySelector('#drawer-ai-assistant')");
             }
         }
     }

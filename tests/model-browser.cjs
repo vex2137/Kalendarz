@@ -69,7 +69,9 @@ async function records(page) {
     await page.clock.setFixedTime(new Date('2026-10-21T08:00:00Z'));
     await page.goto(base);
     await page.locator('#btn-open-ai-assistant').click();
-    await page.getByLabel(copy.import, { exact: true }).setInputFiles(file);
+    // Use the shipped model on a fresh profile: no import/download and no pre-existing IndexedDB copy.
+    assert.equal(await page.evaluate(() => indexedDB.databases().then(dbs => dbs.some(db => db.name === 'calendar-local-model'))), false);
+    console.log('Testing bundled GGUF on a fresh profile');
     await page.getByText(copy.installed, { exact: true }).waitFor();
     await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
     await page.reload();

@@ -1,9 +1,9 @@
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { downloadModel, removeSavedModel, savedModel, saveModel, verifyModel } from './localModelStore';
+import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, saveModel, verifyModel } from './localModelStore';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
-export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; error?: string }
+export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; bundled?: boolean; error?: string }
 let status: ModelStatus = { phase: 'checking', progress: 0, installed: false };
 const listeners = new Set<() => void>();
 export const modelStatus = () => status;
@@ -17,8 +17,9 @@ export const cancelModelOperation = () => operation?.abort();
 export async function checkLocalModel() {
   if (status.phase !== 'checking') return;
   try {
-    const installed = Boolean(await savedModel());
-    if (status.phase === 'checking') update({ phase: installed ? 'installed' : 'missing', installed });
+    const bundled = await bundledModelAvailable();
+    const installed = bundled || Boolean(await savedModel());
+    if (status.phase === 'checking') update({ phase: installed ? 'installed' : 'missing', installed, bundled });
   } catch { update({ phase: 'error', error: 'model-storage' }); }
 }
 
@@ -66,7 +67,7 @@ export async function inferCalendarJson(system: string, prompt: string, schema: 
   const timeout = setTimeout(() => controller.abort(), 120_000);
   try {
     if (!engine) {
-      const blob = await savedModel();
+      const blob = await savedModel() || (await bundledModelAvailable() ? await loadBundledModel(controller.signal) : undefined);
       if (!blob) { update({ installed: false }); throw new Error('model-missing'); }
       update({ phase: 'loading', error: undefined });
       await verifyModel(blob, controller.signal);

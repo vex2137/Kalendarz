@@ -39,17 +39,43 @@ public class CalendarDevicePlugin extends Plugin {
         final int index = selected;
         getActivity().runOnUiThread(() -> {
             try {
-                PackageManager manager = getContext().getPackageManager();
-                // Enable the replacement first, then disable the other launcher entries.
-                setLauncher(manager, LANGUAGES[index], true);
-                for (String other : LANGUAGES) {
-                    if (!other.equals(LANGUAGES[index])) setLauncher(manager, other, false);
-                }
+                // Never disable the alias that launched a visible activity. Some launchers
+                // finish/restart the task even when DONT_KILL_APP is requested.
+                getContext().getSharedPreferences("launcher", 0).edit()
+                    .putString("desiredLanguage", LANGUAGES[index]).commit();
                 getActivity().setTitle(NAMES[index]);
                 getActivity().setTaskDescription(new ActivityManager.TaskDescription(NAMES[index]));
                 call.resolve();
             } catch (Exception error) { call.reject("Could not update launcher name", error); }
         });
+    }
+
+    @Override
+    protected void handleOnStop() {
+        if (getActivity().isChangingConfigurations()) return;
+        String selected = getContext().getSharedPreferences("launcher", 0)
+            .getString("desiredLanguage", null);
+        if (selected == null) return;
+        try {
+            PackageManager manager = getContext().getPackageManager();
+            if (Build.VERSION.SDK_INT >= 33) {
+                java.util.List<PackageManager.ComponentEnabledSetting> changes = new java.util.ArrayList<>();
+                for (String language : LANGUAGES) {
+                    changes.add(new PackageManager.ComponentEnabledSetting(
+                        new ComponentName(getContext(), getContext().getPackageName() + ".Launcher_" + language),
+                        language.equals(selected) ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP));
+                }
+                // Commit all aliases atomically; keep exactly one launcher entry enabled.
+                manager.setComponentEnabledSettings(changes);
+            } else {
+                setLauncher(manager, selected, true);
+                for (String language : LANGUAGES) if (!language.equals(selected)) setLauncher(manager, language, false);
+            }
+        } catch (Exception error) {
+            // Keep the desired value persisted and retry on the next background transition.
+            android.util.Log.e("CalendarDevice", "Could not update background launcher name", error);
+        }
     }
 
     private void setLauncher(PackageManager manager, String language, boolean enabled) {

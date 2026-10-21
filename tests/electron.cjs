@@ -53,6 +53,23 @@ const { _electron } = require('playwright');
     await page.getByAltText('Sync QR', { exact: true }).waitFor();
     assert.equal(await page.getByLabel('Sync password', { exact: true }).inputValue(), '');
     await page.keyboard.press('Escape');
+    const external = [];
+    await page.context().route(/^https?:\/\//, route => {
+      external.push(route.request().url());
+      return route.abort();
+    });
+    await page.locator('#btn-open-ai-assistant').click();
+    await page.getByText('Model installed • offline ready', { exact: true }).waitFor();
+    const started = performance.now();
+    await page.locator('#drawer-ai-assistant input[type=text]').fill('Add event Desktopcheck on 2026-11-15 at 15:00 until 16:00');
+    await page.locator('#btn-send-ai-message').click();
+    await page.locator('[id^="btn-confirm-ai-event-"]').waitFor({ timeout: 180000 });
+    const proposal = await page.locator('#drawer-ai-assistant').innerText();
+    assert.match(proposal, /Desktopcheck/);
+    assert.match(proposal, /2026-11-15 15:00/);
+    assert.match(proposal, /16:00/);
+    assert.deepEqual(external, []);
+    console.log(`PASS real bundled GGUF in packaged Electron with HTTP blocked: ${((performance.now() - started) / 1000).toFixed(2)}s`);
     assert.deepEqual(errors, []);
     console.log(
       'PASS packaged Electron: file-origin startup, IndexedDB persistence, keyboard navigation and encrypted QR generation',
