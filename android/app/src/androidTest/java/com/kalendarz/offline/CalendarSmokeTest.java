@@ -53,7 +53,7 @@ public class CalendarSmokeTest {
             Thread.sleep(200);
         }
         fail("Release WebView did not satisfy: " + predicate + "; state=" + evaluate(scenario,
-            "JSON.stringify({url:location.href,ready:document.readyState,title:document.title,dialog:document.querySelector('[role=dialog]')?.textContent?.slice(0,1200)})"));
+            "JSON.stringify({url:location.href,ready:document.readyState,title:document.title,dialog:document.querySelector('[role=dialog]')?.textContent?.slice(0,1200),touchTrace:window.__calendarTouchTrace})"));
     }
 
     @Test
@@ -191,6 +191,7 @@ public class CalendarSmokeTest {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             until(scenario, "document.querySelector('[data-testid=calendar-navigation]')");
             String before = evaluate(scenario, "document.querySelector('[data-testid=calendar-navigation]').dataset.dateKey.slice(0,7)");
+            evaluate(scenario, "window.__calendarTouchTrace=[]; for(const type of ['pointerdown','pointermove','pointerup','pointercancel']) document.addEventListener(type,e=>{if(window.__calendarTouchTrace.length<20)window.__calendarTouchTrace.push({type,kind:e.pointerType,primary:e.isPrimary,x:e.clientX,y:e.clientY,inside:!!e.target.closest('[data-testid=calendar-navigation]'),at:performance.now()})},true)");
             AtomicReference<int[]> bounds = new AtomicReference<>();
             scenario.onActivity(activity -> {
                 WebView view = webView(activity);
@@ -204,7 +205,13 @@ public class CalendarSmokeTest {
             android.app.Instrumentation instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation();
             for (int i = 0; i <= 8; i++) {
                 int action = i == 0 ? android.view.MotionEvent.ACTION_DOWN : i == 8 ? android.view.MotionEvent.ACTION_UP : android.view.MotionEvent.ACTION_MOVE;
-                android.view.MotionEvent motion = android.view.MotionEvent.obtain(down, android.os.SystemClock.uptimeMillis(), action, start + (finish-start)*i/8, y, 0);
+                android.view.MotionEvent.PointerProperties finger = new android.view.MotionEvent.PointerProperties();
+                finger.id = 0; finger.toolType = android.view.MotionEvent.TOOL_TYPE_FINGER;
+                android.view.MotionEvent.PointerCoords point = new android.view.MotionEvent.PointerCoords();
+                point.x = start + (finish-start)*i/8; point.y = y; point.pressure = i == 8 ? 0 : 1; point.size = 1;
+                android.view.MotionEvent motion = android.view.MotionEvent.obtain(down, android.os.SystemClock.uptimeMillis(), action,
+                    1, new android.view.MotionEvent.PointerProperties[] { finger }, new android.view.MotionEvent.PointerCoords[] { point },
+                    0, 0, 1, 1, 0, 0, android.view.InputDevice.SOURCE_TOUCHSCREEN, 0);
                 instrumentation.sendPointerSync(motion); motion.recycle(); Thread.sleep(20);
             }
             until(scenario, "document.querySelector('[data-testid=calendar-navigation]').dataset.dateKey.slice(0,7) !== " + before);

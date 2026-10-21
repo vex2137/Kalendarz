@@ -66,4 +66,3 @@ jobs:
           name: release-android
           path: release/*.apk
           if-no-files-found: error
-
