@@ -68,6 +68,8 @@ const output = process.env.ASSISTANT_ROUTING_REPORT;
       await send('Cześć', 'quick', 'pl', /^Cześć!/u);
       await send('Cześć'.normalize('NFD'), 'quick', 'pl', /^Cześć!/u);
       await send('Cześć\u200b!', 'quick', 'pl', /^Cześć!/u);
+      await send('Mój plan', 'quick', 'pl', /Dzisiaj|Twój/u);
+      await send('мой план', 'quick', 'ru', /событий|свободен/u);
       await send('Dodaj wydarzenie Kontrola jutro o 15:00', 'rules', 'pl', /^Sprawdź/u);
       await send('Add event Checkup tomorrow at 15:00', 'rules', 'en', /^Review/u);
       await send('Привет', 'quick', 'ru', /^Привет!/u);

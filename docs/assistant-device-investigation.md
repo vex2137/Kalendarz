@@ -63,7 +63,8 @@ The same 28-message regression also passed at a 393×851 touch viewport (74–16
 interaction times) with the input kept on-screen and no calendar records saved.
 This is browser viewport emulation, not a physical Android test.
 The 28-message phone-viewport test also passed against files extracted from the
-locally assembled APK; CI repeats it with a direct model-route request before
+locally assembled APK; CI repeats the routing test, including localized schedule
+shortcuts and a direct model-route request, before
 publishing each diagnostic artifact.
 
 ## Physical acceptance remains pending

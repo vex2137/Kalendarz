@@ -12,6 +12,7 @@ test('message language wins over each UI language, including decomposed Android 
       ['Cześć', 'pl', /^Cześć!/u], ['Cześć'.normalize('NFD'), 'pl', /^Cześć!/u],
       ['Cześć\u200b!', 'pl', /^Cześć!/u], ['Dzień dobry', 'pl', /^Cześć!/u],
       ['Hello', 'en', /^Hello!/u], ['Привет', 'ru', /^Привет!/u], ['Hallo', 'de', /^Hallo!/u],
+      ['Dobra', 'pl', /^Nie ma za co!/u], ['Хорошо', 'ru', /^Пожалуйста!/u],
     ] as const) {
       const response = await runModelAssistant(message, [], ui, now, {}, DEFAULT_PLANNING);
       assert.equal(response.route, 'quick', `${ui}: ${message}`);
@@ -23,6 +24,14 @@ test('message language wins over each UI language, including decomposed Android 
       assert.equal(trace.quickChecked, true);
       assert.equal(trace.quickMatched, true);
       assert.equal(trace.route, 'quick');
+    }
+  }
+});
+test('localized built-in schedule shortcuts keep their own response language', async () => {
+  for (const ui of ['en', 'pl', 'de', 'ru'] as const) {
+    for (const [message, expected] of [['Mój plan', 'pl'], ['мой план', 'ru'], ['my schedule today', 'en'], ['mein plan heute', 'de']] as const) {
+      const response = await runModelAssistant(message, [], ui, now, {}, DEFAULT_PLANNING);
+      assert.equal(response.route, 'quick'); assert.equal(response.language, expected);
     }
   }
 });
