@@ -37,6 +37,13 @@ android {
         }
     }
     buildTypes {
+        diagnostics {
+            initWith debug
+            applicationIdSuffix '.diagnostics'
+            versionNameSuffix '-diagnostics'
+            matchingFallbacks = ['debug']
+            signingConfig signingConfigs.debug
+        }
         // Opt in only for downloadable test APKs; production signing stays external.
         release {
             if (calendarKeystore) {

@@ -18,6 +18,12 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "CalendarDevice")
 public class CalendarDevicePlugin extends Plugin {
+    @Override
+    public void load() {
+        // Capacitor registers plugins before loadWebView(), so isolation applies to
+        // the first main document as well as WASM/worker subresources.
+        bridge.setWebViewClient(new CalendarWebViewClient(bridge));
+    }
     // Keep the existing notification channel: never bypass a user's mute choice.
     private static final String REMINDER_CHANNEL = "default";
     private static final String[] LANGUAGES = { "en", "pl", "ru", "de" };
@@ -52,6 +58,8 @@ public class CalendarDevicePlugin extends Plugin {
 
     @Override
     protected void handleOnStop() {
+        // Keep the side-by-side diagnostic installation visibly distinct.
+        if (getContext().getPackageName().endsWith(".diagnostics")) return;
         if (getActivity().isChangingConfigurations()) return;
         String selected = getContext().getSharedPreferences("launcher", 0)
             .getString("desiredLanguage", null);

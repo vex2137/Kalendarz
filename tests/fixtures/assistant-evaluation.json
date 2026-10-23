@@ -1,0 +1,1086 @@
+[
+  {
+    "id": "e01",
+    "pl": [
+      "Wrzuć mi Badanie krwi jutro o 7:30"
+    ],
+    "en": [
+      "Put Badanie krwi in my calendar tomorrow at 7:30"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Badanie krwi",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "07:30",
+        "endTime": "08:30"
+      }
+    }
+  },
+  {
+    "id": "e02",
+    "pl": [
+      "Wpisz do kalendarza Serwis roweru pojutrze o 11"
+    ],
+    "en": [
+      "Add Serwis roweru to my calendar the day after tomorrow at 11"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Serwis roweru",
+        "startDate": "2026-10-25",
+        "endDate": "2026-10-25",
+        "allDay": false,
+        "startTime": "11:00",
+        "endTime": "12:00"
+      }
+    }
+  },
+  {
+    "id": "e03",
+    "pl": [
+      "Proszę, dodaj mi Kontrola wzroku w poniedziałek o 8:15"
+    ],
+    "en": [
+      "Please add Kontrola wzroku on Monday at 8:15"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Kontrola wzroku",
+        "startDate": "2026-10-26",
+        "endDate": "2026-10-26",
+        "allDay": false,
+        "startTime": "08:15",
+        "endTime": "09:15"
+      }
+    }
+  },
+  {
+    "id": "e04",
+    "pl": [
+      "Utwórz wydarzenie Odbiór paczki w tę sobotę o 12:45"
+    ],
+    "en": [
+      "Create event Odbiór paczki this Saturday at 12:45"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Odbiór paczki",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "12:45",
+        "endTime": "13:45"
+      }
+    }
+  },
+  {
+    "id": "e05",
+    "pl": [
+      "Zapisz mi Konsultacja w przyszły piątek o 14:20"
+    ],
+    "en": [
+      "Schedule Konsultacja next Friday at 14:20"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Konsultacja",
+        "startDate": "2026-10-30",
+        "endDate": "2026-10-30",
+        "allDay": false,
+        "startTime": "14:20",
+        "endTime": "15:20"
+      }
+    }
+  },
+  {
+    "id": "e06",
+    "pl": [
+      "Dodaj wyjście do kina za trzy dni o 19"
+    ],
+    "en": [
+      "Add wyjście do kina in three days at 19"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "wyjście do kina",
+        "startDate": "2026-10-26",
+        "endDate": "2026-10-26",
+        "allDay": false,
+        "startTime": "19:00",
+        "endTime": "20:00"
+      }
+    }
+  },
+  {
+    "id": "e07",
+    "pl": [
+      "Dopisz Spacer za dwa tygodnie o 17:10"
+    ],
+    "en": [
+      "Add Spacer in two weeks at 17:10"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Spacer",
+        "startDate": "2026-11-06",
+        "endDate": "2026-11-06",
+        "allDay": false,
+        "startTime": "17:10",
+        "endTime": "18:10"
+      }
+    }
+  },
+  {
+    "id": "e08",
+    "pl": [
+      "Dodaj Przegląd auta 30.10.2026 o 9"
+    ],
+    "en": [
+      "Add Przegląd auta on 2026-10-30 at 9"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Przegląd auta",
+        "startDate": "2026-10-30",
+        "endDate": "2026-10-30",
+        "allDay": false,
+        "startTime": "09:00",
+        "endTime": "10:00"
+      }
+    }
+  },
+  {
+    "id": "e09",
+    "pl": [
+      "Dodaj Zebranie 3 listopada 2026 o 16:30"
+    ],
+    "en": [
+      "Add Zebranie on November 3 2026 at 16:30"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Zebranie",
+        "startDate": "2026-11-03",
+        "endDate": "2026-11-03",
+        "allDay": false,
+        "startTime": "16:30",
+        "endTime": "17:30"
+      }
+    }
+  },
+  {
+    "id": "e10",
+    "pl": [
+      "Dodaj Kontrola 2026-11-04 o 10.30"
+    ],
+    "en": [
+      "Add Kontrola on 2026-11-04 at 10:30"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Kontrola",
+        "startDate": "2026-11-04",
+        "endDate": "2026-11-04",
+        "allDay": false,
+        "startTime": "10:30",
+        "endTime": "11:30"
+      }
+    }
+  },
+  {
+    "id": "e11",
+    "pl": [
+      "Dodaj \"Projekt jutro\" w niedzielę o 13"
+    ],
+    "en": [
+      "Add \"Projekt jutro\" on Sunday at 13"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Projekt jutro",
+        "startDate": "2026-10-25",
+        "endDate": "2026-10-25",
+        "allDay": false,
+        "startTime": "13:00",
+        "endTime": "14:00"
+      }
+    }
+  },
+  {
+    "id": "e12",
+    "pl": [
+      "Wpisz „Plan na piątek” jutro o 9:10"
+    ],
+    "en": [
+      "Add “Plan na piątek” tomorrow at 9:10"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Plan na piątek",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "09:10",
+        "endTime": "10:10"
+      }
+    }
+  },
+  {
+    "id": "e13",
+    "pl": [
+      "Dodaj jutro o 15:45 Odbiór dokumentów"
+    ],
+    "en": [
+      "Add tomorrow at 15:45 Odbiór dokumentów"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Odbiór dokumentów",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "15:45",
+        "endTime": "16:45"
+      }
+    }
+  },
+  {
+    "id": "e14",
+    "pl": [
+      "Dodaj Telefon do mamy na jutro o 20"
+    ],
+    "en": [
+      "Add Telefon do mamy for tomorrow at 20"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Telefon do mamy",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "20:00",
+        "endTime": "21:00"
+      }
+    }
+  },
+  {
+    "id": "e15",
+    "pl": [
+      "Dodaj Nauka dzisiaj o 18 na pół godziny"
+    ],
+    "en": [
+      "Add Nauka today at 18 for half an hour"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Nauka",
+        "startDate": "2026-10-23",
+        "endDate": "2026-10-23",
+        "allDay": false,
+        "startTime": "18:00",
+        "endTime": "18:30"
+      }
+    }
+  },
+  {
+    "id": "e16",
+    "pl": [
+      "Dodaj Warsztat jutro o 10 na półtorej godziny"
+    ],
+    "en": [
+      "Add Warsztat tomorrow at 10 for one and a half hours"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Warsztat",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "10:00",
+        "endTime": "11:30"
+      }
+    }
+  },
+  {
+    "id": "e17",
+    "pl": [
+      "Dodaj Basen pojutrze o 16 przez 45 minut"
+    ],
+    "en": [
+      "Add Basen the day after tomorrow at 16 for 45 minutes"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Basen",
+        "startDate": "2026-10-25",
+        "endDate": "2026-10-25",
+        "allDay": false,
+        "startTime": "16:00",
+        "endTime": "16:45"
+      }
+    }
+  },
+  {
+    "id": "e18",
+    "pl": [
+      "Dodaj Kurs jutro od 13 do 15:30"
+    ],
+    "en": [
+      "Add Kurs tomorrow from 13 to 15:30"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Kurs",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "13:00",
+        "endTime": "15:30"
+      }
+    }
+  },
+  {
+    "id": "e19",
+    "pl": [
+      "Dodaj Dyżur 2026-10-31 o 23:40 na 40 minut"
+    ],
+    "en": [
+      "Add Dyżur on 2026-10-31 at 23:40 for 40 minutes"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Dyżur",
+        "startDate": "2026-10-31",
+        "endDate": "2026-11-01",
+        "allDay": false,
+        "startTime": "23:40",
+        "endTime": "00:20"
+      }
+    }
+  },
+  {
+    "id": "e20",
+    "pl": [
+      "Dodaj Wyjazd jutro cały dzień"
+    ],
+    "en": [
+      "Add Wyjazd tomorrow all day"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Wyjazd",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": true
+      }
+    }
+  },
+  {
+    "id": "e21",
+    "pl": [
+      "Dodaj Rozmowa jutro w południe"
+    ],
+    "en": [
+      "Add Rozmowa tomorrow at noon"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Rozmowa",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "12:00",
+        "endTime": "13:00"
+      }
+    }
+  },
+  {
+    "id": "e22",
+    "pl": [
+      "Dodaj Alarm jutro o północy"
+    ],
+    "en": [
+      "Add Alarm tomorrow at midnight"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Alarm",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "00:00",
+        "endTime": "01:00"
+      }
+    }
+  },
+  {
+    "id": "e23",
+    "pl": [
+      "Dodaj Telefon jutro o 3 pm"
+    ],
+    "en": [
+      "Add Telefon tomorrow at 3 pm"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Telefon",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "15:00",
+        "endTime": "16:00"
+      }
+    }
+  },
+  {
+    "id": "e24",
+    "pl": [
+      "Dodaj Rejestracja jutro o 12 am"
+    ],
+    "en": [
+      "Add Rejestracja tomorrow at 12 am"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Rejestracja",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "00:00",
+        "endTime": "01:00"
+      }
+    }
+  },
+  {
+    "id": "e25",
+    "pl": [
+      "Dodaj Obiad jutro o 13, miejsce: Bar Mleczny"
+    ],
+    "en": [
+      "Add Obiad tomorrow at 13, location: Bar Mleczny"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Obiad",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "location": "Bar Mleczny",
+        "startTime": "13:00",
+        "endTime": "14:00"
+      }
+    }
+  },
+  {
+    "id": "e26",
+    "pl": [
+      "Dodaj Projekt jutro o 14, opis: zabierz dokumenty"
+    ],
+    "en": [
+      "Add Projekt tomorrow at 14, description: zabierz dokumenty"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Projekt",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "description": "zabierz dokumenty",
+        "startTime": "14:00",
+        "endTime": "15:00"
+      }
+    }
+  },
+  {
+    "id": "e27",
+    "pl": [
+      "dodaj cwiczenia w srode o 17 na godzine"
+    ],
+    "en": [
+      "add cwiczenia on Wednesday at 17 for an hour"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "cwiczenia",
+        "startDate": "2026-10-28",
+        "endDate": "2026-10-28",
+        "allDay": false,
+        "startTime": "17:00",
+        "endTime": "18:00"
+      }
+    }
+  },
+  {
+    "id": "e28",
+    "pl": [
+      "Wstaw Wizytę u lekarza jutro o 9:40"
+    ],
+    "en": [
+      "Schedule Wizytę u lekarza tomorrow at 9:40"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Wizytę u lekarza",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "09:40",
+        "endTime": "10:40"
+      }
+    }
+  },
+  {
+    "id": "e29",
+    "pl": [
+      "Dodaj Spotkanie z Olą w piątek o 18"
+    ],
+    "en": [
+      "Add Spotkanie z Olą on Friday at 18"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Spotkanie z Olą",
+        "startDate": "2026-10-23",
+        "endDate": "2026-10-23",
+        "allDay": false,
+        "startTime": "18:00",
+        "endTime": "19:00"
+      }
+    }
+  },
+  {
+    "id": "e30",
+    "pl": [
+      "Dodaj Pomiar za 2 godziny na 20 minut"
+    ],
+    "en": [
+      "Add Pomiar in 2 hours for 20 minutes"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Pomiar",
+        "startDate": "2026-10-23",
+        "endDate": "2026-10-23",
+        "allDay": false,
+        "startTime": "12:00",
+        "endTime": "12:20"
+      }
+    }
+  },
+  {
+    "id": "e31",
+    "pl": [
+      "Przenieś dentystę na środę o 11"
+    ],
+    "en": [
+      "Move Dentysta to Wednesday at 11"
+    ],
+    "expected": {
+      "kind": "move",
+      "id": "dentist",
+      "event": {
+        "title": "Dentysta",
+        "startDate": "2026-10-28",
+        "endDate": "2026-10-28",
+        "startTime": "11:00",
+        "endTime": "12:30"
+      }
+    }
+  },
+  {
+    "id": "e32",
+    "pl": [
+      "Przesuń mi dentystę na jutro o 16:10"
+    ],
+    "en": [
+      "Reschedule Dentysta to tomorrow at 16:10"
+    ],
+    "expected": {
+      "kind": "move",
+      "id": "dentist",
+      "event": {
+        "title": "Dentysta",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "startTime": "16:10",
+        "endTime": "17:40"
+      }
+    }
+  },
+  {
+    "id": "e33",
+    "pl": [
+      "Zmień godzinę dentysty na 12"
+    ],
+    "en": [
+      "Change the time of Dentysta to 12"
+    ],
+    "expected": {
+      "kind": "move",
+      "id": "dentist",
+      "event": {
+        "title": "Dentysta",
+        "startDate": "2026-10-26",
+        "endDate": "2026-10-26",
+        "startTime": "12:00",
+        "endTime": "13:30"
+      }
+    }
+  },
+  {
+    "id": "e34",
+    "pl": [
+      "Przenieś Jogę na piątek o 19:30"
+    ],
+    "en": [
+      "Move Joga to Friday at 19:30"
+    ],
+    "expected": {
+      "kind": "move",
+      "id": "yoga",
+      "event": {
+        "title": "Joga",
+        "startDate": "2026-10-23",
+        "endDate": "2026-10-23",
+        "startTime": "19:30",
+        "endTime": "20:30"
+      }
+    }
+  },
+  {
+    "id": "e35",
+    "pl": [
+      "Przenieś dentystę z 2026-10-26 na 2026-11-02 o 10:15"
+    ],
+    "en": [
+      "Move Dentysta from 2026-10-26 to 2026-11-02 at 10:15"
+    ],
+    "expected": {
+      "kind": "move",
+      "id": "dentist",
+      "event": {
+        "title": "Dentysta",
+        "startDate": "2026-11-02",
+        "endDate": "2026-11-02",
+        "startTime": "10:15",
+        "endTime": "11:45"
+      }
+    }
+  },
+  {
+    "id": "e36",
+    "pl": [
+      "Zmień nazwę dentysty na \"Kontrola zębów\""
+    ],
+    "en": [
+      "Rename Dentysta to \"Kontrola zębów\""
+    ],
+    "expected": {
+      "kind": "move",
+      "id": "dentist",
+      "event": {
+        "title": "Kontrola zębów",
+        "startDate": "2026-10-26",
+        "startTime": "15:00",
+        "endTime": "16:30"
+      }
+    }
+  },
+  {
+    "id": "e37",
+    "pl": [
+      "Usuń dentystę"
+    ],
+    "en": [
+      "Delete Dentysta"
+    ],
+    "expected": {
+      "kind": "delete",
+      "id": "dentist"
+    }
+  },
+  {
+    "id": "e38",
+    "pl": [
+      "Skasuj Jogę"
+    ],
+    "en": [
+      "Remove Joga"
+    ],
+    "expected": {
+      "kind": "delete",
+      "id": "yoga"
+    }
+  },
+  {
+    "id": "e39",
+    "pl": [
+      "Wykreśl mi dentystę z 26.10.2026"
+    ],
+    "en": [
+      "Delete Dentysta on 2026-10-26"
+    ],
+    "expected": {
+      "kind": "delete",
+      "id": "dentist"
+    }
+  },
+  {
+    "id": "e40",
+    "pl": [
+      "Odwołaj Jogę"
+    ],
+    "en": [
+      "Cancel Joga"
+    ],
+    "expected": {
+      "kind": "delete",
+      "id": "yoga"
+    }
+  },
+  {
+    "id": "e41",
+    "pl": [
+      "Znajdź dentystę"
+    ],
+    "en": [
+      "Find Dentysta"
+    ],
+    "expected": {
+      "contains": [
+        "Dentysta",
+        "2026-10-26"
+      ]
+    }
+  },
+  {
+    "id": "e42",
+    "pl": [
+      "Wyszukaj Jogę"
+    ],
+    "en": [
+      "Search for Joga"
+    ],
+    "expected": {
+      "contains": [
+        "Joga",
+        "2026-10-27"
+      ]
+    }
+  },
+  {
+    "id": "e43",
+    "pl": [
+      "Pokaż wydarzenia dentysty"
+    ],
+    "en": [
+      "Show events for Dentysta"
+    ],
+    "expected": {
+      "contains": [
+        "Dentysta"
+      ]
+    }
+  },
+  {
+    "id": "e44",
+    "pl": [
+      "Szukaj Joga"
+    ],
+    "en": [
+      "Search Joga"
+    ],
+    "expected": {
+      "contains": [
+        "Joga"
+      ]
+    }
+  },
+  {
+    "id": "e45",
+    "pl": [
+      "Co mam w poniedziałek?"
+    ],
+    "en": [
+      "What is on Monday?"
+    ],
+    "expected": {
+      "contains": [
+        "2026-10-26"
+      ]
+    }
+  },
+  {
+    "id": "e46",
+    "pl": [
+      "Pokaż plan na wtorek"
+    ],
+    "en": [
+      "Show my schedule for Tuesday"
+    ],
+    "expected": {
+      "contains": [
+        "2026-10-27"
+      ]
+    }
+  },
+  {
+    "id": "e47",
+    "pl": [
+      "Jak wygląda jutro?"
+    ],
+    "en": [
+      "What is on tomorrow?"
+    ],
+    "expected": {
+      "contains": [
+        "2026-10-24"
+      ]
+    }
+  },
+  {
+    "id": "e48",
+    "pl": [
+      "Kiedy mam wolne w poniedziałek od 10 do 14?"
+    ],
+    "en": [
+      "When am I free on Monday from 10 to 14?"
+    ],
+    "expected": {
+      "contains": [
+        "2026-10-26"
+      ]
+    }
+  },
+  {
+    "id": "e49",
+    "pl": [
+      "Znajdź wolny czas jutro na 45 minut"
+    ],
+    "en": [
+      "Find free time tomorrow for 45 minutes"
+    ],
+    "expected": {
+      "contains": [
+        "2026-10-24"
+      ]
+    }
+  },
+  {
+    "id": "e50",
+    "pl": [
+      "Czy mam wolne pojutrze?"
+    ],
+    "en": [
+      "Am I free the day after tomorrow?"
+    ],
+    "expected": {
+      "contains": [
+        "2026-10-25"
+      ]
+    }
+  },
+  {
+    "id": "e51",
+    "pl": [
+      "Sprawdź konflikty"
+    ],
+    "en": [
+      "Check conflicts"
+    ],
+    "expected": {
+      "contains": []
+    }
+  },
+  {
+    "id": "e52",
+    "pl": [
+      "Dodaj Test jutro"
+    ],
+    "en": [
+      "Add Test tomorrow"
+    ],
+    "expected": {
+      "clarify": true
+    }
+  },
+  {
+    "id": "e53",
+    "pl": [
+      "Dodaj Test o 15"
+    ],
+    "en": [
+      "Add Test at 15"
+    ],
+    "expected": {
+      "clarify": true
+    }
+  },
+  {
+    "id": "e54",
+    "pl": [
+      "Dodaj jutro o 15"
+    ],
+    "en": [
+      "Add tomorrow at 15"
+    ],
+    "expected": {
+      "clarify": true
+    }
+  },
+  {
+    "id": "e55",
+    "pl": [
+      "Przenieś dentystę"
+    ],
+    "en": [
+      "Move Dentysta"
+    ],
+    "expected": {
+      "clarify": true
+    }
+  },
+  {
+    "id": "e56",
+    "pl": [
+      "Dodaj Naprawa jutro",
+      "o 14:25"
+    ],
+    "en": [
+      "Add Naprawa tomorrow",
+      "at 14:25"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Naprawa",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "14:25",
+        "endTime": "15:25"
+      }
+    }
+  },
+  {
+    "id": "e57",
+    "pl": [
+      "Dodaj Rezerwacja o 11:20",
+      "pojutrze"
+    ],
+    "en": [
+      "Add Rezerwacja at 11:20",
+      "the day after tomorrow"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Rezerwacja",
+        "startDate": "2026-10-25",
+        "endDate": "2026-10-25",
+        "allDay": false,
+        "startTime": "11:20",
+        "endTime": "12:20"
+      }
+    }
+  },
+  {
+    "id": "e58",
+    "pl": [
+      "Czy możesz dodać mi Słuchanie podcastu jutro o 8?"
+    ],
+    "en": [
+      "Could you add Słuchanie podcastu tomorrow at 8?"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Słuchanie podcastu",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "startTime": "08:00",
+        "endTime": "09:00"
+      }
+    }
+  },
+  {
+    "id": "e59",
+    "pl": [
+      "Dodaj Trening jutro o 18 w Parku Skaryszewskim"
+    ],
+    "en": [
+      "Add Trening tomorrow at 18 in Parku Skaryszewskim"
+    ],
+    "expected": {
+      "kind": "create",
+      "event": {
+        "title": "Trening",
+        "startDate": "2026-10-24",
+        "endDate": "2026-10-24",
+        "allDay": false,
+        "location": "Parku Skaryszewskim",
+        "startTime": "18:00",
+        "endTime": "19:00"
+      }
+    }
+  },
+  {
+    "id": "e60",
+    "pl": [
+      "Nie usuwaj dentysty, tylko powiedz kiedy jest"
+    ],
+    "en": [
+      "Do not delete Dentysta, just tell me when it is"
+    ],
+    "expected": {
+      "contains": [
+        "Dentysta"
+      ]
+    }
+  },
+  {
+    "id": "e61",
+    "pl": [
+      "Gdybym miał godzinę jutro po południu, co zmieści się między spotkaniami?"
+    ],
+    "en": [
+      "If I had an hour tomorrow afternoon, what fits between my meetings?"
+    ],
+    "expected": {
+      "contains": []
+    }
+  }
+]

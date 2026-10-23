@@ -5,9 +5,11 @@ const { createReadStream, statSync } = require('node:fs');
 const { createHash } = require('node:crypto');
 const { _android } = require('playwright');
 const pkg = process.env.MODEL_TEST_ANDROID_PACKAGE || 'com.kalendarz.offline';
+const activity = process.env.MODEL_TEST_ANDROID_ACTIVITY || 'com.kalendarz.offline.MainActivity';
 const adb = process.env.ADB || 'adb';
 const file = process.env.CALENDAR_MODEL_FILE;
 assert.match(pkg, /^[a-zA-Z][\w]*(?:\.[a-zA-Z][\w]*)+$/);
+assert.match(activity, /^[a-zA-Z][\w]*(?:\.[a-zA-Z][\w]*)+$/);
 async function records(page) {
   return page.evaluate(async () => {
     const request = indexedDB.open('offline-calendar');
@@ -32,7 +34,7 @@ async function records(page) {
   let page;
   try {
     console.log('Testing the model bundled inside the APK; no import or model transfer');
-    await device.shell(`am start -n ${pkg}/.MainActivity`);
+    await device.shell(`am start -n ${pkg}/${activity}`);
     const view = await device.webView({ pkg }, { timeout: 180000 });
     page = await view.page();
     console.log('Connected to actual Android System WebView');
@@ -57,9 +59,12 @@ async function records(page) {
       await page.clock.setFixedTime(new Date('2026-10-21T08:00:00Z'));
       await page.reload();
       await page.locator('#btn-open-ai-assistant').click();
-      await page.getByText(example.installed, { exact: true }).waitFor();
+      await page.locator('[data-model-installed="true"]').waitFor();
       console.log('Android runtime:', await page.evaluate(() => JSON.stringify({ ua: navigator.userAgent, isolated: crossOriginIsolated, jspi: typeof WebAssembly.Suspending === 'function', language: document.documentElement.lang })));
-      const before = await records(page), started = performance.now();
+      const before = await records(page);
+      await require('./model-device-check.cjs')(page, example.language);
+      assert.deepEqual(await records(page), before, 'Diagnostic calls must not write events');
+      const started = performance.now();
       await page.locator('#drawer-ai-assistant input[type=text]').fill(example.request);
       await page.locator('#btn-send-ai-message').click();
       await page.waitForFunction(() => !document.querySelector('#drawer-ai-assistant input[type=text]')?.disabled);

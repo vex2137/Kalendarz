@@ -42,7 +42,7 @@ async function records(page) {
   let browser, page;
   try {
     await wait(async () => { try { return (await fetch(base)).ok; } catch { return false; } }, 15000);
-    browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : existsSync('/usr/bin/chromium') ? { executablePath: '/usr/bin/chromium' } : {}), args: ['--no-sandbox'] });
+    browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : existsSync('/usr/bin/chromium') ? { executablePath: '/usr/bin/chromium' } : {}), args: ['--no-sandbox', '--disk-cache-size=1073741824'] });
     const context = await browser.newContext({ timezoneId: 'Europe/Warsaw' });
     await context.addInitScript(language => {
       const parse = JSON.parse;
@@ -78,8 +78,9 @@ async function records(page) {
     // Use the shipped model on a fresh profile: no import/download and no pre-existing IndexedDB copy.
     assert.equal(await page.evaluate(() => indexedDB.databases().then(dbs => dbs.some(db => db.name === 'calendar-local-model'))), false);
     console.log('Testing bundled GGUF on a fresh profile');
-    await page.getByText(copy.installed, { exact: true }).waitFor();
-    await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+    await page.locator('[data-model-installed="true"]').waitFor();
+    console.log('Bundled metadata ready; waiting for service-worker installation');
+    await page.evaluate(() => Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise((_, reject) => setTimeout(() => reject(new Error('Service-worker installation exceeded 60 seconds')), 60000))]));
     await page.reload();
     await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
     await context.setOffline(true);
@@ -91,7 +92,7 @@ async function records(page) {
     await page.locator('#btn-open-ai-assistant').click();
     console.log('Browser runtime:', JSON.stringify(await page.evaluate(() => ({
       userAgent: navigator.userAgent, isolated: crossOriginIsolated,
-      threads: crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1,
+      availableCores: navigator.hardwareConcurrency || 1,
     }))));
     const send = async text => {
       const started = performance.now();
@@ -123,6 +124,8 @@ async function records(page) {
       assert.equal((await records(page)).length, 0);
       assert.ok(!/nie znaleziono wydarzeń|no events found/i.test(reply));
     }
+    await require('./model-device-check.cjs')(page, language);
+    assert.equal((await records(page)).length, 0, 'Diagnostic inference must not write calendar events');
     await send(copy.create);
     assert.equal(await confirm().count(), 1, 'Create request must produce a reviewable proposal');
     assert.equal((await records(page)).length, 0, 'Inference must not write automatically');
@@ -136,7 +139,7 @@ async function records(page) {
     assert.equal(original.endTime, '16:00');
     await page.clock.setFixedTime(new Date('2026-10-21T08:02:00Z'));
     await send(copy.move);
-    assert.ok(inferenceMetrics.at(-1).cachedTokens >= 500, 'Changing the minute must retain the cached system prefix');
+    assert.equal(inferenceMetrics.length, 2, 'A simple move must use rules, independently of the changing minute');
     assert.equal(await confirm().count(), 1, 'Move request must produce a reviewable proposal');
     assert.equal((await records(page))[0].startDate, original.startDate);
     await confirm().click();

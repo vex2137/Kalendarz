@@ -211,6 +211,8 @@ export function parseDateFromNaturalLanguage(
   referenceDate: Date = new Date(),
   lang: AppLanguage = 'en',
 ): { date: Date; dateStr: string; label: string; matched: boolean } {
+  // Date words inside an explicitly quoted event title are not scheduling evidence.
+  text = text.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, '');
   const normalized = lang === 'de' ? normalizeGermanInput(text) : normalizeRussianInput(text);
   if (normalized !== text) {
     const parsed = parseDateFromNaturalLanguage(normalized, referenceDate, 'en');

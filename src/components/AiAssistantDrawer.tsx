@@ -5,7 +5,8 @@ import { Dialog } from './Dialog';
 import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { CalendarEvent, AiChatMessage, AiSettings } from '../types';
 import { runModelAssistant, type ModelConversation } from '../utils/modelAssistant';
-import { cancelModelOperation, modelStatus, subscribeModel } from '../utils/localModelRuntime';
+import { cancelModelOperation, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
+import { ModelDiagnostics } from './ModelDiagnostics';
 import { localModelText } from '../utils/localModelText';
 import { LocalModelSetup } from './LocalModelSetup';
 import { MarkdownMessage } from './MarkdownMessage';
@@ -89,7 +90,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   }, [language]);
 
   useEffect(() => {
-    if (!isOpen || !aiSettings.enabled) cancelModelOperation();
+    setAssistantActive(isOpen && aiSettings.enabled);
+    return () => setAssistantActive(false);
   }, [isOpen, aiSettings.enabled]);
 
   if (!isOpen) return null;
@@ -239,6 +241,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         </div>
 
         <LocalModelSetup language={language} enabled={aiSettings.enabled} />
+        <ModelDiagnostics language={language} enabled={aiSettings.enabled} />
 
         {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 px-3 py-2 rounded theme-surface theme-text theme-border border text-sm">
           {tr(language, 'Cofnij ostatnią operację asystenta', 'Undo last assistant operation')}

@@ -1,0 +1,2002 @@
+{
+  "baselineCommit": "4d3b5ef89e8924ad4f040a3a1c0e95e309e5b0eb",
+  "fixtureSha256": "3d5d1c3dd461cc42f4b19bea7efb714681f47aa2953173283eb86f5b73373327",
+  "threads": 1,
+  "cpuQuota": 2,
+  "browser": "Chromium 154.0.8037.57",
+  "kind": "development evaluation, not a blind holdout",
+  "stages": {
+    "before": {
+      "summary": {
+        "pl": {
+          "passed": 18,
+          "scenarios": 61,
+          "medianMs": 11872.24,
+          "meanMs": 12593.66,
+          "modelCalls": 63
+        },
+        "en": {
+          "passed": 21,
+          "scenarios": 61,
+          "medianMs": 10924.42,
+          "meanMs": 15007.08,
+          "modelCalls": 62
+        }
+      },
+      "scenarios": [
+        {
+          "id": "e01",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 81793.35
+        },
+        {
+          "id": "e02",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10365.85
+        },
+        {
+          "id": "e03",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12309.67
+        },
+        {
+          "id": "e04",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11294.67
+        },
+        {
+          "id": "e05",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12975.11
+        },
+        {
+          "id": "e06",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13809.84
+        },
+        {
+          "id": "e07",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 16769.18
+        },
+        {
+          "id": "e08",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 17032.32
+        },
+        {
+          "id": "e09",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12652.24
+        },
+        {
+          "id": "e10",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 7946.71
+        },
+        {
+          "id": "e11",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13735.79
+        },
+        {
+          "id": "e12",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13152.73
+        },
+        {
+          "id": "e13",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12524.83
+        },
+        {
+          "id": "e14",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13787.68
+        },
+        {
+          "id": "e15",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11872.24
+        },
+        {
+          "id": "e16",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 14311.29
+        },
+        {
+          "id": "e17",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10842.8
+        },
+        {
+          "id": "e18",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11299.2
+        },
+        {
+          "id": "e19",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13114.82
+        },
+        {
+          "id": "e20",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11144.56
+        },
+        {
+          "id": "e21",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11409.25
+        },
+        {
+          "id": "e22",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10799.08
+        },
+        {
+          "id": "e23",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12472.11
+        },
+        {
+          "id": "e24",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12288.21
+        },
+        {
+          "id": "e25",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10906.03
+        },
+        {
+          "id": "e26",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11083.28
+        },
+        {
+          "id": "e27",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12903.3
+        },
+        {
+          "id": "e28",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13898.07
+        },
+        {
+          "id": "e29",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 14533.31
+        },
+        {
+          "id": "e30",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9394.23
+        },
+        {
+          "id": "e31",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11260.88
+        },
+        {
+          "id": "e32",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12699.82
+        },
+        {
+          "id": "e33",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 8468.46
+        },
+        {
+          "id": "e34",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13290.55
+        },
+        {
+          "id": "e35",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12861.43
+        },
+        {
+          "id": "e36",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11075.38
+        },
+        {
+          "id": "e37",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 4532.26
+        },
+        {
+          "id": "e38",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 4767.37
+        },
+        {
+          "id": "e39",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12728.85
+        },
+        {
+          "id": "e40",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5572.22
+        },
+        {
+          "id": "e41",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5093.35
+        },
+        {
+          "id": "e42",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 6107.64
+        },
+        {
+          "id": "e43",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5288.97
+        },
+        {
+          "id": "e44",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 8199.71
+        },
+        {
+          "id": "e45",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10667.83
+        },
+        {
+          "id": "e46",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11147.94
+        },
+        {
+          "id": "e47",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10546.38
+        },
+        {
+          "id": "e48",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12158.55
+        },
+        {
+          "id": "e49",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11344.01
+        },
+        {
+          "id": "e50",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 14798.52
+        },
+        {
+          "id": "e51",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 6186.56
+        },
+        {
+          "id": "e52",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13133.2
+        },
+        {
+          "id": "e53",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13554.46
+        },
+        {
+          "id": "e54",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9439.65
+        },
+        {
+          "id": "e55",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 6497.88
+        },
+        {
+          "id": "e56",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 2,
+          "totalMs": 22651.39
+        },
+        {
+          "id": "e57",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 2,
+          "totalMs": 21384.15
+        },
+        {
+          "id": "e58",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12813.48
+        },
+        {
+          "id": "e59",
+          "language": "pl",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12095.96
+        },
+        {
+          "id": "e60",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 6565.28
+        },
+        {
+          "id": "e61",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 8859.31
+        },
+        {
+          "id": "e01",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 82132.44
+        },
+        {
+          "id": "e02",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11109.67
+        },
+        {
+          "id": "e03",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13182.3
+        },
+        {
+          "id": "e04",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 16814.06
+        },
+        {
+          "id": "e05",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 14544.42
+        },
+        {
+          "id": "e06",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 20232.14
+        },
+        {
+          "id": "e07",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10924.42
+        },
+        {
+          "id": "e08",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10736.45
+        },
+        {
+          "id": "e09",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13966.38
+        },
+        {
+          "id": "e10",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10771.29
+        },
+        {
+          "id": "e11",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9917.68
+        },
+        {
+          "id": "e12",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11739.5
+        },
+        {
+          "id": "e13",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10952.8
+        },
+        {
+          "id": "e14",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9865.8
+        },
+        {
+          "id": "e15",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10094.19
+        },
+        {
+          "id": "e16",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 15171.05
+        },
+        {
+          "id": "e17",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 20874.73
+        },
+        {
+          "id": "e18",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 21712.83
+        },
+        {
+          "id": "e19",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 28409.15
+        },
+        {
+          "id": "e20",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 34225.92
+        },
+        {
+          "id": "e21",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 23979.33
+        },
+        {
+          "id": "e22",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 14674.8
+        },
+        {
+          "id": "e23",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13052.83
+        },
+        {
+          "id": "e24",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 26898.41
+        },
+        {
+          "id": "e25",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 33430.29
+        },
+        {
+          "id": "e26",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 23258.42
+        },
+        {
+          "id": "e27",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 30541.77
+        },
+        {
+          "id": "e28",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 38049.45
+        },
+        {
+          "id": "e29",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 24477.33
+        },
+        {
+          "id": "e30",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 15064.38
+        },
+        {
+          "id": "e31",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 14812.39
+        },
+        {
+          "id": "e32",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9945.99
+        },
+        {
+          "id": "e33",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5677.27
+        },
+        {
+          "id": "e34",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9454.88
+        },
+        {
+          "id": "e35",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9866.71
+        },
+        {
+          "id": "e36",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 11973.47
+        },
+        {
+          "id": "e37",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 4864.19
+        },
+        {
+          "id": "e38",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 4180.31
+        },
+        {
+          "id": "e39",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9317.9
+        },
+        {
+          "id": "e40",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5867.88
+        },
+        {
+          "id": "e41",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 3870.67
+        },
+        {
+          "id": "e42",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5100.13
+        },
+        {
+          "id": "e43",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5205.54
+        },
+        {
+          "id": "e44",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 4792.41
+        },
+        {
+          "id": "e45",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9163.56
+        },
+        {
+          "id": "e46",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 8393.95
+        },
+        {
+          "id": "e47",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9215.12
+        },
+        {
+          "id": "e48",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 18820.76
+        },
+        {
+          "id": "e49",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 23694.07
+        },
+        {
+          "id": "e50",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10401.04
+        },
+        {
+          "id": "e51",
+          "language": "en",
+          "passed": true,
+          "route": "quick",
+          "inferenceCount": 0,
+          "totalMs": 1.94
+        },
+        {
+          "id": "e52",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 8956.31
+        },
+        {
+          "id": "e53",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5929.38
+        },
+        {
+          "id": "e54",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9376.28
+        },
+        {
+          "id": "e55",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 6125.51
+        },
+        {
+          "id": "e56",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 2,
+          "totalMs": 20559.36
+        },
+        {
+          "id": "e57",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 2,
+          "totalMs": 22679.71
+        },
+        {
+          "id": "e58",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10468.93
+        },
+        {
+          "id": "e59",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 9749.67
+        },
+        {
+          "id": "e60",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 5800.31
+        },
+        {
+          "id": "e61",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 10362.19
+        }
+      ]
+    },
+    "after": {
+      "summary": {
+        "pl": {
+          "passed": 61,
+          "scenarios": 61,
+          "medianMs": 0.49,
+          "meanMs": 1320.45,
+          "modelCalls": 2
+        },
+        "en": {
+          "passed": 60,
+          "scenarios": 61,
+          "medianMs": 0.41,
+          "meanMs": 1186.51,
+          "modelCalls": 2
+        }
+      },
+      "scenarios": [
+        {
+          "id": "e01",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 63.23
+        },
+        {
+          "id": "e02",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 6.02
+        },
+        {
+          "id": "e03",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 2.44
+        },
+        {
+          "id": "e04",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 3.27
+        },
+        {
+          "id": "e05",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 10.71
+        },
+        {
+          "id": "e06",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 1.04
+        },
+        {
+          "id": "e07",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.61
+        },
+        {
+          "id": "e08",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 1.77
+        },
+        {
+          "id": "e09",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 3.78
+        },
+        {
+          "id": "e10",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.9
+        },
+        {
+          "id": "e11",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.49
+        },
+        {
+          "id": "e12",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.27
+        },
+        {
+          "id": "e13",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.26
+        },
+        {
+          "id": "e14",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 1.59
+        },
+        {
+          "id": "e15",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.43
+        },
+        {
+          "id": "e16",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.29
+        },
+        {
+          "id": "e17",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.61
+        },
+        {
+          "id": "e18",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.4
+        },
+        {
+          "id": "e19",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.45
+        },
+        {
+          "id": "e20",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.68
+        },
+        {
+          "id": "e21",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.27
+        },
+        {
+          "id": "e22",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.25
+        },
+        {
+          "id": "e23",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.49
+        },
+        {
+          "id": "e24",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.18
+        },
+        {
+          "id": "e25",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.5
+        },
+        {
+          "id": "e26",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 1.67
+        },
+        {
+          "id": "e27",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.46
+        },
+        {
+          "id": "e28",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.54
+        },
+        {
+          "id": "e29",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.5
+        },
+        {
+          "id": "e30",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 1.81
+        },
+        {
+          "id": "e31",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 4.21
+        },
+        {
+          "id": "e32",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.69
+        },
+        {
+          "id": "e33",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.94
+        },
+        {
+          "id": "e34",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.33
+        },
+        {
+          "id": "e35",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.54
+        },
+        {
+          "id": "e36",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.23
+        },
+        {
+          "id": "e37",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.13
+        },
+        {
+          "id": "e38",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.15
+        },
+        {
+          "id": "e39",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.18
+        },
+        {
+          "id": "e40",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.18
+        },
+        {
+          "id": "e41",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.29
+        },
+        {
+          "id": "e42",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.28
+        },
+        {
+          "id": "e43",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.23
+        },
+        {
+          "id": "e44",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.15
+        },
+        {
+          "id": "e45",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 3.05
+        },
+        {
+          "id": "e46",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.61
+        },
+        {
+          "id": "e47",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.28
+        },
+        {
+          "id": "e48",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 1.33
+        },
+        {
+          "id": "e49",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.31
+        },
+        {
+          "id": "e50",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.25
+        },
+        {
+          "id": "e51",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.14
+        },
+        {
+          "id": "e52",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.49
+        },
+        {
+          "id": "e53",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.1
+        },
+        {
+          "id": "e54",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.16
+        },
+        {
+          "id": "e55",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.14
+        },
+        {
+          "id": "e56",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.6
+        },
+        {
+          "id": "e57",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.3
+        },
+        {
+          "id": "e58",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.28
+        },
+        {
+          "id": "e59",
+          "language": "pl",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.2
+        },
+        {
+          "id": "e60",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 66566.94
+        },
+        {
+          "id": "e61",
+          "language": "pl",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 13857.61
+        },
+        {
+          "id": "e01",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 81.67
+        },
+        {
+          "id": "e02",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.73
+        },
+        {
+          "id": "e03",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 2.02
+        },
+        {
+          "id": "e04",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 45.81
+        },
+        {
+          "id": "e05",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.62
+        },
+        {
+          "id": "e06",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 20.99
+        },
+        {
+          "id": "e07",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.57
+        },
+        {
+          "id": "e08",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 6.21
+        },
+        {
+          "id": "e09",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 2.22
+        },
+        {
+          "id": "e10",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 2.19
+        },
+        {
+          "id": "e11",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.65
+        },
+        {
+          "id": "e12",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.41
+        },
+        {
+          "id": "e13",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.36
+        },
+        {
+          "id": "e14",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.4
+        },
+        {
+          "id": "e15",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.6
+        },
+        {
+          "id": "e16",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.42
+        },
+        {
+          "id": "e17",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.62
+        },
+        {
+          "id": "e18",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.33
+        },
+        {
+          "id": "e19",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.69
+        },
+        {
+          "id": "e20",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.39
+        },
+        {
+          "id": "e21",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.41
+        },
+        {
+          "id": "e22",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.29
+        },
+        {
+          "id": "e23",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.36
+        },
+        {
+          "id": "e24",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.33
+        },
+        {
+          "id": "e25",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.48
+        },
+        {
+          "id": "e26",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.35
+        },
+        {
+          "id": "e27",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.33
+        },
+        {
+          "id": "e28",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.43
+        },
+        {
+          "id": "e29",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.75
+        },
+        {
+          "id": "e30",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.42
+        },
+        {
+          "id": "e31",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 1.7
+        },
+        {
+          "id": "e32",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.49
+        },
+        {
+          "id": "e33",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.6
+        },
+        {
+          "id": "e34",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.31
+        },
+        {
+          "id": "e35",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.33
+        },
+        {
+          "id": "e36",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.3
+        },
+        {
+          "id": "e37",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.11
+        },
+        {
+          "id": "e38",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.1
+        },
+        {
+          "id": "e39",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.28
+        },
+        {
+          "id": "e40",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.31
+        },
+        {
+          "id": "e41",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.29
+        },
+        {
+          "id": "e42",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.17
+        },
+        {
+          "id": "e43",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.22
+        },
+        {
+          "id": "e44",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.12
+        },
+        {
+          "id": "e45",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 2.53
+        },
+        {
+          "id": "e46",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.36
+        },
+        {
+          "id": "e47",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.53
+        },
+        {
+          "id": "e48",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 1.43
+        },
+        {
+          "id": "e49",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.35
+        },
+        {
+          "id": "e50",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.33
+        },
+        {
+          "id": "e51",
+          "language": "en",
+          "passed": true,
+          "route": "quick",
+          "inferenceCount": 0,
+          "totalMs": 0.14
+        },
+        {
+          "id": "e52",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.27
+        },
+        {
+          "id": "e53",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.59
+        },
+        {
+          "id": "e54",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.24
+        },
+        {
+          "id": "e55",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.16
+        },
+        {
+          "id": "e56",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.52
+        },
+        {
+          "id": "e57",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.22
+        },
+        {
+          "id": "e58",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.27
+        },
+        {
+          "id": "e59",
+          "language": "en",
+          "passed": true,
+          "route": "rules",
+          "inferenceCount": 0,
+          "totalMs": 0.23
+        },
+        {
+          "id": "e60",
+          "language": "en",
+          "passed": false,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 60122.12
+        },
+        {
+          "id": "e61",
+          "language": "en",
+          "passed": true,
+          "route": "model",
+          "inferenceCount": 1,
+          "totalMs": 12069.61
+        }
+      ]
+    }
+  }
+}

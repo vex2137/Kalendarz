@@ -53,6 +53,7 @@ export function availableSlots(events: CalendarEvent[], start: string, end: stri
 }
 export const normalize = (text: string) => text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
 function stem(word: string) {
+  if (/^(?:jog[aeiu]|jodze)$/.test(word)) return 'joga';
   if (/^(?:dent(?:yst|ist)|стоматолог|дантист)/.test(word)) return 'dentist';
   if (/^(trening|workout|train|трениров)/.test(word)) return 'workout';
   if (/^(spotkan|meet|встреч)/.test(word)) return 'meeting';
@@ -60,14 +61,16 @@ function stem(word: string) {
   if (word.length > 4) return word.replace(/(?:ami|ach|owie|ego|iem|em|ing|ers|es|ow|ie|a|e|y|i|s)$/, '');
   return word;
 }
-export function searchCalendar(events: CalendarEvent[], query: string) {
+export function matchesCalendarText(text: string, query: string) {
   const stop = new Set(['z', 'ze', 'w', 'we', 'na', 'o', 'the', 'a', 'an', 'with', 'my', 'for', 'с', 'со', 'в', 'на', 'у']);
   const terms = (normalize(query).match(/[\p{L}\p{N}]+/gu) || []).filter(t => !stop.has(t)).map(stem);
-  if (!terms.length) return [];
-  return events.filter(e => {
-    const words = (normalize([e.title, e.location, e.description].filter(Boolean).join(' ')).match(/[\p{L}\p{N}]+/gu) || []).map(stem);
-    return terms.every(t => words.some(w => w === t));
-  }).sort((a, b) => a.startDate.localeCompare(b.startDate) || (a.startTime || '').localeCompare(b.startTime || ''));
+  if (!terms.length) return false;
+  const words = (normalize(text).match(/[\p{L}\p{N}]+/gu) || []).map(stem);
+  return terms.every(t => words.includes(t));
+}
+export function searchCalendar(events: CalendarEvent[], query: string) {
+  return events.filter(e => matchesCalendarText([e.title, e.location, e.description].filter(Boolean).join(' '), query))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || (a.startTime || '').localeCompare(b.startTime || ''));
 }
 export function planningRange(text: string, now: Date): [string, string] {
   const today = localDate(now);
