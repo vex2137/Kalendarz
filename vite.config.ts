@@ -3,15 +3,22 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 export default defineConfig(() => {
+  const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+  const buildInfo = { commit: git('rev-parse', 'HEAD'), branch: process.env.GITHUB_REF_NAME || git('branch', '--show-current'),
+    version: JSON.parse(readFileSync('package.json', 'utf8')).version, dirty: Boolean(git('status', '--porcelain', '--untracked-files=no')), builtAt: new Date().toISOString() };
   const modelHeaders = {
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Cross-Origin-Embedder-Policy': 'require-corp',
   };
   return {
     base: './',
+    define: { __CALENDAR_BUILD__: JSON.stringify(buildInfo) },
     plugins: [
+      { name: 'calendar-build-provenance', generateBundle() { this.emitFile({ type: 'asset', fileName: 'build-info.json', source: JSON.stringify(buildInfo) }); } },
       react(),
       tailwindcss(),
       VitePWA({
@@ -59,7 +66,7 @@ export default defineConfig(() => {
         devOptions: { enabled: false },
         workbox: {
           // Both CPU runtimes must be available after installation without contacting a CDN.
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}', 'models/*.{gguf,json,txt}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}', 'models/*.{gguf,json,txt}', 'build-info.json'],
           maximumFileSizeToCacheInBytes: 240 * 1024 * 1024,
         },
       }),

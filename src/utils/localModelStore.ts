@@ -18,10 +18,11 @@ export async function verifyModel(blob: Blob, signal?: AbortSignal, progress?: (
   if (blob.size !== LOCAL_MODEL.bytes) throw new Error('model-size');
   const hash = sha256.create();
   // Bound temporary allocations and yield between chunks, including on older WebViews.
-  for (let offset = 0; offset < blob.size; offset += 1024 * 1024) {
+  const chunkSize = 4 * 1024 * 1024;
+  for (let offset = 0; offset < blob.size; offset += chunkSize) {
     signal?.throwIfAborted();
-    hash.update(new Uint8Array(await blob.slice(offset, offset + 1024 * 1024).arrayBuffer()));
-    progress?.(Math.min(blob.size, offset + 1024 * 1024));
+    hash.update(new Uint8Array(await blob.slice(offset, offset + chunkSize).arrayBuffer()));
+    progress?.(Math.min(blob.size, offset + chunkSize));
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   const checksum = Array.from(hash.digest(), b => b.toString(16).padStart(2, '0')).join('');

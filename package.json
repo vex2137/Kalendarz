@@ -21,6 +21,10 @@
     "test:desktop": "node tests/electron.cjs",
     "test:model": "node tests/model-browser.cjs",
     "test:model:android": "node tests/model-android.cjs",
+    "build:evaluation": "vite build --config tests/model-evaluation.config.ts",
+    "prebuild:evaluation": "node scripts/prepare-model.cjs",
+    "test:assistant:evaluation": "node tests/model-evaluation.cjs",
+    "test:model:runtime": "node tests/model-runtime-browser.cjs",
     "prebuild": "node scripts/prepare-model.cjs"
   },
   "build": {

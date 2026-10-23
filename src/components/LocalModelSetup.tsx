@@ -10,7 +10,7 @@ export function LocalModelSetup({ language, enabled = true }: { language: AppLan
   const text = localModelText(language);
   useEffect(() => { void checkLocalModel(); }, []);
   const busy = ['checking', 'downloading', 'verifying', 'loading', 'running'].includes(status.phase);
-  return <section aria-label={LOCAL_MODEL.name} className="p-3 text-xs theme-border border-b space-y-2 theme-text">
+  return <section aria-label={LOCAL_MODEL.name} data-testid="local-model-setup" data-model-installed={status.installed} data-model-phase={status.phase} className="p-3 text-xs theme-border border-b space-y-2 theme-text">
     <p className="font-semibold">{LOCAL_MODEL.name} · llama.cpp</p>
     <p role="status">{text[status.phase]}</p>
     {['downloading', 'verifying'].includes(status.phase) && <div>

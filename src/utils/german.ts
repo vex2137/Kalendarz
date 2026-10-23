@@ -1,5 +1,8 @@
 // UI templates only. Inserted event names and other user data are preserved.
 export const GERMAN_UI: Record<string, string> = {
+  'Please clarify which change to prepare; nothing was changed.': 'Bitte präzisiere die gewünschte Änderung; es wurde nichts geändert.',
+  'Please specify the exact event title; the model returned another name.': 'Bitte gib den genauen Termintitel an; das Modell hat einen anderen Namen ausgegeben.',
+  'Please specify a new date, time or event name.': 'Bitte gib ein neues Datum, eine neue Uhrzeit oder einen neuen Terminnamen an.',
   'The model added details absent from the request. Please clarify the event; nothing was changed.': 'Das Modell hat Angaben ergänzt, die nicht in der Anfrage stehen. Bitte präzisiere den Termin; es wurde nichts geändert.',
   'Calendar': 'Kalender', 'Calendar views': 'Kalenderansichten', 'Calendar — downloads': 'Kalender — Downloads',
   'Today': 'Heute', 'Tomorrow': 'Morgen', 'Day after tomorrow': 'Übermorgen',

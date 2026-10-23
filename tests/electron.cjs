@@ -59,7 +59,8 @@ const { _electron } = require('playwright');
       return route.abort();
     });
     await page.locator('#btn-open-ai-assistant').click();
-    await page.getByText('Model installed • offline ready', { exact: true }).waitFor();
+    await page.locator('[data-model-installed="true"]').waitFor();
+    await require('./model-device-check.cjs')(page, 'en');
     const started = performance.now();
     await page.locator('#drawer-ai-assistant input[type=text]').fill('Add event Desktopcheck on 2026-11-15 at 15:00 until 16:00');
     await page.locator('#btn-send-ai-message').click();
@@ -69,7 +70,7 @@ const { _electron } = require('playwright');
     assert.match(proposal, /2026-11-15 15:00/);
     assert.match(proposal, /16:00/);
     assert.deepEqual(external, []);
-    console.log(`PASS real bundled GGUF in packaged Electron with HTTP blocked: ${((performance.now() - started) / 1000).toFixed(2)}s`);
+    console.log(`PASS actual packaged GGUF probe and reviewed rule proposal with HTTP blocked; rule response: ${((performance.now() - started) / 1000).toFixed(2)}s`);
     assert.deepEqual(errors, []);
     console.log(
       'PASS packaged Electron: file-origin startup, IndexedDB persistence, keyboard navigation and encrypted QR generation',

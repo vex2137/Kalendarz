@@ -18,6 +18,12 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "CalendarDevice")
 public class CalendarDevicePlugin extends Plugin {
+    @Override
+    public void load() {
+        // Capacitor registers plugins before loadWebView(), so isolation applies to
+        // the first main document as well as WASM/worker subresources.
+        bridge.setWebViewClient(new CalendarWebViewClient(bridge));
+    }
     // Keep the existing notification channel: never bypass a user's mute choice.
     private static final String REMINDER_CHANNEL = "default";
     private static final String[] LANGUAGES = { "en", "pl", "ru", "de" };
@@ -26,6 +32,17 @@ public class CalendarDevicePlugin extends Plugin {
     @Override
     protected void handleOnResume() {
         notifyListeners("notificationSettingsChanged", new JSObject());
+    }
+
+    @PluginMethod
+    public void diagnosticsBuildInfo(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("commit", getContext().getString(R.string.calendar_build_commit));
+        result.put("applicationId", getContext().getPackageName());
+        try {
+            result.put("version", getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0).versionName);
+            call.resolve(result);
+        } catch (Exception error) { call.reject("Could not read diagnostic build info", error); }
     }
 
     @PluginMethod
@@ -52,6 +69,8 @@ public class CalendarDevicePlugin extends Plugin {
 
     @Override
     protected void handleOnStop() {
+        // Keep the side-by-side diagnostic installation visibly distinct.
+        if (getContext().getPackageName().endsWith(".diagnostics")) return;
         if (getActivity().isChangingConfigurations()) return;
         String selected = getContext().getSharedPreferences("launcher", 0)
             .getString("desiredLanguage", null);

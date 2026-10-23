@@ -1,6 +1,8 @@
 apply plugin: 'com.android.application'
 
 def calendarPackage = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
+def calendarBuildFile = rootProject.file('../dist/build-info.json')
+def calendarWebBuild = calendarBuildFile.isFile() ? new groovy.json.JsonSlurper().parse(calendarBuildFile) : [commit: 'unknown']
 def calendarVersion = calendarPackage.version.tokenize('.').collect { it as int }
 def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
 def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
@@ -15,6 +17,7 @@ android {
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.kalendarz.offline"
+        resValue 'string', 'calendar_build_commit', calendarWebBuild.commit
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2]
@@ -37,6 +40,13 @@ android {
         }
     }
     buildTypes {
+        diagnostics {
+            initWith debug
+            applicationIdSuffix '.diagnostics'
+            versionNameSuffix '-diagnostics'
+            matchingFallbacks = ['debug']
+            signingConfig signingConfigs.debug
+        }
         // Opt in only for downloadable test APKs; production signing stays external.
         release {
             if (calendarKeystore) {

@@ -123,9 +123,14 @@ test('relative-date suffixes are removed from extracted titles but quoted titles
   assert.equal(quoted.suggestedPlan?.events[0].title, 'Kontrola jutro');
 });
 test('explicit optional details are accepted in all application languages', async () => {
-  for (const request of ['Dodaj urlop jutro cały dzień co tydzień w Warszawie', 'Add holiday tomorrow all day every week in Warszawie', 'Добавь отпуск завтра на весь день каждую неделю в Warszawie', 'Füge Urlaub morgen ganztägig jede Woche in Warszawie hinzu']) {
+  for (const request of ['Dodaj Urlop jutro cały dzień co tydzień w Warszawie', 'Add Urlop tomorrow all day every week in Warszawie', 'Добавь Urlop завтра на весь день каждую неделю в Warszawie', 'Füge Urlop morgen ganztägig jede Woche in Warszawie hinzu']) {
     const result = await resolve(command({ action: 'create', title: 'Urlop', date: '2026-10-22', allDay: true, recurrence: 'WEEKLY', location: 'Warszawie' }), request);
     assert.ok(result.suggestedPlan, request);
+  }
+});
+test('model examples and negated or hypothetical requests cannot silently become mutations', async () => {
+  for (const request of ['Dodaj badanie krwi jutro o 10', 'Nie dodawaj dentysty jutro o 10', 'Gdybym dodał dentystę jutro o 10']) {
+    assert.equal((await resolve(command({ action: 'create', title: 'Dentysta', date: '2026-10-22', time: '10:00' }), request)).suggestedPlan, undefined);
   }
 });
 test('deletion requires a unique non-recurring event and supports atomic undo', async () => {

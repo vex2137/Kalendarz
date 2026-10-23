@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Calendar AI diagnostics</string>
+    <string name="title_activity_main">Calendar AI diagnostics</string>
+    <string name="launcher_name_en" translatable="false">Calendar AI diagnostics</string>
+    <string name="launcher_name_pl" translatable="false">Calendar AI diagnostics</string>
+    <string name="launcher_name_ru" translatable="false">Calendar AI diagnostics</string>
+    <string name="launcher_name_de" translatable="false">Calendar AI diagnostics</string>
+</resources>

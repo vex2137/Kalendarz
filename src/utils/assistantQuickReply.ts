@@ -1,6 +1,7 @@
 import type { CalendarEvent, PlanningPreferences } from '../types';
 import type { AppLanguage } from './i18n';
 import { runLocalAiAssistant, type AiResponseResult } from './aiEngine';
+import { normalizeAssistantInput } from './assistantLanguage';
 
 const copy = {
   pl: {
@@ -24,7 +25,7 @@ const copy = {
     thanks: 'Gern! Wobei kann ich dir noch mit dem Kalender helfen?',
   },
 };
-const normalize = (text: string) => text.trim().toLowerCase().replace(/[.!?,…]+$/u, '').trim().replace(/\s+/g, ' ');
+const normalize = (text: string) => normalizeAssistantInput(text).toLowerCase().replace(/[.!?,…]+$/u, '').trim().replace(/\s+/g, ' ');
 const greetings = new Set(['cześć', 'czesc', 'hej', 'siema', 'witaj', 'witam', 'dzień dobry', 'dzien dobry', 'hello', 'hi', 'hey', 'good morning', 'good afternoon', 'привет', 'здравствуйте', 'добрый день', 'hallo', 'guten tag', 'guten morgen']);
 const help = new Set(['co', 'co to', 'o co chodzi', 'co potrafisz', 'pomoc', 'help', 'what', 'what can you do', 'huh', 'что', 'что умеешь', 'помощь', 'was', 'was kannst du', 'hilfe']);
 const thanks = new Set(['dzięki', 'dzieki', 'dziękuję', 'dziekuje', 'ok', 'dobra', 'thanks', 'thank you', 'okay', 'спасибо', 'хорошо', 'danke']);

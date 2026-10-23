@@ -3,8 +3,9 @@ import type { AppLanguage } from './i18n';
 import { tr } from './i18n';
 import { addDays, isValidDate, isValidTime, localDate, minutes, timeString } from './dates';
 import { changesForPlan } from './assistantChanges';
-import { searchCalendar, type AssistantPlan } from './assistantPlanning';
+import { searchCalendar, matchesCalendarText, type AssistantPlan } from './assistantPlanning';
 import { parseDateFromNaturalLanguage, runLocalAiAssistant, type AiResponseResult } from './aiEngine';
+import { calendarFields } from './calendarCommandParser';
 
 const actions = ['create', 'update', 'delete', 'search', 'assistant', 'clarify'] as const;
 type Action = typeof actions[number];
@@ -110,6 +111,10 @@ JSON: ${example({ action: 'delete', query: name })}`;
 
 export async function resolveModelCommand(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences): Promise<AiResponseResult> {
   const ask = (pl: string, en: string): AiResponseResult => ({ text: tr(language, pl, en) });
+  const evidence = language === 'pl' || language === 'en' ? calendarFields(request, now) : undefined;
+  const outsideQuotes = request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '');
+  if (['create', 'update', 'delete'].includes(command.action) && /\b(?:nie|not|never|don't|gdyby\p{L}*|if|zamiast|instead)\b|не\s|nicht/iu.test(outsideQuotes)) return ask('Doprecyzuj, jaką zmianę mam przygotować; nic nie zmieniono.', 'Please clarify which change to prepare; nothing was changed.');
+  if ((command.action === 'create' || command.action === 'update') && request.trim() && command.title && !request.toLocaleLowerCase().includes(command.title.toLocaleLowerCase()) && !matchesCalendarText(request, command.title)) return ask('Podaj dokładny tytuł wydarzenia; model zwrócił inną nazwę.', 'Please specify the exact event title; the model returned another name.');
   if (command.action === 'clarify') return { text: command.question || tr(language, 'Podaj tytuł, datę i godzinę wydarzenia.', 'Please specify the event title, date and time.') };
   if (command.action === 'assistant') {
     if (!command.query?.trim()) return ask('Doprecyzuj polecenie kalendarza.', 'Please clarify the calendar request.');
@@ -144,7 +149,7 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     const explicitlyRecurring = /\bco\s|codzien|ka[żz]d|raz (?:w|na)\s|every\s|daily|weekly|monthly|yearly|кажд|ежеднев|еженедел|ежемесяч|ежегод|t[äa]glich|w[öo]chentlich|monatlich|j[äa]hrlich|jede/iu.test(request);
     const unmentionedText = [command.location, command.description].some(value => value?.trim() && !request.toLocaleLowerCase().includes(value.trim().toLocaleLowerCase()));
     const clocks = [...request.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g)].map(match => `${match[1].padStart(2, '0')}:${match[2]}`);
-    const wrongClock = (command.time && clocks.length && !clocks.includes(command.time)) || (command.endTime && clocks.length > 1 && !clocks.includes(command.endTime));
+    const wrongClock = evidence?.time ? (command.time && command.time !== evidence.time) || (command.endTime && /\b(?:do|until|to)\s+\d/iu.test(request) && command.endTime !== evidence.endTime) : (command.time && clocks.length && !clocks.includes(command.time)) || (command.endTime && clocks.length > 1 && !clocks.includes(command.endTime));
     if ((command.allDay === true && !explicitlyAllDay) || (command.recurrence && command.recurrence !== 'NONE' && !explicitlyRecurring) || unmentionedText || wrongClock) {
       return ask('Model dodał dane niewymienione w poleceniu. Doprecyzuj wydarzenie; nic nie zmieniono.', 'The model added details absent from the request. Please clarify the event; nothing was changed.');
     }
@@ -162,22 +167,23 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     };
   }
   const original = command.action === 'update' ? matches[0] : undefined;
+  if (original && !command.date && !command.time && !command.title && !command.location && !command.description && command.allDay === null && !command.recurrence) return ask('Podaj nową datę, godzinę lub nazwę wydarzenia.', 'Please specify a new date, time or event name.');
   const date = command.date || original?.startDate;
   const allDay = command.allDay ?? original?.allDay ?? false;
   const time = command.time || original?.startTime;
-  if (!date || (!allDay && !time) || (!original && !command.title?.trim())) return ask('Podaj brakujący tytuł, datę i godzinę albo napisz „cały dzień”.', 'Provide the missing title, date and time, or specify “all day”.');
+  if (!date || (!allDay && !time) || (!original && !command.title?.trim()) || (!original && !allDay && evidence && !evidence.time)) return ask('Podaj brakujący tytuł, datę i godzinę albo napisz „cały dzień”.', 'Provide the missing title, date and time, or specify “all day”.');
   const originalDays = original ? Math.round((Date.parse(original.endDate) - Date.parse(original.startDate)) / 86400000) : 0;
   const duration = original && !original.allDay ? originalDays * 1440 + minutes(original.endTime) - minutes(original.startTime) : 60;
   const explicitEndTime = /\b(?:do|until|to|bis|до)\s+(?:[01]?\d|2[0-3])(?::[0-5]\d)?(?!\d)|\b\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}\b/iu.test(request);
   const explicitDuration = /\b\d+\s*(?:h|min)\b|godzin|\bhours?\b|\bminutes?\b|minut|stund|час|минут/iu.test(request);
   // A move preserves duration unless the user actually supplied an end time or duration.
   // Models may copy an old end time even when only a new start was requested.
-  const endTime = explicitEndTime || explicitDuration ? command.endTime : null;
-  const end = allDay ? originalDays * 1440 : endTime !== null ? minutes(endTime) : minutes(time!) + duration;
+  const endTime = evidence?.duration !== undefined ? null : explicitEndTime || explicitDuration ? command.endTime : null;
+  const end = allDay ? originalDays * 1440 : endTime != null ? minutes(endTime) : minutes(time!) + (evidence?.duration ?? duration);
   const endClause = request.match(/(?:\b(?:do|until|through|bis)|до)\s+(.+)$/iu)?.[1];
   const explicitEndDate = (request.match(/\b\d{4}-\d{2}-\d{2}\b/g)?.length || 0) > 1 ||
     Boolean(endClause && parseDateFromNaturalLanguage(endClause, now, language).matched) || /\b(?:dni|days?|tage|tygodni|weeks?|wochen)|дн[еяй]|недел/iu.test(request);
-  const endDate = explicitEndDate ? command.endDate : null;
+  const endDate = evidence?.duration !== undefined ? null : explicitEndDate ? command.endDate : null;
   let title = command.title?.trim();
   const quotedTitle = title && ['"' + title + '"', '„' + title + '”', '“' + title + '”', '«' + title + '»'].some(quoted => request.includes(quoted));
   // Keep explicitly quoted names intact; remove a leaked relative-date suffix from extracted names.
@@ -192,7 +198,8 @@ export async function resolveModelCommand(command: ModelCommand, request: string
   // Reject a conflict between a recognized explicit/relative date and the generated date.
   // Source/target date phrases in update commands are intentionally handled separately by the model.
   const parsedDate = parseDateFromNaturalLanguage(request, now, language);
-  if (!original && parsedDate.matched && parsedDate.dateStr !== date) return ask('Daty w poleceniu są niejednoznaczne. Podaj datę w formacie RRRR-MM-DD.', 'The requested date is ambiguous. Please use YYYY-MM-DD.');
+  const requestedDate = evidence?.date || (parsedDate.matched ? parsedDate.dateStr : undefined);
+  if (!original && requestedDate && requestedDate !== date) return ask('Daty w poleceniu są niejednoznaczne. Podaj datę w formacie RRRR-MM-DD.', 'The requested date is ambiguous. Please use YYYY-MM-DD.');
   const plan: AssistantPlan = { kind: original ? 'move' : 'create', originals: original ? [original] : [], events: [draft] };
   changesForPlan(plan); // Existing event validation runs before displaying a proposal, then again at commit.
   return { text: tr(language, 'Sprawdź wszystkie dane przed zatwierdzeniem.', 'Review all details before confirming.'), suggestedPlan: plan };
