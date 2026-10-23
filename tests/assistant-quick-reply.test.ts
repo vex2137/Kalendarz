@@ -15,7 +15,7 @@ test('greetings and clarification never load the model or create calendar propos
       assert.ok(result.text.length > 30);
       assert.equal(result.suggestedPlan, undefined);
       assert.equal(result.suggestedEvent, undefined);
-      assert.equal(result.context, history);
+      assert.deepEqual(result.context, { ...history, language });
       assert.equal(modelStatus().phase, 'checking', 'No weights or engine may be loaded for social messages');
     }
     assert.equal(await assistantQuickReply(`${greeting} Add event Dentist tomorrow at 15:00`, [], language, now, DEFAULT_PLANNING), undefined);

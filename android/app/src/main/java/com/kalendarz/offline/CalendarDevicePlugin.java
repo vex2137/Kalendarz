@@ -35,6 +35,17 @@ public class CalendarDevicePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void diagnosticsBuildInfo(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("commit", getContext().getString(R.string.calendar_build_commit));
+        result.put("applicationId", getContext().getPackageName());
+        try {
+            result.put("version", getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0).versionName);
+            call.resolve(result);
+        } catch (Exception error) { call.reject("Could not read diagnostic build info", error); }
+    }
+
+    @PluginMethod
     public void setLanguage(PluginCall call) {
         String language = call.getString("language", "en");
         int selected = -1;

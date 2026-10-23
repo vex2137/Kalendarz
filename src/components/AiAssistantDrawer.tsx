@@ -9,6 +9,8 @@ import { cancelModelOperation, modelStatus, subscribeModel, setAssistantActive }
 import { ModelDiagnostics } from './ModelDiagnostics';
 import { localModelText } from '../utils/localModelText';
 import { LocalModelSetup } from './LocalModelSetup';
+import { detectAssistantLanguage } from '../utils/assistantLanguage';
+import { recordAssistantUiCommit, observeAssistantSession, markAssistantInputReady } from '../utils/modelDiagnostics';
 import { MarkdownMessage } from './MarkdownMessage';
 import { getTranslation, AppLanguage } from '../utils/i18n';
 import {
@@ -72,6 +74,16 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const conversationRef = useRef<ModelConversation>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const presentationRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => { if (isOpen) return observeAssistantSession(); }, [isOpen]);
+  useEffect(() => { if (isOpen && model.installed) markAssistantInputReady(); }, [isOpen, model.installed]);
+  useEffect(() => {
+    if (presentationRef.current !== undefined) {
+      recordAssistantUiCommit(presentationRef.current);
+      presentationRef.current = undefined;
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (isOpen) {
@@ -115,6 +127,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
     try {
       const response = await runModelAssistant(text, events, language, new Date(), conversationRef.current, planningPreferences(aiSettings.planning));
+      presentationRef.current = response.traceId;
       conversationRef.current = response.context || {};
       setMessages(prev => prev.map(message => ({ ...message, suggestedEvent: undefined, suggestedPlan: undefined })));
       const assistantMessage: AiChatMessage = {
@@ -134,7 +147,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           id: crypto.randomUUID(),
           role: 'assistant',
           content:
-            modelText.inputError,
+            localModelText(detectAssistantLanguage(text, conversationRef.current.language || language)).inputError,
           timestamp: Date.now(),
           suggestedPrompts:
             tr(language, ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?'], [
@@ -319,7 +332,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 theme-bg">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 theme-bg">
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
             const isAdded = addedEventsIds.includes(msg.id);
@@ -391,7 +404,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         </div>
 
         {/* Input Bar */}
-        <div className="p-3 theme-surface theme-border border-t flex items-center gap-2">
+        <div className="p-3 shrink-0 theme-surface theme-border border-t flex items-center gap-2">
           <input
             ref={inputRef}
             type="text"

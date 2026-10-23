@@ -34,9 +34,9 @@ export async function prepareLocalModel() {
   if (operation || document.hidden) return;
   const started = performance.now();
   const metric: ModelMetric = { route: 'preload', totalMs: 0 };
-  try { await checkLocalModel(); if (status.installed && !engine) { await ensureEngine(metric); metric.totalMs = performance.now() - started; recordModelMetric(metric); } }
-  catch { /* A foreground request can retry; the setup UI shows the error. */ }
-  finally { if (!operation) scheduleRelease(); }
+  try { await checkLocalModel(); if (status.installed && !engine) await ensureEngine(metric); }
+  catch { metric.error = loadController?.signal.aborted ? 'cancelled' : 'inference'; }
+  finally { metric.totalMs = performance.now() - started; recordModelMetric(metric); if (!operation) scheduleRelease(); }
 }
 export function setAssistantActive(active: boolean) {
   assistantActive = active;

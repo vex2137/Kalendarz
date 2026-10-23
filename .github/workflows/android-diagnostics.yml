@@ -38,7 +38,18 @@ jobs:
         working-directory: android
         run: bash ./gradlew :app:assembleDiagnostics --no-daemon --max-workers=2
       - name: Verify APK and prepare downloadable files
+        env:
+          DIAGNOSTICS_WEB_DIR: ${{ runner.temp }}/diagnostics-web
         run: python3 scripts/package-diagnostics.py
+      - name: Install browser for APK asset regression
+        run: npx playwright install --with-deps chromium
+      - name: Test message routing using JavaScript extracted from the APK
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+          ASSISTANT_ROUTING_REPORT: diagnostics-artifact/routing-browser-results.json
+          ASSISTANT_TEST_VIEWPORT: phone
+          ASSISTANT_TEST_MODEL: '1'
+        run: node tests/assistant-routing-browser.cjs
       # GitHub wraps these files in a downloadable ZIP. APK/GGUF never enter Git.
       - name: Upload diagnostics ZIP artifact
         id: upload

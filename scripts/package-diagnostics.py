@@ -19,11 +19,30 @@ package_line = next(line for line in metadata.splitlines() if line.startswith('p
 assert "name='com.kalendarz.offline.diagnostics'" in package_line, package_line
 assert f"versionName='{version}'" in package_line, package_line
 with zipfile.ZipFile(source) as apk:
+    build = json.loads(apk.read('assets/public/build-info.json'))
+    head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+    assert build['commit'] == head, 'APK contains a different source commit'
+    if os.environ.get('CI'):
+        assert not build['dirty'], 'CI APK was built from modified sources'
+    # The compiled JS and the metadata must describe the same source revision.
+    assert any(build['commit'].encode() in apk.read(name) for name in apk.namelist()
+               if name.startswith('assets/public/assets/') and name.endswith('.js')), 'Missing commit in compiled JavaScript'
     weights_path = 'assets/public/models/' + model['file']
     assert apk.getinfo(weights_path).file_size == model['bytes'], 'Wrong model size'
     with apk.open(weights_path) as weights:
         assert hashlib.file_digest(weights, 'sha256').hexdigest() == model['sha256'], 'Wrong model hash'
     assert apk.read('assets/public/models/LICENSE.txt').strip(), 'Missing model license'
+    if os.environ.get('DIAGNOSTICS_WEB_DIR'):
+        web = Path(os.environ['DIAGNOSTICS_WEB_DIR'])
+        for name in apk.namelist():
+            if not name.startswith('assets/public/') or name.endswith('/'):
+                continue
+            relative = Path(name.removeprefix('assets/public/'))
+            assert not relative.is_absolute() and '..' not in relative.parts
+            target = web / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with apk.open(name) as stream, target.open('wb') as extracted:
+                shutil.copyfileobj(stream, extracted)
 
 destination = root / 'diagnostics-artifact'
 destination.mkdir(exist_ok=True)
@@ -41,7 +60,10 @@ with target.open('rb') as stream:
     'version': version,
     'apkBytes': target.stat().st_size,
     'apkSha256': digest,
+    'webBuild': build,
     'model': model,
 }, indent=2) + '\n')
 shutil.copyfile(root / 'docs/android-diagnostics-download.md', destination / 'README.md')
+shutil.copyfile(root / 'docs/assistant-device-investigation.md', destination / 'assistant-device-investigation.md')
 print(f'Verified signature, diagnostic package/version, embedded GGUF and license: {target.stat().st_size} bytes')
+print(f'Embedded JavaScript source commit: {build["commit"]}')
