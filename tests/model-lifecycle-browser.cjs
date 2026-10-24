@@ -2,19 +2,23 @@
 // only for the idle policy, and those measurements are excluded from comparisons.
 const assert=require('node:assert/strict');
 const {spawn}=require('node:child_process');
-const {existsSync,writeFileSync}=require('node:fs');
+const {existsSync,writeFileSync,mkdtempSync,rmSync}=require('node:fs');
+const {tmpdir}=require('node:os');
+const {join}=require('node:path');
 const {chromium}=require('playwright');
 const base='http://127.0.0.1:4189',id=process.env.CANDIDATE_MODEL_ID;
 (async()=>{
   const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host=127.0.0.1','--port=4189','--strictPort'],{stdio:'ignore'});
-  let browser;const report={id,physicalDevice:false,environment:'Linux Chromium',passed:false};
+  let browser;const profile=mkdtempSync(join(tmpdir(),'calendar-lifecycle-'));const report={id,physicalDevice:false,environment:'Linux Chromium',passed:false};
   try{
     assert.ok(id);
     for(let i=0;i<100;i++){try{if((await fetch(base)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
-    browser=await chromium.launch({headless:true,...(existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});
-    const context=await browser.newContext({serviceWorkers:'block'}),external=[],errors=[];
-    await context.route('**/*',route=>{if(new URL(route.request().url()).origin!==base){external.push(route.request().url());return route.abort();}return route.continue();});
-    const page=await context.newPage();page.setDefaultTimeout(900000);page.on('pageerror',error=>errors.push(error.message));
+    const launch=()=>chromium.launchPersistentContext(profile,{headless:true,serviceWorkers:'block',...(existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});
+    browser=await launch();
+    let context=browser;const external=[],errors=[];
+    const routeContext=()=>context.route('**/*',route=>{if(new URL(route.request().url()).origin!==base){external.push(route.request().url());return route.abort();}return route.continue();});
+    await routeContext();
+    let page=await context.newPage();page.setDefaultTimeout(900000);page.on('pageerror',error=>errors.push(error.message));
     const open=async()=>{await page.goto(base+'/tests/model-evaluation.html');await page.waitForFunction(()=>window.calendarEvaluation);};
     await open();
     await page.evaluate(async id=>{const r=window.calendarEvaluation.runtime;await r.selectLocalModel(id);await r.installLocalModel(await(await fetch('/candidate-lifecycle.gguf')).blob());if(!r.modelStatus().installed)throw new Error(JSON.stringify(r.modelStatus()));},id);
@@ -105,8 +109,15 @@ const base='http://127.0.0.1:4189',id=process.env.CANDIDATE_MODEL_ID;
     report.explicitFallback=await page.evaluate(async()=>{const h=window.calendarEvaluation;await h.runtime.checkLocalModel();return h.runtime.modelStatus().modelId===h.registry.DEFAULT_MODEL.id;});
     assert.equal(report.explicitFallback,true,'An explicit fallback choice must survive restart');
     await page.evaluate(id=>window.calendarEvaluation.runtime.selectLocalModel(id),id);
-    await page.reload();await page.waitForFunction(()=>window.calendarEvaluation);
-    await page.evaluate(async id=>{const r=window.calendarEvaluation.runtime;await r.checkLocalModel();if(r.modelStatus().modelId!==id||!r.modelStatus().installed||r.modelStatus().loaded)throw new Error('Restart lost installation/selection');r.setAssistantActive(true);await r.prepareLocalModel();},id);
+    await context.close();browser=context=await launch();await routeContext();page=await context.newPage();page.setDefaultTimeout(900000);page.on('pageerror',error=>errors.push(error.message));await open();
+    report.processRestart=await page.evaluate(async id=>{
+      const h=window.calendarEvaluation,r=h.runtime;await r.checkLocalModel();
+      if(r.modelStatus().modelId!==id||!r.modelStatus().installed||r.modelStatus().loaded)throw new Error('Browser process restart lost installation/selection');
+      const answer=await r.inferLocalText('Reply briefly.','Can we just have a chat?',[],{maxTokens:64});
+      const metric=h.diagnosticsReport().metrics.filter(m=>m.route==='model').at(-1);
+      if(metric.modelId!==id||!metric.completionTokens)throw new Error('No genuine response after process restart');
+      r.setAssistantActive(true);return {answer,metric,state:r.modelStatus(),passed:true};
+    },id);
     await page.clock.install();await page.evaluate(()=>window.calendarEvaluation.runtime.setAssistantActive(false));await page.clock.fastForward(30001);await page.clock.resume();
     await page.waitForFunction(()=>!window.calendarEvaluation.runtime.modelStatus().loaded);
     report.idleAndResume=await page.evaluate(async id=>{
@@ -124,5 +135,5 @@ const base='http://127.0.0.1:4189',id=process.env.CANDIDATE_MODEL_ID;
     assert.deepEqual(external,[]);assert.deepEqual(errors,[]);report.passed=true;
     console.log(JSON.stringify({id,passed:true,lifecycle:report.lifecycle.states,quality:report.quality.map(row=>({caseId:row.caseId,language:row.language,mode:row.mode,route:row.route,response:row.response,command:row.command,error:row.error,checks:row.checks})),native:report.lifecycle.warm.metric}));
   }catch(error){report.error=String(error);throw error;}
-  finally{writeFileSync(process.env.LIFECYCLE_REPORT||'model-lifecycle-results.json',JSON.stringify(report,null,2));await browser?.close();server.kill('SIGTERM');}
+  finally{writeFileSync(process.env.LIFECYCLE_REPORT||'model-lifecycle-results.json',JSON.stringify(report,null,2));await browser?.close();server.kill('SIGTERM');rmSync(profile,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

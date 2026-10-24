@@ -52,6 +52,8 @@ Keep the prior 200-input results and eight-runtime compatibility matrix; do not
 replace them with this follow-up. Targeted tests exercise the first-check race,
 disk/RAM distinction, reload, metadata repair, cancellation, repeated fallback
 switches, restart, idle release and foreground/memory events with real models.
+The persistence check also closes Chromium and relaunches the same disk profile,
+then requires a genuine response from the previously installed selected model.
 Both Q4 and IQ4 use real APK UI download/import/offline inference. A bounded
 subset of the existing corpus (`001`, `009`, `016`, PL and EN) compares rules,
 native JSON extraction and the complete assistant. Generated outputs and checks
