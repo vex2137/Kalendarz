@@ -1,5 +1,7 @@
 # 1.4.0 final update and acceptance
 
+> **Released:** [Calendar v1.4.0](https://github.com/vex2137/Kalendarz/releases/tag/v1.4.0), source `228f339e7032209f55193b68938ce6035dcc865d`. Production signing, official in-place upgrade and all platform gates passed in [run 40130580030](https://github.com/vex2137/Kalendarz/actions/runs/40130580030). Earlier blocker entries below record historical validation stages.
+
 ## Recovered interrupted validation
 
 The previously interrupted run [40112106321](https://github.com/vex2137/Kalendarz/actions/runs/40112106321) **completed successfully** at source `bbf81dab43ca5fc6cc489360ebe3191554770b58`. Its retained [diagnostic artifact](https://github.com/vex2137/Kalendarz/actions/runs/40112106321/artifacts/12568915092) has ZIP SHA-256 `9bb6130d66b4754a3511ea865aa7fa8edbabe031bf2b5bb6b4a503d9126170c2`.
@@ -68,3 +70,21 @@ The ZIP contains the APK and its own checksum/provenance files. APK signature, s
 Final checks passed: 37 routed messages across all UI languages, durable history/JSON/write-failure protection, eight settings combinations, real 350M generation across minimization, exact Q4 download/import/rejected-incompatible-file/offline conversation, Q4 reuse after browser and RAM reload, and native fallback to 350M. Native cold probes (Linux runner, including load/verification) took 14.628 s for Q4 after browser reload, 14.512 s for Q4 reloading existing OPFS, and 14.613 s for bundled 350M. Both Q4 probes answered `4`; 350M answered `Two plus two equals four.` The UI Q4 reply took about 21.5 s including load. These are genuine native completions, not quick/rules timings or physical POCO measurements.
 
 Web and Linux Electron checks also passed at the same source. Subsequent documentation-only commits do not change the embedded APK source. **Official v1.4.0 remains unpublished because the permanent Android signing key is unavailable; production signature compatibility and the prepared official in-place migration test remain unverified.**
+
+## Official production release — 2026-10-24
+
+The user restored all four original Android signing secrets. The workflow checked their presence without printing values and built the APK with the existing key. The original official 1.3.1 assistant-fix APK and production 1.4.0 APK both verified against certificate SHA-256 `b6b7bc0499ab59af54404a90aaa785e3d40f2738e83fdf9e6306f8e210c79a01`. Package ID remains `com.kalendarz.offline`; versionCode increases from `10301` to `10400`.
+
+On the Android emulator, `seedOfficial131` passed against the actual official 1.3.1 APK. `adb install -r` then installed production 1.4.0 without uninstalling between stages. `verifyUpgrade140` passed, retaining the event and its 08:00–16:00 times, settings, Polish language and custom palette. All seven additional release WebView/SAF/model/notification/navigation tests passed. Physical POCO validation of this exact build remains unperformed.
+
+The first attempt stopped before installation because `aapt | head` received SIGPIPE under `pipefail`. Commit `228f339` makes the filter consume the full output; a local regression reproduced exit 141 and verified the correction. Application code and packaging configuration are unchanged from the previously validated AI candidate. The successful production run used the corrected test and the original signing key.
+
+The final production gates passed: TypeScript/build, 121 unit tests, Web/PWA persistence/offline/language/theme/navigation checks, packaged Windows and Linux AppImage application tests, Flatpak build and installation, signed Android update and seven Android functional checks. The workflow published all seven packages and [SHA256SUMS.txt](https://github.com/vex2137/Kalendarz/releases/download/v1.4.0/SHA256SUMS.txt). Downloaded checksums match the GitHub upload digests for every package. The release is public, stable and marked latest; remote tag `v1.4.0` resolves to `228f339e7032209f55193b68938ce6035dcc865d`.
+
+Official APK: [Calendar-1.4.0-android-test.apk](https://github.com/vex2137/Kalendarz/releases/download/v1.4.0/Calendar-1.4.0-android-test.apk), 231,995,170 bytes. Despite the retained filename suffix, this is the production-signed APK, not the separate diagnostics build. APK SHA-256:
+
+```text
+b1065426530dd46a2f3bf2790e0571f3bc24d46660271a28a12b34e96dfce674
+```
+
+Install the official APK over official 1.3.1; keep application data. Qwen Q4_K_M remains an optional separate download and 350M remains bundled. No new key or long AI benchmark was used for this release continuation.
