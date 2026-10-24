@@ -17,7 +17,7 @@ import org.junit.runner.RunWith;
 /** Exercises the actual release WebView and its IndexedDB, without a test server. */
 @RunWith(AndroidJUnit4.class)
 public class CalendarSmokeTest {
-    private WebView findWebView(View view) {
+    protected WebView findWebView(View view) {
         if (view instanceof WebView) return (WebView) view;
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
@@ -29,13 +29,13 @@ public class CalendarSmokeTest {
         return null;
     }
 
-    private WebView webView(MainActivity activity) {
+    protected WebView webView(MainActivity activity) {
         WebView view = findWebView(activity.getWindow().getDecorView());
         if (view == null) throw new AssertionError("The release activity has no WebView");
         return view;
     }
 
-    private String evaluate(ActivityScenario<MainActivity> scenario, String script) throws Exception {
+    protected String evaluate(ActivityScenario<MainActivity> scenario, String script) throws Exception {
         AtomicReference<String> result = new AtomicReference<>();
         CountDownLatch callback = new CountDownLatch(1);
         scenario.onActivity(activity -> webView(activity).evaluateJavascript(script, value -> {
@@ -46,11 +46,11 @@ public class CalendarSmokeTest {
         return result.get();
     }
 
-    private void until(ActivityScenario<MainActivity> scenario, String predicate) throws Exception {
+    protected void until(ActivityScenario<MainActivity> scenario, String predicate) throws Exception {
         until(scenario, predicate, 40);
     }
 
-    private void until(ActivityScenario<MainActivity> scenario, String predicate, int seconds) throws Exception {
+    protected void until(ActivityScenario<MainActivity> scenario, String predicate, int seconds) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
         while (System.nanoTime() < deadline) {
             if ("true".equals(evaluate(scenario, "Boolean(" + predicate + ")"))) return;
@@ -91,6 +91,44 @@ public class CalendarSmokeTest {
                 "document.querySelector('[role=dialog]').textContent.match(/\\d+\\.\\d+\\.\\d+/)[0]"));
         }
     }
+    @Test
+    public void safPickerStreamsContentUriAndReleasesAccess() throws Exception {
+        android.content.Context test = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().getContext();
+        android.content.Context target = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().getTargetContext();
+        android.content.ContentResolver resolver = test.getContentResolver();
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "Calendar SAF acceptance.gguf");
+        values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream");
+        android.net.Uri document = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (document == null) throw new AssertionError("Cannot create Downloads document");
+        byte[] chunk = new byte[65536];
+        for (int i=0;i<chunk.length;i++) chunk[i]=(byte)(i%251);
+        java.security.MessageDigest hash = java.security.MessageDigest.getInstance("SHA-256");
+        try (java.io.OutputStream stream=resolver.openOutputStream(document)) {
+            for (int i=0;i<128;i++) { stream.write(chunk); hash.update(chunk); }
+        }
+        StringBuilder checksum=new StringBuilder(); for(byte b:hash.digest())checksum.append(String.format("%02x",b));
+        test.grantUriPermission(target.getPackageName(),document,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        androidx.test.espresso.intent.Intents.init();
+        try {
+            androidx.test.espresso.intent.Intents.intending(androidx.test.espresso.intent.matcher.IntentMatchers.hasAction(android.content.Intent.ACTION_OPEN_DOCUMENT))
+                .respondWith(new android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_OK,new android.content.Intent().setData(document).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)));
+            try (ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)) {
+                until(scenario,"document.querySelector('#btn-open-ai-assistant')");
+                evaluate(scenario,"window.__safResult=null;window.Capacitor.nativePromise('CalendarModelImport','pick',{}).then(async f=>{const url='/_calendar_model_import/'+f.token;const response=await fetch(url);const bytes=await response.arrayBuffer();const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');await window.Capacitor.nativePromise('CalendarModelImport','release',{token:f.token});window.__safResult={bytes:bytes.byteLength,declared:f.bytes,hash,status:(await fetch(url)).status};}).catch(e=>window.__safResult={error:String(e)})");
+                until(scenario,"window.__safResult",60);
+                assertEquals("8388608",evaluate(scenario,"window.__safResult.bytes"));
+                assertEquals("8388608",evaluate(scenario,"window.__safResult.declared"));
+                assertEquals("\""+checksum+"\"",evaluate(scenario,"window.__safResult.hash"));
+                assertEquals("404",evaluate(scenario,"window.__safResult.status"));
+            }
+        } finally {
+            androidx.test.espresso.intent.Intents.release();
+            test.revokeUriPermission(document,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            resolver.delete(document,null,null);
+        }
+    }
+
     private String launcherLabel(ActivityScenario<MainActivity> scenario) {
         AtomicReference<String> label = new AtomicReference<>("");
         scenario.onActivity(activity -> {

@@ -156,6 +156,8 @@ export default function App() {
   const [modal, setModal] = useState<
     'event' | 'settings' | 'ai' | 'sync' | 'search' | 'download' | null
   >(null);
+  const [assistantMounted, setAssistantMounted] = useState(false);
+  useEffect(() => { if (modal === 'ai') setAssistantMounted(true); }, [modal]);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
     null,
   );
@@ -512,9 +514,9 @@ export default function App() {
                 onLockApp={lock}
               />
             )}
-            {modal === 'ai' && (
+            {(assistantMounted || modal === 'ai') && (
               <AiAssistantDrawer
-                isOpen
+                isOpen={modal === 'ai'}
                 onClose={close}
                 events={events}
                 onApplyPlan={applyAiPlan}

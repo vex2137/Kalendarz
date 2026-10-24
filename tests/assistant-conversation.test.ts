@@ -10,7 +10,30 @@ import {
 import { DEFAULT_PLANNING } from "../src/utils/assistantPlanning";
 import { diagnosticsReport } from "../src/utils/modelDiagnostics";
 import { event } from "./fixtures";
+import { needsCalendarExtraction } from '../src/utils/assistantRoute';
+import { guardCalendarWriteClaim } from '../src/utils/calendarWriteClaim';
 const now = new Date(2026, 9, 24, 10);
+test('a generated saved claim cannot stand in for explicit calendar confirmation',async()=>{
+  for(const text of ['Changes saved.', 'I have added the event.', 'Zapisano zmiany.', 'Изменения сохранены.', 'Änderungen gespeichert.'])assert.notEqual(guardCalendarWriteClaim(text,'en'),text);
+  for(const text of ['No changes were saved.', 'I have not saved an event.', 'Please confirm to save the event.'])assert.equal(guardCalendarWriteClaim(text,'en'),text);
+  const result=await resolveModelCommand(parseModelCommand('{"action":"chat","reply":"Changes saved."}'),'Hi',[],'en',now,DEFAULT_PLANNING);
+  assert.match(result.text,/No calendar changes/u);assert.equal(result.suggestedPlan,undefined);
+});
+test('ordinary chat does not inherit calendar intent from a pending draft or pronouns', () => {
+  const context = {pending:{command:parseModelCommand('{"action":"create","title":"Yoga"}'),request:'Add Yoga'},reference:{title:'Yoga',date:'2026-10-25'}};
+  for (const query of ['Cześć co tam?', 'Maybe it will be better in english', 'So speak english', 'I had a rough day today', 'I think it will help me tomorrow', 'Jak się dzisiaj czujesz?']) assert.equal(needsCalendarExtraction(query,now,context),false,query);
+  for (const query of ['tomorrow at 14:00', 'Move it to Friday', 'What is on tomorrow?', 'Czy mam wolne jutro?', 'Change its duration to 30 minutes']) assert.equal(needsCalendarExtraction(query,now,context),true,query);
+  assert.equal(needsCalendarExtraction('Что у меня завтра?',now,{},'ru'),true);
+  assert.equal(needsCalendarExtraction('Was steht morgen an?',now,{},'de'),true);
+});
+test('a time typo asks about time while retaining the named event draft',async()=>{
+  const first=await runModelAssistant('Add new event called studying tomorrow at 4-5 pk',[],'pl',now,{},DEFAULT_PLANNING);
+  assert.equal(first.route,'rules');assert.equal(first.suggestedPlan,undefined);
+  assert.match(first.text,/studying.*2026-10-25/u);assert.match(first.text,/Which time/u);assert.doesNotMatch(first.text,/another name/u);
+  assert.equal(first.context.pending?.command.title,'studying');
+  const next=await runModelAssistant('pm',[],'pl',now,first.context,DEFAULT_PLANNING);
+  assert.equal(next.suggestedPlan?.events[0].title,'studying');assert.equal(next.suggestedPlan?.events[0].startTime,'16:00');assert.equal(next.suggestedPlan?.events[0].endTime,'17:00');
+});
 test("chat command replies pass through the resolver without calendar mutation proposals", async () => {
   const command = parseModelCommand(
     JSON.stringify({ action: "chat", reply: "Conversation reply fixture" }),
@@ -85,4 +108,12 @@ test('a model cannot substitute a different existing event for a requested delet
   const command=parseModelCommand(JSON.stringify({action:'delete',query:'Lunch'}));
   const response=await resolveModelCommand(command,'Delete Yoga',[event({title:'Lunch'})],'en',now,DEFAULT_PLANNING);
   assert.equal(response.suggestedPlan,undefined);assert.match(response.text,/not identified/u);
+});
+
+test('a conversational preface and trailing named title preserve the Polish time range',async()=>{
+  for(const query of ['O jak super dodaj wydarzenie na jutro od 8 do 16 o nazwie "nauka rozprawki"','Świetnie, dodaj wydarzenie na jutro od 8 do 16 pod tytułem "nauka rozprawki"']) {
+    const result=await runModelAssistant(query,[],'en',now,{},DEFAULT_PLANNING);
+    assert.equal(result.route,'rules');const draft=result.suggestedPlan?.events[0];
+    assert.equal(draft?.title,'nauka rozprawki');assert.equal(draft?.startDate,'2026-10-25');assert.equal(draft?.startTime,'08:00');assert.equal(draft?.endTime,'16:00');
+  }
 });

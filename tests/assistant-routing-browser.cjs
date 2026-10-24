@@ -28,10 +28,14 @@ const output = process.env.ASSISTANT_ROUTING_REPORT;
       await page.clock.setFixedTime(new Date('2026-10-23T08:00:00Z'));
       await page.goto(base);
       await page.locator('#btn-open-ai-assistant').click();
-      await page.locator('[data-model-installed="true"]').waitFor();
+
       const drawer = page.locator('#drawer-ai-assistant');
-      await drawer.locator('[data-testid="model-diagnostics"] > summary').click();
-      const report = async () => JSON.parse(await page.locator('#ai-diagnostics-report').textContent());
+      const report = async () => {
+        await page.locator('#btn-ai-settings').click();
+        await page.locator('#ai-tab-diagnostics').click();
+        const data=JSON.parse(await page.locator('#ai-diagnostics-report').textContent());
+        await page.locator('#ai-settings-panel header button').click(); await drawer.waitFor(); return data;
+      };
       assert.equal((await report()).build.commit, expectedCommit, 'Must run JS from the tested source commit');
       const input = drawer.locator('input[type=text]');
       const records = () => page.evaluate(async () => {
@@ -44,15 +48,15 @@ const output = process.env.ASSISTANT_ROUTING_REPORT;
       const send = async (query, route, language, expectedText) => {
         const before = performance.now();
         const inputBox = await input.boundingBox();
-        assert.ok(inputBox.y >= 0 && inputBox.y + inputBox.height <= page.viewportSize().height, 'Expanded diagnostics must keep the chat input visible');
+        assert.ok(inputBox.y >= 0 && inputBox.y + inputBox.height <= page.viewportSize().height, 'Chat input stays inside the viewport after closing settings');
         await input.fill(query);
         const filledMs = performance.now() - before;
         await page.locator('#btn-send-ai-message').click();
         const clickedMs = performance.now() - before;
         await page.waitForFunction(() => !document.querySelector('#drawer-ai-assistant input[type=text]').disabled);
-        const data = await report();
         const reply = await drawer.locator('.rounded-tl-xs').last().innerText();
         const elapsedMs = performance.now() - before;
+        const data = await report();
         reports.push({ uiLanguage, query, reply, elapsedMs, filledMs, clickedMs, inputBox, trace: data.lastTurn, lastModel: data.lastModel, session: data.session });
         if (output) fs.writeFileSync(output, JSON.stringify({ commit: expectedCommit, reports }, null, 2));
         console.log(JSON.stringify(reports.at(-1)));

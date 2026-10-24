@@ -77,3 +77,49 @@ test('sentence punctuation and negation inside explicit description data do not 
 test('polite infinitives keep action identity across create, move, delete and search', () => {
   for (const [query, action] of [['Czy mógłbyś wpisać Rezerwacja jutro o 11?', 'create'], ['Możesz przenieść Jogę na jutro?', 'update'], ['Proszę usunąć Jogę', 'delete'], ['Czy możesz znaleźć dentystę?', 'search']]) assert.equal(parseCalendarCommand(query, 'pl', now)?.command.action, action, query);
 });
+test('explicit PL/EN intervals survive proposal validation, including midnight', async () => {
+  for (const [query, language, start, end, endDate] of [
+    ['Add new event workout for today at 18-20 time', 'en', '18:00', '20:00', '2026-10-23'],
+    ['Dodaj trening dzisiaj o 18 - 20', 'pl', '18:00', '20:00', '2026-10-23'],
+    ['Add workout today from 18:15 – 20:45', 'en', '18:15', '20:45', '2026-10-23'],
+    ['Dodaj trening dzisiaj od 18:30 do 20:15', 'pl', '18:30', '20:15', '2026-10-23'],
+    ['Add workout today at 6-8 pm', 'en', '18:00', '20:00', '2026-10-23'],
+    ['Add workout today at 11 pm - 1 am', 'en', '23:00', '01:00', '2026-10-24'],
+    ['Dodaj trening dzisiaj o 23–1', 'pl', '23:00', '01:00', '2026-10-24'],
+  ] as const) {
+    const parsed = parseCalendarCommand(query, language, now);
+    assert.ok(parsed, query);
+    const result = await resolveModelCommand(parsed.command, query, [], language, now, DEFAULT_PLANNING);
+    const proposal = result.suggestedPlan?.events[0];
+    assert.equal(proposal?.startTime, start, query); assert.equal(proposal?.endTime, end, query); assert.equal(proposal?.endDate, endDate, query);
+    assert.doesNotMatch(proposal?.title || '', /new event|18|20|time/u);
+  }
+  const request = 'Add workout today at 18-20';
+  const parsed = parseCalendarCommand(request, 'en', now)!;
+  const repaired = await resolveModelCommand({...parsed.command,endTime:'19:00'}, request, [], 'en', now, DEFAULT_PLANNING);
+  assert.equal(repaired.suggestedPlan?.events[0].endTime, '20:00');
+  for (const query of ['today at 25-27', 'today at 18-18', 'today at 18-20 for 30 minutes']) assert.equal(calendarFields(query, now).invalid, true, query);
+});
+test('named event titles and dates survive an uncertain clock suffix until clarified', async () => {
+  for(const [query,language,title] of [
+    ['Add new event called studying tomorrow at 4-5 pk','en','studying'],
+    ['Create event named Reading tomorrow at 4-5 pn','en','Reading'],
+    ['Add a new event called Reading tomorrow at 4-5 pk','en','Reading'],
+    ['Dodaj nowe wydarzenie o nazwie Nauka jutro o 4-5 pk','pl','Nauka'],
+    ['Dodaj wydarzenie o nazwie Nauka jutro o 4-5 pk','pl','Nauka'],
+    ['Dodaj wydarzenie pod tytułem Nauka jutro o 4 pk','pl','Nauka'],
+  ] as const){
+    const parsed=parseCalendarCommand(query,language,now)!;
+    assert.ok(parsed,query);assert.equal(parsed.command.title,title);assert.equal(parsed.command.date,'2026-10-24');
+    assert.equal(parsed.command.time,null);assert.equal(parsed.incomplete,true);assert.ok(parsed.unresolvedTime);
+    const corrected=parseCalendarCommand('pm',language,now,parsed)!;
+    assert.equal(corrected.command.title,title);assert.equal(corrected.command.time,'16:00');
+    const result=await resolveModelCommand(corrected.command,corrected.request,[],language,now,DEFAULT_PLANNING);
+    assert.equal(result.suggestedPlan?.events[0].title,title);assert.equal(result.suggestedPlan?.events[0].startTime,'16:00');
+    assert.equal(result.suggestedPlan?.events[0].endTime,'17:00');
+    const changed=parseCalendarCommand('Actually today at 18-20',language,now,parsed)!;
+    assert.equal(changed.command.date,'2026-10-23');
+    const revised=await resolveModelCommand(changed.command,changed.request,[],language,now,DEFAULT_PLANNING);
+    assert.equal(revised.suggestedPlan?.events[0].startDate,'2026-10-23');assert.equal(revised.suggestedPlan?.events[0].endTime,'20:00');
+  }
+});

@@ -2,18 +2,27 @@ name: Android AI diagnostics APK
 
 on:
   push:
-    branches: [optimize/lfm25-parser-runtime, feat/local-ai-models-history]
+    branches: [optimize/lfm25-parser-runtime, feat/local-ai-models-history, fix/ai-140-diagnostics]
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
+    inputs:
+      extended_models:
+        type: boolean
+        default: false
+        description: Repeat the archived IQ4_XS and bilingual lifecycle comparison
 
 permissions:
   contents: read
 
+concurrency:
+  group: ai-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   diagnostics:
-    if: github.ref == 'refs/heads/optimize/lfm25-parser-runtime' || github.ref == 'refs/heads/feat/local-ai-models-history'
+    if: github.ref == 'refs/heads/optimize/lfm25-parser-runtime' || github.ref == 'refs/heads/feat/local-ai-models-history' || github.ref == 'refs/heads/fix/ai-140-diagnostics'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,15 +60,66 @@ jobs:
           ASSISTANT_TEST_MODEL: '1'
         run: node tests/assistant-routing-browser.cjs
       - name: Test durable history and model switching using APK JavaScript
-        if: github.ref == 'refs/heads/feat/local-ai-models-history'
+        if: github.ref != 'refs/heads/optimize/lfm25-parser-runtime'
         env:
           ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
           HISTORY_BROWSER_REPORT: diagnostics-artifact/history-browser-results.json
         run: node tests/assistant-history-browser.cjs
+      - name: Test AI settings navigation using APK JavaScript
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+          SETTINGS_BROWSER_REPORT: diagnostics-artifact/settings-browser-results.json
+        run: node tests/assistant-settings-browser.cjs
+      - name: Verify native generation survives panel minimization
+        timeout-minutes: 4
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+        run: node tests/assistant-minimize-browser.cjs
+      - name: Recheck pinned Hugging Face source metadata
+        run: |
+          node --import tsx scripts/verify-model-sources.ts
+          cp model-source-recheck.json diagnostics-artifact/model-source-recheck.json
+      - name: Fetch verified IQ4_XS for system-file import acceptance
+        if: inputs.extended_models == true
+        run: node --import tsx scripts/fetch-candidate-model.ts qwen3.5-0.8b-iq4-xs "$RUNNER_TEMP/import.gguf"
+      - name: Real optional model download, import and offline conversation through APK UI
+        if: inputs.extended_models == true
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+          MODEL_IMPORT_FILE: ${{ runner.temp }}/import.gguf
+          MODEL_INSTALL_REPORT: diagnostics-artifact/model-install-ui-results.json
+        run: node tests/model-install-ui-browser.cjs
+      - name: Fetch verified preferred Q4_K_M for acceptance
+        run: node --import tsx scripts/fetch-candidate-model.ts qwen3.5-0.8b-q4-k-m "$RUNNER_TEMP/import-q4.gguf"
+      - name: Preferred Q4_K_M download, import and native offline APK conversation
+        timeout-minutes: 7
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+          MODEL_TEST_ID: qwen3.5-0.8b-q4-k-m
+          MODEL_IMPORT_FILE: ${{ runner.temp }}/import-q4.gguf
+          MODEL_INSTALL_REPORT: diagnostics-artifact/model-install-q4-ui-results.json
+        run: node tests/model-install-ui-browser.cjs
+      - name: Build runtime evaluation harness from the same source
+        run: npm run build:evaluation
+      - name: Real installed-model lifecycle and bounded bilingual comparison
+        if: inputs.extended_models == true
+        run: |
+          for model in qwen3.5-0.8b-q4-k-m qwen3.5-0.8b-iq4-xs; do
+            if [ "$model" = qwen3.5-0.8b-q4-k-m ]; then model_file="$RUNNER_TEMP/import-q4.gguf"; else model_file="$RUNNER_TEMP/import.gguf"; fi
+            ln -sf "$model_file" dist/candidate-lifecycle.gguf
+            CANDIDATE_MODEL_ID="$model" LIFECYCLE_REPORT="diagnostics-artifact/lifecycle-$model.json" node tests/model-lifecycle-browser.cjs
+          done
+      - name: Short installed Qwen reload and real 350M fallback
+        timeout-minutes: 6
+        if: inputs.extended_models != true
+        run: |
+          ln -sf "$RUNNER_TEMP/import-q4.gguf" dist/candidate-lifecycle.gguf
+          node tests/model-release-smoke.cjs
       # GitHub wraps these files in a downloadable ZIP. APK/GGUF never enter Git.
       - name: Upload diagnostics ZIP artifact
         id: upload
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Calendar-AI-diagnostics-android
           path: diagnostics-artifact/

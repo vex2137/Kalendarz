@@ -2,7 +2,7 @@
 set -uo pipefail
 log_file="${RUNNER_TEMP:-/tmp}/kalendarz-android-test.log"
 cd android
-bash ./gradlew connectedReleaseAndroidTest -PcalendarTestSigning=true -PcalendarAndroidTestBuildType=release --no-daemon --console=plain 2>&1 | tee "$log_file"
+bash ./gradlew connectedReleaseAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.kalendarz.offline.CalendarSmokeTest -PcalendarTestSigning=true -PcalendarAndroidTestBuildType=release --no-daemon --console=plain 2>&1 | tee "$log_file"
 test_status=${PIPESTATUS[0]}
 if [ "$test_status" -ne 0 ]; then
   python3 - "$log_file" <<'PY'

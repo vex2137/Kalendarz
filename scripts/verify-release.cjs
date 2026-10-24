@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
-const { readFileSync, writeFileSync, statSync } = require('node:fs');
+const { readFileSync, writeFileSync, statSync, readdirSync } = require('node:fs');
 const { join } = require('node:path');
 const { version, productName } = require('../package.json');
 
@@ -11,9 +11,10 @@ if (process.env.GITHUB_REF_TYPE === 'tag') {
     'Release tag must match application version',
   );
 }
+const androidKind = process.argv.includes('--android-kind=test') ? 'test' : 'production';
 const prefix = `${productName}-${version}`;
 const files = [
-  `${prefix}-android-test.apk`,
+  `${prefix}-android${androidKind === 'test' ? '-test' : ''}.apk`,
   `${prefix}-windows-x64-setup.exe`,
   `${prefix}-windows-x64-portable.exe`,
   `${prefix}-windows-x64.zip`,
@@ -21,6 +22,7 @@ const files = [
   `${prefix}-linux-x86_64.flatpak`,
   `${prefix}-web.zip`,
 ];
+assert.deepEqual(readdirSync('release').filter(name => name.endsWith('.apk')).sort(), [files[0]], 'Publish exactly the intended Android APK; test or unsigned APKs must not accompany production output');
 const lines = files.map((name) => {
   const file = join('release', name);
   assert.ok(statSync(file).size > 0, `Empty release asset: ${name}`);

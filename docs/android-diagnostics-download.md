@@ -1,5 +1,15 @@
 # Download the Android AI diagnostics build
 
+The current POCO follow-up candidate uses Qwen Q4_K_M as the preferred optional
+model and retains bundled 350M as fallback. See [persistent-model tests and phone
+steps](ai-140-poco-followup.md). Saved manual selections are preserved. Qwen weights
+are not bundled or automatically downloaded.
+
+For the 1.4.0 AI Update candidate, follow [the acceptance checklist](ai-140-acceptance.md).
+Models and diagnostics now open in Assistant → AI settings, in separate tabs.
+The source branch is `fix/ai-140-diagnostics`; the base package version remains
+1.3.1-diagnostics until an official release is authorized.
+
 Open the successful **Android AI diagnostics APK** run on GitHub Actions while
 signed in to GitHub. Under **Artifacts**, download
 **Calendar-AI-diagnostics-android**. GitHub provides a ZIP containing

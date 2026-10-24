@@ -76,9 +76,14 @@ async function records(page) {
     await page.goto(base);
     await page.locator('#btn-open-ai-assistant').click();
     // Use the shipped model on a fresh profile: no import/download and no pre-existing IndexedDB copy.
-    assert.equal(await page.evaluate(() => indexedDB.databases().then(dbs => dbs.some(db => db.name === 'calendar-local-model'))), false);
+    assert.equal(await page.evaluate(async () => {
+      if(!(await indexedDB.databases()).some(db=>db.name==='calendar-local-model'))return 0;
+      return new Promise((resolve,reject)=>{const request=indexedDB.open('calendar-local-model');request.onerror=()=>reject(request.error);request.onsuccess=()=>{const db=request.result,get=db.transaction('models').objectStore('models').count();get.onsuccess=()=>{db.close();resolve(get.result);};get.onerror=()=>reject(get.error);};});
+    }),0,'Preference discovery may open an empty registry, but must not install/download weights');
     console.log('Testing bundled GGUF on a fresh profile');
+    await page.locator('#btn-ai-settings').click();
     await page.locator('[data-model-installed="true"]').waitFor();
+    await page.locator('#ai-settings-panel header button').click();
     console.log('Bundled metadata ready; waiting for service-worker installation');
     await page.evaluate(() => Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise((_, reject) => setTimeout(() => reject(new Error('Service-worker installation exceeded 60 seconds')), 60000))]));
     await page.reload();

@@ -6,6 +6,12 @@ import { assistantTurns } from '../src/utils/modelDiagnostics';
 import { DEFAULT_PLANNING } from '../src/utils/assistantPlanning';
 
 const now = new Date(2026, 9, 23, 10);
+test('natural language switch requests override conversation and interface language', () => {
+  for (const fallback of ['pl','en','de','ru'] as const) {
+    for (const query of ['Maybe it will be better in english', 'So speak english', 'Can we continue in English please?', 'Please talk to me in English']) assert.equal(detectAssistantLanguage(query, fallback),'en',query);
+    assert.equal(detectAssistantLanguage('Could you speak Polish please?',fallback),'pl');
+  }
+});
 test('message language wins over each UI language, including decomposed Android input', async () => {
   for (const ui of ['en', 'pl', 'de', 'ru'] as const) {
     for (const [message, language, reply] of [

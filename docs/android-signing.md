@@ -21,7 +21,7 @@ This reads the existing key; it never generates a replacement. It sets four repo
 - `CALENDAR_ANDROID_KEY_ALIAS`
 - `CALENDAR_ANDROID_KEY_PASSWORD`
 
-The release workflow restores the key into a temporary private file and requires its use. The current managed GitHub integration returns HTTP 403 for the repository secrets public-key API, so it could not complete that setup. Ordinary repository pushes/Actions access do not imply permission to manage secrets. Release publication must wait until these secrets are configured. Do not replace the generated key while adding them.
+The release workflow restores the key into a temporary private file and requires its use. The four existing signing secrets were restored for the successful 1.4.0 production release. Keep using that permanent backup. Production downloads use `Calendar-X.Y.Z-android.apk`; compatibility and diagnostic APKs keep explicit test/debug labels. See [the artifact naming audit](android-artifact-names.md).
 
 ## Local signed builds
 

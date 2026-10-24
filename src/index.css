@@ -205,3 +205,19 @@ body {
 /* Touch negotiation stops at the first scroll container, including nested agendas. */
 .calendar-gesture-area,
 .calendar-gesture-area * { touch-action: pan-y pinch-zoom; }
+
+/* AI controls share the current built-in or custom palette. */
+.ai-primary { background: var(--button-bg, var(--accent-color)); color: var(--button-text, #fff); }
+.ai-primary:hover { filter: brightness(1.08); }
+.ai-action { border: 1px solid var(--border-color); background: var(--bg-subtle); color: var(--text-main); }
+.ai-action:hover { background: var(--bg-hover); }
+.ai-active-card { border-color: color-mix(in srgb, var(--accent-color) 50%, var(--border-color)); background: var(--bg-main); }
+.ai-model-card { background: var(--bg-main); }
+.ai-model-selected { border-color: var(--accent-color) !important; box-shadow: 0 0 0 1px var(--accent-color); }
+.ai-model-icon, .ai-model-badge { background: color-mix(in srgb, var(--accent-color) 17%, var(--bg-surface)); color: var(--accent-color); }
+.ai-status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: 9px; }
+.ai-status-ok { color: #10b981; border-color: #10b981; background: #10b9810d; }
+.ai-switch { width: 48px; height: 28px; border-radius: 20px; background: var(--bg-hover); border: 1px solid var(--border-color); padding: 3px; }
+.ai-switch span { display: block; width: 20px; height: 20px; border-radius: 50%; background: var(--text-muted); }
+.ai-switch-on { background: var(--button-bg, var(--accent-color)); }
+.ai-switch-on span { margin-left: auto; background: var(--button-text, #fff); }

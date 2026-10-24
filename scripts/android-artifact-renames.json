@@ -1,0 +1,5 @@
+[
+  {"tag":"v1.4.0","id":673269942,"old":"Calendar-1.4.0-android-test.apk","new":"Calendar-1.4.0-android.apk","sha256":"b1065426530dd46a2f3bf2790e0571f3bc24d46660271a28a12b34e96dfce674"},
+  {"tag":"v1.3.1","id":663759543,"old":"Calendar-1.3.1-android-test.apk","new":"Calendar-1.3.1-android-original.apk","sha256":"2d9e358c3e55e62efa3a129c8675e7214e33d9b8afb07e4d8f671caa5f82f6dd"},
+  {"tag":"v1.3.1","id":663837096,"old":"Calendar-1.3.1-android-assistant-fix.apk","new":"Calendar-1.3.1-android.apk","sha256":"b5858d7c57c1a252f9643b3d9aa089a56cb9c757a2869de36d9443e965872080"}
+]

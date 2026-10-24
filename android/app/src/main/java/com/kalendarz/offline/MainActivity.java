@@ -7,8 +7,14 @@ import android.webkit.ServiceWorkerClient;
 import android.webkit.ServiceWorkerController;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
+import androidx.activity.OnBackPressedCallback;
 
 public class MainActivity extends BridgeActivity {
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (bridge != null) bridge.getWebView().post(() -> bridge.getWebView().evaluateJavascript("window.dispatchEvent(new Event('calendar-app-resume'))", null));
+    }
     @Override
     protected void load() {
         super.load();
@@ -18,7 +24,9 @@ public class MainActivity extends BridgeActivity {
             ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient() {
                 @Override
                 public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
-                    return CalendarWebViewClient.isolate(bridge.getLocalServer().shouldInterceptRequest(request), request.getUrl());
+                    WebResourceResponse response = CalendarModelImportPlugin.intercept(MainActivity.this, request.getUrl());
+                    if (response == null) response = bridge.getLocalServer().shouldInterceptRequest(request);
+                    return CalendarWebViewClient.isolate(response, request.getUrl());
                 }
             });
         }
@@ -39,6 +47,19 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(CalendarDevicePlugin.class);
+        registerPlugin(CalendarModelImportPlugin.class);
         super.onCreate(savedInstanceState);
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                bridge.getWebView().evaluateJavascript("window.dispatchEvent(new Event('calendar-back', {cancelable:true}))", result -> {
+                    if (!"false".equals(result)) {
+                        setEnabled(false);
+                        getOnBackPressedDispatcher().onBackPressed();
+                        setEnabled(true);
+                    }
+                });
+            }
+        });
     }
 }

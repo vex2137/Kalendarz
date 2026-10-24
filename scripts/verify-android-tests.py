@@ -16,7 +16,7 @@ for case in cases:
     for failure in [*case.findall("failure"), *case.findall("error")]:
         annotation(f"{case.get('classname')}.{case.get('name')}: {failure.get('message', '')}\n{(failure.text or '')[:2000]}")
         failed = True
-required = ["createsPersistsAndDisplaysVersion", "languageSelectionUpdatesExactlyOneLauncher", "bundledModelUnderstandsPolishAndEnglishOffline", "nativeNotificationStatusReturnsCurrentSystemPermission", "encryptedQrAndCustomThemeWorkOfflineInReleaseWebView", "realFingerSwipeNavigatesWithoutOpeningAnEvent"]
+required = ["safPickerStreamsContentUriAndReleasesAccess", "createsPersistsAndDisplaysVersion", "languageSelectionUpdatesExactlyOneLauncher", "bundledModelUnderstandsPolishAndEnglishOffline", "nativeNotificationStatusReturnsCurrentSystemPermission", "encryptedQrAndCustomThemeWorkOfflineInReleaseWebView", "realFingerSwipeNavigatesWithoutOpeningAnEvent"]
 for name in required:
     matching = [case for case in cases if case.get("name") == name]
     if not matching or all(case.find("skipped") is not None for case in matching):
