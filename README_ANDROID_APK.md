@@ -1,4 +1,4 @@
-# Android — Calendar 1.3.1 source
+# Android — builds and downloads
 
 The current source bundles LFM2.5 weights, defers launcher-name changes until the app is in the background, and requires the permanent signing identity for public releases. See [signing setup and migration](docs/android-signing.md).
 
@@ -16,7 +16,12 @@ npx cap sync android
 node scripts/with-android-signing.cjs /path/to/private/signing-backup bash android/gradlew -p android :app:assembleRelease --no-daemon
 ```
 
-Output: `android/app/build/outputs/apk/release/app-release.apk`. The 229 MB model is inside the APK and its checksum is verified during building and before inference. No separate import/download is required.
+Local Gradle output: `android/app/build/outputs/apk/release/app-release.apk`.
+Published production APK: `Calendar-X.Y.Z-android.apk` on [GitHub Releases](https://github.com/vex2137/Kalendarz/releases).
+Compatibility APKs retain `-android-test.apk`; `Calendar-AI-diagnostics.apk` is a separate diagnostic installation.
+See the [artifact naming audit](docs/android-artifact-names.md).
+
+ The 229 MB model is inside the APK and its checksum is verified during building and before inference. No separate import/download is required.
 
 Public CI builds restore the existing key from repository Actions secrets and compare the APK certificate against `android/release-certificate.sha256`. Missing secrets fail publication; there is no fallback to a new debug key. Private keys/passwords must never be committed or attached to a public release. Isolated compatibility builds may still opt into `-PcalendarTestSigning=true`; those APKs are not the permanent signed distribution.
 

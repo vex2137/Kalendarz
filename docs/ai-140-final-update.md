@@ -81,7 +81,7 @@ The first attempt stopped before installation because `aapt | head` received SIG
 
 The final production gates passed: TypeScript/build, 121 unit tests, Web/PWA persistence/offline/language/theme/navigation checks, packaged Windows and Linux AppImage application tests, Flatpak build and installation, signed Android update and seven Android functional checks. The workflow published all seven packages and [SHA256SUMS.txt](https://github.com/vex2137/Kalendarz/releases/download/v1.4.0/SHA256SUMS.txt). Downloaded checksums match the GitHub upload digests for every package. The release is public, stable and marked latest; remote tag `v1.4.0` resolves to `228f339e7032209f55193b68938ce6035dcc865d`.
 
-Official APK: [Calendar-1.4.0-android-test.apk](https://github.com/vex2137/Kalendarz/releases/download/v1.4.0/Calendar-1.4.0-android-test.apk), 231,995,170 bytes. Despite the retained filename suffix, this is the production-signed APK, not the separate diagnostics build. APK SHA-256:
+Official APK: [Calendar-1.4.0-android.apk](https://github.com/vex2137/Kalendarz/releases/download/v1.4.0/Calendar-1.4.0-android.apk), 231,995,170 bytes. The production APK was renamed in place after the artifact audit; its bytes, signature and SHA-256 are unchanged. APK SHA-256:
 
 ```text
 b1065426530dd46a2f3bf2790e0571f3bc24d46660271a28a12b34e96dfce674

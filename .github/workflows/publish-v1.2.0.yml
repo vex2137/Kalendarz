@@ -70,7 +70,7 @@ jobs:
           "$tools/aapt" dump badging android/app/build/outputs/apk/release/app-release.apk | grep -F "versionName='1.2.0'"
           cp android/app/build/outputs/apk/release/app-release.apk release/Kalendarz-Offline-1.2.0-android-test.apk
       - name: Verify all downloads and generate checksums
-        run: node scripts/verify-release.cjs
+        run: node scripts/verify-release.cjs --android-kind=test
       - name: Publish downloads
         uses: softprops/action-gh-release@v2
         with:

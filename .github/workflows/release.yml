@@ -21,7 +21,7 @@ on:
       android_apk_only:
         type: boolean
         default: false
-        description: Build and attach only the patched Android APK to the existing release
+        description: Attach a missing production APK to an existing release; never overwrite an APK
       manual_publish:
         type: boolean
         default: false
@@ -226,7 +226,7 @@ jobs:
           "$tools/aapt" dump badging android/app/build/outputs/apk/release/app-release.apk | tee /tmp/kalendarz-apk.txt
           grep -F "versionName='$version'" /tmp/kalendarz-apk.txt
           mkdir -p release
-          cp android/app/build/outputs/apk/release/app-release.apk "release/Calendar-${version}-android-test.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "release/Calendar-${version}-android.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: release-android
@@ -356,7 +356,7 @@ jobs:
         run: |
           apk=android/app/build/outputs/apk/release/app-release.apk
           node scripts/verify-android-signature.cjs "$apk"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | head -n 1
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | sed -n '1p'
           python - <<'PYVERIFY'
           import zipfile, hashlib, json
           manifest = json.load(open('src/utils/localModelManifest.json'))
@@ -369,9 +369,10 @@ jobs:
         run: |
           version=$(node -p 'require("./package.json").version')
           mkdir -p apk-release
-          cp android/app/build/outputs/apk/release/app-release.apk "apk-release/Calendar-$version-android-assistant-fix.apk"
-          (cd apk-release && sha256sum *.apk > "Calendar-$version-android-assistant-fix.apk.sha256")
-          gh release upload "v$version" apk-release/*
+          cp android/app/build/outputs/apk/release/app-release.apk "apk-release/Calendar-$version-android.apk"
+          (cd apk-release && sha256sum *.apk > "Calendar-$version-android.apk.sha256")
+          gh release upload "v$version" apk-release/*.apk apk-release/*.sha256
+          python3 scripts/maintain-android-assets.py --refresh-checksums "v$version"
       - name: Remove temporary private signing files
         if: always()
         run: rm -rf "$RUNNER_TEMP/calendar-signing"

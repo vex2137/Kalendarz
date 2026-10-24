@@ -108,8 +108,10 @@ The version in package.json is shared by the UI, Electron and Android. Release
 filenames include version and platform. Push a matching `v<version>` tag to run
 `.github/workflows/release.yml`; successful main-branch runs can also publish a new version through `publish.yml`.
 All seven platform packages must exist and pass their respective checks before the
-release job generates SHA256SUMS.txt and publishes. The Android APK is a developer-
-signed test package, Windows executables have no commercial Authenticode signature.
+release job generates SHA256SUMS.txt and publishes. Production Android packages use `Calendar-X.Y.Z-android.apk` and the pinned permanent
+signing key. Compatibility packages retain `-android-test.apk`; unsigned build
+outputs and separate diagnostic APKs retain their explicit labels. Windows executables
+have no commercial Authenticode signature.
 Release notes live in `.github/release-notes/v<version>.md`.
 
 Successful main-branch package runs also trigger `publish.yml`. It downloads only

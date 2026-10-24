@@ -3,7 +3,7 @@ set -euo pipefail
 apk=android/app/build/outputs/apk/release/app-release.apk
 old_apk="$RUNNER_TEMP/calendar-official-1.3.1.apk"
 test_apk=android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk
-curl --fail --location --retry 2 --output "$old_apk" https://github.com/vex2137/Kalendarz/releases/download/v1.3.1/Calendar-1.3.1-android-assistant-fix.apk
+curl --fail --location --retry 2 --output "$old_apk" https://github.com/vex2137/Kalendarz/releases/download/v1.3.1/Calendar-1.3.1-android.apk
 node scripts/verify-android-signature.cjs "$old_apk"
 node scripts/verify-android-signature.cjs "$apk"
 for candidate in "$old_apk" "$apk"; do
