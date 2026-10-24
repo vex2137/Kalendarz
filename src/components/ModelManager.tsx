@@ -1,6 +1,7 @@
+import { BackendSettings } from './BackendSettings';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Box, Cpu, Download, Upload, Activity, CheckCircle2, Check, HardDrive, Laptop, Settings, Star, Trash2, Play, Info } from 'lucide-react';
-import { AI_MODELS, PREFERRED_MODEL, findModel, type ModelDescriptor } from '../utils/modelRegistry';
+import { AI_MODELS, PREFERRED_MODEL, OPTIONAL_FALLBACK, findModel, type ModelDescriptor } from '../utils/modelRegistry';
 import { hasDownloadedModelData, bundledModelAvailable, removeSavedModel } from '../utils/localModelStore';
 import { cancelModelOperation, deleteLocalModel, installLocalModel, modelStatus, restoreFallbackModel, retryLocalModel, selectLocalModel, subscribeModel } from '../utils/localModelRuntime';
 import { assistantUiText } from '../utils/assistantUiText';
@@ -78,6 +79,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
         <button id="ai-background-work" role="switch" aria-checked={background} aria-label={view.background} onClick={() => setAssistantBackground(!background)} className={`ai-switch shrink-0 ${background ? 'ai-switch-on' : ''}`}><span/></button>
       </div>
     </article>
+    <BackendSettings language={language} busy={busy}/>
     <div className="grid grid-cols-3 gap-1.5 text-[11px]">
       <button id="ai-download-model" type="button" disabled={busy || !enabled} className="ai-primary min-h-12 rounded-lg px-1 flex gap-1 items-center justify-center disabled:opacity-50" onClick={() => {setDownloadOpen(true);catalogue.current?.scrollIntoView({block:'nearest'});}}><Download className="w-5 h-5 shrink-0"/>{view.download}</button>
       <button id="ai-import-gguf" type="button" disabled={busy || !enabled} className="ai-action min-h-12 rounded-lg px-1 flex gap-1 items-center justify-center disabled:opacity-50" onClick={openImport}><Upload className="w-5 h-5 shrink-0"/>{view.import}</button>
@@ -117,7 +119,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
         </article>;
       })}
     </div>
-    {!descriptor.bundled && <button type="button" disabled={busy} className="ai-action p-2 rounded-lg min-h-11 disabled:opacity-50" onClick={()=>perform(restoreFallbackModel)}>{text.fallback}</button>}
+    {descriptor.id !== OPTIONAL_FALLBACK.id && <button type="button" disabled={busy} className="ai-action p-2 rounded-lg min-h-11 disabled:opacity-50" onClick={()=>perform(restoreFallbackModel)}>{text.fallback}</button>}
     <p className="theme-muted text-[11px]">{text.privacy}</p>
   </div>;
 }

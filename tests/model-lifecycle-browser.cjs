@@ -106,7 +106,7 @@ const base='http://127.0.0.1:4189',id=process.env.CANDIDATE_MODEL_ID;
     }
     await page.evaluate(()=>window.calendarEvaluation.runtime.restoreFallbackModel());
     await page.reload();await page.waitForFunction(()=>window.calendarEvaluation);
-    report.explicitFallback=await page.evaluate(async()=>{const h=window.calendarEvaluation;await h.runtime.checkLocalModel();return h.runtime.modelStatus().modelId===h.registry.DEFAULT_MODEL.id;});
+    report.explicitFallback=await page.evaluate(async()=>{const h=window.calendarEvaluation;await h.runtime.checkLocalModel();return h.runtime.modelStatus().modelId===h.registry.OPTIONAL_FALLBACK.id;});
     assert.equal(report.explicitFallback,true,'An explicit fallback choice must survive restart');
     await page.evaluate(id=>window.calendarEvaluation.runtime.selectLocalModel(id),id);
     await context.close();browser=context=await launch();await routeContext();page=await context.newPage();page.setDefaultTimeout(900000);page.on('pageerror',error=>errors.push(error.message));await open();

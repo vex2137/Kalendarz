@@ -1,0 +1,35 @@
+{
+  "version": "b11669",
+  "commit": "620d2225cc436ab0b001e3200e590e3b286ef9ab",
+  "license": "MIT",
+  "targets": {
+    "linux-x64": {
+      "cpu": {
+        "file": "llama-b11669-bin-ubuntu-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-ubuntu-x64.tar.gz",
+        "bytes": 17851611,
+        "sha256": "cf07c1c112d709bd67e522017471de57ed0ec8bea031d732c5422351c07f65ac"
+      },
+      "vulkan": {
+        "file": "llama-b11669-bin-ubuntu-vulkan-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-ubuntu-vulkan-x64.tar.gz",
+        "bytes": 30497889,
+        "sha256": "e8709e5ba6c1b093dea7f3de57f4aba842f9a188fba6b465782d65d6fcfa4d9f"
+      }
+    },
+    "win-x64": {
+      "cpu": {
+        "file": "llama-b11669-bin-win-cpu-x64.zip",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-win-cpu-x64.zip",
+        "bytes": 19537886,
+        "sha256": "37b3efcf962847ca869745fd4ccf7f5e7e8dacfeff9fa3523b4ca8cdc66d632b"
+      },
+      "vulkan": {
+        "file": "llama-b11669-bin-win-vulkan-x64.zip",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-win-vulkan-x64.zip",
+        "bytes": 32182350,
+        "sha256": "2c07574e7bde71321cb785282b20cc821e951132149eeceeea32ddebdbf0598e"
+      }
+    }
+  }
+}

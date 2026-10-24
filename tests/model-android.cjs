@@ -7,6 +7,7 @@ const { _android } = require('playwright');
 const pkg = process.env.MODEL_TEST_ANDROID_PACKAGE || 'com.kalendarz.offline';
 const activity = process.env.MODEL_TEST_ANDROID_ACTIVITY || 'com.kalendarz.offline.MainActivity';
 const adb = process.env.ADB || 'adb';
+const manifest = require('../src/utils/localModelManifest.json');
 const file = process.env.CALENDAR_MODEL_FILE;
 assert.match(pkg, /^[a-zA-Z][\w]*(?:\.[a-zA-Z][\w]*)+$/);
 assert.match(activity, /^[a-zA-Z][\w]*(?:\.[a-zA-Z][\w]*)+$/);
@@ -24,10 +25,10 @@ async function records(page) {
 }
 (async () => {
   assert.ok(file, 'Set CALENDAR_MODEL_FILE to the official GGUF');
-  assert.equal(statSync(file).size, 229312224);
+  assert.equal(statSync(file).size, manifest.bytes);
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(file)) hash.update(chunk);
-  assert.equal(hash.digest('hex'), '7e6f72643caafc9a68256686638c4d7916f2cec76d1df478d4c3ddcd95a6aed4');
+  assert.equal(hash.digest('hex'), manifest.sha256);
   const devices = await _android.devices();
   const device = devices.find(d => !process.env.ANDROID_SERIAL || d.serial() === process.env.ANDROID_SERIAL);
   assert.ok(device, 'Connect an Android device with the debug APK installed');

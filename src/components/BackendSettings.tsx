@@ -1,0 +1,31 @@
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import type { AppLanguage } from '../utils/i18n';
+import { applyBackendMode, backendMode, backendStatus, desktopAI, subscribeBackend, updateBackend, type BackendMode } from '../utils/nativeDesktopAI';
+import { unloadLocalModel } from '../utils/localModelRuntime';
+
+const copy = {
+  en: {title:'Inference backend',mode:'Processing mode',auto:'Automatic',gpu:'GPU',cpu:'CPU',active:'GPU inference confirmed',inactive:'GPU inactive',unloaded:'Model not loaded',unknown:'Unavailable',device:'Detected GPU',memory:'Native process RAM / VRAM',scope:'RAM is the inference process resident memory; VRAM is reported only when available for that process.',mobile:'This platform uses CPU (WebAssembly). Android GPU is not validated.',failed:'Could not change mode. Release the model and retry.',fallback:'CPU fallback',reasons:{'no-compatible-gpu':'No compatible GPU or driver','insufficient-vram':'Insufficient available VRAM','gpu-start-failed':'GPU initialization failed','gpu-inference-failed':'GPU generation failed; retried on CPU','native-runtime-unavailable':'Native runtime unavailable; using WebAssembly'}},
+  pl: {title:'Backend inferencji',mode:'Tryb obliczeń',auto:'Automatycznie',gpu:'GPU',cpu:'CPU',active:'Potwierdzona inferencja GPU',inactive:'GPU nieaktywne',unloaded:'Model niezaładowany',unknown:'Niedostępne',device:'Wykryte GPU',memory:'RAM procesu / VRAM',scope:'RAM oznacza pamięć rezydentną procesu inferencji; VRAM podajemy tylko przy dostępnym odczycie dla tego procesu.',mobile:'Ta platforma korzysta z CPU (WebAssembly). GPU Androida nie zostało zweryfikowane.',failed:'Nie udało się zmienić trybu. Zwolnij model i spróbuj ponownie.',fallback:'Powrót do CPU',reasons:{'no-compatible-gpu':'Brak zgodnego GPU lub sterownika','insufficient-vram':'Za mało dostępnej pamięci VRAM','gpu-start-failed':'Błąd inicjalizacji GPU','gpu-inference-failed':'Błąd generowania na GPU; ponowiono na CPU','native-runtime-unavailable':'Backend natywny niedostępny; użyto WebAssembly'}},
+  de: {title:'Inferenz-Backend',mode:'Rechenmodus',auto:'Automatisch',gpu:'GPU',cpu:'CPU',active:'GPU-Inferenz bestätigt',inactive:'GPU inaktiv',unloaded:'Modell nicht geladen',unknown:'Nicht verfügbar',device:'Erkannte GPU',memory:'Prozess-RAM / VRAM',scope:'RAM ist der residente Speicher des Inferenzprozesses; VRAM wird nur bei verfügbarem Prozesszähler angezeigt.',mobile:'Diese Plattform nutzt CPU (WebAssembly). Android-GPU wurde nicht validiert.',failed:'Moduswechsel fehlgeschlagen. Modell freigeben und erneut versuchen.',fallback:'CPU-Fallback',reasons:{'no-compatible-gpu':'Keine kompatible GPU oder kein Treiber','insufficient-vram':'Nicht genügend freies VRAM','gpu-start-failed':'GPU-Initialisierung fehlgeschlagen','gpu-inference-failed':'GPU-Generierung fehlgeschlagen; auf CPU wiederholt','native-runtime-unavailable':'Natives Backend nicht verfügbar; WebAssembly wird verwendet'}},
+  ru: {title:'Движок инференса',mode:'Режим вычислений',auto:'Автоматически',gpu:'GPU',cpu:'CPU',active:'Инференс на GPU подтверждён',inactive:'GPU неактивен',unloaded:'Модель не загружена',unknown:'Недоступно',device:'Обнаруженный GPU',memory:'RAM процесса / VRAM',scope:'RAM — резидентная память процесса инференса; VRAM указан только при наличии счётчика этого процесса.',mobile:'Эта платформа использует CPU (WebAssembly). GPU Android не проверен.',failed:'Не удалось сменить режим. Выгрузите модель и повторите.',fallback:'Переход на CPU',reasons:{'no-compatible-gpu':'Нет совместимого GPU или драйвера','insufficient-vram':'Недостаточно свободной VRAM','gpu-start-failed':'Ошибка инициализации GPU','gpu-inference-failed':'Ошибка генерации на GPU; повторено на CPU','native-runtime-unavailable':'Нативный движок недоступен; используется WebAssembly'}},
+};
+
+export function BackendSettings({language,busy}:{language:AppLanguage;busy:boolean}) {
+  const status=useSyncExternalStore(subscribeBackend,backendStatus),text=copy[language];
+  const [changing,setChanging]=useState(false),[error,setError]=useState(false);
+  const native=desktopAI();
+  useEffect(()=>{if(native)void native.status().then(updateBackend).catch(()=>{});},[native]);
+  const change=async(mode:BackendMode)=>{setChanging(true);setError(false);try{await unloadLocalModel();await applyBackendMode(mode);}catch{setError(true);}finally{setChanging(false);}};
+  const memory=(bytes?:number)=>bytes===undefined?text.unknown:`${(bytes/1048576).toFixed(1)} MiB`;
+  const reason=status.fallbackReason as keyof typeof text.reasons|undefined;
+  return <section className="theme-border border rounded-xl p-3 space-y-2 text-xs" data-testid="backend-settings">
+    <h4 className="font-semibold">{text.title}</h4>
+    {native ? <label className="flex items-center gap-2">{text.mode}<select aria-label={text.mode} value={backendMode()} disabled={busy||changing} onChange={event=>void change(event.target.value as BackendMode)} className="theme-input rounded-lg p-2 flex-1">
+      <option value="auto">{text.auto}</option><option value="gpu">{text.gpu}</option><option value="cpu">{text.cpu}</option>
+    </select></label> : <p className="theme-muted">{text.mobile}</p>}
+    <p data-backend={status.loaded?status.backend:'unloaded'} data-gpu-active={status.gpuActive}>{status.loaded ? status.backend==='vulkan'?'Vulkan':status.backend==='cpu-native'?'CPU · llama.cpp':'CPU · WebAssembly' : text.unloaded} · {status.gpuActive?text.active:text.inactive}</p>
+    {native && <><p>{text.device}: {status.deviceName||status.gpuDevices?.map(device=>device.name).join(', ')||text.unknown}</p><p>{text.memory}: {memory(status.ramBytes)} / {memory(status.vramBytes)}</p><p className="theme-muted">{text.scope}</p></>}
+    {reason && <p role="status">{text.fallback}: {text.reasons[reason]||text.unknown}</p>}
+    {error && <p role="alert">{text.failed}</p>}
+  </section>;
+}

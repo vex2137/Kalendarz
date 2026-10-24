@@ -1,8 +1,10 @@
+import { desktopAI, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
+import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels } from './localModelStore';
+import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel } from './localModelStore';
 import { recordModelMetric, recordModelState, type ModelMetric } from './modelDiagnostics';
-import { activeModel, DEFAULT_MODEL, PREFERRED_MODEL, hasModelSelection, findModel, persistModelSelection } from './modelRegistry';
+import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
 export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; importing?: boolean; error?: string; errorDetail?: string; modelId: string }
@@ -17,11 +19,11 @@ const listeners = new Set<() => void>();
 export const modelStatus = () => status;
 export const subscribeModel = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 const update = (patch: Partial<ModelStatus>) => { status = { ...status, ...patch }; recordModelState({...status,quantization:findModel(status.modelId).quantization}); listeners.forEach(l => l()); };
-let engine: Wllama | undefined;
+let engine: RuntimeEngine | undefined;
 let operation: AbortController | undefined;
 let idleTimer: ReturnType<typeof setTimeout> | undefined;
 let preloadTimer: ReturnType<typeof setTimeout> | undefined;
-let loading: Promise<Wllama> | undefined;
+let loading: Promise<RuntimeEngine> | undefined;
 let loadController: AbortController | undefined;
 let disposing: Promise<void> = Promise.resolve();
 let releaseRequested = false;
@@ -45,7 +47,7 @@ export async function selectLocalModel(id: string) {
     await checkLocalModel();
   } finally { transition = false; }
 }
-export const restoreFallbackModel = () => selectLocalModel(DEFAULT_MODEL.id);
+export const restoreFallbackModel = () => selectLocalModel(OPTIONAL_FALLBACK.id);
 export async function retryLocalModel() {
   if(operation||transition)return;
   recoveryRequired=false;clearModelOperation(status.modelId);
@@ -53,7 +55,7 @@ export async function retryLocalModel() {
   await checkLocalModel();
   await prepareLocalModel();
 }
-export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); };
+export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); if((operation||loadController)&&desktopAI())void desktopAI()!.stop().catch(()=>{}); };
 const idleDelay = () => assistantActive && !document.hidden ? 5 * 60_000 : 30_000;
 function scheduleRelease() {
   clearTimeout(idleTimer);
@@ -93,16 +95,8 @@ export async function checkLocalModel() {
   const descriptor = findModel(status.modelId);
   const phaseAtStart = status.phase;
   try {
-    // A stored explicit choice, including IQ4_XS or 350M, always wins.
-    if (!hasModelSelection() && descriptor.id === DEFAULT_MODEL.id && await savedModel(PREFERRED_MODEL).catch(()=>undefined)) {
-      if (status.modelId !== descriptor.id || status.phase !== phaseAtStart) return;
-      persistModelSelection(PREFERRED_MODEL);
-      try { recoveryRequired=localStorage.getItem(operationMarker)===PREFERRED_MODEL.id; } catch {}
-      update({modelId:PREFERRED_MODEL.id,phase:'checking',installed:false,loaded:false});
-      return checkLocalModel();
-    }
     const bundled = await bundledModelAvailable(descriptor);
-    const installed = bundled || Boolean(await recoverSavedModel(descriptor));
+    const installed = bundled || await hasNativeModelData(descriptor) || Boolean(await recoverSavedModel(descriptor));
     if (!engine && !loading && status.phase === phaseAtStart && status.modelId === descriptor.id) update({ phase: recoveryRequired || phaseAtStart === 'error' && installed ? 'error' : installed ? 'installed' : 'missing', installed, loaded:false, bundled });
   } catch (error) { if(status.modelId===descriptor.id && !loading && !engine) update({ phase:'error', error:runtimeError(error), loaded:false,...(error instanceof Error && ['model-size','model-checksum'].includes(error.message)?{installed:false}:{}) }); }
 }
@@ -117,6 +111,13 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
   let blob: Blob | undefined;
   update({ phase: file instanceof Blob ? 'verifying' : 'downloading', importing: Boolean(file), progress: 0, error: undefined });
   try {
+    // Importing the bundled model must never create another full weight copy.
+    if (descriptor.bundled && await bundledModelAvailable(descriptor)) {
+      if (file instanceof Blob) await verifyModel(file,controller.signal,undefined,descriptor);
+      else if (file) throw new Error('model-bundled');
+      update({phase:'installed',installed:true,loaded:false,progress:100,error:undefined});
+      return;
+    }
     const existing = await recoverSavedModel(descriptor, controller.signal).catch(error => { if (error instanceof Error && ['model-size','model-checksum'].includes(error.message)) return undefined; throw error; });
     // A second install request adopts verified bytes instead of downloading/copying again.
     if (!file && (existing || descriptor.bundled && await bundledModelAvailable(descriptor))) {
@@ -150,6 +151,7 @@ async function disposeEngine() {
   engine = undefined;
   if (current) disposing = disposing.then(() => current.exit()).catch(() => {});
   await disposing;
+  updateBackend({loaded:false,gpuActive:false});
   update({loaded:false, ...(status.installed && status.phase !== 'error' ? { phase:'installed' as const } : {})});
 }
 
@@ -168,7 +170,7 @@ function assetUrl(path: string) {
   return url.protocol === 'file:' ? `calendar-asset://runtime/${url.pathname.split('/').pop()}` : url.href;
 }
 
-async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 1): Promise<Wllama> {
+async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 1): Promise<RuntimeEngine> {
   await disposing;
   if (loading) return loading;
   if (engine) return engine;
@@ -183,6 +185,28 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       metric.modelId = descriptor.id;
       let started = performance.now();
       const bundled = await bundledModelAvailable(descriptor);
+      if(desktopAI()) {
+        try {
+          if(!(await hasNativeModelData(descriptor)) && !bundled) {
+            const previous=await recoverSavedModel(descriptor,controller.signal);
+            if(!previous)throw new Error('model-missing');
+            await verifyModel(previous,controller.signal,undefined,descriptor);
+            await ensureNativeModel(descriptor.id,previous,controller.signal);
+            controller.signal.throwIfAborted();await removeLegacyModel(descriptor);
+          }
+          update({installed:true});metric.storageMs=performance.now()-started;started=performance.now();
+          const native=await prepareNativeEngine(descriptor.id,controller.signal);
+          metric.initMs=performance.now()-started;engine=native;actualThreads=backendStatus().threads||1;
+          Object.assign(metric,{backend:backendStatus().backend,gpuActive:backendStatus().gpuActive});
+          lastLoad={storageMs:metric.storageMs,initMs:metric.initMs};
+          update({phase:'ready',installed:true,loaded:true});if(!operation)clearModelOperation(descriptor.id);return native;
+        } catch(error) {
+          if(controller.signal.aborted)throw error;
+          await desktopAI()!.stop().catch(()=>{});
+          updateBackend({backend:'cpu-wasm',loaded:false,gpuActive:false,fallbackReason:'native-runtime-unavailable'});
+          started=performance.now();
+        }
+      }
       const blob = bundled ? await loadBundledModel(controller.signal) : await recoverSavedModel(descriptor, controller.signal);
       metric.storageMs = performance.now() - started;
       if (!blob) { update({ installed: false }); throw new Error('model-missing'); }
@@ -218,6 +242,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       controller.signal.throwIfAborted();
       metric.initMs = performance.now() - started;
       engine = instance!;
+      updateBackend({backend:'cpu-wasm',loaded:true,gpuActive:false});
       lastLoad = {storageMs:metric.storageMs,verifyMs:metric.verifyMs,initMs:metric.initMs};
       update({ phase: 'ready', installed:true, loaded:true });
       if(!operation)clearModelOperation(descriptor.id);
@@ -252,9 +277,10 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
   const metric: ModelMetric = { route: 'model', modelId: status.modelId, quantization:descriptor.quantization, engineStateAtStart, totalMs: 0 };
   const abortLoad = () => loadController?.abort();
   controller.signal.addEventListener('abort', abortLoad);
-  const timeout = setTimeout(() => controller.abort('model-timeout'), options.timeoutMs ?? (status.modelId === DEFAULT_MODEL.id ? 120_000 : 600_000));
+  const timeout = setTimeout(() => controller.abort('model-timeout'), options.timeoutMs ?? (status.modelId === 'lfm2.5-350m-q4-k-m' ? 120_000 : 600_000));
   try {
     const current = await ensureEngine(metric, options.threads);
+    Object.assign(metric,{backend:backendStatus().backend});
     if (engineStateAtStart !== 'loaded') Object.assign(metric,lastLoad);
     controller.signal.throwIfAborted();
     metric.loadMs = performance.now() - started;
@@ -269,6 +295,8 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     });
     let text = '', finish: string | null = null;
     for await (const chunk of result) {
+      const native=(chunk as unknown as {calendarNative?:{firstTokenMs?:number;backend:BackendInfo}}).calendarNative;
+      if(native){Object.assign(metric,{firstTokenMs:native.firstTokenMs===undefined?undefined:(metric.loadMs||0)+native.firstTokenMs,firstAnswerTokenMs:native.firstTokenMs===undefined?undefined:(metric.loadMs||0)+native.firstTokenMs,backend:native.backend.backend,gpuActive:native.backend.gpuActive,deviceName:native.backend.deviceName,ramBytes:native.backend.ramBytes,vramBytes:native.backend.vramBytes,fallbackReason:native.backend.fallbackReason});}
       const choice = chunk.choices[0];
       const content = choice?.delta?.content;
       const delta = choice?.delta as { reasoning_content?: string; reasoning?: string } | undefined;

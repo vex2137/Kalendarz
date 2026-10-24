@@ -59,7 +59,23 @@ const { _electron } = require('playwright');
       return route.abort();
     });
     await page.locator('#btn-open-ai-assistant').click();
-    await require('./model-device-check.cjs')(page, 'en');
+    const modelMetrics=await require('./model-device-check.cjs')(page, 'en');
+    for(const metric of modelMetrics)assert.ok(['cpu-native','vulkan'].includes(metric.backend),'Packaged desktop must execute the native runtime');
+    const isolation=await application.evaluate(({BrowserWindow})=>{const prefs=BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();return {sandbox:prefs.sandbox,contextIsolation:prefs.contextIsolation,nodeIntegration:prefs.nodeIntegration};});
+    assert.deepEqual(isolation,{sandbox:true,contextIsolation:true,nodeIntegration:false});
+    assert.equal(await page.evaluate(()=>typeof require),'undefined');
+    assert.equal(await application.evaluate(async({BrowserWindow})=>{
+      const preload=BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences().preload;
+      const untrusted=new BrowserWindow({show:false,webPreferences:{preload,sandbox:true,contextIsolation:true,nodeIntegration:false}});
+      try{await untrusted.loadURL('data:text/html,<p>IPC boundary check</p>');return await untrusted.webContents.executeJavaScript('window.calendarNativeAI.status().then(()=>false,()=>true)');}finally{untrusted.destroy();}
+    }),true,'Another renderer must not access the inference bridge');
+    await page.locator('#btn-ai-settings').click();
+    await page.getByLabel('Processing mode',{exact:true}).selectOption('cpu');
+    await page.waitForFunction(()=>localStorage.getItem('calendar_ai_backend_mode_v1')==='cpu');
+    assert.equal(await page.getByTestId('backend-settings').locator('[data-backend]').getAttribute('data-gpu-active'),'false');
+    await page.reload();await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();
+    assert.equal(await page.getByLabel('Processing mode',{exact:true}).inputValue(),'cpu');
+    await page.locator('#ai-settings-panel header button').click();
     const started = performance.now();
     await page.locator('#drawer-ai-assistant input[type=text]').fill('Add event Desktopcheck on 2026-11-15 at 15:00 until 16:00');
     await page.locator('#btn-send-ai-message').click();

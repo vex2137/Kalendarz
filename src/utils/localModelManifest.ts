@@ -1,4 +1,4 @@
-// Official Liquid AI weights, pinned and verified in builds and before inference.
+// Bundled default GGUF, pinned and verified in builds and before inference.
 import manifest from './localModelManifest.json';
 export const LOCAL_MODEL = manifest;
 

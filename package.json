@@ -2,7 +2,7 @@
   "name": "kalendarz-offline",
   "productName": "Calendar",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -25,7 +25,9 @@
     "prebuild:evaluation": "node scripts/prepare-model.cjs",
     "test:assistant:evaluation": "node tests/model-evaluation.cjs",
     "test:model:runtime": "node tests/model-runtime-browser.cjs",
-    "prebuild": "node scripts/prepare-model.cjs"
+    "prebuild": "node scripts/prepare-model.cjs",
+    "test:native": "node --test tests/native-ai.test.cjs",
+    "test:native:model": "node --import tsx tests/native-model-smoke.cjs"
   },
   "build": {
     "appId": "com.vex2137.kalendarz",
@@ -75,10 +77,23 @@
         "--share=ipc",
         "--device=dri",
         "--filesystem=xdg-download",
-        "--talk-name=org.freedesktop.Notifications"
+        "--talk-name=org.freedesktop.Notifications",
+        "--share=network"
       ]
     },
-    "beforePack": "scripts/verify-packaged-model.cjs"
+    "beforePack": "scripts/verify-packaged-model.cjs",
+    "asarUnpack": [
+      "dist/models/*.gguf"
+    ],
+    "extraResources": [
+      {
+        "from": "native/${os}-${arch}",
+        "to": "native",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   },
   "dependencies": {
     "@capacitor/core": "^8.5.2",

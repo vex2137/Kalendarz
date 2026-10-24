@@ -8,6 +8,7 @@ import { calendarSystemPrompt, COMMAND_SCHEMA } from '../utils/modelCommand';
 import { CalendarDevice } from '../utils/nativeDevice';
 import { Capacitor } from '@capacitor/core';
 import { BUILD_INFO } from '../utils/buildInfo';
+import { desktopAI } from '../utils/nativeDesktopAI';
 import { ModelBenchmarks } from './ModelBenchmarks';
 
 const copy = {
@@ -51,7 +52,7 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
     <p className="mt-2 break-all" data-build-commit={BUILD_INFO.commit}>Commit: {BUILD_INFO.commit}{BUILD_INFO.dirty ? ' (modified)' : ''}</p>
     <p data-assistant-route={turns.at(-1)?.route || 'none'}>{({ en: 'Last message path', pl: 'Ścieżka ostatniej wiadomości', ru: 'Путь последнего сообщения', de: 'Pfad der letzten Nachricht' })[language]}: {turns.at(-1)?.route || '—'} {turns.at(-1) ? `(${turns.at(-1)!.language}, ${Math.round(turns.at(-1)!.totalMs)} ms)` : ''}</p>
     <p className="my-2">{text[4]}</p>
-    <label className="flex gap-2 mb-2"><input type="checkbox" checked={singleThread} disabled={busy} onChange={e => setSingleThread(e.target.checked)} />{({ en: 'Compare with one CPU thread', pl: 'Porównaj z jednym wątkiem CPU', ru: 'Сравнить с одним потоком CPU', de: 'Mit einem CPU-Thread vergleichen' })[language]}</label>
+    {!desktopAI() && <label className="flex gap-2 mb-2"><input type="checkbox" checked={singleThread} disabled={busy} onChange={e => setSingleThread(e.target.checked)} />{({ en: 'Compare with one CPU thread', pl: 'Porównaj z jednym wątkiem CPU', ru: 'Сравнить с одним потоком CPU', de: 'Mit einem CPU-Thread vergleichen' })[language]}</label>}
     <div className="flex flex-wrap gap-2">
       <button type="button" disabled={busy || !enabled || !status.installed} onClick={() => { void test(); }} className="theme-border border rounded p-2 disabled:opacity-50">{text[1]}</button>
       <button type="button" onClick={exportJson} className="theme-border border rounded p-2">{text[2]}</button>

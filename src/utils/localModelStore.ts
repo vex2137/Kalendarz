@@ -2,6 +2,7 @@ import { openDB } from 'idb';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { LOCAL_MODEL, bundledModelUrl } from './localModelManifest';
 import { DEFAULT_MODEL, type ModelDescriptor } from './modelRegistry';
+import { desktopAI, ensureNativeModel } from './nativeDesktopAI';
 import { modelFileWriter } from './modelFileWriter';
 
 const database = () => openDB('calendar-local-model', 1, {
@@ -25,10 +26,17 @@ export async function cleanPartialModels(descriptor: ModelDescriptor) {
   } finally { db.close(); }
 }
 export async function hasDownloadedModelData(descriptor: ModelDescriptor) {
+  if (await hasNativeModelData(descriptor)) return true;
   return Boolean(await savedModel(descriptor));
 }
 
+export async function hasNativeModelData(descriptor:ModelDescriptor){ return Boolean(await desktopAI()?.info(descriptor.id).then(value=>value.installed)); }
+
 export async function savedModel(descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob | undefined> {
+  if (await hasNativeModelData(descriptor)) {
+    const response=await fetch(`calendar-asset://installed-models/${descriptor.id}`);
+    if(!response.ok)throw new Error('model-storage');return response.blob();
+  }
   const db = await database();
   try {
     const model = await db.get('models', descriptor.id);
@@ -96,6 +104,7 @@ export async function discardDownloadedModel(blob?: Blob) {
 }
 export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL, progress?: (loaded:number)=>void) {
   signal.throwIfAborted();
+  if(desktopAI()){await ensureNativeModel(descriptor.id,blob,signal,progress);signal.throwIfAborted();await removeLegacyModel(descriptor);return;}
   // Large imports use the same disk-backed representation as streamed downloads.
   if (!streamed.has(blob) && navigator.storage?.getDirectory) {
     await ensureSpace(blob.size);
@@ -134,6 +143,10 @@ export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: Mod
 }
 
 export async function removeSavedModel(descriptor: ModelDescriptor = DEFAULT_MODEL) {
+  if(desktopAI())await desktopAI()!.remove(descriptor.id);
+  return removeLegacyModel(descriptor);
+}
+export async function removeLegacyModel(descriptor: ModelDescriptor) {
   const db = await database();
   try {
     const previous = await db.get('models', descriptor.id);
