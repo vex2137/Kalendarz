@@ -9,10 +9,11 @@ import { cancelModelOperation, checkLocalModel, modelStatus, subscribeModel, set
 import { localModelText } from '../utils/localModelText';
 import { AiSettingsPanel } from './AiSettingsPanel';
 import { aiSettingsText } from '../utils/aiSettingsText';
+import { modelErrorText } from '../utils/aiSettingsText';
 import { detectAssistantLanguage } from '../utils/assistantLanguage';
 import { recordAssistantUiCommit, observeAssistantSession, markAssistantInputReady } from '../utils/modelDiagnostics';
 import { assistantUiText } from '../utils/assistantUiText';
-import { findModel } from '../utils/modelRegistry';
+import { findModel, shortModelName } from '../utils/modelRegistry';
 import { chatMessages, createOrReuseEmptyChat, getChat, rememberChat, resolveActiveChat, saveChat } from '../utils/chatHistory';
 import { ChatHistoryPanel } from './ChatHistoryPanel';
 import { MarkdownMessage } from './MarkdownMessage';
@@ -26,6 +27,8 @@ import {
   RotateCcw,
   History,
   Settings,
+  Undo2,
+  MessageSquarePlus,
 } from 'lucide-react';
 
 interface AiAssistantDrawerProps {
@@ -92,7 +95,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     if (!settingsOpen && !historyOpen && returnFocus.current) {
       const target = returnFocus.current;
       // Wait for WebView to apply visibility/inert changes before moving focus.
-      const timer = setTimeout(() => { document.getElementById(target)?.focus({ preventScroll: true }); returnFocus.current = undefined; }, 100);
+      let attempts=0;
+      let timer: ReturnType<typeof setTimeout>;
+      const restore = () => {
+        const element=document.getElementById(target);
+        element?.focus({preventScroll:true});
+        if(element && document.activeElement===element) returnFocus.current=undefined;
+        else if(attempts++<30) timer=setTimeout(restore,16);
+      };
+      timer=setTimeout(restore,100);
       return () => clearTimeout(timer);
     }
   }, [settingsOpen, historyOpen]);
@@ -188,14 +199,16 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const next = [...withUser, assistantMessage];
       setMessages(next);
       await persist(next);
-    } catch {
+    } catch (error) {
+      const current = modelStatus();
+      const replyLanguage = detectAssistantLanguage(text,conversationRef.current.language || language);
       const next: AiChatMessage[] = [
         ...withUser,
         {
           id: crypto.randomUUID(),
           role: 'assistant',
           content:
-            model.installed ? localModelText(detectAssistantLanguage(text, conversationRef.current.language || language)).inputError : assistantUiText(detectAssistantLanguage(text, conversationRef.current.language || language)).modelMissing,
+            current.error === 'model-missing' || current.phase === 'missing' ? assistantUiText(replyLanguage).modelMissing : error instanceof Error && error.message.startsWith('model-') ? modelErrorText(error.message,replyLanguage) : localModelText(replyLanguage).inputError,
           timestamp: Date.now(),
           suggestedPrompts:
             tr(language, ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?'], [
@@ -290,49 +303,47 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         className={`theme-surface w-full max-w-md h-full shadow-2xl flex flex-col motion-safe:animate-in motion-safe:slide-in-from-right duration-200 theme-border border-l ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
       >
         {/* Header */}
-        <div className="px-4 py-3 theme-border border-b theme-subtle flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div id="ai-assistant-header" className="px-3 py-2 theme-border border-b theme-subtle flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-36">
             <div className="w-8 h-8 rounded-xl bg-violet-600 text-white flex items-center justify-center shadow-xs shrink-0">
               <Sparkles className="w-4 h-4" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <h3 className="text-sm font-bold theme-text">
                   {t.aiAssistantTitle}
                 </h3>
-                <span className="text-[10px] bg-violet-500/20 text-violet-400 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
-                  Offline
-                </span>
               </div>
               <div className="flex items-center gap-1 text-[11px] theme-muted">
                 <Cpu className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span>{findModel(model.modelId).name} · offline</span>
+                <span data-testid="model-header-name" className="truncate">{shortModelName(findModel(model.modelId))}</span>
+                <span className="shrink-0">· Offline</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            <button type="button" id="btn-ai-settings" aria-label={aiSettingsText(language).settings} title={aiSettingsText(language).settings} onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-lg theme-muted theme-hover"><Settings className="w-4 h-4"/></button>
-            <button type="button" id="btn-ai-chat-history" aria-label={ui.conversations} title={ui.conversations} disabled={isProcessing || !historyReady} onClick={() => setHistoryOpen(true)} className="p-1.5 theme-muted"><History className="w-4 h-4"/></button>
+          <div className="flex flex-wrap items-center gap-1 ml-auto">
+            <button type="button" id="btn-ai-settings" aria-label={aiSettingsText(language).settings} title={aiSettingsText(language).settings} onClick={() => setSettingsOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-lg theme-muted theme-hover"><Settings className="w-6 h-6"/></button>
+            <button type="button" id="btn-ai-chat-history" aria-label={ui.conversations} title={ui.conversations} disabled={isProcessing || !historyReady} onClick={() => setHistoryOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-lg theme-muted theme-hover"><History className="w-6 h-6"/></button>
             <button
               type="button"
               onClick={handleClearChat}
-              className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-lg theme-muted theme-hover transition-colors"
               id="btn-new-ai-chat"
               title={ui.newChat}
               aria-label={ui.newChat}
               disabled={isProcessing || !aiSettings.enabled}
             >
-              <RotateCcw className="w-4 h-4" />
+              <MessageSquarePlus className="w-6 h-6" />
             </button>
             <button
               id="btn-close-ai-drawer"
               aria-label={t.close}
               onClick={onClose}
-              className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-lg theme-muted theme-hover transition-colors"
               title={tr(language, 'Zamknij asystenta', 'Close assistant')}
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -340,7 +351,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         {historyError && <p role="alert" className="p-2 text-xs">{ui.historyError}</p>}
         {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelOperation}>{ui.cancel}</button></div>}
 
-        {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 px-3 py-2 rounded theme-surface theme-text theme-border border text-sm">
+        {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 min-h-11 px-3 py-2 flex items-center justify-center gap-2 rounded theme-surface theme-text theme-border border text-sm">
+          <Undo2 className="w-6 h-6 shrink-0"/>
           {tr(language, 'Cofnij ostatnią operację asystenta', 'Undo last assistant operation')}
         </button>}
 

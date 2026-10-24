@@ -1,7 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { AI_MODELS, DEFAULT_MODEL } from "../utils/modelRegistry";
+import { AI_MODELS, PREFERRED_MODEL } from "../utils/modelRegistry";
 import {
   hasDownloadedModelData,
+  bundledModelAvailable,
   removeSavedModel,
 } from "../utils/localModelStore";
 import {
@@ -19,6 +20,7 @@ import type { AppLanguage } from "../utils/i18n";
 import { Capacitor } from '@capacitor/core';
 import { modelsForHuggingFaceLink } from '../utils/modelLinks';
 import { aiSettingsText, modelErrorText } from '../utils/aiSettingsText';
+import { modelLifecycleText } from '../utils/modelLifecycleText';
 
 export function ModelManager({
   language,
@@ -28,7 +30,7 @@ export function ModelManager({
   enabled: boolean;
 }) {
   const status = useSyncExternalStore(subscribeModel, modelStatus);
-  const [installed, setInstalled] = useState<string[]>([DEFAULT_MODEL.id]);
+  const [installed, setInstalled] = useState<string[]>([]);
   const [error, setError] = useState<string>();
   const [link, setLink] = useState('');
   const [matches, setMatches] = useState<readonly string[]>();
@@ -45,7 +47,7 @@ export function ModelManager({
     let current = true;
     void Promise.all(
       AI_MODELS.map(async (model) =>
-        model.bundled ||
+        (model.bundled && await bundledModelAvailable(model)) ||
         (await hasDownloadedModelData(model).catch(() => false))
           ? model.id
           : "",
@@ -64,6 +66,7 @@ export function ModelManager({
   return (
     <div className="space-y-3" aria-label={text.models}>
       <h4 className="font-semibold">{text.models}</h4>
+      <p className="theme-muted">{modelLifecycleText(language).offer}</p>
       <form className="space-y-2" onSubmit={event => {
         event.preventDefault(); setError(undefined);
         try { setMatches(modelsForHuggingFaceLink(link).map(model => model.id)); }
@@ -74,7 +77,7 @@ export function ModelManager({
         {matches && <button type="button" onClick={() => {setMatches(undefined);setLink('');}} className="underline ml-2">{text.models}</button>}
         <p className="theme-muted">{settings.hint}</p>
       </form>
-      {AI_MODELS.filter(model => !matches || matches.includes(model.id)).map((model) => {
+      {[...AI_MODELS].sort((a,b)=>Number(b.id===PREFERRED_MODEL.id)-Number(a.id===PREFERRED_MODEL.id)).filter(model => !matches || matches.includes(model.id)).map((model) => {
         const active = status.modelId === model.id;
         return (
           <article
@@ -85,6 +88,7 @@ export function ModelManager({
             <p className="font-semibold">
               {model.name} {active && <span> · {text.selected}</span>}
             </p>
+            {model.id === PREFERRED_MODEL.id && <p className="font-semibold theme-muted">{modelLifecycleText(language).preferred}</p>}
             <p>
               {(model.bytes / 1_000_000).toFixed(1)} MB · {text.memory}: ~
               {model.estimatedRamMB} MB
@@ -177,7 +181,7 @@ export function ModelManager({
           {text.cancel}
         </button>
       )}
-      {status.modelId !== DEFAULT_MODEL.id && (
+      {!AI_MODELS.find(model=>model.id===status.modelId)?.bundled && (
         <button
           type="button"
           disabled={busy}
@@ -187,7 +191,7 @@ export function ModelManager({
           {text.fallback}
         </button>
       )}
-      {status.phase === "error" && status.installed && !busy && (
+      {status.phase === "error" && !busy && (
         <button
           type="button"
           className="theme-border border rounded p-2"
@@ -197,7 +201,7 @@ export function ModelManager({
         </button>
       )}
       {(error || status.phase === "error") && (
-        <p role="alert">{modelErrorText(error || status.error, language)}</p>
+        <p role="alert">{modelErrorText(error || status.error, language)} {status.installed && modelLifecycleText(language).retry}</p>
       )}
       <p className="theme-muted">{text.privacy}</p>
     </div>

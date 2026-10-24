@@ -2,6 +2,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { AppLanguage } from '../utils/i18n';
 import { diagnosticsReport, modelMetrics, assistantTurns, nativeBuildInfo, recordNativeBuild, subscribeMetrics } from '../utils/modelDiagnostics';
 import { inferCalendarJson, modelStatus, subscribeModel, unloadLocalModel } from '../utils/localModelRuntime';
+import { findModel } from '../utils/modelRegistry';
+import { modelLifecycleText } from '../utils/modelLifecycleText';
 import { calendarSystemPrompt, COMMAND_SCHEMA } from '../utils/modelCommand';
 import { CalendarDevice } from '../utils/nativeDevice';
 import { Capacitor } from '@capacitor/core';
@@ -44,6 +46,8 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
   };
   return <section data-testid="model-diagnostics" className="p-3 text-xs theme-text">
     <h4 className="font-semibold">{text[0]}</h4>
+    <p className="my-2">{findModel(status.modelId).name} · {findModel(status.modelId).bytes.toLocaleString()} B<br/>{modelLifecycleText(language).disk}: {status.installed?modelLifecycleText(language).yes:modelLifecycleText(language).no} · {modelLifecycleText(language).ram}: {status.loaded?modelLifecycleText(language).yes:modelLifecycleText(language).no}</p>
+    {status.error && <p role="alert" className="break-words">{status.error}{status.errorDetail ? ': '+status.errorDetail : ''}</p>}
     <p className="mt-2 break-all" data-build-commit={BUILD_INFO.commit}>Commit: {BUILD_INFO.commit}{BUILD_INFO.dirty ? ' (modified)' : ''}</p>
     <p data-assistant-route={turns.at(-1)?.route || 'none'}>{({ en: 'Last message path', pl: 'Ścieżka ostatniej wiadomości', ru: 'Путь последнего сообщения', de: 'Pfad der letzten Nachricht' })[language]}: {turns.at(-1)?.route || '—'} {turns.at(-1) ? `(${turns.at(-1)!.language}, ${Math.round(turns.at(-1)!.totalMs)} ms)` : ''}</p>
     <p className="my-2">{text[4]}</p>
@@ -54,7 +58,7 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
       <button type="button" disabled={busy} onClick={() => { void unloadLocalModel(); }} className="theme-border border rounded p-2 disabled:opacity-50">{text[3]}</button>
     </div>
     {error && <p role="alert">{text[5]}</p>}
-    <pre id="ai-diagnostics-report" className="overflow-auto max-h-48 mt-2" aria-live="polite">{JSON.stringify({ ...diagnosticsReport(), metrics: undefined, turns: undefined, lastTurn: turns.at(-1), lastModel: metrics.at(-1) }, null, 2)}</pre>
+    <pre id="ai-diagnostics-report" className="overflow-auto max-h-48 mt-2" aria-live="polite">{JSON.stringify({ ...diagnosticsReport(), metrics: undefined, turns: undefined, lastTurn: turns.at(-1), lastModel: [...metrics].reverse().find(metric=>metric.route==='model'), lastRouteMetric:metrics.at(-1) }, null, 2)}</pre>
     <ModelBenchmarks language={language} disabled={busy || !enabled || !status.installed}/>
   </section>;
 }
