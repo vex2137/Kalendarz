@@ -329,6 +329,7 @@ export async function importChatHistory(text: string) {
             .filter((m: unknown) => typeof m === "string")
             .slice(0, 20)
         : [],
+      ...(typeof chat.selectedModelId === 'string' ? {selectedModelId:chat.selectedModelId.slice(0,100)} : {}),
     });
   }
   const sequences = new Map<string, number>();
@@ -364,6 +365,7 @@ export async function importChatHistory(text: string) {
       ...(typeof message.modelId === "string"
         ? { modelId: message.modelId.slice(0, 100) }
         : {}),
+      ...(['quick','rules','model'].includes(message.route) ? {route:message.route} : {}),
     });
   }
   const database = await db();

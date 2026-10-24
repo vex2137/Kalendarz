@@ -84,6 +84,8 @@ test("history backup imports with fresh IDs and validates the whole file before 
     (await chatMessages(imported.id)).map((m) => m.content),
     messages(4).map((m) => m.content),
   );
+  assert.equal((await chatMessages(imported.id))[1].route,'model');
+  assert.equal((await getChat(imported.id))?.selectedModelId,'lfm2.5-350m-q4-k-m');
   const before = await exportChatHistory();
   const broken = structuredClone(backup);
   broken.messages[0].role = "intruder";
