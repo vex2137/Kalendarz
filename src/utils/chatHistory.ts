@@ -88,6 +88,11 @@ export async function getChat(id: string): Promise<ChatRecord | undefined> {
     database.close();
   }
 }
+export async function createOrReuseEmptyChat(title: string, modelId: string, currentId?: string) {
+  const current = currentId ? await getChat(currentId) : undefined;
+  if (current && !current.nextSequence) { rememberChat(current.id); return current; }
+  return createChat(title, modelId);
+}
 let initializing: Promise<ChatRecord> | undefined;
 export function resolveActiveChat(
   title: string,

@@ -2,18 +2,18 @@ import { tr } from '../utils/i18n';
 import type { AssistantPlan } from '../utils/assistantPlanning';
 import { planningPreferences } from '../utils/assistantPlanning';
 import { Dialog } from './Dialog';
-import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import { CalendarEvent, AiChatMessage, AiSettings } from '../types';
 import { runModelAssistant, type ModelConversation } from '../utils/modelAssistant';
-import { cancelModelOperation, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
-import { ModelDiagnostics } from './ModelDiagnostics';
+import { cancelModelOperation, checkLocalModel, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
 import { localModelText } from '../utils/localModelText';
-import { LocalModelSetup } from './LocalModelSetup';
+import { AiSettingsPanel } from './AiSettingsPanel';
+import { aiSettingsText } from '../utils/aiSettingsText';
 import { detectAssistantLanguage } from '../utils/assistantLanguage';
 import { recordAssistantUiCommit, observeAssistantSession, markAssistantInputReady } from '../utils/modelDiagnostics';
 import { assistantUiText } from '../utils/assistantUiText';
 import { findModel } from '../utils/modelRegistry';
-import { chatMessages, createChat, getChat, rememberChat, resolveActiveChat, saveChat } from '../utils/chatHistory';
+import { chatMessages, createOrReuseEmptyChat, getChat, rememberChat, resolveActiveChat, saveChat } from '../utils/chatHistory';
 import { ChatHistoryPanel } from './ChatHistoryPanel';
 import { MarkdownMessage } from './MarkdownMessage';
 import { getTranslation, AppLanguage } from '../utils/i18n';
@@ -25,6 +25,7 @@ import {
   AlertCircle,
   RotateCcw,
   History,
+  Settings,
 } from 'lucide-react';
 
 interface AiAssistantDrawerProps {
@@ -85,6 +86,16 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const [historyReady, setHistoryReady] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const returnFocus = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!settingsOpen && !historyOpen && returnFocus.current) {
+      const target = returnFocus.current;
+      // Wait for WebView to apply visibility/inert changes before moving focus.
+      const timer = setTimeout(() => { document.getElementById(target)?.focus({ preventScroll: true }); returnFocus.current = undefined; }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [settingsOpen, historyOpen]);
   const [historyError, setHistoryError] = useState(false);
   const persist = (snapshot: AiChatMessage[], context = conversationRef.current) => {
     const id = chatIdRef.current;
@@ -105,9 +116,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   }, [messages]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !historyOpen && !settingsOpen) {
       const timer = setTimeout(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        chatEndRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
         inputRef.current?.focus();
       }, 100);
       return () => clearTimeout(timer);
@@ -132,6 +143,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   }, [isOpen]);
 
   useEffect(() => {
+    if (isOpen) void checkLocalModel();
     setAssistantActive(isOpen && aiSettings.enabled);
     return () => setAssistantActive(false);
   }, [isOpen, aiSettings.enabled]);
@@ -204,9 +216,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     operationRef.current = true; setIsProcessing(true);
     try {
       await saveQueue.current.catch(() => {});
-      const chat = await createChat(ui.newChat, model.modelId);
+      const chat = await createOrReuseEmptyChat(ui.newChat, model.modelId, chatIdRef.current);
       chatIdRef.current = chat.id; conversationRef.current = {};
       setMessages([{ ...defaultMsg, timestamp: Date.now() }]); setAddedEventsIds([]);
+      setInputQuery('');
       setHistoryReady(true); setHistoryOpen(false); setHistoryError(false);
     } catch { setHistoryError(true); } finally { operationRef.current = false; setIsProcessing(false); }
   };
@@ -221,7 +234,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       chatIdRef.current = id; rememberChat(id); conversationRef.current = chat.context || {
         turns: stored.filter(m => m.role !== 'system' && m.id !== 'msg-welcome').slice(-2).map(m => ({ role: m.role as 'user'|'assistant', content: m.content.slice(0,600) })),
       };
-      setMessages(stored.length ? stored : [defaultMsg]); setAddedEventsIds([]); setHistoryOpen(false);
+      setMessages(stored.length ? stored : [defaultMsg]); setInputQuery(''); setAddedEventsIds([]); setHistoryOpen(false);
     } catch { setHistoryError(true); } finally { operationRef.current = false; }
   };
 
@@ -244,9 +257,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
-  if (historyOpen) return <Dialog onClose={() => setHistoryOpen(false)} label={ui.conversations} className="fixed inset-0 z-50 bg-black/60 flex justify-end">
-    <div className="w-full max-w-md h-full"><ChatHistoryPanel language={language} onClose={() => setHistoryOpen(false)} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>
-  </Dialog>;
+  const closeHistory = () => { returnFocus.current = 'btn-ai-chat-history'; setHistoryOpen(false); };
+  const closeSettings = () => { returnFocus.current = 'btn-ai-settings'; setSettingsOpen(false); };
   const handleUndo = async () => {
     if (operationRef.current || !canUndo) return;
     operationRef.current = true;
@@ -267,13 +279,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
   return (
     <Dialog
-      onClose={onClose}
-      label={t.aiAssistantTitle}
+      onClose={settingsOpen ? closeSettings : historyOpen ? closeHistory : onClose}
+      label={settingsOpen ? aiSettingsText(language).settings : historyOpen ? ui.conversations : t.aiAssistantTitle}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end"
     >
       <div
         id="drawer-ai-assistant"
-        className="theme-surface w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 theme-border border-l"
+        inert={historyOpen || settingsOpen}
+        aria-hidden={historyOpen || settingsOpen || undefined}
+        className={`theme-surface w-full max-w-md h-full shadow-2xl flex flex-col motion-safe:animate-in motion-safe:slide-in-from-right duration-200 theme-border border-l ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
       >
         {/* Header */}
         <div className="px-4 py-3 theme-border border-b theme-subtle flex items-center justify-between">
@@ -298,6 +312,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </div>
 
           <div className="flex items-center gap-1">
+            <button type="button" id="btn-ai-settings" aria-label={aiSettingsText(language).settings} title={aiSettingsText(language).settings} onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-lg theme-muted theme-hover"><Settings className="w-4 h-4"/></button>
             <button type="button" id="btn-ai-chat-history" aria-label={ui.conversations} title={ui.conversations} disabled={isProcessing || !historyReady} onClick={() => setHistoryOpen(true)} className="p-1.5 theme-muted"><History className="w-4 h-4"/></button>
             <button
               type="button"
@@ -322,8 +337,6 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </div>
         </div>
 
-        <LocalModelSetup language={language} enabled={aiSettings.enabled} />
-        <ModelDiagnostics language={language} enabled={aiSettings.enabled} />
         {historyError && <p role="alert" className="p-2 text-xs">{ui.historyError}</p>}
         {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelOperation}>{ui.cancel}</button></div>}
 
@@ -403,7 +416,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 theme-bg">
+        <div id="ai-chat-messages" className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 theme-bg">
           {messages.length >= 200 && <button type="button" className="text-xs underline" onClick={() => { const id=chatIdRef.current; if(id)void chatMessages(id,messages[0]).then(older=>setMessages(current=>[...older,...current])).catch(()=>setHistoryError(true)); }}>{ui.older}</button>}
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
@@ -504,6 +517,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </button>
         </div>
       </div>
+      {historyOpen && <div className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
+      {settingsOpen && <AiSettingsPanel language={language} enabled={aiSettings.enabled} onClose={closeSettings}/>}
     </Dialog>
   );
 };

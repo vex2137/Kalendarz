@@ -42,8 +42,8 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
     const link = document.createElement('a'); link.href = url; link.download = 'calendar-ai-diagnostics.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  return <details data-testid="model-diagnostics" className="p-3 shrink-0 max-h-[35vh] overflow-y-auto text-xs theme-text theme-border border-b">
-    <summary>{text[0]}</summary>
+  return <section data-testid="model-diagnostics" className="p-3 text-xs theme-text">
+    <h4 className="font-semibold">{text[0]}</h4>
     <p className="mt-2 break-all" data-build-commit={BUILD_INFO.commit}>Commit: {BUILD_INFO.commit}{BUILD_INFO.dirty ? ' (modified)' : ''}</p>
     <p data-assistant-route={turns.at(-1)?.route || 'none'}>{({ en: 'Last message path', pl: 'Ścieżka ostatniej wiadomości', ru: 'Путь последнего сообщения', de: 'Pfad der letzten Nachricht' })[language]}: {turns.at(-1)?.route || '—'} {turns.at(-1) ? `(${turns.at(-1)!.language}, ${Math.round(turns.at(-1)!.totalMs)} ms)` : ''}</p>
     <p className="my-2">{text[4]}</p>
@@ -56,5 +56,5 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
     {error && <p role="alert">{text[5]}</p>}
     <pre id="ai-diagnostics-report" className="overflow-auto max-h-48 mt-2" aria-live="polite">{JSON.stringify({ ...diagnosticsReport(), metrics: undefined, turns: undefined, lastTurn: turns.at(-1), lastModel: metrics.at(-1) }, null, 2)}</pre>
     <ModelBenchmarks language={language} disabled={busy || !enabled || !status.installed}/>
-  </details>;
+  </section>;
 }
