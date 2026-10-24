@@ -70,11 +70,11 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
           <span className="ai-status-badge">Offline</span>
         </div>
         <p className="theme-muted flex items-center gap-2 text-xs"><Laptop className="w-4 h-4"/>{view.local}</p>
-        <p role="status" className="text-xs theme-muted">{status.importing && status.phase === 'downloading' ? view.importing : localModelText(language)[status.phase]}</p>
+        {!['installed','ready','missing'].includes(status.phase) && <p role="status" className="text-xs theme-muted">{status.importing && status.phase === 'downloading' ? view.importing : localModelText(language)[status.phase]}</p>}
       </div>
       <div className="theme-border border-t p-3 flex items-center gap-3 theme-subtle">
         <span className="theme-surface rounded-full p-2"><Settings className="w-5 h-5"/></span>
-        <label htmlFor="ai-background-work" className="flex-1 text-sm">{view.background}<span className="block theme-muted text-[11px] mt-1">{Capacitor.getPlatform() === 'android' || !('electronAPI' in window) ? view.backgroundHint : view.desktopHint}</span></label>
+        <label htmlFor="ai-background-work" className="flex-1 text-sm">{view.background}<span className="block theme-muted text-[11px] mt-1">{Capacitor.getPlatform() === 'android' || !navigator.userAgent.includes('Electron/') ? view.backgroundHint : view.desktopHint}</span></label>
         <button id="ai-background-work" role="switch" aria-checked={background} aria-label={view.background} onClick={() => setAssistantBackground(!background)} className={`ai-switch shrink-0 ${background ? 'ai-switch-on' : ''}`}><span/></button>
       </div>
     </article>
