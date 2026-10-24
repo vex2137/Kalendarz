@@ -7,7 +7,8 @@ curl --fail --location --retry 2 --output "$old_apk" https://github.com/vex2137/
 node scripts/verify-android-signature.cjs "$old_apk"
 node scripts/verify-android-signature.cjs "$apk"
 for candidate in "$old_apk" "$apk"; do
-  "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$candidate" | head -n 1
+  # Read the full output: head can close the pipe early and SIGPIPE aapt.
+  "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$candidate" | sed -n '1p'
 done
 adb install -r "$old_apk"
 adb install -r "$test_apk"
