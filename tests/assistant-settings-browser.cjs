@@ -10,6 +10,7 @@ const base = 'http://127.0.0.1:4186';
     for(let i=0;i<100;i++){try{if((await fetch(base)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
     browser=await chromium.launch({headless:true,...(existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});
     for(const width of [360,1280]) for(const language of ['en','pl','de','ru']) {
+      console.log(`Settings: ${width}px / ${language}`);
       const context=await browser.newContext({viewport:{width,height:800},reducedMotion:'reduce',serviceWorkers:'block'});
       await context.addInitScript(language=>localStorage.setItem('offline_calendar_settings_v2',JSON.stringify({language})),language);
       const page=await context.newPage();page.setDefaultTimeout(30000);const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -27,7 +28,7 @@ const base = 'http://127.0.0.1:4186';
       const box=await page.locator('#ai-settings-panel').boundingBox();assert.ok(box.height<=800&&box.y>=0);
       await page.keyboard.press('Escape');assert.equal(await page.locator('#ai-settings-panel').count(),0);
       assert.equal(await input.inputValue(),'Unsent draft');assert.equal(await page.locator('#ai-chat-messages').evaluate(el=>el.scrollTop),before);
-      await page.waitForFunction(()=>document.activeElement?.id==='btn-ai-settings');
+      await page.waitForFunction(()=>document.activeElement?.id==='btn-ai-settings').catch(async error=>{throw new Error(`${width}/${language}: focus ${await page.evaluate(()=>document.activeElement?.id||document.activeElement?.tagName)}: ${error.message}`);});
       await page.locator('#btn-ai-settings').click();
       assert.equal(await page.evaluate(()=>window.dispatchEvent(new Event('calendar-back',{cancelable:true}))),false);
       await page.locator('#ai-settings-panel').waitFor({state:'detached'});

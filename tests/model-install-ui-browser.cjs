@@ -29,6 +29,9 @@ const base='http://127.0.0.1:4188',id='qwen3.5-0.8b-iq4-xs';
     report.downloaded=true;await close();
     // Block every external request after installation; inference must use disk.
     const unexpected=[];await context.route('**/*',route=>{if(new URL(route.request().url()).origin!==base){unexpected.push(route.request().url());return route.abort();}return route.continue();});
+    await page.locator('#drawer-ai-assistant input[type=text]').fill('Add event PendingProbe tomorrow at 18-20');
+    await page.locator('#btn-send-ai-message').click();await page.waitForFunction(()=>!document.querySelector('#drawer-ai-assistant input[type=text]').disabled);
+    assert.equal(await page.locator('[id^=btn-confirm-ai-event-]').count(),1,'A pending proposal must not capture the following ordinary conversation');
     report.downloadResponse=await send('Maybe it will be better in english');
     await settings();await row.getByRole('button',{name:'Remove download',exact:true}).click();
     await row.getByLabel('Import GGUF',{exact:true}).setInputFiles({name:'wrong.gguf',mimeType:'application/octet-stream',buffer:Buffer.from('not a GGUF')});
@@ -40,7 +43,7 @@ const base='http://127.0.0.1:4188',id='qwen3.5-0.8b-iq4-xs';
     await settings();await page.getByRole('button',{name:'Restore fallback model',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('[data-testid=local-model-setup]')?.getAttribute('aria-label')==='LFM2.5 350M Q4_K_M');
     report.fallback=true;assert.deepEqual(unexpected,[]);assert.deepEqual(errors,[]);report.passed=true;
-    console.log('Real IQ4_XS UI link/download/import, offline native replies, invalid-file rejection and fallback passed.');
+    console.log(JSON.stringify({passed:true,modelId:id,downloaded:report.downloaded,imported:report.imported,incompatibleRejected:report.incompatibleRejected,fallback:report.fallback,sourceCommit:report.importResponse.diagnostics.build.commit,inferences:[report.downloadResponse,report.importResponse].map(result=>({reply:result.reply,model:result.diagnostics.lastModel,turn:result.diagnostics.lastTurn}))}));
   }catch(error){report.error=String(error);throw error;}
   finally{writeFileSync(process.env.MODEL_INSTALL_REPORT||'model-install-ui-results.json',JSON.stringify(report,null,2));await browser?.close();server.kill('SIGTERM');}
 })().catch(error=>{console.error(error);process.exitCode=1;});
