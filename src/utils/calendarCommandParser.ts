@@ -162,7 +162,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
     return { ...make(merged, request), incomplete: !merged.title || !merged.date || (!merged.time && !merged.allDay) };
   }
   const action = /^(przenies|przesun|zmien|move|reschedule|change)/.test(prefix[1]) ? 'update' : /^(usun|skas|wykres|odwol|delete|remove|cancel)/.test(prefix[1]) ? 'delete' : /^(znajdz|znalezc|wyszuk|szuk|pokaz|find|search|show)/.test(prefix[1]) ? 'search' : 'create';
-  body = body.slice(prefix[0].length).replace(/^(?:mi\s+|(?:(?:new\s+)?(?:wydarzenie|wydarzenia|event))\s+)/iu, '').replace(/\s+(?:in my calendar|to my calendar)$/iu, '');
+  body = body.slice(prefix[0].length).replace(/^(?:mi\s+|(?:(?:(?:a|an)\s+)?(?:new\s+)?event|(?:nowe\s+)?(?:wydarzenie|wydarzenia))\s+)/iu, '').replace(/\s+(?:in my calendar|to my calendar)$/iu, '');
   body = body.replace(/^(?:called|named|o nazwie|pod tytu[łl]em)\s+/iu,'');
   // English calendar placement may occur before the date.
   body = body.replace(/\s+(?:in my calendar|to my calendar)(?=\s)/iu, '');

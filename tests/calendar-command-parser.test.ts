@@ -104,6 +104,8 @@ test('named event titles and dates survive an uncertain clock suffix until clari
   for(const [query,language,title] of [
     ['Add new event called studying tomorrow at 4-5 pk','en','studying'],
     ['Create event named Reading tomorrow at 4-5 pn','en','Reading'],
+    ['Add a new event called Reading tomorrow at 4-5 pk','en','Reading'],
+    ['Dodaj nowe wydarzenie o nazwie Nauka jutro o 4-5 pk','pl','Nauka'],
     ['Dodaj wydarzenie o nazwie Nauka jutro o 4-5 pk','pl','Nauka'],
     ['Dodaj wydarzenie pod tytułem Nauka jutro o 4 pk','pl','Nauka'],
   ] as const){
