@@ -1,0 +1,20 @@
+name: AI model source verification
+on:
+  push:
+    branches: [feat/local-ai-models-history]
+    paths: ['scripts/discover-ai-models.py', '.github/workflows/ai-model-research.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/discover-ai-models.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-model-source-verification
+          path: model-research.json
+          if-no-files-found: error
