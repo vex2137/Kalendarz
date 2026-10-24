@@ -33,7 +33,11 @@ def download(asset, target):
     # Public download URL: never forward the Actions token to a redirect host.
     digest = hashlib.sha256()
     count = 0
-    with urllib.request.urlopen(asset['browser_download_url'], timeout=120) as response, target.open('wb') as output:
+    # Names can be reused for checksum text; bind the public download cache key
+    # to the immutable asset ID so an old name-based CDN response cannot pass.
+    url = asset['browser_download_url'] + '?asset_id=' + str(asset['id'])
+    request = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
+    with urllib.request.urlopen(request, timeout=120) as response, target.open('wb') as output:
         while chunk := response.read(1024 * 1024):
             count += len(chunk)
             if count > asset['size']:
@@ -146,7 +150,11 @@ def main():
             checked = 0
             for line in text_file.read_text().splitlines():
                 digest, name = line.split('  ', 1)
-                assert indexed[name]['digest'] == 'sha256:' + digest, release['tag_name'] + ': ' + name
+                # Resume safely if an earlier checksum swap rolled back after
+                # APK metadata renames had already completed.
+                aliases = {p['old']:p['new'] for p in plan if p['tag'] == release['tag_name']}
+                current_name = name if name in indexed else aliases.get(name, name)
+                assert indexed[current_name]['digest'] == 'sha256:' + digest, release['tag_name'] + ': ' + name
                 checked += 1
             report['checksumsBefore'].append({'tag':release['tag_name'],'rows':checked})
         for asset in release['assets']:
