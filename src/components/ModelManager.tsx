@@ -37,6 +37,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
   const importFile = (file: File) => perform(async () => {
     const model = AI_MODELS.find(model => model.bytes === file.size);
     if (!model) throw new Error('model-size');
+    if (model.bundled && await bundledModelAvailable(model)) throw new Error('model-bundled');
     await selectLocalModel(model.id); await installLocalModel(file);
   });
   const importNative = async () => {
@@ -47,6 +48,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
       token = file.token;
       const model = AI_MODELS.find(model => model.bytes === file.bytes);
       if (!model) throw new Error('model-size');
+      if (model.bundled && await bundledModelAvailable(model)) throw new Error('model-bundled');
       await selectLocalModel(model.id);
       await installLocalModel({url:nativeModelUrl(file.token),bytes:file.bytes});
     } catch (error) { setError(error instanceof Error ? error.message : 'model-import-file'); }

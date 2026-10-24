@@ -9,6 +9,7 @@ const copy = {
 export const aiSettingsText = (language: AppLanguage) => copy[language];
 export function modelErrorText(error: string | undefined, language: AppLanguage) {
   const text = copy[language];
+  if (error === 'model-bundled') return ({en:'This model is already built into the application. Use its model card; no additional copy is needed.',pl:'Ten model jest już wbudowany w aplikację. Użyj jego karty; dodatkowa kopia nie jest potrzebna.',de:'Dieses Modell ist bereits integriert. Über seine Modellkarte verwenden; keine zusätzliche Kopie nötig.',ru:'Эта модель уже встроена. Выберите её карточку; дополнительная копия не нужна.'})[language];
   if (error === 'model-import-file') return ({en:'Cannot read the selected document. Choose a local GGUF in the system file picker.',pl:'Nie można odczytać dokumentu. Wybierz lokalny GGUF w systemowym selektorze.',de:'Dokument nicht lesbar. Lokale GGUF in der Systemauswahl wählen.',ru:'Документ не читается. Выберите локальный GGUF в системном окне.'})[language];
   if (error === 'model-cancelled') return modelLifecycleText(language).stopped;
   if (error === 'model-storage' || error?.startsWith('model-storage-') && error !== 'model-storage-space') return modelLifecycleText(language).storage;

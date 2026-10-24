@@ -33,6 +33,10 @@ const base='http://127.0.0.1:4187';
         // System-picked File follows the same import path, including worker OPFS.
         blob=new File([bytes],'storage-probe.gguf');await store.verifyModel(blob,signal,undefined,descriptor);await store.saveModel(blob,signal,descriptor);
         if(!(await store.savedModel(descriptor)))throw new Error('Import was not committed');
+        // Failed replacement must retain the previous registered, verified bytes.
+        try { await store.saveModel(new Blob([new Uint8Array(bytes.length)]),signal,descriptor); throw new Error('unexpected-success'); }
+        catch(error) { if(error.message!=='model-checksum')throw error; }
+        await store.verifyModel(await store.savedModel(descriptor),signal,undefined,descriptor);
         await store.removeSavedModel(descriptor);
         const failures=[];
         for(const [name,response] of [['http',()=>new Response('',{status:403})],['short',()=>new Response(bytes.slice(0,10))],['checksum',()=>new Response(new Uint8Array(bytes.length))]]){
