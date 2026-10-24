@@ -16,6 +16,8 @@ test('ordinary chat does not inherit calendar intent from a pending draft or pro
   const context = {pending:{command:parseModelCommand('{"action":"create","title":"Yoga"}'),request:'Add Yoga'},reference:{title:'Yoga',date:'2026-10-25'}};
   for (const query of ['Cześć co tam?', 'Maybe it will be better in english', 'So speak english', 'I had a rough day today', 'I think it will help me tomorrow', 'Jak się dzisiaj czujesz?']) assert.equal(needsCalendarExtraction(query,now,context),false,query);
   for (const query of ['tomorrow at 14:00', 'Move it to Friday', 'What is on tomorrow?', 'Czy mam wolne jutro?', 'Change its duration to 30 minutes']) assert.equal(needsCalendarExtraction(query,now,context),true,query);
+  assert.equal(needsCalendarExtraction('Что у меня завтра?',now,{},'ru'),true);
+  assert.equal(needsCalendarExtraction('Was steht morgen an?',now,{},'de'),true);
 });
 test("chat command replies pass through the resolver without calendar mutation proposals", async () => {
   const command = parseModelCommand(

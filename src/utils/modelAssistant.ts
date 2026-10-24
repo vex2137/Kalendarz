@@ -68,7 +68,7 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   const pair = (context.turns || []).slice(-2);
   const historyLimit = modelStatus().modelId === 'lfm2.5-2.6b-q4-k-m' ? 500 : 1200;
   const turns = pair.length === 2 && pair[0].role === 'user' && pair[1].role === 'assistant' && pair.reduce((n, turn) => n + turn.content.length, 0) <= historyLimit ? pair : [];
-  if (!needsCalendarExtraction(query, now, context)) {
+  if (!needsCalendarExtraction(query, now, context, language)) {
     trace.route = 'model'; trace.commandAction = 'chat';
     const chatTurns = turns.filter(turn => turn.role === 'user' || !turn.content.trim().startsWith('{'));
     const confirmed = context.lastConfirmedAction ? ` The only last confirmed calendar action is: ${JSON.stringify(context.lastConfirmedAction)}.` : '';
