@@ -304,7 +304,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       >
         {/* Header */}
         <div id="ai-assistant-header" className="px-3 py-2 theme-border border-b theme-subtle flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-36">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-52">
             <div className="w-8 h-8 rounded-xl bg-violet-600 text-white flex items-center justify-center shadow-xs shrink-0">
               <Sparkles className="w-4 h-4" />
             </div>

@@ -216,6 +216,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       return engine;
     } catch (error) {
       metric.initializationError = loadNotes || (error instanceof Error ? error.message.slice(0,600) : 'model-load');
+      if(error instanceof Error&&['model-size','model-checksum'].includes(error.message))update({installed:false});
       clearModelOperation(status.modelId);
       await instance?.exit().catch(() => {});
       update({ phase: controller.signal.aborted ? (status.installed?'installed':'checking') : 'error', loaded:false, error:controller.signal.aborted ? undefined : runtimeError(error), errorDetail:controller.signal.aborted ? undefined : metric.initializationError });

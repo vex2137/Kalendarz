@@ -36,24 +36,28 @@ export async function savedModel(descriptor: ModelDescriptor = DEFAULT_MODEL): P
       try {
         const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');
         const file = await (await dir.getFileHandle(model.opfsName)).getFile();
-        return file.size === descriptor.bytes ? file : undefined;
+        if(file.size!==descriptor.bytes)throw new Error('model-size');
+        return file;
       } catch (error) {
         if (error instanceof DOMException && error.name === 'NotFoundError') return undefined;
         throw error;
       }
     }
-    return model instanceof Blob && model.size === descriptor.bytes ? model : undefined;
+    if(model instanceof Blob){if(model.size!==descriptor.bytes)throw new Error('model-size');return model;}
+    return undefined;
   } finally { db.close(); }
 }
 
 // IndexedDB and OPFS can become inconsistent after a killed WebView. Adopt an
 // orphan only after full verification, instead of deleting valid weights on retry.
 export async function recoverSavedModel(descriptor: ModelDescriptor, signal?: AbortSignal): Promise<Blob | undefined> {
-  const existing = await savedModel(descriptor);
-  if (existing || !navigator.storage?.getDirectory) return existing;
+  let existing: Blob | undefined, damaged: unknown;
+  try { existing=await savedModel(descriptor); }
+  catch(error){if(error instanceof Error&&error.message==='model-size')damaged=error;else throw error;}
+  if (existing || !navigator.storage?.getDirectory) {if(damaged)throw damaged;return existing;}
   let dir: FileSystemDirectoryHandle;
   try { dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models'); }
-  catch (error) { if (error instanceof DOMException && error.name === 'NotFoundError') return; throw error; }
+  catch (error) { if (error instanceof DOMException && error.name === 'NotFoundError') {if(damaged)throw damaged;return;} throw error; }
   for await (const [name, handle] of dir.entries()) {
     signal?.throwIfAborted();
     if (!name.startsWith(descriptor.id + '-') || handle.kind !== 'file') continue;
@@ -67,6 +71,7 @@ export async function recoverSavedModel(descriptor: ModelDescriptor, signal?: Ab
     finally { db.close(); }
     return file;
   }
+  if(damaged)throw damaged;
 }
 
 export async function verifyModel(blob: Blob, signal?: AbortSignal, progress?: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL) {
