@@ -25,3 +25,33 @@ jobs:
           assert b'Apache License' in license and b'Version 2.0' in license
           print(json.dumps({'repository':repo,'revision':revision,'license':'Apache-2.0','licenseSha256':hashlib.sha256(license).hexdigest(),'noticeFiles':[s['rfilename'] for s in meta['siblings'] if 'NOTICE' in s['rfilename'].upper()]},indent=2))
           PY
+  optional-native-compatibility:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+        model: [lfm2.5-350m-q4-k-m, lfm2.5-2.6b-q4-k-m, qwen3.5-0.8b-iq4-xs]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: '1.4.3'}
+      - run: bun install --frozen-lockfile
+      - run: python scripts/prepare-native.py
+      - name: Fetch exact optional model and execute short native compatibility probe
+        env:
+          NATIVE_MODEL_ID: ${{ matrix.model }}
+          CALENDAR_MODEL_FILE: ${{ runner.temp }}/candidate.gguf
+          NATIVE_QUICK_COMPAT: '1'
+        run: |
+          node --import tsx scripts/fetch-candidate-model.ts "$env:NATIVE_MODEL_ID" "$env:CALENDAR_MODEL_FILE"
+          npm run test:native:model
+        shell: pwsh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-compat-${{ runner.os }}-${{ matrix.model }}
+          path: native-smoke-results.json

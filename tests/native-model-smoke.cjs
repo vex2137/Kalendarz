@@ -11,17 +11,28 @@ const {NativeModelStore}=require('../electron/native-model-store.cjs');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'calendar-native-smoke-'));
   const store=new NativeModelStore({root,bundledId:model.id,bundledPath:path.resolve(process.env.CALENDAR_MODEL_FILE||'public/models/'+model.file),catalogue});
   const ai=new NativeAI({runtimeRoot:path.resolve(process.env.NATIVE_RUNTIME_DIR||`native/${process.platform==='win32'?'win':'linux'}-x64`),store});
-  const report={model:model.id,runtime:require('../scripts/native-runtime-manifest.json').version,physicalGpuProof:false,results:[],passed:false};
+  const report={model:model.id,runtime:require('../scripts/native-runtime-manifest.json').version,sourceCommit:require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),platform:process.platform,physicalGpuProof:false,results:[],passed:false};
   try{
-    const {calendarSystemPrompt,COMMAND_SCHEMA,parseModelCommand}=await import('../src/utils/modelCommand.ts');
+    const {calendarSystemPrompt,COMMAND_SCHEMA,parseModelCommand,resolveModelCommand}=await import('../src/utils/modelCommand.ts');
+    const {parseCalendarCommand}=await import('../src/utils/calendarCommandParser.ts');
+    const {DEFAULT_PLANNING}=await import('../src/utils/assistantPlanning.ts');
     const now=new Date('2026-10-24T12:00:00+02:00');
     await ai.setMode(process.env.REQUIRE_REAL_GPU==='1'?'gpu':'auto');
     let started=performance.now();report.prepared=await ai.prepare(model.id);report.loadMs=performance.now()-started;
     const request=prompt=>({messages:[{role:'system',content:calendarSystemPrompt('pl',now)},{role:'user',content:prompt}],max_tokens:256,response_format:{type:'json_schema',json_schema:{name:'calendar_command',schema:COMMAND_SCHEMA,strict:true}}});
-    for(const prompt of ['Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00','Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00','Przenieś wydarzenie Dentysta na poniedziałek o 14:00','Jaki mam plan na dziś?','Dodaj spotkanie kiedyś po południu']){
+    const prompts=['Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00','Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00','Przenieś wydarzenie Dentysta na poniedziałek o 14:00','Jaki mam plan na dziś?','Dodaj spotkanie kiedyś po południu'];
+    for(const prompt of (process.env.NATIVE_QUICK_COMPAT==='1'?prompts.slice(0,1):prompts)){
       started=performance.now();const result=await ai.complete(model.id,request(prompt));
       const command=parseModelCommand(result.text);assert.ok(result.usage.completion_tokens>0);assert.ok(result.firstTokenMs>=0);
-      report.results.push({prompt,command,totalMs:performance.now()-started,...result});
+      // Record raw extraction separately from the application's deterministic
+      // routing/validation. A syntactically valid JSON answer is not a quality pass.
+      const parsed=parseCalendarCommand(prompt,'pl',now);
+      const existing={id:'native-test-dentist',title:'Dentysta',startDate:'2026-10-25',endDate:'2026-10-25',startTime:'15:00',endTime:'16:00',allDay:false,recurrence:'NONE',reminders:[],color:'peacock',createdAt:1,updatedAt:1};
+      const resolved=await resolveModelCommand(parsed?.command||command,parsed?.request||prompt,[existing],'pl',now,DEFAULT_PLANNING);
+      const application={route:parsed?'rules':'model',response:resolved.text,proposal:resolved.suggestedPlan,calendarWrites:0};
+      if(prompt.includes('poniedziałek'))assert.equal(application.proposal?.events[0]?.startDate,'2026-10-26');
+      if(prompt.includes('kiedyś'))assert.equal(application.proposal,undefined,'An ambiguous request must not create a proposal from invented fields');
+      report.results.push({prompt,command,application,totalMs:performance.now()-started,...result});
     }
     const first=report.results[0].command;assert.equal(first.action,'create');assert.equal(first.date,'2026-10-25');assert.equal(first.time,'15:00');assert.equal(first.endTime,'16:00');
     const pid=ai.child.pid;await ai.cancel();assert.equal(ai.snapshot().loaded,false);

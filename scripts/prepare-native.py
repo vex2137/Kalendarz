@@ -64,6 +64,6 @@ for backend,asset in meta['targets'][key].items():
    shutil.copyfile(loader,directory/'libvulkan.so.1')
    notice=Path('/usr/share/doc/libvulkan1/copyright')
    if notice.exists():shutil.copyfile(notice,directory/'VULKAN-LOADER-LICENSE.txt')
- for file in directory.iterdir():files[str(file.relative_to(output))]=digest(file)
+ for file in directory.iterdir():files[file.relative_to(output).as_posix()]=digest(file)
 (output/'runtime-manifest.json').write_text(json.dumps({'version':meta['version'],'commit':meta['commit'],'files':files},indent=2)+'\n')
 print(json.dumps({'target':key,'version':meta['version'],'bytes':sum(p.stat().st_size for p in output.rglob('*') if p.is_file()),'files':len(files)}))

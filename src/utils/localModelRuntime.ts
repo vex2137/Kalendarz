@@ -55,7 +55,7 @@ export async function retryLocalModel() {
   await checkLocalModel();
   await prepareLocalModel();
 }
-export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); if(desktopAI())void desktopAI()!.stop().catch(()=>{}); };
+export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); if((operation||loadController)&&desktopAI())void desktopAI()!.stop().catch(()=>{}); };
 const idleDelay = () => assistantActive && !document.hidden ? 5 * 60_000 : 30_000;
 function scheduleRelease() {
   clearTimeout(idleTimer);
@@ -111,6 +111,13 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
   let blob: Blob | undefined;
   update({ phase: file instanceof Blob ? 'verifying' : 'downloading', importing: Boolean(file), progress: 0, error: undefined });
   try {
+    // Importing the bundled model must never create another full weight copy.
+    if (descriptor.bundled && await bundledModelAvailable(descriptor)) {
+      if (file instanceof Blob) await verifyModel(file,controller.signal,undefined,descriptor);
+      else if (file) throw new Error('model-bundled');
+      update({phase:'installed',installed:true,loaded:false,progress:100,error:undefined});
+      return;
+    }
     const existing = await recoverSavedModel(descriptor, controller.signal).catch(error => { if (error instanceof Error && ['model-size','model-checksum'].includes(error.message)) return undefined; throw error; });
     // A second install request adopts verified bytes instead of downloading/copying again.
     if (!file && (existing || descriptor.bundled && await bundledModelAvailable(descriptor))) {

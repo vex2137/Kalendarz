@@ -5,9 +5,17 @@ if(require('../package.json').version==='1.4.1') {
   const file='docs/validation/v1.4.1-hardware-acceptance.json';
   if(!existsSync(file))throw Error('Publication blocked: reviewed Linux NVIDIA and Windows NVIDIA GPU inference reports are missing. Run the real hardware protocol in docs/AI-1.4.1.md; CPU CI and simulated device-loss tests are not GPU proof.');
   const acceptance=JSON.parse(readFileSync(file,'utf8'));
-  const source=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
   for(const platform of ['linux','win32']){
     const report=acceptance.reports?.find(report=>report.platform===platform);
-    if(!report||report.sourceCommit!==source||report.passed!==true||report.physicalGpuProof!==true||!report.reviewedBy||!report.artifactSha256?.match(/^[a-f0-9]{64}$/)||!report.results?.length||report.results.some(row=>row.backend?.backend!=='vulkan'||row.backend.gpuActive!==true||row.backend.offloadedLayers<1||row.usage?.completion_tokens<1))throw Error('Publication blocked: missing current, reviewed real GPU evidence for '+platform);
+    if(!report||!report.sourceCommit?.match(/^[a-f0-9]{40}$/)||report.passed!==true||report.physicalGpuProof!==true||!report.reviewedBy||!report.artifactSha256?.match(/^[a-f0-9]{64}$/)||!report.results?.length||report.results.some(row=>row.backend?.backend!=='vulkan'||row.backend.gpuActive!==true||row.backend.offloadedLayers<1||row.usage?.completion_tokens<1))throw Error('Publication blocked: missing current, reviewed real GPU evidence for '+platform);
+    execFileSync('git',['merge-base','--is-ancestor',report.sourceCommit,'HEAD']);
+    // The evidence file can be committed afterwards, but no executable source,
+    // packaging configuration or runtime pin may change since the tested build.
+    execFileSync('git',['diff','--exit-code',report.sourceCommit,'HEAD','--','.',':!docs/**',':!**/*.md']);
+    if(report.artifactFile){
+      const file=require('node:path').join('release',require('node:path').basename(report.artifactFile));
+      const hash=require('node:crypto').createHash('sha256').update(readFileSync(file)).digest('hex');
+      if(hash!==report.artifactSha256)throw Error('GPU evidence artifact checksum mismatch');
+    }else throw Error('GPU evidence must name the tested installer');
   }
 }

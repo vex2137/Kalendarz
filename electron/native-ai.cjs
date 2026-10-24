@@ -47,7 +47,7 @@ class NativeAI {
     return this.devices;
   }
   async memory(){
-    const pid=this.child?.pid;if(!pid)return;
+    const pid=this.child?.pid;if(!pid)return;this.state.ramBytes=undefined;this.state.vramBytes=undefined;
     try{
       if(this.platform==='linux'){const status=await fs.readFile(`/proc/${pid}/status`,'utf8');const kb=status.match(/^VmRSS:\s+(\d+) kB/m);if(kb)this.state.ramBytes=Number(kb[1])*1024;}
       else if(this.platform==='win32'){const r=await run('powershell.exe',['-NoProfile','-NonInteractive','-Command',`(Get-Process -Id ${pid}).WorkingSet64`],{timeout:3000,windowsHide:true});if(/^\d+\s*$/.test(r.stdout))this.state.ramBytes=Number(r.stdout.trim());}
@@ -88,6 +88,7 @@ class NativeAI {
   async prepare(id){
     this.store.descriptor(id);if(this.loading)return this.loading;
     if(this.loadedId===id&&this.state.loaded&&this.child?.exitCode===null&&this.child.signalCode===null)return this.snapshot();
+    this.state.fallbackReason=undefined;
     const controller=this.startController=new AbortController();
     this.loading=(async()=>{
       const devices=this.mode==='cpu'?[]:await this.probe(true),descriptor=this.store.descriptor(id);const device=devices.find(d=>d.freeBytes===undefined||d.freeBytes>=(descriptor.estimatedRamMB+256)*1048576);
