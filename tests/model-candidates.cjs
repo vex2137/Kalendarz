@@ -17,6 +17,7 @@ const base = 'http://127.0.0.1:4183';
     const external=[];
     await context.route('**/*', route => { if(new URL(route.request().url()).origin!==base) { external.push(route.request().url());return route.abort(); } return route.continue(); });
     const page=await context.newPage();
+    page.on('console',message=>{if(message.type()==='error')console.error('Engine:',message.text());});
     page.setDefaultTimeout(900000);
     await page.goto(base+'/tests/model-evaluation.html');
     await page.waitForFunction(()=>window.calendarEvaluation);
@@ -26,13 +27,17 @@ const base = 'http://127.0.0.1:4183';
       const file=await (await fetch('/benchmark-model.gguf')).blob();
       await runtime.installLocalModel(file);
       if(!runtime.modelStatus().installed) throw new Error('Candidate installation failed: '+JSON.stringify({status:runtime.modelStatus(),storage:await navigator.storage.estimate()}));
-      const cold=await runtime.inferLocalText('Answer the user briefly in their language.','Ile to jest dwa plus dwa? Odpowiedz samą liczbą.',[],{maxTokens:32,timeoutMs:600000});
-      const warm=await runtime.inferLocalText('Answer the user briefly in their language.','What is two plus two? Answer with the number only.',[],{maxTokens:32,timeoutMs:600000});
-      const command=await runtime.inferCalendarJson('Extract a JSON calendar command.','Add event Test tomorrow at 14:00',{type:'object',properties:{action:{const:'create'},title:{type:'string'}},required:['action','title'],additionalProperties:false},[],{maxTokens:64,timeoutMs:600000});
+      let cold,warm,command;
+      try {
+        cold=await runtime.inferLocalText('Answer the user briefly in their language.','Ile to jest dwa plus dwa? Odpowiedz samą liczbą.',[],{maxTokens:96,timeoutMs:600000});
+        warm=await runtime.inferLocalText('Answer the user briefly in their language.','What is two plus two? Answer with the number only.',[],{maxTokens:96,timeoutMs:600000});
+        command=await runtime.inferCalendarJson('Extract a JSON calendar command.','Add event Test tomorrow at 14:00',{type:'object',properties:{action:{const:'create'},title:{type:'string'}},required:['action','title'],additionalProperties:false},[],{maxTokens:96,timeoutMs:600000});
+      } catch(error) { return {id,status:'failed',platform:'cloud-chromium',physicalDevice:false,error:String(error),cold,warm,command,diagnostics:diagnosticsReport()}; }
       const diagnostics=diagnosticsReport();
       await runtime.unloadLocalModel();
       return {id,status:'passed',platform:'cloud-chromium',physicalDevice:false,cold,warm,command,diagnostics};
     },id);
+    assert.equal(report.status,'passed',JSON.stringify(report));
     report.quality = { polishArithmetic: /4/u.test(report.cold), englishArithmetic: /4/u.test(report.warm) };
     assert.ok(report.cold.length>0 && report.warm.length>0, 'Raw generation must return actual output');
     assert.equal(JSON.parse(report.command).action,'create');

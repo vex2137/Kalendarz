@@ -3,6 +3,8 @@ import type { AppLanguage } from './i18n';
 
 export interface ModelMetric {
   modelId?: string;
+  initializationError?: string;
+  failureReason?: 'output-limit' | 'engine';
   route: 'model' | 'rules' | 'quick' | 'preload'; totalMs: number; loadMs?: number; error?: 'cancelled' | 'inference';
   storageMs?: number; verifyMs?: number; initMs?: number; firstTokenMs?: number;
   promptMs?: number; generationMs?: number; tokensPerSecond?: number;

@@ -136,6 +136,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
   const controller = loadController = new AbortController();
   loading = (async () => {
     let instance: Wllama | undefined;
+    let loadNotes = '';
     try {
       update({ phase: 'loading', error: undefined });
       const descriptor = findModel(status.modelId);
@@ -160,10 +161,12 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       if (threadOverride) actualThreads = threadOverride;
       for (const threads of actualThreads > 1 ? [actualThreads, 1] : [1]) {
         controller.signal.throwIfAborted();
-        instance = new Wllama({ default: assetUrl(wasm.default) }, { suppressNativeLog: true, logger: { log() {}, debug() {}, warn() {}, error() {} } });
+        let initializing = true;
+        instance = new Wllama({ default: assetUrl(wasm.default) }, { suppressNativeLog: false, logger: { log() {}, debug() {}, warn() {}, error(...args: unknown[]) { if (initializing) loadNotes = (loadNotes + args.map(String).join(' ')).slice(-600); } } });
         instance.setCompat({ wasm: assetUrl(compatWasm.default), worker: { code: compatWorker.default } }, 'firefox_safari');
         try {
           await instance.loadModel([blob], { n_ctx: descriptor.maxContext, n_batch: 128, n_ubatch: 64, n_parallel: 1, n_gpu_layers: 0, n_threads: threads, cache_type_k: 'f16', cache_type_v: 'f16', warmup: true });
+          initializing = false;
           actualThreads = instance.isMultithread() ? threads : 1;
           break;
         } catch (error) { await instance.exit().catch(() => {}); instance = undefined; if (threads === 1 || controller.signal.aborted) throw error; }
@@ -174,6 +177,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       update({ phase: 'ready' });
       return engine;
     } catch (error) {
+      metric.initializationError = loadNotes || (error instanceof Error ? error.message.slice(0,600) : 'model-load');
       await instance?.exit().catch(() => {});
       update({ phase: controller.signal.aborted ? 'installed' : 'error', error: controller.signal.aborted ? undefined : 'model-inference' });
       throw error;
@@ -228,7 +232,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     return text;
   } catch (error) {
     console.error('Local model inference failed', error);
-    recordModelMetric({ ...metric, totalMs: performance.now() - started, error: controller.signal.aborted ? 'cancelled' : 'inference' });
+    recordModelMetric({ ...metric, failureReason: error instanceof Error && error.message === 'model-incomplete' ? 'output-limit' : 'engine', totalMs: performance.now() - started, error: controller.signal.aborted ? 'cancelled' : 'inference' });
     await disposeEngine();
     update({ phase: controller.signal.aborted ? 'installed' : 'error', error: controller.signal.aborted ? undefined : error instanceof Error ? error.message : 'model-inference' });
     throw new Error(controller.signal.aborted ? 'model-cancelled' : 'model-inference');
