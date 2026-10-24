@@ -1,9 +1,11 @@
 const { createReadStream, statSync } = require('node:fs');
 const { createHash } = require('node:crypto');
 const { join } = require('node:path');
+const { execFileSync } = require('node:child_process');
 const model = require('../src/utils/localModelManifest.json');
 // electron-builder hook: direct packaging must not silently omit the bundled model.
 module.exports = async function(context) {
+  execFileSync(process.platform === 'win32' ? 'python' : 'python3', ['scripts/prepare-native.py','--platform',context.electronPlatformName], {cwd:context.packager.info.appDir,stdio:'inherit'});
   const file = join(context.packager.info.appDir, 'dist/models', model.file);
   if (statSync(file).size !== model.bytes) throw new Error('Missing/incorrect bundled model');
   const hash = createHash('sha256');

@@ -1,7 +1,9 @@
+import { backendStatus } from './nativeDesktopAI';
 import { BUILD_INFO } from './buildInfo';
 import type { AppLanguage } from './i18n';
 
 export interface ModelMetric {
+  backend?:string;gpuActive?:boolean;deviceName?:string;ramBytes?:number;vramBytes?:number;fallbackReason?:string;
   outputTruncated?: boolean;
   modelId?: string;
   quantization?: string;
@@ -61,5 +63,5 @@ export function runtimeCapabilities() {
   return { isolated: globalThis.crossOriginIsolated === true, sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined', jspi: typeof wasm.Suspending === 'function', hardwareConcurrency: navigator.hardwareConcurrency || 1, deviceMemoryGB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory, userAgent: navigator.userAgent };
 }
 export function diagnosticsReport() {
-  return { version: 3, build: BUILD_INFO, nativeBuild, buildMismatch: nativeBuild ? nativeBuild.commit !== BUILD_INFO.commit : undefined, capabilities: runtimeCapabilities(), runtime:runtimeState, session, turns, metrics };
+  return { version: 3, build: BUILD_INFO, nativeBuild, buildMismatch: nativeBuild ? nativeBuild.commit !== BUILD_INFO.commit : undefined, capabilities: runtimeCapabilities(), backend:backendStatus(), runtime:runtimeState, session, turns, metrics };
 }

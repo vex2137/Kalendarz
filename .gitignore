@@ -42,3 +42,6 @@ diagnostics-artifact/
 *.keystore
 *.jks
 *.p12
+
+# Verified native inference runtime archives and staged libraries
+native/
