@@ -1,5 +1,17 @@
 // UI templates only. Inserted event names and other user data are preserved.
 export const GERMAN_UI: Record<string, string> = {
+  "without parser": "ohne Parser",
+  "Rules only": "Nur Regeln",
+  "Full assistant": "Gesamter Assistent",
+  "Test set": "Testsatz",
+  "stability": "Stabilität",
+  "Automated checks": "Automatische Prüfungen",
+  "Manual review": "Manuelle Prüfung",
+  "Resume": "Fortsetzen",
+  "Public test fixtures and a synthetic calendar only. No event writes. Full test: 100 PL + 100 EN. Conversation quality also requires human review.": "Nur öffentliche Testfälle und ein fiktiver Kalender. Keine Ereignisse werden gespeichert. Vollständiger Test: 100 PL + 100 EN. Die Gesprächsqualität muss auch von Menschen geprüft werden.",
+  "Test did not finish. Saved results remain available for export.": "Der Test wurde nicht beendet. Gespeicherte Ergebnisse können weiterhin exportiert werden.",
+  "App PSS and CPU exclude the isolated WebView renderer. Missing measurements are null. RAM estimates are not measurements.": "PSS und CPU der App enthalten den isolierten WebView-Prozess nicht. Fehlende Messwerte sind null. RAM-Schätzungen sind keine Messungen.",
+  "This event was not identified in the request. Specify its title before preparing a change.": "Dieses Ereignis wurde in der Anfrage nicht angegeben. Nenne seinen Titel, bevor eine Änderung vorbereitet wird.",
   'Please clarify which change to prepare; nothing was changed.': 'Bitte präzisiere die gewünschte Änderung; es wurde nichts geändert.',
   'Please specify the exact event title; the model returned another name.': 'Bitte gib den genauen Termintitel an; das Modell hat einen anderen Namen ausgegeben.',
   'Please specify a new date, time or event name.': 'Bitte gib ein neues Datum, eine neue Uhrzeit oder einen neuen Terminnamen an.',
