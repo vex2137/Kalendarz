@@ -58,6 +58,11 @@ native JSON extraction and the complete assistant. Generated outputs and checks
 are retained even when incorrect. These six inputs per mode are not a general
 quality score or a replacement 200-input benchmark. Timer-controlled idle tests
 are excluded from performance comparisons.
+Each model also carries context through twelve mixed conversation/proposal turns
+without executing calendar changes. Physical sustained long-session/OOM behavior
+still requires POCO testing. Uninstalling a diagnostics package clears its OPFS
+weights as well as its database; export calendar/history first and retain any
+local GGUF source files. This differs from an ordinary restart or RAM release.
 
 All new timing measurements are Linux cloud Chromium measurements, not POCO
 measurements. The user's approximately three-second phone response cannot be

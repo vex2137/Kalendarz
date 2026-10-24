@@ -80,6 +80,20 @@ const base='http://127.0.0.1:4189',id=process.env.CANDIDATE_MODEL_ID;
       }
       return results;
     });
+    report.conversation=await page.evaluate(async id=>{
+      const h=window.calendarEvaluation,turns=[];let context={};
+      for(let index=0;index<12;index++){
+        const language=index%2?'en':'pl';
+        const query=index%3===0 ? h.benchmarks.BILINGUAL_CASES[0][language] : `Add event SessionProbe${index} tomorrow at 18-20`;
+        const response=await h.runModelAssistant(query,[],language==='pl'?'en':'pl',new Date(h.benchmarks.BENCHMARK_REFERENCE),context,h.DEFAULT_PLANNING);
+        context=response.context;
+        const state=h.runtime.modelStatus();
+        if(state.modelId!==id||!state.installed||!state.loaded)throw new Error('Conversation lost selected installed engine');
+        if(index%3===0&&response.route!=='model')throw new Error('Ordinary conversation was captured by a pending event');
+        turns.push({index,query,route:response.route,response:response.text,contextCharacters:JSON.stringify(context).length,modelId:state.modelId});
+      }
+      return {turns,calendarWrites:0,manualSemanticReviewRequired:true};
+    },id);
     if(id==='qwen3.5-0.8b-q4-k-m'){
       await page.evaluate(()=>localStorage.removeItem('calendar_active_ai_model_v1'));
       await page.reload();await page.waitForFunction(()=>window.calendarEvaluation);
