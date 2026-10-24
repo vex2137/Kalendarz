@@ -55,10 +55,15 @@ Production conversation now uses genuine text inference, rather than forcing
 all casual questions through a calendar JSON schema. No canned chat is counted
 as model intelligence. Destructive proposals require evidence and confirmation.
 
-The follow-up matrix tests both JSPI and the bundled compatibility WASM, plus
-production conversation. Its current results must be read separately from the
-older successful raw probes; a failed production chat is not a compatibility
-pass. Physical phone results and any default-model change remain pending.
+The follow-up [matrix 40092074751](https://github.com/vex2137/Kalendarz/actions/runs/40092074751)
+passed all eight model/runtime combinations (JSPI and bundled compatibility
+WASM), including actual production conversation: 32 native inferences, plus
+the separate deterministic calendar route. See `model-runtime-matrix.json`.
+Qwen Q4 originally hit the 256-token conversation limit, which was incorrectly
+reported as an engine error. A brief-answer instruction now reduces verbosity;
+length-limited plain text is retained with an explicit localized notice and
+`outputTruncated` diagnostic. Partial calendar JSON remains an error.
+Physical phone results and any default-model change remain pending.
 
 ## Runtime, storage and conversation history
 
@@ -107,6 +112,24 @@ many requests outside rule coverage; the result is not full-assistant accuracy.
 A real 350M conversation, cancellation and resume were also tested in Chromium.
 Full per-model semantic comparisons are pending; do not fill missing scores.
 
+The complete 350M development run processed the same 200 inputs separately in
+all three modes: rules 39/200; raw LLM 73/200; full assistant 89/200 automated
+passes. All modes completed without engine errors; raw LLM made 200 genuine
+inferences, full assistant 138 (62 requests used rules). Each mode still has
+92 cases flagged for semantic review. These are conservative field checks, not
+a claim of 44.5% human conversational accuracy. See
+`assistant-bilingual-350m-results.json` for all responses, checks, model metrics
+and conditions (source commit `8d6a7e5`). Common errors include wrong intent,
+example-title/date leakage, incomplete fields and unresolved ambiguous targets.
+The full assistant protects calendar writes with validation/confirmation; it
+does not make the small model understand every difficult request.
+
+The separate five-pair smoke comparison is in `bilingual-smoke-summary.json`
+(source `a0ee7c7`, before the conversation length-limit fix). Read its completed
+counts and stop/error fields, rather than interpreting a green Actions job as
+semantic success. The current engine compatibility matrix is recorded separately.
+These experiments do not justify changing the default model.
+
 ## POCO X7 Pro diagnostic procedure
 
 1. Download the ZIP from the latest successful **Android AI diagnostics APK**
@@ -133,12 +156,15 @@ Full per-model semantic comparisons are pending; do not fill missing scores.
    never execute calendar changes. Separately verify proposed changes in a test
    calendar and explicitly confirm them; check undo and reopen history.
 
-JSON includes model revision/hash, source commit, engine settings, real prompt,
-generation/total time, native TTFT and first answer token, threads, first versus
+JSON includes model revision/hash, source commit, engine settings, measured prompt-processing,
+generation/total times, native TTFT and first answer token, threads, first versus
 later responses, battery/thermal data where available, and app process CPU/PSS.
 Android app PSS/CPU **exclude the isolated WebView renderer**. JS heap is not
 WASM total RAM. Missing values and total inference CPU/RAM remain `null`.
 Battery charge/energy deltas describe the whole device, not model-only energy.
+Summary first/later response timings refer to actual LLM calls; per-case elapsed
+times also cover quick/rules routes. The benchmark never exports private chat
+prompts: generated responses and fixtures in its JSON are synthetic test data.
 
 For optional fuller process measurements, connect ADB and identify the actual
 WebView renderer PID(s) associated with this app. Do not count all renderers:
