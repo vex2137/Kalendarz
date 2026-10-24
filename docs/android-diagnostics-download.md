@@ -24,7 +24,13 @@ For the greeting/language regression, follow
 [the physical acceptance steps](assistant-device-investigation.md). Diagnostics
 now show the source commit and the last message's quick/rules/model path.
 
-The workflow builds the triggering commit on `optimize/lfm25-parser-runtime`.
-It runs on code pushes to that branch and supports manual dispatch when GitHub
+The workflow builds the triggering commit on `optimize/lfm25-parser-runtime`
+or `feat/local-ai-models-history`. The latter also includes optional model
+management, durable chats and the bilingual benchmark. The ZIP includes
+`multimodel-progress.md` with the phone comparison procedure. Larger models
+are installed explicitly from the model panel; they are not bundled or
+downloaded automatically.
+
+It runs on code pushes to those branches and supports manual dispatch when GitHub
 exposes the workflow in the Actions UI. A completed run can also be rerun from
 its run page. This is a diagnostic artifact, not an official application release.

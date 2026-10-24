@@ -2,8 +2,12 @@ import { BUILD_INFO } from './buildInfo';
 import type { AppLanguage } from './i18n';
 
 export interface ModelMetric {
+  outputTruncated?: boolean;
+  modelId?: string;
+  initializationError?: string;
+  failureReason?: 'output-limit' | 'engine';
   route: 'model' | 'rules' | 'quick' | 'preload'; totalMs: number; loadMs?: number; error?: 'cancelled' | 'inference';
-  storageMs?: number; verifyMs?: number; initMs?: number; firstTokenMs?: number;
+  storageMs?: number; verifyMs?: number; initMs?: number; firstTokenMs?: number; firstAnswerTokenMs?: number;
   promptMs?: number; generationMs?: number; tokensPerSecond?: number;
   promptTokens?: number; cachedTokens?: number; completionTokens?: number;
   threads?: number; multithread?: boolean; isolated?: boolean;
@@ -12,7 +16,7 @@ let metrics: ModelMetric[] = [];
 export interface AssistantTurnMetric {
   id: number; route?: 'quick' | 'rules' | 'model'; uiLanguage: AppLanguage; language: AppLanguage;
   quickChecked: boolean; quickMatched: boolean; rulesMatched: boolean;
-  normalized: boolean; inputLength: number; nonAsciiCodePoints: string[];
+  normalized: boolean; inputLength: number; nonAsciiCount: number;
   startedAt: number; quickMs?: number; rulesMs?: number; totalMs: number; uiCommitMs?: number;
   modelPhaseAtSend?: string; commandAction?: string; error?: boolean;
 }

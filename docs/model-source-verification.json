@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-10-24",
+  "actionsRun": 40083841560,
+  "sources": [
+    {
+      "repo": "LiquidAI/LFM2.5-2.6B-GGUF",
+      "revision": "e7caca5d835a3901a8e0d63e94009429bafafdfc",
+      "license": "other",
+      "files": [
+        {
+          "file": "LFM2.5-2.6B-Q4_K_M.gguf",
+          "bytes": 1674455040,
+          "sha256": "02a8b7e17487d326e46d68ce0ba24211e1b80a14c4cd0597fa73c1cd697f52ed",
+          "url": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF/resolve/e7caca5d835a3901a8e0d63e94009429bafafdfc/LFM2.5-2.6B-Q4_K_M.gguf"
+        }
+      ]
+    },
+    {
+      "repo": "Qwen/Qwen3.5-0.8B-GGUF",
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    {
+      "repo": "bartowski/Qwen_Qwen3.5-0.8B-GGUF",
+      "revision": "f36b1ea49a332ede8fe5f389bbf5b3575ef71f48",
+      "license": "apache-2.0",
+      "files": []
+    },
+    {
+      "repo": "mradermacher/Qwen3.5-0.8B-GGUF",
+      "revision": "78fc4c891ff7dee2e8286c3f4cdc8a26f7544a07",
+      "license": "apache-2.0",
+      "files": [
+        {
+          "file": "Qwen3.5-0.8B.IQ4_XS.gguf",
+          "bytes": 488114496,
+          "sha256": "69b1c57926ade7ce1c5fa49cd5d722c626552f25fc9f9e2b1d6892f3454719a3",
+          "url": "https://huggingface.co/mradermacher/Qwen3.5-0.8B-GGUF/resolve/78fc4c891ff7dee2e8286c3f4cdc8a26f7544a07/Qwen3.5-0.8B.IQ4_XS.gguf"
+        },
+        {
+          "file": "Qwen3.5-0.8B.Q4_K_M.gguf",
+          "bytes": 527503680,
+          "sha256": "2c49cd8cb9c15a451dd6087b8ae9676f1fc2556501bb0717cc1ba3fcae413c27",
+          "url": "https://huggingface.co/mradermacher/Qwen3.5-0.8B-GGUF/resolve/78fc4c891ff7dee2e8286c3f4cdc8a26f7544a07/Qwen3.5-0.8B.Q4_K_M.gguf"
+        }
+      ]
+    }
+  ]
+}

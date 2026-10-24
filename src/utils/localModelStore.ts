@@ -1,21 +1,36 @@
 import { openDB } from 'idb';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { LOCAL_MODEL, bundledModelUrl } from './localModelManifest';
+import { DEFAULT_MODEL, type ModelDescriptor } from './modelRegistry';
 
 const database = () => openDB('calendar-local-model', 1, {
   upgrade(db) { db.createObjectStore('models'); },
 });
+async function ensureSpace(bytes: number) {
+  const estimate=await navigator.storage?.estimate?.();
+  if(estimate?.quota!==undefined&&estimate.usage!==undefined&&estimate.quota-estimate.usage<bytes+64*1024*1024)throw new Error('model-storage-space');
+}
+export async function hasDownloadedModelData(descriptor: ModelDescriptor) {
+  const db=await database();try { if(await db.getKey('models',descriptor.id))return true; }finally{db.close();}
+  if(navigator.storage?.getDirectory)try { const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');for await(const [name] of dir.entries())if(name.startsWith(descriptor.id+'-'))return true; }catch{}
+  return false;
+}
 
-export async function savedModel(): Promise<Blob | undefined> {
+export async function savedModel(descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob | undefined> {
   const db = await database();
   try {
-    const model: unknown = await db.get('models', LOCAL_MODEL.id);
-    return model instanceof Blob && model.size === LOCAL_MODEL.bytes ? model : undefined;
+    const model = await db.get('models', descriptor.id);
+    if (model?.opfsName) {
+      const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');
+      const file = await (await dir.getFileHandle(model.opfsName)).getFile();
+      return file.size === descriptor.bytes ? file : undefined;
+    }
+    return model instanceof Blob && model.size === descriptor.bytes ? model : undefined;
   } finally { db.close(); }
 }
 
-export async function verifyModel(blob: Blob, signal?: AbortSignal, progress?: (loaded: number) => void) {
-  if (blob.size !== LOCAL_MODEL.bytes) throw new Error('model-size');
+export async function verifyModel(blob: Blob, signal?: AbortSignal, progress?: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL) {
+  if (blob.size !== descriptor.bytes) throw new Error('model-size');
   const hash = sha256.create();
   // Bound temporary allocations and yield between chunks, including on older WebViews.
   const chunkSize = 4 * 1024 * 1024;
@@ -26,32 +41,85 @@ export async function verifyModel(blob: Blob, signal?: AbortSignal, progress?: (
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   const checksum = Array.from(hash.digest(), b => b.toString(16).padStart(2, '0')).join('');
-  if (checksum !== LOCAL_MODEL.sha256) throw new Error('model-checksum');
+  if (checksum !== descriptor.sha256) throw new Error('model-checksum');
 }
 
-export async function saveModel(blob: Blob, signal: AbortSignal) {
+const streamed = new WeakMap<Blob, string>();
+export async function discardDownloadedModel(blob?: Blob) {
+  const name = blob && streamed.get(blob);
+  if (name) { const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models'); await dir.removeEntry(name).catch(() => {}); streamed.delete(blob!); }
+}
+export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL) {
   signal.throwIfAborted();
+  // Large imports use the same disk-backed representation as streamed downloads.
+  if (blob.size > 512_000_000 && !streamed.has(blob) && navigator.storage?.getDirectory) {
+    await ensureSpace(blob.size);
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });
+    const name = `${descriptor.id}-${crypto.randomUUID()}.gguf`;
+    const writer = await (await dir.getFileHandle(name, { create: true })).createWritable();
+    try {
+      for (let offset = 0; offset < blob.size; offset += 4 * 1024 * 1024) {
+        signal.throwIfAborted();
+        await writer.write(await blob.slice(offset, offset + 4 * 1024 * 1024).arrayBuffer());
+      }
+      await writer.close(); streamed.set(blob, name);
+    } catch (error) { await writer.abort().catch(() => {}); await dir.removeEntry(name).catch(() => {}); throw error; }
+  }
   const db = await database();
   try {
     const tx = db.transaction('models', 'readwrite');
     const abort = () => { try { tx.abort(); } catch { /* Already committed. */ } };
     signal.addEventListener('abort', abort, { once: true });
     try {
-      await tx.store.put(blob, LOCAL_MODEL.id);
+      await tx.store.put(streamed.has(blob) ? { opfsName: streamed.get(blob), bytes: descriptor.bytes, sha256: descriptor.sha256 } : blob, descriptor.id);
       await tx.done;
+      streamed.delete(blob);
     } finally { signal.removeEventListener('abort', abort); }
   } finally { db.close(); }
   // A denied persistence request does not prevent installation; the UI explains storage removal.
   try { await navigator.storage?.persist?.(); } catch { /* Not available on file origins. */ }
 }
 
-export async function removeSavedModel() {
+export async function removeSavedModel(descriptor: ModelDescriptor = DEFAULT_MODEL) {
   const db = await database();
-  try { await db.delete('models', LOCAL_MODEL.id); } finally { db.close(); }
+  try {
+    const previous = await db.get('models', descriptor.id);
+    await db.delete('models', descriptor.id);
+    if(navigator.storage?.getDirectory)try {
+      const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');
+      for await(const [name] of dir.entries())if(name===previous?.opfsName||name.startsWith(descriptor.id+'-'))await dir.removeEntry(name);
+    }catch(error){if(!(error instanceof DOMException&&error.name==='NotFoundError'))throw error;}
+  } finally { db.close(); }
 }
 
-export async function downloadModel(signal: AbortSignal, progress: (loaded: number) => void): Promise<Blob> {
-  const response = await fetch(LOCAL_MODEL.url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+export async function downloadModel(signal: AbortSignal, progress: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob> {
+  await ensureSpace(descriptor.bytes);
+  if (navigator.storage?.getDirectory) {
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });
+    const name = `${descriptor.id}-${crypto.randomUUID()}.gguf`;
+    const handle = await dir.getFileHandle(name, { create: true });
+    const writer = await handle.createWritable();
+    try {
+      const response = await fetch(descriptor.url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+      if (!response.ok || !response.body) throw new Error('model-download');
+      const reader = response.body.getReader();
+      let loaded = 0;
+      try {
+        while (true) {
+          signal.throwIfAborted();
+          const { value, done } = await reader.read(); if (done) break;
+          loaded += value.byteLength; if (loaded > descriptor.bytes) throw new Error('model-size');
+          await writer.write(value); progress(loaded);
+        }
+      } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+      if (loaded !== descriptor.bytes) throw new Error('model-size');
+      await writer.close();
+      const file = await handle.getFile(); streamed.set(file, name); return file;
+    } catch (error) { await writer.abort().catch(() => {}); await dir.removeEntry(name).catch(() => {}); throw error; }
+  }
+  // Older file/WebView origins can import a file without buffering a large download in JS.
+  if (descriptor.bytes > 512_000_000) throw new Error('model-stream-storage-unavailable');
+  const response = await fetch(descriptor.url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
   if (!response.ok || !response.body) throw new Error('model-download');
   const reader = response.body.getReader();
   const chunks: Uint8Array<ArrayBuffer>[] = [];
@@ -62,7 +130,7 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
       if (done) break;
       signal.throwIfAborted();
       loaded += value.byteLength;
-      if (loaded > LOCAL_MODEL.bytes) throw new Error('model-size');
+      if (loaded > descriptor.bytes) throw new Error('model-size');
       chunks.push(value as Uint8Array<ArrayBuffer>);
       progress(loaded);
     }
@@ -75,7 +143,8 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
 
 // The build stages the exact verified weights beside this small metadata file.
 // Availability is cheap; inference independently verifies the actual GGUF bytes.
-export async function bundledModelAvailable(): Promise<boolean> {
+export async function bundledModelAvailable(descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<boolean> {
+  if (!descriptor.bundled) return false;
   try {
     const response = await fetch(bundledModelUrl('manifest.json'), { credentials: 'omit' });
     if (!response.ok) return false;

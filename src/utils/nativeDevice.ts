@@ -3,6 +3,7 @@ import type { AppLanguage } from './i18n';
 import type { PluginListenerHandle } from '@capacitor/core';
 
 interface CalendarDevicePlugin {
+  benchmarkTelemetry(): Promise<Record<string, number|string|boolean|null>>;
   diagnosticsBuildInfo(): Promise<{ commit: string; applicationId: string; version: string }>;
   setLanguage(options: { language: AppLanguage }): Promise<void>;
   notificationStatus(): Promise<{ enabled: boolean; channel: 'ready' | 'silent' | 'blocked' }>;

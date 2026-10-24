@@ -8,16 +8,25 @@ const vocabulary: Record<AppLanguage, RegExp> = {
   de: /^(?:hallo|guten|tag|morgen|ubermorgen|heute|danke|hilfe|was|kannst|du|fuge|erstelle|verschiebe|andere|losche|entferne|suche|finde|bitte|termin|termine|prufe|uberschneidungen|stunden|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)$/u,
   ru: /^(?:привет|здравствуйте|добрый|день|спасибо|хорошо|мой|план|помощь|что|умеешь|добавь|создай|перенеси|измени|удали|найди|проверь|пожалуйста|завтра|послезавтра|сегодня|когда|свобод\p{L}*|событи\p{L}*|встреч\p{L}*|час\p{L}*|минут\p{L}*)$/u,
 };
+const conversationalVocabulary: Record<AppLanguage,RegExp> = {
+  pl:/^(?:mozemy|pogadac|porozmawiac|rozmawiac|rozmow\p{L}*|opowiedz|powiedz|wytlumacz|wymysl|czym|ile|dlaczego|jestem|jest|bylo|ciezko|krotki|krotko|po|prostu|mi|mnie|sie|twoj|polsku|pomoglo|nauki|odpoczac)$/u,
+  en:/^(?:how|why|tell|explain|suggest|talk|speak|chat|about|my|me|am|are|was|had|have|rough|day|doing|helpful|nothing|anything|organizing)$/u,
+  de:/^(?:ich|wir|mir|mein|meine|eine|einen|wie|warum|erzahl\p{L}*|sprechen|reden|konnen|kann|bitte|heute)$/u,
+  ru:/^(?:я|мы|мне|меня|как|почему|расскажи|объясни|можем|поговорить|говорить|сегодня|день|помоги)$/u,
+};
 export function normalizeAssistantInput(query: string) {
   // IME/paste can supply decomposed accents and invisible word separators.
   return query.normalize('NFC').replace(/[\u200B\uFEFF]/gu, '').trim();
 }
 export function detectAssistantLanguage(query: string, fallback: AppLanguage): AppLanguage {
-  const text = normalizeAssistantInput(query).replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, ' ')
-    .toLowerCase().normalize('NFD').replace(/([a-z])[\u0300-\u036f]+/g, '$1').normalize('NFC').replace(/ł/g, 'l');
+  const canonical = normalizeAssistantInput(query).replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, ' ');
+  const text = canonical.toLowerCase().normalize('NFD').replace(/([a-z])[\u0300-\u036f]+/g, '$1').normalize('NFC').replace(/ł/g, 'l');
+  for (const [pattern,language] of [[/(?:odpowiedz|powiedz|mow)\s+po angielsku|(?:reply|answer|respond|tell me)\s+(?:\w+\s+){0,2}in english/u,'en'],[/(?:odpowiedz|powiedz|mow)\s+po polsku|(?:reply|answer|respond|tell me)\s+(?:\w+\s+){0,2}in polish/u,'pl'],[/(?:odpowiedz|powiedz)\s+po niemiecku|(?:reply|answer|respond)\s+in german/u,'de'],[/(?:odpowiedz|powiedz)\s+po rosyjsku|(?:reply|answer|respond)\s+in russian/u,'ru']] as const) if(pattern.test(text))return language;
   const tokens = text.match(/\p{L}+/gu) || [];
-  const scores = (Object.keys(vocabulary) as AppLanguage[]).map(language => ({ language, score: tokens.reduce((sum, token, i) => sum + (vocabulary[language].test(token) ? (i === 0 ? 3 : 1) : 0), 0) }));
+  const scores = (Object.keys(vocabulary) as AppLanguage[]).map(language => ({ language, score: tokens.reduce((sum, token, i) => sum + (vocabulary[language].test(token)||conversationalVocabulary[language].test(token) ? (i === 0 ? 3 : 1) : 0), 0) }));
   const best = Math.max(...scores.map(s => s.score));
   const winners = scores.filter(s => s.score === best);
-  return best > 0 && winners.length === 1 ? winners[0].language : fallback;
+  if(best>0&&winners.length===1)return winners[0].language;
+  if(best===0){if(/[ąćęłńóśźż]/iu.test(canonical))return 'pl';if(/[а-яё]/iu.test(canonical))return 'ru';if(/[äöüß]/iu.test(canonical))return 'de';}
+  return fallback;
 }

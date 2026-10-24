@@ -1,0 +1,824 @@
+{
+  "runId": 40092074751,
+  "commit": "6dd5026",
+  "physicalDevice": false,
+  "note": "Eight actual cloud Chromium model/runtime combinations. No physical Android measurements. Arithmetic and generated text require separate quality review.",
+  "results": [
+    {
+      "jobId": 120866640589,
+      "id": "qwen3.5-0.8b-iq4-xs",
+      "runtimeFlavor": "compat",
+      "status": "passed",
+      "capabilities": {
+        "isolated": true,
+        "sharedArrayBuffer": true,
+        "jspi": false,
+        "hardwareConcurrency": 4,
+        "deviceMemoryGB": 16,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+      },
+      "rawMetrics": [
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-iq4-xs",
+          "totalMs": 20939.795,
+          "storageMs": 0.8000000000029104,
+          "verifyMs": 6750.899999999994,
+          "initMs": 7690.049999999988,
+          "loadMs": 14442.160000000003,
+          "firstTokenMs": 20723.39499999999,
+          "firstAnswerTokenMs": 20723.399999999994,
+          "promptMs": 6229.825,
+          "generationMs": 205.325,
+          "tokensPerSecond": 4.870327529526361,
+          "promptTokens": 42,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-iq4-xs",
+          "totalMs": 5797.524999999994,
+          "loadMs": 0.04499999999825377,
+          "firstTokenMs": 5608.739999999991,
+          "firstAnswerTokenMs": 5608.75,
+          "promptMs": 5580.796,
+          "generationMs": 194.259,
+          "tokensPerSecond": 5.147766641442611,
+          "promptTokens": 37,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-iq4-xs",
+          "totalMs": 19267.634999999995,
+          "loadMs": 0.06499999998777639,
+          "firstTokenMs": 5220.085000000006,
+          "firstAnswerTokenMs": 5220.085000000006,
+          "promptMs": 5154.165,
+          "generationMs": 14044.779,
+          "tokensPerSecond": 1.9936233955692715,
+          "promptTokens": 34,
+          "cachedTokens": 0,
+          "completionTokens": 29,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      ],
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      },
+      "chat": {
+        "text": "Tak, oczywiście! Mogę pogadać z Tobą. Czy chcesz porozmawiać o czymś konkretnym?",
+        "route": "model",
+        "language": "pl",
+        "proposal": false,
+        "metric": {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-iq4-xs",
+          "totalMs": 22164.74000000002,
+          "loadMs": 0.04000000000814907,
+          "firstTokenMs": 16360.985000000015,
+          "firstAnswerTokenMs": 16360.985000000015,
+          "promptMs": 16331.549,
+          "generationMs": 5803.435,
+          "tokensPerSecond": 4.652417059896423,
+          "promptTokens": 80,
+          "cachedTokens": 0,
+          "completionTokens": 28,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      },
+      "calendar": {
+        "route": "rules",
+        "language": "pl",
+        "title": "Próba"
+      }
+    },
+    {
+      "jobId": 120866640619,
+      "id": "lfm2.5-2.6b-q4-k-m",
+      "runtimeFlavor": "compat",
+      "status": "passed",
+      "capabilities": {
+        "isolated": true,
+        "sharedArrayBuffer": true,
+        "jspi": false,
+        "hardwareConcurrency": 4,
+        "deviceMemoryGB": 16,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+      },
+      "rawMetrics": [
+        {
+          "route": "model",
+          "modelId": "lfm2.5-2.6b-q4-k-m",
+          "totalMs": 66709.47500000003,
+          "storageMs": 2.625,
+          "verifyMs": 24117.715000000026,
+          "initMs": 10177.325000000012,
+          "loadMs": 34298.07000000001,
+          "firstTokenMs": 46624.765000000014,
+          "firstAnswerTokenMs": 66408.33000000002,
+          "promptMs": 12261.405,
+          "generationMs": 20066.39,
+          "tokensPerSecond": 3.189412744394981,
+          "promptTokens": 40,
+          "cachedTokens": 0,
+          "completionTokens": 65,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "lfm2.5-2.6b-q4-k-m",
+          "totalMs": 19002.63500000001,
+          "loadMs": 0.025000000023283064,
+          "firstTokenMs": 8064.349999999977,
+          "firstAnswerTokenMs": 18728.429999999993,
+          "promptMs": 8055.431,
+          "generationMs": 10937.859,
+          "tokensPerSecond": 3.6570228232051627,
+          "promptTokens": 35,
+          "cachedTokens": 0,
+          "completionTokens": 41,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "lfm2.5-2.6b-q4-k-m",
+          "totalMs": 229835.96,
+          "loadMs": 0.01999999996041879,
+          "firstTokenMs": 6928.504999999946,
+          "firstAnswerTokenMs": 224200.49000000002,
+          "promptMs": 6883.931,
+          "generationMs": 222907.099,
+          "tokensPerSecond": 3.431923000352717,
+          "promptTokens": 30,
+          "cachedTokens": 0,
+          "completionTokens": 766,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      ],
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      },
+      "chat": {
+        "text": "Jasne, chętnie pogadam! O czym chciałbyś porozmawiać?",
+        "route": "model",
+        "language": "pl",
+        "proposal": false,
+        "metric": {
+          "route": "model",
+          "modelId": "lfm2.5-2.6b-q4-k-m",
+          "totalMs": 47744.22999999998,
+          "loadMs": 0.22499999997671694,
+          "firstTokenMs": 18532.839999999967,
+          "firstAnswerTokenMs": 41120.07500000007,
+          "promptMs": 18521.486,
+          "generationMs": 29210.76,
+          "tokensPerSecond": 3.6287997984304416,
+          "promptTokens": 81,
+          "cachedTokens": 0,
+          "completionTokens": 107,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      },
+      "calendar": {
+        "route": "rules",
+        "language": "pl",
+        "title": "Próba"
+      }
+    },
+    {
+      "jobId": 120866640629,
+      "id": "lfm2.5-350m-q4-k-m",
+      "runtimeFlavor": "compat",
+      "status": "passed",
+      "capabilities": {
+        "isolated": true,
+        "sharedArrayBuffer": true,
+        "jspi": false,
+        "hardwareConcurrency": 4,
+        "deviceMemoryGB": 16,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+      },
+      "rawMetrics": [
+        {
+          "route": "model",
+          "modelId": "lfm2.5-350m-q4-k-m",
+          "totalMs": 9215,
+          "storageMs": 1.0150000000139698,
+          "verifyMs": 3179.795000000013,
+          "initMs": 3936.1300000000047,
+          "loadMs": 7117.3399999999965,
+          "firstTokenMs": 9101.255000000005,
+          "firstAnswerTokenMs": 9101.255000000005,
+          "promptMs": 1931.84,
+          "generationMs": 87.111,
+          "tokensPerSecond": 11.479606479089897,
+          "promptTokens": 40,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "lfm2.5-350m-q4-k-m",
+          "totalMs": 1402.484999999986,
+          "loadMs": 0.03999999997904524,
+          "firstTokenMs": 1279.2049999999872,
+          "firstAnswerTokenMs": 1279.2099999999919,
+          "promptMs": 1267.64,
+          "generationMs": 120.595,
+          "tokensPerSecond": 8.29221775363821,
+          "promptTokens": 34,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "lfm2.5-350m-q4-k-m",
+          "totalMs": 2352.154999999999,
+          "loadMs": 0.03999999997904524,
+          "firstTokenMs": 1065.4199999999837,
+          "firstAnswerTokenMs": 1065.4199999999837,
+          "promptMs": 992.606,
+          "generationMs": 1286.69,
+          "tokensPerSecond": 17.875323504496034,
+          "promptTokens": 30,
+          "cachedTokens": 0,
+          "completionTokens": 24,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      ],
+      "quality": {
+        "polishArithmetic": false,
+        "englishArithmetic": true
+      },
+      "chat": {
+        "text": "Tak, mogliśmy po prostu pogadać.",
+        "route": "model",
+        "language": "pl",
+        "proposal": false,
+        "metric": {
+          "route": "model",
+          "modelId": "lfm2.5-350m-q4-k-m",
+          "totalMs": 3526.860000000015,
+          "loadMs": 0.04999999998835847,
+          "firstTokenMs": 2249.8850000000093,
+          "firstAnswerTokenMs": 2249.890000000014,
+          "promptMs": 2239.785,
+          "generationMs": 1279.79,
+          "tokensPerSecond": 10.93929472804132,
+          "promptTokens": 80,
+          "cachedTokens": 0,
+          "completionTokens": 15,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      },
+      "calendar": {
+        "route": "rules",
+        "language": "pl",
+        "title": "Próba"
+      }
+    },
+    {
+      "jobId": 120866640636,
+      "id": "qwen3.5-0.8b-q4-k-m",
+      "runtimeFlavor": "compat",
+      "status": "passed",
+      "capabilities": {
+        "isolated": true,
+        "sharedArrayBuffer": true,
+        "jspi": false,
+        "hardwareConcurrency": 4,
+        "deviceMemoryGB": 16,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+      },
+      "rawMetrics": [
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-q4-k-m",
+          "totalMs": 17492.845,
+          "storageMs": 2.294999999983702,
+          "verifyMs": 7438.205000000016,
+          "initMs": 6093.195000000007,
+          "loadMs": 13534.059999999998,
+          "firstTokenMs": 17353.35500000001,
+          "firstAnswerTokenMs": 17353.360000000015,
+          "promptMs": 3739.41,
+          "generationMs": 131.465,
+          "tokensPerSecond": 7.606587304605789,
+          "promptTokens": 42,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-q4-k-m",
+          "totalMs": 2916.234999999986,
+          "loadMs": 0.03999999997904524,
+          "firstTokenMs": 2791.7999999999884,
+          "firstAnswerTokenMs": 2791.804999999993,
+          "promptMs": 2744.65,
+          "generationMs": 127.034,
+          "tokensPerSecond": 7.871908308012028,
+          "promptTokens": 37,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-q4-k-m",
+          "totalMs": 7281.88499999998,
+          "loadMs": 0.024999999994179234,
+          "firstTokenMs": 2682.329999999987,
+          "firstAnswerTokenMs": 2682.329999999987,
+          "promptMs": 2605.81,
+          "generationMs": 4594.899,
+          "tokensPerSecond": 5.876081280567864,
+          "promptTokens": 34,
+          "cachedTokens": 0,
+          "completionTokens": 28,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      ],
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      },
+      "chat": {
+        "text": "Tak, oczywiście! Mogę pogadać o tematach, które interesują Cię. Czy masz jakieś konkretne pytanie, czy chcesz porozmawiać o czymś innym?",
+        "route": "model",
+        "language": "pl",
+        "proposal": false,
+        "metric": {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-q4-k-m",
+          "totalMs": 10074.10500000001,
+          "loadMs": 0.04999999998835847,
+          "firstTokenMs": 5552.515000000014,
+          "firstAnswerTokenMs": 5552.5199999999895,
+          "promptMs": 5519.731,
+          "generationMs": 4521.235,
+          "tokensPerSecond": 8.625961711788927,
+          "promptTokens": 80,
+          "cachedTokens": 0,
+          "completionTokens": 40,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      },
+      "calendar": {
+        "route": "rules",
+        "language": "pl",
+        "title": "Próba"
+      }
+    },
+    {
+      "jobId": 120866640644,
+      "id": "lfm2.5-2.6b-q4-k-m",
+      "runtimeFlavor": "jspi",
+      "status": "passed",
+      "capabilities": {
+        "isolated": true,
+        "sharedArrayBuffer": true,
+        "jspi": true,
+        "hardwareConcurrency": 4,
+        "deviceMemoryGB": 16,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+      },
+      "rawMetrics": [
+        {
+          "route": "model",
+          "modelId": "lfm2.5-2.6b-q4-k-m",
+          "totalMs": 68769.57500000001,
+          "storageMs": 2.7399999999906868,
+          "verifyMs": 24616.695000000007,
+          "initMs": 9268.330000000016,
+          "loadMs": 33888.125,
+          "firstTokenMs": 47883.97999999998,
+          "firstAnswerTokenMs": 68462.44,
+          "promptMs": 13928.861,
+          "generationMs": 20888.909,
+          "tokensPerSecond": 3.063826837485864,
+          "promptTokens": 40,
+          "cachedTokens": 0,
+          "completionTokens": 65,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "lfm2.5-2.6b-q4-k-m",
+          "totalMs": 21090.005000000005,
+          "loadMs": 0.025000000023283064,
+          "firstTokenMs": 9006.535000000033,
+          "firstAnswerTokenMs": 20791.505000000005,
+          "promptMs": 8997.681,
+          "generationMs": 12085.724,
+          "tokensPerSecond": 3.309690011123868,
+          "promptTokens": 35,
+          "cachedTokens": 0,
+          "completionTokens": 41,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "lfm2.5-2.6b-q4-k-m",
+          "totalMs": 253529.38499999995,
+          "loadMs": 0.01999999996041879,
+          "firstTokenMs": 7708.134999999951,
+          "firstAnswerTokenMs": 247587.62499999994,
+          "promptMs": 7680.379,
+          "generationMs": 245820.545,
+          "tokensPerSecond": 3.112026295442474,
+          "promptTokens": 30,
+          "cachedTokens": 0,
+          "completionTokens": 766,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      ],
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      },
+      "chat": {
+        "text": "Jasne, chętnie pogadam! O czym chciałbyś porozmawiać?",
+        "route": "model",
+        "language": "pl",
+        "proposal": false,
+        "metric": {
+          "route": "model",
+          "modelId": "lfm2.5-2.6b-q4-k-m",
+          "totalMs": 52954.02000000002,
+          "loadMs": 0.05500000005122274,
+          "firstTokenMs": 20621.990000000107,
+          "firstAnswerTokenMs": 45602.29000000004,
+          "promptMs": 20616.265,
+          "generationMs": 32332.126,
+          "tokensPerSecond": 3.2784729343192587,
+          "promptTokens": 81,
+          "cachedTokens": 0,
+          "completionTokens": 107,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      },
+      "calendar": {
+        "route": "rules",
+        "language": "pl",
+        "title": "Próba"
+      }
+    },
+    {
+      "jobId": 120866640665,
+      "id": "lfm2.5-350m-q4-k-m",
+      "runtimeFlavor": "jspi",
+      "status": "passed",
+      "capabilities": {
+        "isolated": true,
+        "sharedArrayBuffer": true,
+        "jspi": true,
+        "hardwareConcurrency": 4,
+        "deviceMemoryGB": 16,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+      },
+      "rawMetrics": [
+        {
+          "route": "model",
+          "modelId": "lfm2.5-350m-q4-k-m",
+          "totalMs": 7163.180000000008,
+          "storageMs": 1.069999999992433,
+          "verifyMs": 3158.854999999996,
+          "initMs": 2602.5800000000017,
+          "loadMs": 5762.940000000002,
+          "firstTokenMs": 7112.699999999997,
+          "firstAnswerTokenMs": 7112.710000000006,
+          "promptMs": 1316.065,
+          "generationMs": 49.091,
+          "tokensPerSecond": 20.370332647532134,
+          "promptTokens": 40,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "lfm2.5-350m-q4-k-m",
+          "totalMs": 1101.7900000000081,
+          "loadMs": 0.04499999999825377,
+          "firstTokenMs": 1058.3350000000064,
+          "firstAnswerTokenMs": 1058.3399999999965,
+          "promptMs": 1052.705,
+          "generationMs": 43.154,
+          "tokensPerSecond": 23.172822913287295,
+          "promptTokens": 34,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "lfm2.5-350m-q4-k-m",
+          "totalMs": 2174.3499999999913,
+          "loadMs": 0.029999999998835847,
+          "firstTokenMs": 1021.7649999999994,
+          "firstAnswerTokenMs": 1021.7649999999994,
+          "promptMs": 997.9,
+          "generationMs": 1152.305,
+          "tokensPerSecond": 19.959993230958816,
+          "promptTokens": 30,
+          "cachedTokens": 0,
+          "completionTokens": 24,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      ],
+      "quality": {
+        "polishArithmetic": false,
+        "englishArithmetic": true
+      },
+      "chat": {
+        "text": "Tak, mogliśmy po prostu pogadać.",
+        "route": "model",
+        "language": "pl",
+        "proposal": false,
+        "metric": {
+          "route": "model",
+          "modelId": "lfm2.5-350m-q4-k-m",
+          "totalMs": 3123.7600000000093,
+          "loadMs": 0.045000000012805685,
+          "firstTokenMs": 2462.2800000000134,
+          "firstAnswerTokenMs": 2462.2800000000134,
+          "promptMs": 2457.796,
+          "generationMs": 661.37,
+          "tokensPerSecond": 21.16818119963107,
+          "promptTokens": 80,
+          "cachedTokens": 0,
+          "completionTokens": 15,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      },
+      "calendar": {
+        "route": "rules",
+        "language": "pl",
+        "title": "Próba"
+      }
+    },
+    {
+      "jobId": 120866640666,
+      "id": "qwen3.5-0.8b-q4-k-m",
+      "runtimeFlavor": "jspi",
+      "status": "passed",
+      "capabilities": {
+        "isolated": true,
+        "sharedArrayBuffer": true,
+        "jspi": true,
+        "hardwareConcurrency": 4,
+        "deviceMemoryGB": 16,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+      },
+      "rawMetrics": [
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-q4-k-m",
+          "totalMs": 15551.175000000017,
+          "storageMs": 2.6049999999813735,
+          "verifyMs": 7673.9100000000035,
+          "initMs": 4685.5899999999965,
+          "loadMs": 12362.5,
+          "firstTokenMs": 15434.200000000012,
+          "firstAnswerTokenMs": 15434.205000000016,
+          "promptMs": 3022.755,
+          "generationMs": 120.701,
+          "tokensPerSecond": 8.284935501777118,
+          "promptTokens": 42,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-q4-k-m",
+          "totalMs": 2782.36500000002,
+          "loadMs": 0.03500000000349246,
+          "firstTokenMs": 2666.295000000013,
+          "firstAnswerTokenMs": 2666.3000000000175,
+          "promptMs": 2650.325,
+          "generationMs": 115.326,
+          "tokensPerSecond": 8.671071571024747,
+          "promptTokens": 37,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-q4-k-m",
+          "totalMs": 10146.309999999998,
+          "loadMs": 0.029999999998835847,
+          "firstTokenMs": 2595.4349999999977,
+          "firstAnswerTokenMs": 2595.4349999999977,
+          "promptMs": 2525.935,
+          "generationMs": 7550.446,
+          "tokensPerSecond": 3.5759476989836094,
+          "promptTokens": 34,
+          "cachedTokens": 0,
+          "completionTokens": 28,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      ],
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      },
+      "chat": {
+        "text": "Tak, oczywiście! Mogę pogadać o tematach, które interesują Cię. Czy masz jakieś konkretne pytanie, czy chcesz porozmawiać o czymś innym?",
+        "route": "model",
+        "language": "pl",
+        "proposal": false,
+        "metric": {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-q4-k-m",
+          "totalMs": 19592.199999999983,
+          "loadMs": 0.044999999983701855,
+          "firstTokenMs": 7892.684999999998,
+          "firstAnswerTokenMs": 7892.684999999998,
+          "promptMs": 7860.714,
+          "generationMs": 11696.52,
+          "tokensPerSecond": 3.3343250813062344,
+          "promptTokens": 80,
+          "cachedTokens": 0,
+          "completionTokens": 40,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      },
+      "calendar": {
+        "route": "rules",
+        "language": "pl",
+        "title": "Próba"
+      }
+    },
+    {
+      "jobId": 120866640712,
+      "id": "qwen3.5-0.8b-iq4-xs",
+      "runtimeFlavor": "jspi",
+      "status": "passed",
+      "capabilities": {
+        "isolated": true,
+        "sharedArrayBuffer": true,
+        "jspi": true,
+        "hardwareConcurrency": 4,
+        "deviceMemoryGB": 16,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+      },
+      "rawMetrics": [
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-iq4-xs",
+          "totalMs": 24126.079999999987,
+          "storageMs": 0.9549999999871943,
+          "verifyMs": 6728.854999999996,
+          "initMs": 5027.7149999999965,
+          "loadMs": 11757.964999999997,
+          "firstTokenMs": 23459.149999999994,
+          "firstAnswerTokenMs": 23459.160000000003,
+          "promptMs": 11644.15,
+          "generationMs": 675.324,
+          "tokensPerSecond": 1.4807707115399424,
+          "promptTokens": 42,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-iq4-xs",
+          "totalMs": 13520.109999999986,
+          "loadMs": 0.04999999998835847,
+          "firstTokenMs": 13072.899999999994,
+          "firstAnswerTokenMs": 13072.904999999999,
+          "promptMs": 13056.795,
+          "generationMs": 444.8,
+          "tokensPerSecond": 2.2482014388489207,
+          "promptTokens": 37,
+          "cachedTokens": 0,
+          "completionTokens": 2,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        },
+        {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-iq4-xs",
+          "totalMs": 22814.820000000007,
+          "loadMs": 0.029999999998835847,
+          "firstTokenMs": 12096.450000000012,
+          "firstAnswerTokenMs": 12096.455000000016,
+          "promptMs": 11998.204,
+          "generationMs": 10718.766,
+          "tokensPerSecond": 2.6122409986373434,
+          "promptTokens": 34,
+          "cachedTokens": 0,
+          "completionTokens": 29,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      ],
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      },
+      "chat": {
+        "text": "Tak, oczywiście! Mogę pogadać z Tobą. Czy chcesz porozmawiać o czymś konkretnym?",
+        "route": "model",
+        "language": "pl",
+        "proposal": false,
+        "metric": {
+          "route": "model",
+          "modelId": "qwen3.5-0.8b-iq4-xs",
+          "totalMs": 28561.350000000006,
+          "loadMs": 0.0650000000023283,
+          "firstTokenMs": 20581.600000000006,
+          "firstAnswerTokenMs": 20581.600000000006,
+          "promptMs": 20569.841,
+          "generationMs": 7980.235,
+          "tokensPerSecond": 3.3833590113574346,
+          "promptTokens": 80,
+          "cachedTokens": 0,
+          "completionTokens": 28,
+          "threads": 4,
+          "multithread": true,
+          "isolated": true
+        }
+      },
+      "calendar": {
+        "route": "rules",
+        "language": "pl",
+        "title": "Próba"
+      }
+    }
+  ]
+}

@@ -8,13 +8,14 @@ import { parseDateFromNaturalLanguage, runLocalAiAssistant, type AiResponseResul
 import { calendarFields } from './calendarCommandParser';
 
 const actions = ['create', 'update', 'delete', 'search', 'assistant', 'clarify'] as const;
-type Action = typeof actions[number];
+type Action = typeof actions[number] | 'chat';
 export interface ModelCommand {
   action: Action; query: string | null; title: string | null; date: string | null;
   endDate: string | null; time: string | null; endTime: string | null;
   allDay: boolean | null; location: string | null; description: string | null;
   recurrence: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
   sourceDate: string | null; question: string | null;
+  reply: string | null;
 }
 const nullableString = { type: ['string', 'null'] };
 const nullableDate = { ...nullableString, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' };
@@ -32,10 +33,13 @@ export const COMMAND_SCHEMA = {
   required: ['action'],
 };
 
-export function commandSchemaForRequest(request: string) {
+export const ASSISTANT_SCHEMA = { ...COMMAND_SCHEMA, properties: { ...COMMAND_SCHEMA.properties,
+  action: { type: 'string', enum: [...actions, 'chat'] }, reply: nullableString } };
+export function commandSchemaForRequest(request: string, conversational = false) {
+  const schema = conversational ? ASSISTANT_SCHEMA : COMMAND_SCHEMA;
   // Constrain clear imperative prefixes, while allowing the model to ask for clarification.
   // Negated/revised requests and less direct phrasing keep the complete action vocabulary.
-  if (/don't|do not|\b(?:not|never|nie|zamiast|jednak|instead|but|ale|nicht|stattdessen)\b|не\s|вместо/iu.test(request)) return COMMAND_SCHEMA;
+  if (/don't|do not|\b(?:not|never|nie|zamiast|jednak|instead|but|ale|nicht|stattdessen)\b|не\s|вместо/iu.test(request)) return schema;
   const text = request.trim().replace(/^(?:please|proszę|пожалуйста|bitte)[,\s]+/iu, '');
   const prefixes: [RegExp, Action][] = [
     [/^(?:add|create|dodaj|utw[óo]rz|добавь|создай|füge|erstelle)(?=\s|$)/iu, 'create'],
@@ -44,18 +48,18 @@ export function commandSchemaForRequest(request: string) {
     [/^(?:delete|remove|usu[ńn]|skasuj|удали|lösche|entferne)(?=\s|$)/iu, 'delete'],
   ];
   const action = prefixes.find(([pattern]) => pattern.test(text))?.[1];
-  if (!action) return COMMAND_SCHEMA;
+  if (!action) return schema;
   const allowed: Action[] = action === 'create' || action === 'search' ? [action, 'assistant', 'clarify'] : [action, 'clarify'];
-  return { ...COMMAND_SCHEMA, properties: { ...COMMAND_SCHEMA.properties, action: { type: 'string', enum: allowed } } };
+  return { ...schema, properties: { ...schema.properties, action: { type: 'string', enum: allowed } } };
 }
 
 export function parseModelCommand(json: string): ModelCommand {
   if (json.length > 12000) throw new Error('Invalid model response');
   const parsed = JSON.parse(json);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
-      Object.keys(parsed).some(k => !Object.hasOwn(COMMAND_SCHEMA.properties, k)) ||
-      !Object.hasOwn(parsed, 'action') || !actions.includes(parsed.action)) throw new Error('Invalid model command');
-  const value = { ...Object.fromEntries(Object.keys(COMMAND_SCHEMA.properties).map(key => [key, null])), ...parsed };
+      Object.keys(parsed).some(k => !Object.hasOwn(ASSISTANT_SCHEMA.properties, k)) ||
+      !Object.hasOwn(parsed, 'action') || ![...actions, 'chat'].includes(parsed.action)) throw new Error('Invalid model command');
+  const value = { ...Object.fromEntries(Object.keys(ASSISTANT_SCHEMA.properties).map(key => [key, null])), ...parsed };
   for (const [key, v] of Object.entries(value)) {
     if (v === null) continue;
     // The model sometimes uses an empty string for an absent nullable text field.
@@ -109,11 +113,20 @@ Request: ${requests[3]}
 JSON: ${example({ action: 'delete', query: name })}`;
 }
 
-export async function resolveModelCommand(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences): Promise<AiResponseResult> {
+export function assistantSystemPrompt(language: AppLanguage, now: Date) {
+  return calendarSystemPrompt(language, now) + `\nFor natural conversation/general questions, use action=chat and reply=your actual helpful answer in the current user's language, respecting an explicit request to switch language. Language hint: ${language}; never let interface language override the actual message. Do not turn greetings or conversation into event updates. For calendar requests keep the command format above. A negated deletion is not permission to delete; answer a requested lookup with search. Only use clarify when information needed for an action is missing. Never claim that a proposal was saved.`;
+}
+export async function resolveModelCommand(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, referenceEvidence?: {title:string;date:string}): Promise<AiResponseResult> {
   const ask = (pl: string, en: string): AiResponseResult => ({ text: tr(language, pl, en) });
+  if (command.action === 'chat') return { text: command.reply?.trim() || tr(language, 'Co chcesz omówić?', 'What would you like to talk about?') };
   const evidence = language === 'pl' || language === 'en' ? calendarFields(request, now) : undefined;
   const outsideQuotes = request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '');
   if (['create', 'update', 'delete'].includes(command.action) && /\b(?:nie|not|never|don't|gdyby\p{L}*|if|zamiast|instead)\b|не\s|nicht/iu.test(outsideQuotes)) return ask('Doprecyzuj, jaką zmianę mam przygotować; nic nie zmieniono.', 'Please clarify which change to prepare; nothing was changed.');
+  if (['update','delete'].includes(command.action) && command.query?.trim() && request.trim()) {
+    const title=command.query.replace(/^(?:wydarzenie|event|событие|termin|veranstaltung)\s+/iu,'');
+    const evidenced=matchesCalendarText(request,title)||Boolean(referenceEvidence&&referenceEvidence.title===title&&(!command.sourceDate||command.sourceDate===referenceEvidence.date));
+    if(!evidenced)return ask('Nie wskazano tego wydarzenia w poleceniu. Podaj tytuł przed przygotowaniem zmiany.','This event was not identified in the request. Specify its title before preparing a change.');
+  }
   if ((command.action === 'create' || command.action === 'update') && request.trim() && command.title && !request.toLocaleLowerCase().includes(command.title.toLocaleLowerCase()) && !matchesCalendarText(request, command.title)) return ask('Podaj dokładny tytuł wydarzenia; model zwrócił inną nazwę.', 'Please specify the exact event title; the model returned another name.');
   if (command.action === 'clarify') return { text: command.question || tr(language, 'Podaj tytuł, datę i godzinę wydarzenia.', 'Please specify the event title, date and time.') };
   if (command.action === 'assistant') {

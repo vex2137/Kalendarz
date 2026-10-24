@@ -11,6 +11,10 @@ import { localModelText } from '../utils/localModelText';
 import { LocalModelSetup } from './LocalModelSetup';
 import { detectAssistantLanguage } from '../utils/assistantLanguage';
 import { recordAssistantUiCommit, observeAssistantSession, markAssistantInputReady } from '../utils/modelDiagnostics';
+import { assistantUiText } from '../utils/assistantUiText';
+import { findModel } from '../utils/modelRegistry';
+import { chatMessages, createChat, getChat, rememberChat, resolveActiveChat, saveChat } from '../utils/chatHistory';
+import { ChatHistoryPanel } from './ChatHistoryPanel';
 import { MarkdownMessage } from './MarkdownMessage';
 import { getTranslation, AppLanguage } from '../utils/i18n';
 import {
@@ -20,6 +24,7 @@ import {
   Cpu,
   AlertCircle,
   RotateCcw,
+  History,
 } from 'lucide-react';
 
 interface AiAssistantDrawerProps {
@@ -46,6 +51,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const t = getTranslation(language);
   const model = useSyncExternalStore(subscribeModel, modelStatus);
   const modelText = localModelText(language);
+  const ui = assistantUiText(language);
 
   const defaultMsg: AiChatMessage = {
     id: 'msg-welcome',
@@ -75,6 +81,19 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const presentationRef = useRef<number | undefined>(undefined);
+  const chatIdRef = useRef<string | undefined>(undefined);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const [historyReady, setHistoryReady] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
+  const persist = (snapshot: AiChatMessage[], context = conversationRef.current) => {
+    const id = chatIdRef.current;
+    if (!id) return Promise.resolve();
+    const copy = structuredClone(context), selected = model.modelId;
+    const next = saveQueue.current.catch(() => {}).then(() => saveChat(id, snapshot, copy, selected));
+    saveQueue.current = next;
+    return next.catch(() => { setHistoryError(true); });
+  };
 
   useEffect(() => { if (isOpen) return observeAssistantSession(); }, [isOpen]);
   useEffect(() => { if (isOpen && model.installed) markAssistantInputReady(); }, [isOpen, model.installed]);
@@ -96,10 +115,21 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   }, [messages, isOpen]);
 
   useEffect(() => {
-    conversationRef.current = {};
-    setMessages([defaultMsg]);
-    setAddedEventsIds([]);
-  }, [language]);
+    if (!isOpen) return;
+    let current = true;
+    setHistoryReady(false);
+    void (async () => {
+      await saveQueue.current.catch(() => {});
+      const chat = await resolveActiveChat(ui.newChat, model.modelId);
+      const stored = await chatMessages(chat.id);
+      if (!current) return;
+      chatIdRef.current = chat.id; rememberChat(chat.id);
+      conversationRef.current = chat.context || {turns:stored.filter(m=>m.role!=='system'&&m.id!=='msg-welcome').slice(-2).map(m=>({role:m.role as 'user'|'assistant',content:m.content.slice(0,600)}))};
+      setMessages(stored.length ? stored : [defaultMsg]);
+      setAddedEventsIds([]); setHistoryReady(true);
+    })().catch(() => { if (current) setHistoryError(true); });
+    return () => { current = false; };
+  }, [isOpen]);
 
   useEffect(() => {
     setAssistantActive(isOpen && aiSettings.enabled);
@@ -110,7 +140,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputQuery).trim();
-    if (!text || operationRef.current || !aiSettings.enabled || !model.installed) return;
+    if (!text || operationRef.current || !aiSettings.enabled || !historyReady) return;
     operationRef.current = true;
 
     const userMessage: AiChatMessage = {
@@ -118,14 +148,16 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       role: 'user',
       content: text,
       timestamp: Date.now(),
+      modelId: model.modelId,
     };
 
-    setMessages((prev) => [...prev.slice(-199), userMessage]);
-    setMessages(prev => prev.map(message => ({ ...message, suggestedEvent: undefined, suggestedPlan: undefined })));
+    const withUser = [...messages.slice(-199).map(message => ({ ...message, suggestedEvent: undefined, suggestedPlan: undefined })), userMessage];
+    setMessages(withUser);
     setInputQuery('');
     setIsProcessing(true);
 
     try {
+      await persist(withUser);
       const response = await runModelAssistant(text, events, language, new Date(), conversationRef.current, planningPreferences(aiSettings.planning));
       presentationRef.current = response.traceId;
       conversationRef.current = response.context || {};
@@ -138,16 +170,20 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         suggestedEvent: response.suggestedEvent,
         suggestedPlan: response.suggestedPlan,
         suggestedPrompts: response.suggestedPrompts,
+        modelId: model.modelId,
+        route: response.route,
       };
-      setMessages((prev) => [...prev.slice(-199), assistantMessage]);
+      const next = [...withUser, assistantMessage];
+      setMessages(next);
+      await persist(next);
     } catch {
-      setMessages((prev) => [
-        ...prev,
+      const next: AiChatMessage[] = [
+        ...withUser,
         {
           id: crypto.randomUUID(),
           role: 'assistant',
           content:
-            localModelText(detectAssistantLanguage(text, conversationRef.current.language || language)).inputError,
+            model.installed ? localModelText(detectAssistantLanguage(text, conversationRef.current.language || language)).inputError : assistantUiText(detectAssistantLanguage(text, conversationRef.current.language || language)).modelMissing,
           timestamp: Date.now(),
           suggestedPrompts:
             tr(language, ['Co mam dzisiaj w planie?', 'Kiedy mam wolne dzisiaj?'], [
@@ -155,17 +191,38 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   'When do I have free time today?',
                 ]),
         },
-      ]);
+      ];
+      setMessages(next); await persist(next);
     } finally {
       operationRef.current = false;
       setIsProcessing(false);
     }
   };
 
-  const handleClearChat = () => {
-    conversationRef.current = {};
-    setMessages([defaultMsg]);
-    setAddedEventsIds([]);
+  const startNewChat = async () => {
+    if (operationRef.current) return;
+    operationRef.current = true; setIsProcessing(true);
+    try {
+      await saveQueue.current.catch(() => {});
+      const chat = await createChat(ui.newChat, model.modelId);
+      chatIdRef.current = chat.id; conversationRef.current = {};
+      setMessages([{ ...defaultMsg, timestamp: Date.now() }]); setAddedEventsIds([]);
+      setHistoryReady(true); setHistoryOpen(false); setHistoryError(false);
+    } catch { setHistoryError(true); } finally { operationRef.current = false; setIsProcessing(false); }
+  };
+  const handleClearChat = () => { void startNewChat(); };
+  const selectChat = async (id: string) => {
+    if (operationRef.current) return;
+    operationRef.current = true;
+    try {
+      await saveQueue.current.catch(() => {});
+      const chat = await getChat(id); if (!chat) throw new Error('chat-missing');
+      const stored = await chatMessages(id);
+      chatIdRef.current = id; rememberChat(id); conversationRef.current = chat.context || {
+        turns: stored.filter(m => m.role !== 'system' && m.id !== 'msg-welcome').slice(-2).map(m => ({ role: m.role as 'user'|'assistant', content: m.content.slice(0,600) })),
+      };
+      setMessages(stored.length ? stored : [defaultMsg]); setAddedEventsIds([]); setHistoryOpen(false);
+    } catch { setHistoryError(true); } finally { operationRef.current = false; }
   };
 
   const handleConfirm = async (msgId: string, plan: AssistantPlan) => {
@@ -174,15 +231,22 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     try {
       setIsProcessing(true);
       await onApplyPlan(plan);
-      conversationRef.current = {};
+      conversationRef.current = { ...conversationRef.current, pending: undefined, proposal: undefined, lastConfirmedAction: {kind:plan.kind,title:plan.events[0].title!,date:plan.events[0].startDate!}, reference: plan.kind === 'delete' ? undefined : { title: plan.events[0].title!, date: plan.events[0].startDate! } };
       setAddedEventsIds(prev => [...prev, msgId]);
+      const next: AiChatMessage[] = [...messages, { id: crypto.randomUUID(), role: 'assistant', content: tr(language, 'Zapisano zmiany.', 'Changes saved.'), timestamp: Date.now() }];
+      setMessages(next); await persist(next);
     } catch (error) {
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: String(error), timestamp: Date.now() }]);
+      const next: AiChatMessage[] = [...messages, { id: crypto.randomUUID(), role: 'assistant', content: String(error), timestamp: Date.now() }];
+      setMessages(next); await persist(next);
     } finally {
       operationRef.current = false;
       setIsProcessing(false);
     }
   };
+
+  if (historyOpen) return <Dialog onClose={() => setHistoryOpen(false)} label={ui.conversations} className="fixed inset-0 z-50 bg-black/60 flex justify-end">
+    <div className="w-full max-w-md h-full"><ChatHistoryPanel language={language} onClose={() => setHistoryOpen(false)} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>
+  </Dialog>;
   const handleUndo = async () => {
     if (operationRef.current || !canUndo) return;
     operationRef.current = true;
@@ -190,9 +254,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     try {
       await onUndo();
       conversationRef.current = {};
-      setMessages(prev => [...prev.map(m => ({ ...m, suggestedEvent: undefined, suggestedPlan: undefined })), { id: crypto.randomUUID(), role: 'assistant', content: tr(language, 'Cofnięto ostatnią operację asystenta.', 'The last assistant operation was undone.'), timestamp: Date.now() }]);
+      const next: AiChatMessage[] = [...messages.map(m => ({ ...m, suggestedEvent: undefined, suggestedPlan: undefined })), { id: crypto.randomUUID(), role: 'assistant', content: tr(language, 'Cofnięto ostatnią operację asystenta.', 'The last assistant operation was undone.'), timestamp: Date.now() }];
+      setMessages(next); await persist(next);
     } catch (error) {
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: String(error), timestamp: Date.now() }]);
+      const next: AiChatMessage[] = [...messages, { id: crypto.randomUUID(), role: 'assistant', content: String(error), timestamp: Date.now() }];
+      setMessages(next); await persist(next);
     } finally {
       operationRef.current = false;
       setIsProcessing(false);
@@ -226,17 +292,20 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               </div>
               <div className="flex items-center gap-1 text-[11px] theme-muted">
                 <Cpu className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span>LFM2.5 · llama.cpp · offline</span>
+                <span>{findModel(model.modelId).name} · offline</span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-1">
+            <button type="button" id="btn-ai-chat-history" aria-label={ui.conversations} title={ui.conversations} disabled={isProcessing || !historyReady} onClick={() => setHistoryOpen(true)} className="p-1.5 theme-muted"><History className="w-4 h-4"/></button>
             <button
               type="button"
               onClick={handleClearChat}
               className="p-1.5 rounded-lg theme-muted hover:theme-text theme-hover transition-colors"
-              title={tr(language, 'Wyczyść rozmowę', 'Clear conversation')}
+              id="btn-new-ai-chat"
+              title={ui.newChat}
+              aria-label={ui.newChat}
               disabled={isProcessing || !aiSettings.enabled}
             >
               <RotateCcw className="w-4 h-4" />
@@ -255,6 +324,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
         <LocalModelSetup language={language} enabled={aiSettings.enabled} />
         <ModelDiagnostics language={language} enabled={aiSettings.enabled} />
+        {historyError && <p role="alert" className="p-2 text-xs">{ui.historyError}</p>}
+        {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelOperation}>{ui.cancel}</button></div>}
 
         {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 px-3 py-2 rounded theme-surface theme-text theme-border border text-sm">
           {tr(language, 'Cofnij ostatnią operację asystenta', 'Undo last assistant operation')}
@@ -333,6 +404,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
         {/* Messages Container */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 theme-bg">
+          {messages.length >= 200 && <button type="button" className="text-xs underline" onClick={() => { const id=chatIdRef.current; if(id)void chatMessages(id,messages[0]).then(older=>setMessages(current=>[...older,...current])).catch(()=>setHistoryError(true)); }}>{ui.older}</button>}
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
             const isAdded = addedEventsIds.includes(msg.id);
@@ -352,6 +424,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 >
                   {/* Markdown Renderer */}
                   <MarkdownMessage content={msg.content} isUser={isUser} />
+                  {msg.proposalSummary && <p className="mt-2 whitespace-pre-wrap theme-muted">{msg.proposalSummary}</p>}
 
                   {plan && (
                     <div className="mt-3 p-3 theme-subtle rounded-xl theme-border border theme-text space-y-3 text-xs">
@@ -396,6 +469,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
+                  {msg.role === 'assistant' && msg.route === 'model' && msg.modelId ? ` · ${findModel(msg.modelId).name}` : ''}
                 </span>
               </div>
             );
@@ -416,14 +490,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             placeholder={
               tr(language, 'Napisz np. Trening jutro o 18 na 1h...', 'Type e.g. Workout tomorrow at 6pm for 1h...')
             }
-            disabled={isProcessing || !aiSettings.enabled || !model.installed}
+            disabled={isProcessing || !aiSettings.enabled || !historyReady}
             maxLength={1000}
             className="flex-1 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
           <button
             id="btn-send-ai-message"
             onClick={() => handleSendMessage()}
-            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !model.installed}
+            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady}
             className="p-2.5 theme-primary bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             <Send className="w-4 h-4" />

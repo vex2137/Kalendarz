@@ -1,5 +1,17 @@
 // Russian UI messages. {{n}} placeholders preserve user data in formatted messages.
 export const RUSSIAN_UI: Record<string, string> = {
+  "without parser": "без парсера",
+  "Rules only": "Только правила",
+  "Full assistant": "Ассистент целиком",
+  "Test set": "Набор тестов",
+  "stability": "стабильность",
+  "Automated checks": "Автоматические проверки",
+  "Manual review": "Ручная оценка",
+  "Resume": "Продолжить",
+  "Public test fixtures and a synthetic calendar only. No event writes. Full test: 100 PL + 100 EN. Conversation quality also requires human review.": "Только публичные тестовые примеры и вымышленный календарь. События не сохраняются. Полный тест: 100 PL + 100 EN. Качество разговора также требует оценки человеком.",
+  "Test did not finish. Saved results remain available for export.": "Тест не завершён. Сохранённые результаты можно экспортировать.",
+  "App PSS and CPU exclude the isolated WebView renderer. Missing measurements are null. RAM estimates are not measurements.": "PSS и CPU приложения не включают изолированный процесс WebView. Отсутствующие измерения имеют значение null. Оценка RAM не является измерением.",
+  "This event was not identified in the request. Specify its title before preparing a change.": "Это событие не указано в запросе. Укажите его название перед подготовкой изменения.",
   'Please clarify which change to prepare; nothing was changed.': 'Уточните, какое изменение подготовить; ничего не изменено.',
   'Please specify the exact event title; the model returned another name.': 'Укажите точное название события; модель вернула другое название.',
   'Please specify a new date, time or event name.': 'Укажите новую дату, время или название события.',

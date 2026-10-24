@@ -1,0 +1,21 @@
+{
+  "runUrl": "https://github.com/vex2137/Kalendarz/actions/runs/40094767380",
+  "commit": "98ba9f286551281e871b1faffa8a8d4505e096c9",
+  "applicationId": "com.kalendarz.offline.diagnostics",
+  "apkBytes": 236041233,
+  "artifactName": "Calendar-AI-diagnostics-android",
+  "artifactId": 12560761143,
+  "zipBytes": 236120827,
+  "zipSha256": "962545b1f8b87087247e1c2781780bc27c473403cfc12c9e7356b710b5fa506f",
+  "checks": [
+    "APK signature and diagnostic package/version",
+    "embedded 350M GGUF size and SHA-256",
+    "model license",
+    "source commit in metadata and compiled JavaScript",
+    "APK asset routing, real native inference and phone viewport",
+    "APK asset durable history, saved confirmations and undo",
+    "no external browser requests"
+  ],
+  "physicalPocoTest": "pending",
+  "downloadInstructions": "Sign in to GitHub, open the run URL, download the named ZIP under Artifacts. Do not use an anonymous artifact URL."
+}

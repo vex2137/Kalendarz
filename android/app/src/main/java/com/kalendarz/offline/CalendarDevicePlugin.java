@@ -35,6 +35,47 @@ public class CalendarDevicePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void benchmarkTelemetry(PluginCall call) {
+        JSObject result = new JSObject();
+        android.os.Debug.MemoryInfo processMemory = new android.os.Debug.MemoryInfo();
+        android.os.Debug.getMemoryInfo(processMemory);
+        ActivityManager.MemoryInfo systemMemory = new ActivityManager.MemoryInfo();
+        ((ActivityManager)getContext().getSystemService(android.content.Context.ACTIVITY_SERVICE)).getMemoryInfo(systemMemory);
+        result.put("appPssKB", processMemory.getTotalPss());
+        result.put("availableMemoryBytes", systemMemory.availMem);
+        result.put("totalMemoryBytes", systemMemory.totalMem);
+        result.put("lowMemory", systemMemory.lowMemory);
+        result.put("cpuTimeMs", android.os.Process.getElapsedCpuTime());
+        result.put("elapsedRealtimeMs", android.os.SystemClock.elapsedRealtime());
+        result.put("memoryScope", "app-process-only; excludes isolated WebView renderer");
+        result.put("cpuScope", "app-process-only; excludes isolated WebView renderer");
+        result.put("deviceModel", Build.MANUFACTURER + " " + Build.MODEL);
+        result.put("androidSdk", Build.VERSION.SDK_INT);
+        result.put("deviceTypeHint", Build.FINGERPRINT.contains("generic") || Build.MODEL.contains("Emulator") ? "emulator" : "physical-unverified");
+        if (Build.VERSION.SDK_INT >= 26 && android.webkit.WebView.getCurrentWebViewPackage() != null) result.put("webViewVersion", android.webkit.WebView.getCurrentWebViewPackage().versionName);
+        Intent battery = getContext().registerReceiver(null, new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if (battery != null) {
+            int temperature = battery.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
+            if (temperature != Integer.MIN_VALUE) result.put("batteryTemperatureC", temperature / 10.0);
+            result.put("batteryLevel", battery.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1));
+        }
+        android.os.BatteryManager manager = (android.os.BatteryManager)getContext().getSystemService(android.content.Context.BATTERY_SERVICE);
+        if (manager != null) {
+            int current = manager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+            if (current != Integer.MIN_VALUE) result.put("batteryCurrentMicroA", current);
+            long charge = manager.getLongProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER);
+            long energy = manager.getLongProperty(android.os.BatteryManager.BATTERY_PROPERTY_ENERGY_COUNTER);
+            if (charge != Long.MIN_VALUE) result.put("batteryChargeMicroAh", charge);
+            if (energy != Long.MIN_VALUE) result.put("batteryEnergyNanoWh", energy);
+        }
+        if (Build.VERSION.SDK_INT >= 29) {
+            android.os.PowerManager power = (android.os.PowerManager)getContext().getSystemService(android.content.Context.POWER_SERVICE);
+            if (power != null) result.put("thermalStatus", power.getCurrentThermalStatus());
+        }
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void diagnosticsBuildInfo(PluginCall call) {
         JSObject result = new JSObject();
         result.put("commit", getContext().getString(R.string.calendar_build_commit));
