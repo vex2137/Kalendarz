@@ -558,7 +558,7 @@ export async function runAssistantBenchmark(options: {
         pressure ||
         options.signal.aborted ||
         document.hidden ||
-        (result.error && modelStatus().phase === "error")
+        (result.error && (modelStatus().phase === "error" || ['model-inference','model-cancelled','model-busy'].includes(result.error)))
       )
         break;
     }
