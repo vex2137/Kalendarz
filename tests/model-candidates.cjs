@@ -29,9 +29,9 @@ const base = 'http://127.0.0.1:4183';
       if(!runtime.modelStatus().installed) throw new Error('Candidate installation failed: '+JSON.stringify({status:runtime.modelStatus(),storage:await navigator.storage.estimate()}));
       let cold,warm,command;
       try {
-        cold=await runtime.inferLocalText('Answer the user briefly in their language.','Ile to jest dwa plus dwa? Odpowiedz samą liczbą.',[],{maxTokens:96,timeoutMs:600000});
-        warm=await runtime.inferLocalText('Answer the user briefly in their language.','What is two plus two? Answer with the number only.',[],{maxTokens:96,timeoutMs:600000});
-        command=await runtime.inferCalendarJson('Extract a JSON calendar command.','Add event Test tomorrow at 14:00',{type:'object',properties:{action:{const:'create'},title:{type:'string'}},required:['action','title'],additionalProperties:false},[],{maxTokens:96,timeoutMs:600000});
+        cold=await runtime.inferLocalText('Answer the user briefly in their language.','Ile to jest dwa plus dwa? Odpowiedz samą liczbą.',[],{maxTokens:768,timeoutMs:600000});
+        warm=await runtime.inferLocalText('Answer the user briefly in their language.','What is two plus two? Answer with the number only.',[],{maxTokens:768,timeoutMs:600000});
+        command=await runtime.inferCalendarJson('Extract a JSON calendar command.','Add event Test tomorrow at 14:00',{type:'object',properties:{action:{const:'create'},title:{type:'string'}},required:['action','title'],additionalProperties:false},[],{maxTokens:768,timeoutMs:600000});
       } catch(error) { return {id,status:'failed',platform:'cloud-chromium',physicalDevice:false,error:String(error),cold,warm,command,diagnostics:diagnosticsReport()}; }
       const diagnostics=diagnosticsReport();
       await runtime.unloadLocalModel();

@@ -192,6 +192,7 @@ export const inferLocalText = (system: string, prompt: string, history: { role: 
 async function inferLocalCompletion(system: string, prompt: string, schema: unknown, history: { role: 'user' | 'assistant'; content: string }[] = [], options: InferenceOptions = {}): Promise<string> {
   if (operation || transition) throw new Error('model-busy');
   const controller = operation = new AbortController();
+  const descriptor = findModel(status.modelId);
   releaseRequested = false;
   clearTimeout(idleTimer);
   clearTimeout(preloadTimer);
@@ -207,9 +208,9 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     update({ phase: 'running' });
     const result = await current.createChatCompletion({
       messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: prompt }],
-      max_tokens: options.maxTokens ?? (/opis|description|описан|beschreib/iu.test(prompt) ? 384 : 256), temperature: 0, top_k: 50, penalty_repeat: 1.05,
+      max_tokens: options.maxTokens ?? (descriptor.id === 'lfm2.5-2.6b-q4-k-m' ? 768 : /opis|description|описан|beschreib/iu.test(prompt) ? 384 : 256), temperature: 0, top_k: 50, penalty_repeat: 1.05,
       ...(schema ? { response_format: { type: 'json_schema' as const, json_schema: { name: 'calendar_command', schema, strict: true } } } : {}),
-      chat_template_kwargs: { enable_thinking: false },
+      ...(descriptor.architecture === 'qwen35' ? { chat_template_kwargs: { enable_thinking: false } } : {}),
       abortSignal: controller.signal,
       stream: true,
     });
@@ -217,7 +218,9 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     for await (const chunk of result) {
       const choice = chunk.choices[0];
       const content = choice?.delta?.content;
-      if (content) { metric.firstTokenMs ??= performance.now() - started; text += content; }
+      const delta = choice?.delta as { reasoning_content?: string; reasoning?: string } | undefined;
+      if (content || delta?.reasoning_content || delta?.reasoning) metric.firstTokenMs ??= performance.now() - started;
+      if (content) { metric.firstAnswerTokenMs ??= performance.now() - started; text += content; }
       if (choice?.finish_reason) finish = choice.finish_reason;
       if (chunk.usage) Object.assign(metric, { promptTokens: chunk.usage.prompt_tokens, cachedTokens: chunk.usage.prompt_tokens_details?.cached_tokens, completionTokens: chunk.usage.completion_tokens });
       if (chunk.timings) Object.assign(metric, { promptMs: chunk.timings.prompt_ms, generationMs: chunk.timings.predicted_ms, tokensPerSecond: chunk.timings.predicted_per_second, promptTokens: chunk.timings.prompt_n + chunk.timings.cache_n, cachedTokens: chunk.timings.cache_n, completionTokens: chunk.timings.predicted_n });

@@ -6,7 +6,7 @@ export interface ModelMetric {
   initializationError?: string;
   failureReason?: 'output-limit' | 'engine';
   route: 'model' | 'rules' | 'quick' | 'preload'; totalMs: number; loadMs?: number; error?: 'cancelled' | 'inference';
-  storageMs?: number; verifyMs?: number; initMs?: number; firstTokenMs?: number;
+  storageMs?: number; verifyMs?: number; initMs?: number; firstTokenMs?: number; firstAnswerTokenMs?: number;
   promptMs?: number; generationMs?: number; tokensPerSecond?: number;
   promptTokens?: number; cachedTokens?: number; completionTokens?: number;
   threads?: number; multithread?: boolean; isolated?: boolean;
