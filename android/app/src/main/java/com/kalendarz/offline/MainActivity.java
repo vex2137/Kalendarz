@@ -24,7 +24,9 @@ public class MainActivity extends BridgeActivity {
             ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient() {
                 @Override
                 public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
-                    return CalendarWebViewClient.isolate(bridge.getLocalServer().shouldInterceptRequest(request), request.getUrl());
+                    WebResourceResponse response = CalendarModelImportPlugin.intercept(MainActivity.this, request.getUrl());
+                    if (response == null) response = bridge.getLocalServer().shouldInterceptRequest(request);
+                    return CalendarWebViewClient.isolate(response, request.getUrl());
                 }
             });
         }
@@ -45,6 +47,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(CalendarDevicePlugin.class);
+        registerPlugin(CalendarModelImportPlugin.class);
         super.onCreate(savedInstanceState);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override

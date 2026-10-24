@@ -109,3 +109,11 @@ test('a model cannot substitute a different existing event for a requested delet
   const response=await resolveModelCommand(command,'Delete Yoga',[event({title:'Lunch'})],'en',now,DEFAULT_PLANNING);
   assert.equal(response.suggestedPlan,undefined);assert.match(response.text,/not identified/u);
 });
+
+test('a conversational preface and trailing named title preserve the Polish time range',async()=>{
+  for(const query of ['O jak super dodaj wydarzenie na jutro od 8 do 16 o nazwie "nauka rozprawki"','Świetnie, dodaj wydarzenie na jutro od 8 do 16 pod tytułem "nauka rozprawki"']) {
+    const result=await runModelAssistant(query,[],'en',now,{},DEFAULT_PLANNING);
+    assert.equal(result.route,'rules');const draft=result.suggestedPlan?.events[0];
+    assert.equal(draft?.title,'nauka rozprawki');assert.equal(draft?.startDate,'2026-10-25');assert.equal(draft?.startTime,'08:00');assert.equal(draft?.endTime,'16:00');
+  }
+});

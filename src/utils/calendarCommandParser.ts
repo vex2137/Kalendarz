@@ -114,6 +114,7 @@ export function calendarFields(input: string, now: Date): CalendarFields {
   result.rest = clean(input.split('').map((ch, i) => consumed.has(i) ? ' ' : ch).join(''));
   // Joiners around consumed fields have no title meaning. Never remove inside a quoted name.
   result.rest = result.rest.replace(/^(?:na|w|we|on|for)\s+/iu, '').replace(/\s+(?:na|w|we|on|for)$/iu, '').trim();
+  if (/^(?:na|w|we|on|for)$/iu.test(result.rest)) result.rest='';
   result.fragments = input.split('').map((ch, i) => consumed.has(i) ? '\0' : ch).join('').split(/\0+/).map(part => clean(part).replace(/^(?:na|w|we|on|for)\s+|\s+(?:na|w|we|on|for)$/giu, '').trim()).filter(part => part && !/^(?:na|w|we|on|for)$/iu.test(part));
   return result;
 }
@@ -133,6 +134,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
   const outsideQuotes = normalized.replace(quoted, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '').replace(/\b(?:the )?day after tomorrow\b/giu, ' ');
   if (/\b(?:nie|not|never|don't|zamiast|instead|jednak|actually|except|oprocz|before|after|przed|po|kazd\p{L}*|co tydzien|codzien\p{L}*|every|daily|weekly|remind\p{L}*|przypomn\p{L}*)\b/iu.test(outsideQuotes)) return;
   let body = text.replace(/^(?:prosz[eę][,\s]+|please\s+|(?:czy\s+)?mo[zż]esz\s+|(?:czy\s+)?m[oó]g[łl]by[sś]\s+|could you\s+)/iu, '');
+  body = body.replace(/^(?:(?:o|oh|ok|okay|tak|yes|jak|how|super|great|dobrze|świetnie|swietnie|thanks|dzięki|dzieki)[,!\s]+)+(?=(?:dodaj|utw[oó]rz|add|create|wpisz|zapisz)\s)/iu, '');
   const n = fold(body);
   const make = (command: Partial<ModelCommand>, request = input): ParsedCalendarCommand => ({ command: parseModelCommand(JSON.stringify(command)), request });
   const tool = n.match(/^(co mam|pokaz (?:mi )?plan|jak wyglada|what is on|show my schedule|(?:kiedy mam|czy mam) woln\p{L}*|znajdz wolny czas|when am i free|am i free|find free time)\s*(.*)$/iu);
@@ -164,6 +166,8 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
   const action = /^(przenies|przesun|zmien|move|reschedule|change)/.test(prefix[1]) ? 'update' : /^(usun|skas|wykres|odwol|delete|remove|cancel)/.test(prefix[1]) ? 'delete' : /^(znajdz|znalezc|wyszuk|szuk|pokaz|find|search|show)/.test(prefix[1]) ? 'search' : 'create';
   body = body.slice(prefix[0].length).replace(/^(?:mi\s+|(?:(?:(?:a|an)\s+)?(?:new\s+)?event|(?:nowe\s+)?(?:wydarzenie|wydarzenia))\s+)/iu, '').replace(/\s+(?:in my calendar|to my calendar)$/iu, '');
   body = body.replace(/^(?:called|named|o nazwie|pod tytu[łl]em)\s+/iu,'');
+  let explicitTitle: string | undefined;
+  if (action === 'create') body = body.replace(/\s+(?:called|named|o nazwie|pod tytu[łl]em)\s+(.+)$/iu, (_, title: string) => { explicitTitle=unquote(title); return ''; });
   // English calendar placement may occur before the date.
   body = body.replace(/\s+(?:in my calendar|to my calendar)(?=\s)/iu, '');
   let location: string | undefined, description: string | undefined;
@@ -180,6 +184,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
   if (fields.invalid) return;
   if (action === 'create' && fields.fragments.length > 1) return;
   let name = fields.rest.replace(/^(?:wydarzeni\p{L}*|event|mi)\s+/iu, '').replace(/\s+(?:z|na|to|on)$/iu, '').trim();
+  if (explicitTitle) { if (name) return; name=explicitTitle; }
   if (action !== 'create') name = name.replace(/^(?:for|u)\s+/iu, '');
   if (!name && action !== 'create' && action !== 'search') return;
   // Leave unsupported trailing clauses to LFM rather than silently interpreting them as names.

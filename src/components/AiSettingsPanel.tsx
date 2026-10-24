@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Box, Activity } from 'lucide-react';
 import type { AppLanguage } from '../utils/i18n';
 import { assistantUiText } from '../utils/assistantUiText';
 import { aiSettingsText } from '../utils/aiSettingsText';
@@ -18,9 +18,9 @@ export function AiSettingsPanel({ language, enabled, onClose }: { language: AppL
         event.preventDefault(); const next = event.key === 'Home' ? 'models' : event.key === 'End' ? 'diagnostics' : tab === 'models' ? 'diagnostics' : 'models'; setTab(next); document.getElementById(`ai-tab-${next}`)?.focus();
       }
     }}>
-      {(['models', 'diagnostics'] as const).map(id => <button key={id} id={`ai-tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`ai-panel-${id}`} tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)} className={`flex-1 min-w-0 min-h-11 px-2 py-2 rounded-lg text-sm font-semibold ${tab === id ? 'theme-primary bg-violet-600 text-white shadow-sm' : 'theme-muted theme-hover'}`}>{id === 'models' ? ui.models : text.diagnostics}</button>)}
+      {(['models', 'diagnostics'] as const).map(id => <button key={id} id={`ai-tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`ai-panel-${id}`} tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)} className={`flex-1 min-w-0 min-h-11 flex items-center justify-center gap-2 px-2 py-2 rounded-lg text-sm font-semibold ${tab === id ? 'ai-primary shadow-sm' : 'theme-muted theme-hover'}`}>{id === 'models' ? <Box className="w-5 h-5 shrink-0"/> : <Activity className="w-5 h-5 shrink-0"/>}{id === 'models' ? ui.models : text.diagnostics}</button>)}
     </div></div>
-    <div id="ai-panel-models" role="tabpanel" aria-labelledby="ai-tab-models" hidden={tab !== 'models'} className="min-h-0 flex-1 overflow-y-auto p-3"><LocalModelSetup language={language} enabled={enabled}/></div>
+    <div id="ai-panel-models" role="tabpanel" aria-labelledby="ai-tab-models" hidden={tab !== 'models'} className="min-h-0 flex-1 overflow-y-auto p-3"><LocalModelSetup language={language} enabled={enabled} onDiagnostics={() => setTab('diagnostics')}/></div>
     <div id="ai-panel-diagnostics" role="tabpanel" aria-labelledby="ai-tab-diagnostics" hidden={tab !== 'diagnostics'} className="min-h-0 flex-1 overflow-y-auto"><ModelDiagnostics language={language} enabled={enabled}/></div>
   </section>;
 }

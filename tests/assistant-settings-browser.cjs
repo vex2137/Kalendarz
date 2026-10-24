@@ -15,7 +15,7 @@ const base = 'http://127.0.0.1:4186';
       await context.addInitScript(language=>localStorage.setItem('offline_calendar_settings_v2',JSON.stringify({language})),language);
       const page=await context.newPage();page.setDefaultTimeout(30000);const errors=[];page.on('pageerror',error=>errors.push(error.message));
       await page.goto(base);await page.locator('#btn-open-ai-assistant').click();
-      for(const id of ['btn-ai-settings','btn-ai-chat-history','btn-new-ai-chat','btn-close-ai-drawer']){const box=await page.locator('#'+id).boundingBox();assert.ok(box.width>=44&&box.height>=44,`${id} touch target`);assert.ok(box.x>=0&&box.x+box.width<=width,`${id} must fit the screen`);}
+      for(const id of ['btn-ai-settings','btn-ai-chat-history','btn-new-ai-chat','btn-ai-quick-model','btn-minimize-ai-drawer','btn-close-ai-drawer']){const box=await page.locator('#'+id).boundingBox();assert.ok(box.width>=44&&box.height>=44,`${id} touch target`);assert.ok(box.x>=0&&box.x+box.width<=width,`${id} must fit the screen`);}
       assert.equal((await page.locator('#ai-assistant-header').innerText()).match(/offline/gi)?.length,1);
       const input=page.locator('#drawer-ai-assistant input[type=text]');await input.waitFor();
       await page.waitForFunction(()=>!document.querySelector('#drawer-ai-assistant input[type=text]').disabled);
@@ -23,6 +23,10 @@ const base = 'http://127.0.0.1:4186';
       await page.waitForTimeout(250);
       await input.fill('Unsent draft');await page.locator('#ai-chat-messages').evaluate(el=>el.scrollTop=25);
       const before=await page.locator('#ai-chat-messages').evaluate(el=>el.scrollTop);
+      await page.locator('#btn-minimize-ai-drawer').click();
+      await page.locator('#drawer-ai-assistant').waitFor({state:'detached'});
+      await page.locator('#btn-open-ai-assistant').click();
+      assert.equal(await input.inputValue(),'Unsent draft');assert.equal(await page.locator('#ai-chat-messages').evaluate(el=>el.scrollTop),before);
       await page.locator('#btn-ai-settings').click();
       assert.equal(await page.getByRole('dialog').count(),1);
       await page.locator('#ai-tab-diagnostics').click();

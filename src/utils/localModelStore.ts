@@ -94,7 +94,7 @@ export async function discardDownloadedModel(blob?: Blob) {
   const name = blob && streamed.get(blob);
   if (name) { const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models'); await dir.removeEntry(name).catch(() => {}); streamed.delete(blob!); }
 }
-export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL) {
+export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL, progress?: (loaded:number)=>void) {
   signal.throwIfAborted();
   // Large imports use the same disk-backed representation as streamed downloads.
   if (!streamed.has(blob) && navigator.storage?.getDirectory) {
@@ -107,8 +107,10 @@ export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: Mod
       for (let offset = 0; offset < blob.size; offset += 4 * 1024 * 1024) {
         signal.throwIfAborted();
         await writer.write(await blob.slice(offset, offset + 4 * 1024 * 1024).arrayBuffer());
+        progress?.(Math.min(blob.size, offset + 4 * 1024 * 1024));
       }
       await writer.close(); streamed.set(blob, name);
+      await verifyModel(await (await dir.getFileHandle(name)).getFile(), signal, progress, descriptor);
     } catch (error) { await writer?.abort().catch(() => {}); await dir.removeEntry(name).catch(() => {}); throw error; }
   }
   const db = await database();

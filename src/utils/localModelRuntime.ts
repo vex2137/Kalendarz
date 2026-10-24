@@ -5,7 +5,7 @@ import { recordModelMetric, recordModelState, type ModelMetric } from './modelDi
 import { activeModel, DEFAULT_MODEL, PREFERRED_MODEL, hasModelSelection, findModel, persistModelSelection } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
-export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; error?: string; errorDetail?: string; modelId: string }
+export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; importing?: boolean; error?: string; errorDetail?: string; modelId: string }
 const operationMarker = 'calendar_model_operation_v1';
 const initialModelId = activeModel().id;
 let recoveryRequired = false;
@@ -107,7 +107,7 @@ export async function checkLocalModel() {
   } catch (error) { if(status.modelId===descriptor.id && !loading && !engine) update({ phase:'error', error:runtimeError(error), loaded:false,...(error instanceof Error && ['model-size','model-checksum'].includes(error.message)?{installed:false}:{}) }); }
 }
 
-export async function installLocalModel(file?: Blob) {
+export async function installLocalModel(file?: Blob | { url: string; bytes: number }) {
   if (operation || transition) return;
   transition = true;
   try { await unloadLocalModel(); } catch (error) { transition = false; throw error; }
@@ -115,18 +115,25 @@ export async function installLocalModel(file?: Blob) {
   const controller = operation = new AbortController();
   const previouslyInstalled = status.installed;
   let blob: Blob | undefined;
-  update({ phase: file ? 'verifying' : 'downloading', progress: 0, error: undefined });
+  update({ phase: file instanceof Blob ? 'verifying' : 'downloading', importing: Boolean(file), progress: 0, error: undefined });
   try {
-    await recoverSavedModel(descriptor, controller.signal);
+    const existing = await recoverSavedModel(descriptor, controller.signal).catch(error => { if (error instanceof Error && ['model-size','model-checksum'].includes(error.message)) return undefined; throw error; });
+    // A second install request adopts verified bytes instead of downloading/copying again.
+    if (!file && (existing || descriptor.bundled && await bundledModelAvailable(descriptor))) {
+      if (existing) await verifyModel(existing, controller.signal, undefined, descriptor);
+      update({phase:'installed',installed:true,loaded:false,progress:100,error:undefined});
+      return;
+    }
     await cleanPartialModels(descriptor);
-    blob = file || await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
+    if(file && !(file instanceof Blob) && file.bytes !== descriptor.bytes) throw new Error('model-size');
+    blob = file instanceof Blob ? file : await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), file ? {...descriptor,url:file.url} : descriptor);
     update({ phase: 'verifying', progress: 0 });
     await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
-    await saveModel(blob, controller.signal, descriptor);
+    await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}));
     update({ phase: 'installed', installed: true, loaded:false, progress: 100, error:undefined,errorDetail:undefined });
   } catch (error) {
     update({ phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : error instanceof Error ? error.message : 'model-download' });
-  } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; transition = false; } }
+  } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; transition = false; update({importing:false}); } }
 }
 
 export async function unloadLocalModel() {

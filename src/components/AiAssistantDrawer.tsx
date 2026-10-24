@@ -13,13 +13,17 @@ import { modelErrorText } from '../utils/aiSettingsText';
 import { detectAssistantLanguage } from '../utils/assistantLanguage';
 import { recordAssistantUiCommit, observeAssistantSession, markAssistantInputReady } from '../utils/modelDiagnostics';
 import { assistantUiText } from '../utils/assistantUiText';
-import { findModel, shortModelName } from '../utils/modelRegistry';
+import { findModel } from '../utils/modelRegistry';
 import { chatMessages, createOrReuseEmptyChat, getChat, rememberChat, resolveActiveChat, saveChat } from '../utils/chatHistory';
 import { ChatHistoryPanel } from './ChatHistoryPanel';
+import { aiInterfaceText } from '../utils/aiInterfaceText';
+import { useAssistantBackground } from '../utils/assistantBackground';
+import { QuickModelMenu } from './QuickModelMenu';
 import { MarkdownMessage } from './MarkdownMessage';
 import { getTranslation, AppLanguage } from '../utils/i18n';
 import {
   X,
+  Minus,
   Sparkles,
   Send,
   Cpu,
@@ -53,6 +57,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   language = 'en',
 }) => {
   const t = getTranslation(language);
+  const view = aiInterfaceText(language);
+  const background = useAssistantBackground();
+  const minimized = useRef(false);
+  const savedScroll = useRef<number | undefined>(undefined);
+  const historyInitialized = useRef(false);
+  const [quickModelOpen, setQuickModelOpen] = useState(false);
   const model = useSyncExternalStore(subscribeModel, modelStatus);
   const modelText = localModelText(language);
   const ui = assistantUiText(language);
@@ -120,24 +130,26 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   useEffect(() => { if (isOpen) return observeAssistantSession(); }, [isOpen]);
   useEffect(() => { if (isOpen && model.installed) markAssistantInputReady(); }, [isOpen, model.installed]);
   useEffect(() => {
-    if (presentationRef.current !== undefined) {
+    if (isOpen && presentationRef.current !== undefined) {
       recordAssistantUiCommit(presentationRef.current);
       presentationRef.current = undefined;
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    if (isOpen && !historyOpen && !settingsOpen) {
-      const timer = setTimeout(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-        inputRef.current?.focus();
-      }, 100);
-      return () => clearTimeout(timer);
     }
   }, [messages, isOpen]);
 
   useEffect(() => {
+    if (isOpen && !historyOpen && !settingsOpen) {
+      chatEndRef.current?.scrollIntoView({behavior:'instant'});
+    }
+  }, [messages]);
+  useLayoutEffect(() => {
     if (!isOpen) return;
+    const container=document.getElementById('ai-chat-messages');
+    if (container && savedScroll.current !== undefined) container.scrollTop=savedScroll.current;
+    inputRef.current?.focus({preventScroll:true});
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || historyInitialized.current) return;
     let current = true;
     setHistoryReady(false);
     void (async () => {
@@ -148,16 +160,16 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       chatIdRef.current = chat.id; rememberChat(chat.id);
       conversationRef.current = chat.context || {turns:stored.filter(m=>m.role!=='system'&&m.id!=='msg-welcome').slice(-2).map(m=>({role:m.role as 'user'|'assistant',content:m.content.slice(0,600)}))};
       setMessages(stored.length ? stored : [defaultMsg]);
-      setAddedEventsIds([]); setHistoryReady(true);
+      setAddedEventsIds([]); setHistoryReady(true); historyInitialized.current=true;
     })().catch(() => { if (current) setHistoryError(true); });
     return () => { current = false; };
   }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) void checkLocalModel();
-    setAssistantActive(isOpen && aiSettings.enabled);
-    return () => setAssistantActive(false);
-  }, [isOpen, aiSettings.enabled]);
+    setAssistantActive(aiSettings.enabled && (isOpen || minimized.current && background && isProcessing));
+  }, [isOpen, aiSettings.enabled, background, isProcessing]);
+  useEffect(() => () => { cancelModelOperation(); setAssistantActive(false); }, []);
 
   if (!isOpen) return null;
 
@@ -290,9 +302,16 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
+  const hideAssistant = (minimize: boolean) => {
+    savedScroll.current = document.getElementById('ai-chat-messages')?.scrollTop;
+    minimized.current = minimize;
+    setQuickModelOpen(false);
+    if (!minimize || !background) cancelModelOperation();
+    onClose();
+  };
   return (
     <Dialog
-      onClose={settingsOpen ? closeSettings : historyOpen ? closeHistory : onClose}
+      onClose={settingsOpen ? closeSettings : historyOpen ? closeHistory : () => hideAssistant(false)}
       label={settingsOpen ? aiSettingsText(language).settings : historyOpen ? ui.conversations : t.aiAssistantTitle}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end"
     >
@@ -300,13 +319,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         id="drawer-ai-assistant"
         inert={historyOpen || settingsOpen}
         aria-hidden={historyOpen || settingsOpen || undefined}
-        className={`theme-surface w-full max-w-md h-full shadow-2xl flex flex-col motion-safe:animate-in motion-safe:slide-in-from-right duration-200 theme-border border-l ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
+        className={`theme-surface w-full sm:max-w-3xl h-full shadow-2xl flex flex-col motion-safe:animate-in motion-safe:slide-in-from-right duration-200 theme-border border-l ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
       >
         {/* Header */}
         <div id="ai-assistant-header" className="px-3 py-2 theme-border border-b theme-subtle flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-52">
-            <div className="w-8 h-8 rounded-xl bg-violet-600 text-white flex items-center justify-center shadow-xs shrink-0">
-              <Sparkles className="w-4 h-4" />
+            <div className="w-11 h-11 rounded-xl ai-primary flex items-center justify-center shadow-xs shrink-0">
+              <Sparkles className="w-6 h-6" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
@@ -316,19 +335,19 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               </div>
               <div className="flex items-center gap-1 text-[11px] theme-muted">
                 <Cpu className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span data-testid="model-header-name" className="truncate">{shortModelName(findModel(model.modelId))}</span>
+                <span data-testid="model-header-name" className="truncate">{findModel(model.modelId).name}</span>
                 <span className="shrink-0">· Offline</span>
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-1 ml-auto">
-            <button type="button" id="btn-ai-settings" aria-label={aiSettingsText(language).settings} title={aiSettingsText(language).settings} onClick={() => setSettingsOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-lg theme-muted theme-hover"><Settings className="w-6 h-6"/></button>
-            <button type="button" id="btn-ai-chat-history" aria-label={ui.conversations} title={ui.conversations} disabled={isProcessing || !historyReady} onClick={() => setHistoryOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-lg theme-muted theme-hover"><History className="w-6 h-6"/></button>
+            <button type="button" id="btn-ai-settings" aria-label={aiSettingsText(language).settings} title={aiSettingsText(language).settings} onClick={() => setSettingsOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><Settings className="w-6 h-6"/></button>
+            <button type="button" id="btn-ai-chat-history" aria-label={ui.conversations} title={ui.conversations} disabled={isProcessing || !historyReady} onClick={() => setHistoryOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><History className="w-6 h-6"/></button>
             <button
               type="button"
               onClick={handleClearChat}
-              className="w-11 h-11 flex items-center justify-center rounded-lg theme-muted theme-hover transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover transition-colors"
               id="btn-new-ai-chat"
               title={ui.newChat}
               aria-label={ui.newChat}
@@ -336,11 +355,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             >
               <MessageSquarePlus className="w-6 h-6" />
             </button>
+            <button type="button" id="btn-ai-quick-model" aria-label={view.switch} title={view.switch} aria-expanded={quickModelOpen} onClick={() => setQuickModelOpen(value => !value)} disabled={isProcessing} className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><Cpu className="w-6 h-6"/></button>
+            <button type="button" id="btn-minimize-ai-drawer" aria-label={view.minimize} title={view.minimize} onClick={() => hideAssistant(true)} className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><Minus className="w-6 h-6"/></button>
             <button
               id="btn-close-ai-drawer"
               aria-label={t.close}
-              onClick={onClose}
-              className="w-11 h-11 flex items-center justify-center rounded-lg theme-muted theme-hover transition-colors"
+              onClick={() => hideAssistant(false)}
+              className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover transition-colors"
               title={tr(language, 'Zamknij asystenta', 'Close assistant')}
             >
               <X className="w-6 h-6" />
@@ -348,6 +369,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </div>
         </div>
 
+        {quickModelOpen && <div className="px-3 py-2"><QuickModelMenu language={language} onClose={() => setQuickModelOpen(false)}/></div>}
         {historyError && <p role="alert" className="p-2 text-xs">{ui.historyError}</p>}
         {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelOperation}>{ui.cancel}</button></div>}
 
@@ -443,7 +465,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 <div
                   className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm shadow-xs ${
                     isUser
-                      ? 'theme-primary bg-blue-600 text-white rounded-tr-xs'
+                      ? 'ai-primary rounded-tr-xs'
                       : 'theme-surface theme-text theme-border border rounded-tl-xs'
                   }`}
                 >
@@ -463,7 +485,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                           {draft.recurrence && draft.recurrence !== 'NONE' && <p>{tr(language, 'Powtarzanie:', 'Repeats:')} {({ DAILY: tr(language, 'codziennie', 'daily'), WEEKLY: tr(language, 'co tydzień', 'weekly'), MONTHLY: tr(language, 'co miesiąc', 'monthly') } as Record<string, string>)[draft.recurrence] || draft.recurrence}</p>}
                         </div>
                       ))}
-                      {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 theme-primary bg-blue-600 text-white rounded-xl disabled:opacity-50">
+                      {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 ai-primary rounded-xl disabled:opacity-50">
                         {plan.kind === 'delete' ? modelText.delete : tr(language, 'Zatwierdź wszystkie zmiany', 'Confirm all changes')}
                       </button>}
                     </div>
@@ -523,7 +545,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             id="btn-send-ai-message"
             onClick={() => handleSendMessage()}
             disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady}
-            className="p-2.5 theme-primary bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
+            className="p-2.5 ai-primary disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             <Send className="w-4 h-4" />
           </button>
