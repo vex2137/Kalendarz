@@ -2,7 +2,7 @@ name: Android AI diagnostics APK
 
 on:
   push:
-    branches: [optimize/lfm25-parser-runtime, feat/local-ai-models-history]
+    branches: [optimize/lfm25-parser-runtime, feat/local-ai-models-history, fix/ai-140-diagnostics]
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 
@@ -11,9 +11,9 @@ permissions:
 
 jobs:
   diagnostics:
-    if: github.ref == 'refs/heads/optimize/lfm25-parser-runtime' || github.ref == 'refs/heads/feat/local-ai-models-history'
+    if: github.ref == 'refs/heads/optimize/lfm25-parser-runtime' || github.ref == 'refs/heads/feat/local-ai-models-history' || github.ref == 'refs/heads/fix/ai-140-diagnostics'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,15 +51,33 @@ jobs:
           ASSISTANT_TEST_MODEL: '1'
         run: node tests/assistant-routing-browser.cjs
       - name: Test durable history and model switching using APK JavaScript
-        if: github.ref == 'refs/heads/feat/local-ai-models-history'
+        if: github.ref != 'refs/heads/optimize/lfm25-parser-runtime'
         env:
           ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
           HISTORY_BROWSER_REPORT: diagnostics-artifact/history-browser-results.json
         run: node tests/assistant-history-browser.cjs
+      - name: Test AI settings navigation using APK JavaScript
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+          SETTINGS_BROWSER_REPORT: diagnostics-artifact/settings-browser-results.json
+        run: node tests/assistant-settings-browser.cjs
+      - name: Recheck pinned Hugging Face source metadata
+        run: |
+          node --import tsx scripts/verify-model-sources.ts
+          cp model-source-recheck.json diagnostics-artifact/model-source-recheck.json
+      - name: Fetch verified IQ4_XS for system-file import acceptance
+        run: node --import tsx scripts/fetch-candidate-model.ts qwen3.5-0.8b-iq4-xs "$RUNNER_TEMP/import.gguf"
+      - name: Real optional model download, import and offline conversation through APK UI
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+          MODEL_IMPORT_FILE: ${{ runner.temp }}/import.gguf
+          MODEL_INSTALL_REPORT: diagnostics-artifact/model-install-ui-results.json
+        run: node tests/model-install-ui-browser.cjs
       # GitHub wraps these files in a downloadable ZIP. APK/GGUF never enter Git.
       - name: Upload diagnostics ZIP artifact
         id: upload
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Calendar-AI-diagnostics-android
           path: diagnostics-artifact/

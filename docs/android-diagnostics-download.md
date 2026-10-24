@@ -1,5 +1,10 @@
 # Download the Android AI diagnostics build
 
+For the 1.4.0 AI Update candidate, follow [the acceptance checklist](ai-140-acceptance.md).
+Models and diagnostics now open in Assistant → AI settings, in separate tabs.
+The source branch is `fix/ai-140-diagnostics`; the base package version remains
+1.3.1-diagnostics until an official release is authorized.
+
 Open the successful **Android AI diagnostics APK** run on GitHub Actions while
 signed in to GitHub. Under **Artifacts**, download
 **Calendar-AI-diagnostics-android**. GitHub provides a ZIP containing
