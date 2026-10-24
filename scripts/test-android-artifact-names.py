@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 import json
+import io
 from pathlib import Path
 import subprocess
 import sys
@@ -34,6 +35,35 @@ class NamingTests(unittest.TestCase):
     def test_text_replace_refuses_apk_upload_or_delete(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(AssertionError): assets.replace_text({},None,'app.apk',b'x',Path(directory))
+
+    def test_checksum_download_uses_immutable_asset_cache_key(self):
+        content=b'new checksum text'
+        asset={'id':42,'name':'SHA256SUMS.txt','size':len(content),'digest':'sha256:'+hashlib.sha256(content).hexdigest(),'browser_download_url':'https://github.com/example/release/SHA256SUMS.txt'}
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(assets.urllib.request,'urlopen',return_value=io.BytesIO(content)) as request:
+                assets.download(asset,Path(directory)/'sums')
+                self.assertTrue(request.call_args.args[0].full_url.endswith('?asset_id=42'))
+            with patch.object(assets.urllib.request,'urlopen',return_value=io.BytesIO(b'old')):
+                with self.assertRaises(AssertionError):assets.download(asset,Path(directory)/'stale')
+
+    def test_failed_checksum_verification_restores_original(self):
+        old_data=b'old';new_data=b'new contents'
+        old={'id':1,'name':'SHA256SUMS.txt','size':len(old_data),'digest':'sha256:'+hashlib.sha256(old_data).hexdigest()}
+        stored={1:dict(old)}
+        def fake_api(path,method='GET',value=None,binary=None):
+            if method=='POST':
+                stored[2]={'id':2,'name':'staged','size':len(binary),'digest':'sha256:'+hashlib.sha256(binary).hexdigest()}
+                return dict(stored[2])
+            asset_id=int(path.rsplit('/',1)[1])
+            if method=='PATCH':stored[asset_id].update(value);return dict(stored[asset_id])
+            if method=='DELETE':del stored[asset_id];return None
+            raise AssertionError(method)
+        def fake_download(asset,target):
+            if asset['id']==2:raise AssertionError('stale CDN response')
+            target.write_bytes(old_data)
+        with tempfile.TemporaryDirectory() as directory, patch.object(assets,'api',side_effect=fake_api), patch.object(assets,'download',side_effect=fake_download):
+            with self.assertRaises(AssertionError):assets.replace_text({'upload_url':'https://uploads.github.com/example{?name}'},old,'SHA256SUMS.txt',new_data,Path(directory))
+        self.assertEqual(stored,{1:old})
 
     def test_production_manifest_rejects_test_and_mixed_apks(self):
         package=json.loads((ROOT/'package.json').read_text());version=package['version'];prefix=package['productName']+'-'+version

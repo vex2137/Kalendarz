@@ -47,3 +47,9 @@ Downloads: [1.4.0](https://github.com/vex2137/Kalendarz/releases/download/v1.4.0
 The workflow regenerates complete checksum files from uploaded artifact digests, updates the 1.3.1 APK checksum sidecar and release download instructions, and asserts that all non-Android installer IDs, names, sizes and hashes remain unchanged. Old checksum text and release metadata are backed up in the audit artifact. APKs are never re-uploaded, re-signed or deleted; test/debug and unclassified files are retained. Re-running the reviewed plan is safe.
 
 Application code, package versions and existing Git tags are unchanged. Historical tagged sources retain their historical filenames; current download instructions use the corrected names. No installer builds are needed for this audit.
+
+## Completed verification
+
+[Maintenance run 40132922166](https://github.com/vex2137/Kalendarz/actions/runs/40132922166) passed. Its [audit artifact](https://github.com/vex2137/Kalendarz/actions/runs/40132922166/artifacts/12575771163) contains the before/after metadata, certificate/hash report and original checksum text. The first attempt detected stale CDN content while verifying checksum replacement and restored the old checksum file; the corrected downloader binds the request cache key to the immutable asset ID. The resumed run completed and verified each renamed APK again.
+
+An independent post-run comparison preserved every original binary asset ID, size and SHA-256. Exactly three APK names changed; 51 other non-checksum asset names stayed fixed. Public downloads of the complete checksum files now verify seven rows for 1.4.0 and eight rows for 1.3.1; the renamed 1.3.1 APK sidecar also verifies. Six focused local naming/checksum safety tests passed, including rejection of mixed test/production output, stale-content rejection and checksum rollback. Existing Web/Electron CI also passed. No application code, version, Git tag or published installer binary was changed.
