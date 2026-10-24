@@ -72,6 +72,8 @@ jobs:
         run: node tests/assistant-settings-browser.cjs
       - name: Verify native generation survives panel minimization
         timeout-minutes: 4
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
         run: node tests/assistant-minimize-browser.cjs
       - name: Recheck pinned Hugging Face source metadata
         run: |

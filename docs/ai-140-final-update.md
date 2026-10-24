@@ -30,3 +30,9 @@ The release workflow builds Android, Windows, AppImage, Flatpak and Web/PWA. Pub
 4. Enable background work, send a question, minimize, use the calendar and reopen. Expect the same response/job; draft and scroll should survive. Leaving the Android app may stop generation. Disable background work to stop generation when minimizing.
 5. Check `18-20`, `studying ... 4-5 pk` → `pm`, and `O jak super dodaj wydarzenie na jutro od 8 do 16 o nazwie "nauka rozprawki"`. Confirm the proposed date/time before saving. Reopen history and ensure no old action can replay.
 6. Export diagnostics for any failure. Physical POCO acceptance of this final compilation remains a user/device check; cloud results must not be presented as that check.
+
+## Production signing blocker observed
+
+[Release run 40126056209](https://github.com/vex2137/Kalendarz/actions/runs/40126056209), Android job `120967591313`, failed its early signing gate: `Missing CALENDAR_ANDROID_KEYSTORE_BASE64: public APKs must use the permanent signing key, never a fresh debug key`. The managed environment also has no configured signing credential. No replacement key was generated and no official 1.4.0 APK or release was published.
+
+To resume, restore the **existing 1.3.1 key**, not a new identity, in repository Actions secrets: `CALENDAR_ANDROID_KEYSTORE_BASE64`, `CALENDAR_ANDROID_STORE_PASSWORD`, `CALENDAR_ANDROID_KEY_ALIAS`, `CALENDAR_ANDROID_KEY_PASSWORD`. Then run the production workflow on the final commit, require the certificate check and in-place update test to pass, and publish only the verified package set. The private key belongs in the repository's secret configuration, never in Git or release assets.

@@ -3,7 +3,7 @@ const {spawn}=require('node:child_process');
 const {existsSync}=require('node:fs');
 const {chromium}=require('playwright');
 (async()=>{
- const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host=127.0.0.1','--port=4190','--strictPort'],{stdio:'ignore'});let browser;
+ const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host=127.0.0.1','--port=4190','--strictPort',...(process.env.ASSISTANT_TEST_WEB_DIR?['--outDir',process.env.ASSISTANT_TEST_WEB_DIR]:[])],{stdio:'ignore'});let browser;
  try {
   for(let i=0;i<100;i++){try{if((await fetch('http://127.0.0.1:4190')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
   browser=await chromium.launch({headless:true,...(existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});
