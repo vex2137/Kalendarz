@@ -1,0 +1,49 @@
+name: Bilingual AI quality benchmarks
+on:
+  push:
+    branches: [feat/local-ai-models-history]
+    paths: ['tests/model-quality.cjs', '.github/workflows/ai-bilingual-quality.yml']
+  workflow_dispatch:
+    inputs:
+      preset:
+        description: 'Smoke (10 paired inputs) or full corpus (200); full runs can be slow'
+        type: choice
+        options: [smoke, corpus]
+        default: smoke
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [lfm2.5-350m-q4-k-m, lfm2.5-2.6b-q4-k-m, qwen3.5-0.8b-q4-k-m, qwen3.5-0.8b-iq4-xs]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: '1.4.3'}
+      - run: bun install --frozen-lockfile
+      - run: npm run build:evaluation
+      - name: Prepare exact candidate weights
+        if: matrix.model != 'lfm2.5-350m-q4-k-m'
+        env:
+          CANDIDATE_MODEL_ID: ${{ matrix.model }}
+        run: |
+          node --import tsx scripts/fetch-candidate-model.ts "$CANDIDATE_MODEL_ID" "$RUNNER_TEMP/candidate.gguf"
+          ln -s "$RUNNER_TEMP/candidate.gguf" dist/benchmark-model.gguf
+      - run: npx playwright install --with-deps chromium
+      - name: Execute rules, raw LLM and complete assistant separately
+        env:
+          CANDIDATE_MODEL_ID: ${{ matrix.model }}
+          QUALITY_PRESET: ${{ inputs.preset || 'smoke' }}
+        run: node tests/model-quality.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bilingual-${{ matrix.model }}-${{ inputs.preset || 'smoke' }}
+          path: quality-results.json
+          if-no-files-found: error
