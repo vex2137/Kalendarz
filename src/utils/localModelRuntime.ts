@@ -1,11 +1,12 @@
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, saveModel, verifyModel } from './localModelStore';
+import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, saveModel, verifyModel, discardDownloadedModel } from './localModelStore';
 import { recordModelMetric, type ModelMetric } from './modelDiagnostics';
+import { activeModel, DEFAULT_MODEL, findModel, persistModelSelection } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
-export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; bundled?: boolean; error?: string }
-let status: ModelStatus = { phase: 'checking', progress: 0, installed: false };
+export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; bundled?: boolean; error?: string; modelId: string }
+let status: ModelStatus = { phase: 'checking', progress: 0, installed: false, modelId: activeModel().id };
 const listeners = new Set<() => void>();
 export const modelStatus = () => status;
 export const subscribeModel = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
@@ -21,6 +22,21 @@ let releaseRequested = false;
 let assistantActive = false;
 let lifecycleInstalled = false;
 let actualThreads = 1;
+let transition = false;
+export async function selectLocalModel(id: string) {
+  const descriptor = findModel(id);
+  if (descriptor.id !== id) throw new Error('model-unknown');
+  if (operation || transition) throw new Error('model-busy');
+  if (status.modelId === id) return;
+  transition = true;
+  try {
+    await unloadLocalModel();
+    persistModelSelection(descriptor);
+    update({ modelId: id, phase: 'checking', progress: 0, installed: false, bundled: false, error: undefined });
+    await checkLocalModel();
+  } finally { transition = false; }
+}
+export const restoreFallbackModel = () => selectLocalModel(DEFAULT_MODEL.id);
 export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); };
 const idleDelay = () => assistantActive && !document.hidden ? 5 * 60_000 : 30_000;
 function scheduleRelease() {
@@ -31,7 +47,7 @@ export function touchLocalModel() { if ((engine || loading) && !operation) sched
 
 // Shared initialization lets a request join a preload rather than fail with model-busy.
 export async function prepareLocalModel() {
-  if (operation || document.hidden) return;
+  if (operation || transition || document.hidden) return;
   const started = performance.now();
   const metric: ModelMetric = { route: 'preload', totalMs: 0 };
   try { await checkLocalModel(); if (status.installed && !engine) await ensureEngine(metric); }
@@ -54,26 +70,31 @@ export function setAssistantActive(active: boolean) {
 export async function checkLocalModel() {
   if (status.phase !== 'checking') return;
   try {
-    const bundled = await bundledModelAvailable();
-    const installed = bundled || Boolean(await savedModel());
+    const descriptor = findModel(status.modelId);
+    const bundled = await bundledModelAvailable(descriptor);
+    const installed = bundled || Boolean(await savedModel(descriptor));
     if (status.phase === 'checking') update({ phase: installed ? 'installed' : 'missing', installed, bundled });
   } catch { update({ phase: 'error', error: 'model-storage' }); }
 }
 
 export async function installLocalModel(file?: Blob) {
-  if (operation) return;
+  if (operation || transition) return;
+  transition = true;
+  try { await unloadLocalModel(); } catch (error) { transition = false; throw error; }
+  const descriptor = findModel(status.modelId);
   const controller = operation = new AbortController();
   const previouslyInstalled = status.installed;
+  let blob: Blob | undefined;
   update({ phase: file ? 'verifying' : 'downloading', progress: 0, error: undefined });
   try {
-    const blob = file || await downloadModel(controller.signal, n => update({ progress: n / LOCAL_MODEL.bytes * 100 }));
+    blob = file || await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     update({ phase: 'verifying', progress: 0 });
-    await verifyModel(blob, controller.signal, n => update({ progress: n / LOCAL_MODEL.bytes * 100 }));
-    await saveModel(blob, controller.signal);
+    await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
+    await saveModel(blob, controller.signal, descriptor);
     update({ phase: 'installed', installed: true, progress: 100 });
   } catch (error) {
     update({ phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof Error ? error.message : 'model-download' });
-  } finally { operation = undefined; }
+  } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; transition = false; } }
 }
 
 export async function unloadLocalModel() {
@@ -96,8 +117,10 @@ async function disposeEngine() {
 export async function deleteLocalModel() {
   if (operation) return;
   await unloadLocalModel();
-  await removeSavedModel();
-  update({ phase: 'missing', installed: false, progress: 0, error: undefined });
+  const descriptor = findModel(status.modelId);
+  await removeSavedModel(descriptor);
+  const bundled = await bundledModelAvailable(descriptor);
+  update({ phase: bundled ? 'installed' : 'missing', installed: bundled, bundled, progress: 0, error: undefined });
 }
 
 function assetUrl(path: string) {
@@ -115,12 +138,14 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
     let instance: Wllama | undefined;
     try {
       update({ phase: 'loading', error: undefined });
+      const descriptor = findModel(status.modelId);
+      metric.modelId = descriptor.id;
       let started = performance.now();
-      const blob = await savedModel() || (await bundledModelAvailable() ? await loadBundledModel(controller.signal) : undefined);
+      const blob = await savedModel(descriptor) || (await bundledModelAvailable(descriptor) ? await loadBundledModel(controller.signal) : undefined);
       metric.storageMs = performance.now() - started;
       if (!blob) { update({ installed: false }); throw new Error('model-missing'); }
       started = performance.now();
-      await verifyModel(blob, controller.signal);
+      await verifyModel(blob, controller.signal, undefined, descriptor);
       metric.verifyMs = performance.now() - started;
       started = performance.now();
       const [{ Wllama }, wasm, compatWasm, compatWorker] = await Promise.all([
@@ -138,7 +163,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
         instance = new Wllama({ default: assetUrl(wasm.default) }, { suppressNativeLog: true, logger: { log() {}, debug() {}, warn() {}, error() {} } });
         instance.setCompat({ wasm: assetUrl(compatWasm.default), worker: { code: compatWorker.default } }, 'firefox_safari');
         try {
-          await instance.loadModel([blob], { n_ctx: 2048, n_batch: 128, n_ubatch: 64, n_parallel: 1, n_gpu_layers: 0, n_threads: threads, cache_type_k: 'f16', cache_type_v: 'f16', warmup: true });
+          await instance.loadModel([blob], { n_ctx: descriptor.maxContext, n_batch: 128, n_ubatch: 64, n_parallel: 1, n_gpu_layers: 0, n_threads: threads, cache_type_k: 'f16', cache_type_v: 'f16', warmup: true });
           actualThreads = instance.isMultithread() ? threads : 1;
           break;
         } catch (error) { await instance.exit().catch(() => {}); instance = undefined; if (threads === 1 || controller.signal.aborted) throw error; }
@@ -157,17 +182,20 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
   try { return await loading; } finally { loading = undefined; loadController = undefined; }
 }
 
-export async function inferCalendarJson(system: string, prompt: string, schema: unknown, history: { role: 'user' | 'assistant'; content: string }[] = [], options: { maxTokens?: number; threads?: 1 } = {}): Promise<string> {
-  if (operation) throw new Error('model-busy');
+export interface InferenceOptions { maxTokens?: number; threads?: 1; timeoutMs?: number }
+export const inferCalendarJson = (system: string, prompt: string, schema: unknown, history: { role: 'user' | 'assistant'; content: string }[] = [], options: InferenceOptions = {}) => inferLocalCompletion(system, prompt, schema, history, options);
+export const inferLocalText = (system: string, prompt: string, history: { role: 'user' | 'assistant'; content: string }[] = [], options: InferenceOptions = {}) => inferLocalCompletion(system, prompt, undefined, history, options);
+async function inferLocalCompletion(system: string, prompt: string, schema: unknown, history: { role: 'user' | 'assistant'; content: string }[] = [], options: InferenceOptions = {}): Promise<string> {
+  if (operation || transition) throw new Error('model-busy');
   const controller = operation = new AbortController();
   releaseRequested = false;
   clearTimeout(idleTimer);
   clearTimeout(preloadTimer);
   const started = performance.now();
-  const metric: ModelMetric = { route: 'model', totalMs: 0 };
+  const metric: ModelMetric = { route: 'model', modelId: status.modelId, totalMs: 0 };
   const abortLoad = () => loadController?.abort();
   controller.signal.addEventListener('abort', abortLoad);
-  const timeout = setTimeout(() => controller.abort(), 120_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? (status.modelId === DEFAULT_MODEL.id ? 120_000 : 300_000));
   try {
     const current = await ensureEngine(metric, options.threads);
     controller.signal.throwIfAborted();
@@ -176,7 +204,8 @@ export async function inferCalendarJson(system: string, prompt: string, schema: 
     const result = await current.createChatCompletion({
       messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: prompt }],
       max_tokens: options.maxTokens ?? (/opis|description|описан|beschreib/iu.test(prompt) ? 384 : 256), temperature: 0, top_k: 50, penalty_repeat: 1.05,
-      response_format: { type: 'json_schema', json_schema: { name: 'calendar_command', schema, strict: true } },
+      ...(schema ? { response_format: { type: 'json_schema' as const, json_schema: { name: 'calendar_command', schema, strict: true } } } : {}),
+      chat_template_kwargs: { enable_thinking: false },
       abortSignal: controller.signal,
       stream: true,
     });

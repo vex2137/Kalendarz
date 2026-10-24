@@ -19,7 +19,7 @@ export async function runModelAssistant(query: string, events: CalendarEvent[], 
   const trace: AssistantTurnMetric = { id: ++requestSequence, uiLanguage, language, startedAt: started,
     quickChecked: false, quickMatched: false, rulesMatched: false, totalMs: 0,
     normalized: normalized !== query, inputLength: query.length,
-    nonAsciiCodePoints: [...query].filter(c => c.codePointAt(0)! > 127).map(c => `U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`),
+    nonAsciiCount: [...query].filter(c => c.codePointAt(0)! > 127).length,
     modelPhaseAtSend: modelStatus().phase };
   try {
     const result = await runDetectedAssistant(normalized, events, language, now, context, preferences, trace);

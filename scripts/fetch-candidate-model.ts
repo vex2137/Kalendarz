@@ -1,0 +1,15 @@
+import { AI_MODELS } from '../src/utils/modelRegistry';
+import { createReadStream, mkdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+const model = AI_MODELS.find(model => model.id === process.argv[2]);
+if (!model) throw new Error('Unknown verified candidate');
+const destination = path.resolve(process.argv[3]);
+mkdirSync(path.dirname(destination), { recursive: true });
+execFileSync('curl', ['--fail', '--location', '--retry', '3', '--max-time', '1800', '--output', destination, model.url], { stdio: 'inherit' });
+if (statSync(destination).size !== model.bytes) throw new Error('Model byte size mismatch');
+const hash = createHash('sha256');
+for await (const chunk of createReadStream(destination)) hash.update(chunk);
+if (hash.digest('hex') !== model.sha256) throw new Error('Model checksum mismatch');
+console.log(JSON.stringify({ id: model.id, bytes: model.bytes, sha256: model.sha256, verified: true }));

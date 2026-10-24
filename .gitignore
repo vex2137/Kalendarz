@@ -36,6 +36,8 @@ Thumbs.db
 # Generated bundled weights and private signing material
 public/models/
 diagnostics-artifact/
+/candidate-results.json
+/model-research.json
 *.keystore
 *.jks
 *.p12
