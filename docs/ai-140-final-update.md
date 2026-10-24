@@ -54,3 +54,17 @@ The final branch contains PR #7 source `cc2cbfbd4715bfafa359ad65fba3fdbf4019641d
 ## Background and resource boundary
 
 The engine runs in a WebAssembly worker, with bounded context/output, at most four CPU threads and idle memory release. Android memory-pressure signals dispose/cancel the engine without deleting weights; app visibility changes stop current work and allow safe reload on return. System thermal throttling still applies; there is no calibrated app-level thermal controller or physical thermal validation. A foreground service alone would not make this WebView worker a reliable native inference service. A full native backend/service migration is deferred; the delivered switch controls real continuation inside the running calendar.
+
+## Final downloadable candidate
+
+[Run 40127458201](https://github.com/vex2137/Kalendarz/actions/runs/40127458201) **passed every step** at source `22180dc8006d640c2d549556e8d0b5a56d57d520`, including the final bundled-import guard and single offline indicator. [Download diagnostic ZIP](https://github.com/vex2137/Kalendarz/actions/runs/40127458201/artifacts/12574185276) (236,167,429 bytes), SHA-256:
+
+```text
+ec366c4a47e6de44912c605b604a27595f43434d09065dc230a19ca501870cfb
+```
+
+The ZIP contains the APK and its own checksum/provenance files. APK signature, separate diagnostic application ID, version, embedded GGUF hash and license were verified; APK size is 236,059,839 bytes. It is a **debug-signed diagnostic candidate**, not an official update for 1.3.1. Existing diagnostic builds may have a different test certificate; do not remove or clear the primary calendar to install this candidate.
+
+Final checks passed: 37 routed messages across all UI languages, durable history/JSON/write-failure protection, eight settings combinations, real 350M generation across minimization, exact Q4 download/import/rejected-incompatible-file/offline conversation, Q4 reuse after browser and RAM reload, and native fallback to 350M. Native cold probes (Linux runner, including load/verification) took 14.628 s for Q4 after browser reload, 14.512 s for Q4 reloading existing OPFS, and 14.613 s for bundled 350M. Both Q4 probes answered `4`; 350M answered `Two plus two equals four.` The UI Q4 reply took about 21.5 s including load. These are genuine native completions, not quick/rules timings or physical POCO measurements.
+
+Web and Linux Electron checks also passed at the same source. Subsequent documentation-only commits do not change the embedded APK source. **Official v1.4.0 remains unpublished because the permanent Android signing key is unavailable; production signature compatibility and the prepared official in-place migration test remain unverified.**
