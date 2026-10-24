@@ -97,13 +97,14 @@ export async function checkLocalModel() {
     if (!hasModelSelection() && descriptor.id === DEFAULT_MODEL.id && await savedModel(PREFERRED_MODEL).catch(()=>undefined)) {
       if (status.modelId !== descriptor.id || status.phase !== phaseAtStart) return;
       persistModelSelection(PREFERRED_MODEL);
+      try { recoveryRequired=localStorage.getItem(operationMarker)===PREFERRED_MODEL.id; } catch {}
       update({modelId:PREFERRED_MODEL.id,phase:'checking',installed:false,loaded:false});
       return checkLocalModel();
     }
     const bundled = await bundledModelAvailable(descriptor);
     const installed = bundled || Boolean(await recoverSavedModel(descriptor));
     if (!engine && !loading && status.phase === phaseAtStart && status.modelId === descriptor.id) update({ phase: recoveryRequired || phaseAtStart === 'error' && installed ? 'error' : installed ? 'installed' : 'missing', installed, loaded:false, bundled });
-  } catch (error) { if(status.modelId===descriptor.id && !loading && !engine) update({ phase:'error', error:runtimeError(error), loaded:false }); }
+  } catch (error) { if(status.modelId===descriptor.id && !loading && !engine) update({ phase:'error', error:runtimeError(error), loaded:false,...(error instanceof Error && ['model-size','model-checksum'].includes(error.message)?{installed:false}:{}) }); }
 }
 
 export async function installLocalModel(file?: Blob) {

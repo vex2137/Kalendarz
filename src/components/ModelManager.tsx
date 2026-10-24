@@ -66,7 +66,7 @@ export function ModelManager({
   return (
     <div className="space-y-3" aria-label={text.models}>
       <h4 className="font-semibold">{text.models}</h4>
-      <p className="theme-muted">{modelLifecycleText(language).offer}</p>
+      {!installed.includes(PREFERRED_MODEL.id) && !(status.modelId===PREFERRED_MODEL.id&&status.installed) && <p className="theme-muted">{modelLifecycleText(language).offer}</p>}
       <form className="space-y-2" onSubmit={event => {
         event.preventDefault(); setError(undefined);
         try { setMatches(modelsForHuggingFaceLink(link).map(model => model.id)); }
@@ -79,6 +79,7 @@ export function ModelManager({
       </form>
       {[...AI_MODELS].sort((a,b)=>Number(b.id===PREFERRED_MODEL.id)-Number(a.id===PREFERRED_MODEL.id)).filter(model => !matches || matches.includes(model.id)).map((model) => {
         const active = status.modelId === model.id;
+        const onDisk = installed.includes(model.id) || active && status.installed;
         return (
           <article
             key={model.id}
@@ -93,7 +94,7 @@ export function ModelManager({
               {(model.bytes / 1_000_000).toFixed(1)} MB · {text.memory}: ~
               {model.estimatedRamMB} MB
             </p>
-            {installed.includes(model.id) && <p role="status">{settings.installed}</p>}
+            {onDisk && <p role="status">{settings.installed}</p>}
             {model.experimental && (
               <p className="theme-muted">{text.experimental}</p>
             )}
@@ -151,7 +152,7 @@ export function ModelManager({
                   </label>
                 </>
               )}
-              {!model.bundled && installed.includes(model.id) && !busy && (
+              {!model.bundled && onDisk && !busy && (
                 <button
                   type="button"
                   className="theme-border border rounded p-2"
