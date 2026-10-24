@@ -18,7 +18,7 @@ const base = 'http://127.0.0.1:4183';
     const external=[];
     await context.route('**/*', route => { if(new URL(route.request().url()).origin!==base) { external.push(route.request().url());return route.abort(); } return route.continue(); });
     const page=await context.newPage();
-    page.on('console',message=>{if(message.type()==='error')console.error('Engine:',message.text());});
+    page.on('console',message=>{if(['error','warning'].includes(message.type()))console.error('Engine:',message.text());});
     page.setDefaultTimeout(900000);
     await page.goto(base+'/tests/model-evaluation.html');
     await page.waitForFunction(()=>window.calendarEvaluation);
@@ -35,7 +35,9 @@ const base = 'http://127.0.0.1:4183';
         command=await runtime.inferCalendarJson('Extract a JSON calendar command.','Add event Test tomorrow at 14:00',{type:'object',properties:{action:{const:'create'},title:{type:'string'}},required:['action','title'],additionalProperties:false},[],{maxTokens:768,timeoutMs:600000});
       } catch(error) { return {id,status:'failed',platform:'cloud-chromium',physicalDevice:false,error:String(error),cold,warm,command,diagnostics:diagnosticsReport()}; }
       const diagnostics=diagnosticsReport();
-      const chat=await window.calendarEvaluation.runModelAssistant('Możemy po prostu pogadać?',[],'en',new Date(2026,9,24,10),{},window.calendarEvaluation.DEFAULT_PLANNING);
+      let chat;
+      try { chat=await window.calendarEvaluation.runModelAssistant('Możemy po prostu pogadać?',[],'en',new Date(2026,9,24,10),{},window.calendarEvaluation.DEFAULT_PLANNING); }
+      catch(error) { return {id,status:'failed',stage:'production-chat',platform:'cloud-chromium',physicalDevice:false,error:String(error),cold,warm,command,diagnostics:diagnosticsReport()}; }
       const chatMetric=diagnosticsReport().metrics.at(-1);
       const calendar=await window.calendarEvaluation.runModelAssistant('Dodaj wydarzenie Próba jutro o 9:00',[],'en',new Date(2026,9,24,10),{},window.calendarEvaluation.DEFAULT_PLANNING);
       await runtime.unloadLocalModel();

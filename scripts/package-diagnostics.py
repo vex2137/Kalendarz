@@ -65,5 +65,9 @@ with target.open('rb') as stream:
 }, indent=2) + '\n')
 shutil.copyfile(root / 'docs/android-diagnostics-download.md', destination / 'README.md')
 shutil.copyfile(root / 'docs/assistant-device-investigation.md', destination / 'assistant-device-investigation.md')
+for document in ['multimodel-progress.md', 'model-candidate-smoke.json', 'model-source-verification.json']:
+    path = root / 'docs' / document
+    if path.exists():
+        shutil.copyfile(path, destination / document)
 print(f'Verified signature, diagnostic package/version, embedded GGUF and license: {target.stat().st_size} bytes')
 print(f'Embedded JavaScript source commit: {build["commit"]}')

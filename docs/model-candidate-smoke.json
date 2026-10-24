@@ -1,0 +1,360 @@
+{
+  "actionsRun": 40086640905,
+  "sourceCommit": "8559a1e",
+  "physicalDevice": false,
+  "warning": "Compatibility probes on separate cloud runners, not a controlled phone comparison or a 200-case quality evaluation.",
+  "results": [
+    {
+      "id": "qwen3.5-0.8b-q4-k-m",
+      "status": "passed",
+      "platform": "cloud-chromium",
+      "physicalDevice": false,
+      "cold": "4",
+      "warm": "4",
+      "command": "{\n  \"action\": \"create\",\n  \"title\": \"Test tomorrow at 14:00\"\n}",
+      "diagnostics": {
+        "version": 2,
+        "build": {
+          "commit": "8559a1ed2cf71e9c9ad943074eb436af1328be80",
+          "branch": "feat/local-ai-models-history",
+          "version": "1.3.1",
+          "dirty": false,
+          "builtAt": "2026-10-24T10:37:36.670Z"
+        },
+        "capabilities": {
+          "isolated": true,
+          "sharedArrayBuffer": true,
+          "jspi": true,
+          "hardwareConcurrency": 4,
+          "deviceMemoryGB": 16,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+        },
+        "turns": [],
+        "metrics": [
+          {
+            "route": "model",
+            "modelId": "qwen3.5-0.8b-q4-k-m",
+            "totalMs": 16043.474999999977,
+            "storageMs": 2.7350000001024455,
+            "verifyMs": 7724.619999999995,
+            "initMs": 4951.7200000000885,
+            "loadMs": 12679.400000000023,
+            "firstTokenMs": 15927.520000000019,
+            "firstAnswerTokenMs": 15927.525000000023,
+            "promptMs": 3207.995,
+            "generationMs": 117.121,
+            "tokensPerSecond": 8.538178465006276,
+            "promptTokens": 42,
+            "cachedTokens": 0,
+            "completionTokens": 2,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          },
+          {
+            "route": "model",
+            "modelId": "qwen3.5-0.8b-q4-k-m",
+            "totalMs": 2744.5999999999767,
+            "loadMs": 0.03999999992083758,
+            "firstTokenMs": 2631.7949999999255,
+            "firstAnswerTokenMs": 2631.804999999935,
+            "promptMs": 2616.391,
+            "generationMs": 112.559,
+            "tokensPerSecond": 8.884229604029887,
+            "promptTokens": 37,
+            "cachedTokens": 0,
+            "completionTokens": 2,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          },
+          {
+            "route": "model",
+            "modelId": "qwen3.5-0.8b-q4-k-m",
+            "totalMs": 13897.469999999972,
+            "loadMs": 0.025000000023283064,
+            "firstTokenMs": 4042.8499999999767,
+            "firstAnswerTokenMs": 4042.8499999999767,
+            "promptMs": 3965.665,
+            "generationMs": 9854.18,
+            "tokensPerSecond": 2.739954009364554,
+            "promptTokens": 34,
+            "cachedTokens": 0,
+            "completionTokens": 28,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          }
+        ]
+      },
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      }
+    },
+    {
+      "id": "qwen3.5-0.8b-iq4-xs",
+      "status": "passed",
+      "platform": "cloud-chromium",
+      "physicalDevice": false,
+      "cold": "4",
+      "warm": "4",
+      "command": "{\n  \"action\": \"create\",\n  \"title\": \"Test Event Tomorrow at 14:00\"\n}",
+      "diagnostics": {
+        "version": 2,
+        "build": {
+          "commit": "8559a1ed2cf71e9c9ad943074eb436af1328be80",
+          "branch": "feat/local-ai-models-history",
+          "version": "1.3.1",
+          "dirty": false,
+          "builtAt": "2026-10-24T10:37:34.507Z"
+        },
+        "capabilities": {
+          "isolated": true,
+          "sharedArrayBuffer": true,
+          "jspi": true,
+          "hardwareConcurrency": 4,
+          "deviceMemoryGB": 16,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+        },
+        "turns": [],
+        "metrics": [
+          {
+            "route": "model",
+            "modelId": "qwen3.5-0.8b-iq4-xs",
+            "totalMs": 16976.014999999985,
+            "storageMs": 0.6749999999883585,
+            "verifyMs": 5566.7300000000105,
+            "initMs": 3787.25,
+            "loadMs": 9354.929999999993,
+            "firstTokenMs": 16764.899999999994,
+            "firstAnswerTokenMs": 16764.905,
+            "promptMs": 7378.225,
+            "generationMs": 211.365,
+            "tokensPerSecond": 4.731152272135878,
+            "promptTokens": 42,
+            "cachedTokens": 0,
+            "completionTokens": 2,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          },
+          {
+            "route": "model",
+            "modelId": "qwen3.5-0.8b-iq4-xs",
+            "totalMs": 6691.360000000015,
+            "loadMs": 0.03500000000349246,
+            "firstTokenMs": 6480.5350000000035,
+            "firstAnswerTokenMs": 6480.540000000008,
+            "promptMs": 6470.191,
+            "generationMs": 210.639,
+            "tokensPerSecond": 4.7474589226116715,
+            "promptTokens": 37,
+            "cachedTokens": 0,
+            "completionTokens": 2,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          },
+          {
+            "route": "model",
+            "modelId": "qwen3.5-0.8b-iq4-xs",
+            "totalMs": 25208.910000000003,
+            "loadMs": 0.024999999994179234,
+            "firstTokenMs": 9050.815000000002,
+            "firstAnswerTokenMs": 9050.815000000002,
+            "promptMs": 8998.809,
+            "generationMs": 16158.88,
+            "tokensPerSecond": 1.7327933619161724,
+            "promptTokens": 34,
+            "cachedTokens": 0,
+            "completionTokens": 29,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          }
+        ]
+      },
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      }
+    },
+    {
+      "id": "lfm2.5-350m-q4-k-m",
+      "status": "passed",
+      "platform": "cloud-chromium",
+      "physicalDevice": false,
+      "cold": "Two",
+      "warm": "4",
+      "command": "{\n  \"action\": \"create\",\n  \"title\": \"Test tomorrow at 14:00\"\n}",
+      "diagnostics": {
+        "version": 2,
+        "build": {
+          "commit": "8559a1ed2cf71e9c9ad943074eb436af1328be80",
+          "branch": "feat/local-ai-models-history",
+          "version": "1.3.1",
+          "dirty": false,
+          "builtAt": "2026-10-24T10:37:34.257Z"
+        },
+        "capabilities": {
+          "isolated": true,
+          "sharedArrayBuffer": true,
+          "jspi": true,
+          "hardwareConcurrency": 4,
+          "deviceMemoryGB": 16,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+        },
+        "turns": [],
+        "metrics": [
+          {
+            "route": "model",
+            "modelId": "lfm2.5-350m-q4-k-m",
+            "totalMs": 5368.010000000009,
+            "storageMs": 0.8549999999959255,
+            "verifyMs": 2309.564999999988,
+            "initMs": 2200.6949999999924,
+            "loadMs": 4511.365000000005,
+            "firstTokenMs": 5336.760000000009,
+            "firstAnswerTokenMs": 5336.764999999999,
+            "promptMs": 806.446,
+            "generationMs": 30.579,
+            "tokensPerSecond": 32.7021812354884,
+            "promptTokens": 40,
+            "cachedTokens": 0,
+            "completionTokens": 2,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          },
+          {
+            "route": "model",
+            "modelId": "lfm2.5-350m-q4-k-m",
+            "totalMs": 668.1149999999907,
+            "loadMs": 0.029999999998835847,
+            "firstTokenMs": 640.6100000000006,
+            "firstAnswerTokenMs": 640.6199999999953,
+            "promptMs": 636.429,
+            "generationMs": 27.265,
+            "tokensPerSecond": 36.677058499908306,
+            "promptTokens": 34,
+            "cachedTokens": 0,
+            "completionTokens": 2,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          },
+          {
+            "route": "model",
+            "modelId": "lfm2.5-350m-q4-k-m",
+            "totalMs": 1385.6600000000035,
+            "loadMs": 0.020000000004074536,
+            "firstTokenMs": 609.75,
+            "firstAnswerTokenMs": 609.7550000000047,
+            "promptMs": 594.88,
+            "generationMs": 775.635,
+            "tokensPerSecond": 29.653122925087185,
+            "promptTokens": 30,
+            "cachedTokens": 0,
+            "completionTokens": 24,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          }
+        ]
+      },
+      "quality": {
+        "polishArithmetic": false,
+        "englishArithmetic": true
+      }
+    },
+    {
+      "id": "lfm2.5-2.6b-q4-k-m",
+      "status": "passed",
+      "platform": "cloud-chromium",
+      "physicalDevice": false,
+      "cold": "4",
+      "warm": "4",
+      "command": "{\n  \"action\": \"create\",\n  \"title\": \"Test \" }",
+      "diagnostics": {
+        "version": 2,
+        "build": {
+          "commit": "8559a1ed2cf71e9c9ad943074eb436af1328be80",
+          "branch": "feat/local-ai-models-history",
+          "version": "1.3.1",
+          "dirty": false,
+          "builtAt": "2026-10-24T10:37:38.355Z"
+        },
+        "capabilities": {
+          "isolated": true,
+          "sharedArrayBuffer": true,
+          "jspi": true,
+          "hardwareConcurrency": 4,
+          "deviceMemoryGB": 16,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+        },
+        "turns": [],
+        "metrics": [
+          {
+            "route": "model",
+            "modelId": "lfm2.5-2.6b-q4-k-m",
+            "totalMs": 65105.399999999965,
+            "storageMs": 2.1000000000349246,
+            "verifyMs": 20076.380000000005,
+            "initMs": 4991.780000000028,
+            "loadMs": 25070.5,
+            "firstTokenMs": 34192.44,
+            "firstAnswerTokenMs": 64840.78999999998,
+            "promptMs": 9056.944,
+            "generationMs": 30916.8,
+            "tokensPerSecond": 2.070071934999741,
+            "promptTokens": 40,
+            "cachedTokens": 0,
+            "completionTokens": 65,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          },
+          {
+            "route": "model",
+            "modelId": "lfm2.5-2.6b-q4-k-m",
+            "totalMs": 18215.890000000014,
+            "loadMs": 0.015000000013969839,
+            "firstTokenMs": 7813.414999999979,
+            "firstAnswerTokenMs": 17956.17499999999,
+            "promptMs": 7807.755,
+            "generationMs": 10402.171,
+            "tokensPerSecond": 3.8453511291056452,
+            "promptTokens": 35,
+            "cachedTokens": 0,
+            "completionTokens": 41,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          },
+          {
+            "route": "model",
+            "modelId": "lfm2.5-2.6b-q4-k-m",
+            "totalMs": 218864.61999999994,
+            "loadMs": 0.014999999955762178,
+            "firstTokenMs": 6727.299999999988,
+            "firstAnswerTokenMs": 213763.47000000003,
+            "promptMs": 6697.515,
+            "generationMs": 212136.626,
+            "tokensPerSecond": 3.60616652779233,
+            "promptTokens": 30,
+            "cachedTokens": 0,
+            "completionTokens": 766,
+            "threads": 4,
+            "multithread": true,
+            "isolated": true
+          }
+        ]
+      },
+      "quality": {
+        "polishArithmetic": true,
+        "englishArithmetic": true
+      }
+    }
+  ]
+}

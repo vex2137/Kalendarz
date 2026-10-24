@@ -2,7 +2,7 @@ name: Android AI diagnostics APK
 
 on:
   push:
-    branches: [optimize/lfm25-parser-runtime]
+    branches: [optimize/lfm25-parser-runtime, feat/local-ai-models-history]
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   diagnostics:
-    if: github.ref == 'refs/heads/optimize/lfm25-parser-runtime'
+    if: github.ref == 'refs/heads/optimize/lfm25-parser-runtime' || github.ref == 'refs/heads/feat/local-ai-models-history'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -50,6 +50,12 @@ jobs:
           ASSISTANT_TEST_VIEWPORT: phone
           ASSISTANT_TEST_MODEL: '1'
         run: node tests/assistant-routing-browser.cjs
+      - name: Test durable history and model switching using APK JavaScript
+        if: github.ref == 'refs/heads/feat/local-ai-models-history'
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+          HISTORY_BROWSER_REPORT: diagnostics-artifact/history-browser-results.json
+        run: node tests/assistant-history-browser.cjs
       # GitHub wraps these files in a downloadable ZIP. APK/GGUF never enter Git.
       - name: Upload diagnostics ZIP artifact
         id: upload
