@@ -38,6 +38,7 @@ public/models/
 diagnostics-artifact/
 /candidate-results.json
 /model-research.json
+/quality-results.json
 *.keystore
 *.jks
 *.p12

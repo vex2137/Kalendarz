@@ -127,9 +127,10 @@ export async function saveChat(
       const previous = await tx.objectStore("messages").get([id, message.id]);
       const sequence = previous?.sequence ?? chat.nextSequence ?? 0;
       if (!previous) chat.nextSequence = sequence + 1;
+      const cleaned = cleanMessage(message, id);
       await tx
         .objectStore("messages")
-        .put({ ...cleanMessage(message, id), proposalSummary: cleanMessage(message,id).proposalSummary || previous?.proposalSummary, sequence });
+        .put({ ...cleaned, proposalSummary: cleaned.proposalSummary || previous?.proposalSummary, sequence });
     }
     const first = messages.find((message) => message.role === "user");
     if (chat.autoTitle && first) {

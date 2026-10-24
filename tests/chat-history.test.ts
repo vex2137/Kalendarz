@@ -49,7 +49,7 @@ test("search and rename operate on saved content; proposals cannot replay after 
   const message = {
     ...messages(1)[0],
     content: "Private dentist note",
-    suggestedPlan: { kind: "delete" as const, events: [], originals: [] },
+    suggestedPlan: { kind: "delete" as const, events: [{title:'Dentist',startDate:'2026-10-25',startTime:'10:00'}], originals: [] },
   };
   await saveChat(
     chat.id,
@@ -60,6 +60,9 @@ test("search and rename operate on saved content; proposals cannot replay after 
   await renameChat(chat.id, "Health");
   assert.equal((await listChats("dentist"))[0].title, "Health");
   assert.equal((await chatMessages(chat.id))[0].suggestedPlan, undefined);
+  assert.match((await chatMessages(chat.id))[0].proposalSummary!,/Dentist.*2026-10-25.*10:00/u);
+  await saveChat(chat.id,[{...message,suggestedPlan:undefined}],{},'lfm2.5-350m-q4-k-m');
+  assert.match((await chatMessages(chat.id))[0].proposalSummary!,/Dentist/u);
   assert.equal((await getChat(chat.id))?.context?.proposal, undefined);
   await deleteChat(chat.id);
   await saveChat(chat.id, [message], {}, "lfm2.5-350m-q4-k-m");

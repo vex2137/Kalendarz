@@ -14,7 +14,7 @@ export function summarizeBenchmarkRun(run: BenchmarkRun) {
       sum + (metric.tokensPerSecond || 0) * (metric.generationMs || 0),
     0,
   );
-  const modelResponses = run.results.filter((result) => Boolean(result.metric));
+  const modelResponses = run.results.filter((result) => Boolean(result.metric) && !result.error);
   const errors: Record<string, number> = {};
   for (const result of run.results)
     if (result.error) errors[result.error] = (errors[result.error] || 0) + 1;
