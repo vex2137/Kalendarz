@@ -1,0 +1,47 @@
+const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
+const { existsSync, writeFileSync } = require('node:fs');
+const { chromium } = require('playwright');
+const base='http://127.0.0.1:4184';
+(async()=>{
+  const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host=127.0.0.1','--port=4184','--strictPort',...(process.env.ASSISTANT_TEST_WEB_DIR?['--outDir',process.env.ASSISTANT_TEST_WEB_DIR]:[])],{stdio:'ignore'});
+  let browser;
+  try{
+    for(let i=0;i<100;i++){try{if((await fetch(base)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
+    browser=await chromium.launch({headless:true,...(existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});
+    const context=await browser.newContext({viewport:{width:393,height:851},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+    const external=[],errors=[];
+    await context.route('**/*',route=>{if(new URL(route.request().url()).origin!==base){external.push(route.request().url());return route.abort();}return route.continue();});
+    const page=await context.newPage();page.setDefaultTimeout(180000);page.on('pageerror',error=>errors.push(error.message));
+    const open=async()=>{await page.locator('#btn-open-ai-assistant').click();await page.locator('#drawer-ai-assistant input[type=text]').waitFor();await page.waitForFunction(()=>!document.querySelector('#drawer-ai-assistant input[type=text]').disabled);};
+    const send=async query=>{await page.locator('#drawer-ai-assistant input[type=text]').fill(query);await page.locator('#btn-send-ai-message').click();await page.waitForFunction(()=>!document.querySelector('#drawer-ai-assistant input[type=text]').disabled);};
+    const saved=()=>page.evaluate(async()=>{const request=indexedDB.open('calendar-ai-chats');const db=await new Promise(resolve=>{request.onsuccess=()=>resolve(request.result);});try{return await new Promise(resolve=>{const get=db.transaction('messages').objectStore('messages').getAll();get.onsuccess=()=>resolve(get.result);});}finally{db.close();}});
+    await page.goto(base);await open();
+    const info=page.locator('[data-testid=local-model-setup] details');assert.equal(await info.getAttribute('open'),null,'Model info starts collapsed');
+    await send('Dodaj wydarzenie HistoryProbe jutro o 15:00');assert.equal(await page.locator('[id^=btn-confirm-ai-event-]').count(),1);
+    assert.ok((await saved()).some(message=>message.content.includes('HistoryProbe')));
+    assert.ok((await saved()).every(message=>!message.suggestedPlan),'Stored messages never retain active calendar actions');
+    await page.reload();await open();assert.match(await page.locator('#drawer-ai-assistant').innerText(),/HistoryProbe/u);assert.equal(await page.locator('[id^=btn-confirm-ai-event-]').count(),0);
+    await send('Cześć');assert.match(await page.locator('#drawer-ai-assistant .rounded-tl-xs').last().innerText(),/^Cześć!/u);
+    await page.locator('#btn-new-ai-chat').click();await page.waitForFunction(()=>!document.querySelector('#drawer-ai-assistant input[type=text]').disabled);await send('Hello');
+    await page.locator('#btn-ai-chat-history').click();await page.getByRole('searchbox',{name:'Search conversations'}).fill('HistoryProbe');
+    const row=page.locator('[data-chat-id]');await row.first().waitFor();assert.equal(await row.count(),1);
+    await row.getByRole('button',{name:'Rename',exact:true}).click();await page.getByRole('textbox',{name:'Rename',exact:true}).fill('Evening plans');await page.getByRole('button',{name:'Save',exact:true}).click();
+    await page.getByRole('button',{name:'Evening plans',exact:true}).click();assert.match(await page.locator('#drawer-ai-assistant').innerText(),/HistoryProbe/u);
+    await info.locator('summary').click();
+    await page.waitForFunction(()=>!['checking','loading','running','downloading','verifying'].includes(document.querySelector('[data-testid=local-model-setup]').dataset.modelPhase));
+    await page.locator('[data-model-id="qwen3.5-0.8b-q4-k-m"]').getByRole('button',{name:'Use model'}).click();
+    await page.getByText('Qwen3.5 0.8B Q4_K_M · offline',{exact:true}).waitFor();
+    await send('Hello');assert.match(await page.locator('#drawer-ai-assistant').innerText(),/HistoryProbe/u);
+    await page.evaluate(()=>localStorage.setItem('calendar_model_operation_v1','qwen3.5-0.8b-q4-k-m'));
+    await page.reload();await open();await page.waitForFunction(()=>document.querySelector('[data-testid=local-model-setup]').dataset.modelPhase==='error');
+    await page.getByRole('button',{name:'Restore fallback model',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-testid=local-model-setup]').dataset.modelInstalled==='true');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('calendar_model_info_expanded_v1')),'true');await page.reload();await open();assert.notEqual(await info.getAttribute('open'),null);
+    await page.locator('#btn-ai-chat-history').click();const before=(await saved()).length;
+    page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Delete all history',exact:true}).click();assert.equal((await saved()).length,before);
+    page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Delete all history',exact:true}).click();await page.locator('#drawer-ai-assistant').waitFor();assert.equal((await saved()).length,0);
+    assert.deepEqual(external,[],'Selecting uninstalled models must not download their weights');assert.deepEqual(errors,[]);
+    if(process.env.HISTORY_BROWSER_REPORT)writeFileSync(process.env.HISTORY_BROWSER_REPORT,JSON.stringify({passed:true,external,errors,viewport:{width:393,height:851}},null,2));
+    console.log('Local history reload, order, rename/search, expired proposals, model switch, collapse persistence and deletion confirmation passed. No external requests.');
+  }finally{await browser?.close();server.kill('SIGTERM');}
+})().catch(error=>{console.error(error);process.exitCode=1;});

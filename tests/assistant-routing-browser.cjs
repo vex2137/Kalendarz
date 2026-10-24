@@ -30,7 +30,7 @@ const output = process.env.ASSISTANT_ROUTING_REPORT;
       await page.locator('#btn-open-ai-assistant').click();
       await page.locator('[data-model-installed="true"]').waitFor();
       const drawer = page.locator('#drawer-ai-assistant');
-      await drawer.locator('details summary').click();
+      await drawer.locator('[data-testid="model-diagnostics"] > summary').click();
       const report = async () => JSON.parse(await page.locator('#ai-diagnostics-report').textContent());
       assert.equal((await report()).build.commit, expectedCommit, 'Must run JS from the tested source commit');
       const input = drawer.locator('input[type=text]');

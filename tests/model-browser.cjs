@@ -9,10 +9,10 @@ const file = process.env.CALENDAR_MODEL_FILE;
 const language = process.env.MODEL_TEST_LANGUAGE || 'pl';
 assert.ok(['pl', 'en'].includes(language), 'MODEL_TEST_LANGUAGE must be pl or en');
 const copy = language === 'pl' ? {
-  import: 'Importuj GGUF', installed: 'Model zainstalowany • gotowy offline', unavailable: 'Model niedostępny', clear: 'Wyczyść rozmowę', delete: 'Potwierdź usunięcie', title: 'Dentysta', proposal: 'Propozycje wydarzeń',
+  import: 'Importuj GGUF', installed: 'Model zainstalowany • gotowy offline', unavailable: 'Model niedostępny', clear: 'Nowa rozmowa', delete: 'Potwierdź usunięcie', title: 'Dentysta', proposal: 'Propozycje wydarzeń',
   create: 'Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00', move: 'Przenieś wydarzenie Dentysta na 2026-10-24 o 14:00', search: 'Znajdź wydarzenie Dentysta', remove: 'Usuń wydarzenie Dentysta',
 } : {
-  import: 'Import GGUF', installed: 'Model installed • offline ready', unavailable: 'Model unavailable', clear: 'Clear conversation', delete: 'Confirm deletion', title: 'Dentist', proposal: 'Proposed events',
+  import: 'Import GGUF', installed: 'Model installed • offline ready', unavailable: 'Model unavailable', clear: 'New conversation', delete: 'Confirm deletion', title: 'Dentist', proposal: 'Proposed events',
   create: 'Add event Dentist tomorrow at 15:00 until 16:00', move: 'Move event Dentist to 2026-10-24 at 14:00', search: 'Find event Dentist', remove: 'Delete event Dentist',
 };
 async function wait(check, timeout = 180000) {

@@ -141,6 +141,9 @@ export interface AppSettings {
 }
 
 export interface AiChatMessage {
+  sequence?: number;
+  modelId?: string;
+  route?: 'quick' | 'rules' | 'model';
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
