@@ -31,6 +31,17 @@ These checks do not establish phone latency, thermal behavior or semantic accura
 
 ## Real model evidence in this task
 
+Final candidate: [successful Actions run 40104360806](https://github.com/vex2137/Kalendarz/actions/runs/40104360806),
+[verified APK ZIP artifact](https://github.com/vex2137/Kalendarz/actions/runs/40104360806/artifacts/12564357077).
+APK source commit: `944f82db1bc6634c3a788cf1d99542f1726ab407`.
+ZIP: 236,141,388 bytes, SHA-256
+`988afcf9e9749bdf9ea24ffbca56cb4463a62eb11cac2ec4709e07adc73b6d8c`.
+The artifact was confirmed present/unexpired through the Actions API. It contains
+the 236,047,056-byte signed diagnostic APK, BUILD-INFO.json, APK SHA256SUMS.txt,
+bundled verified 350M/license, POCO instructions and browser/model/source reports.
+Both web and packaged Linux Electron checks also passed for this source commit.
+Documentation-only commits after it do not change the APK application code.
+
 [Successful initial APK acceptance](https://github.com/vex2137/Kalendarz/actions/runs/40103488313)
 verified embedded 350M, actual model routing, model source metadata and a live
 Qwen IQ4_XS UI download/import/offline generation/fallback flow. The artifact was
@@ -45,6 +56,18 @@ test used the production UI with createWritable disabled, imported the exact
 488,114,496-byte file, rejected a wrong GGUF, reloaded offline and required native
 completion tokens with the exact selected model ID. A later test revision also
 checks ordinary conversation after an unconfirmed calendar proposal.
+
+Manual reading of the `119c4b6` UI run confirms an English conversational reply:
+“Yes, that sounds much better in English!” (10 native tokens, four threads).
+The subsequent arithmetic request, “What is two plus two? Answer briefly.”,
+received “$4 + 4 = 8$.” This is a semantic failure, despite a successful
+installation/native inference test. Both runs took roughly 40–43 seconds including
+cold reload/verification on that cloud runner; these are not POCO timings or a
+controlled comparison. The functional test deliberately requires real native
+metrics, not a fabricated correct answer or a rule-based arithmetic substitute.
+The final `944f82d` run reproduced both outputs with ten tokens each and four
+threads, taking 40.14 and 42.42 seconds respectively. Treat the arithmetic result
+as a confirmed remaining quality error, not a successful reasoning check.
 
 Qwen Q4_K_M and LFM 2.6B were not newly downloaded/inferred in this task. Their
 previous genuine eight-combination JSPI/compatibility matrix is retained in
