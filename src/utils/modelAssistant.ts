@@ -12,6 +12,7 @@ import { detectAssistantLanguage, normalizeAssistantInput } from './assistantLan
 import { changesForPlan } from './assistantChanges';
 import { matchesCalendarText } from './assistantPlanning';
 import { tr } from './i18n';
+import { needsCalendarExtraction } from './assistantRoute';
 
 export interface ModelConversation { language?: AppLanguage; turns?: { role: 'user' | 'assistant'; content: string }[]; pending?: { command: ModelCommand; request: string }; reference?: { title: string; date: string }; lastConfirmedAction?: { kind:'create'|'move'|'delete';title:string;date:string }; proposal?: { command: ModelCommand; request: string; event?: Partial<CalendarEvent> } }
 async function resolveInConversation(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, context: ModelConversation): Promise<AiResponseResult> {
@@ -67,8 +68,7 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   const pair = (context.turns || []).slice(-2);
   const historyLimit = modelStatus().modelId === 'lfm2.5-2.6b-q4-k-m' ? 500 : 1200;
   const turns = pair.length === 2 && pair[0].role === 'user' && pair[1].role === 'assistant' && pair.reduce((n, turn) => n + turn.content.length, 0) <= historyLimit ? pair : [];
-  const calendarRelated = /(?<![\p{L}])(?:dod\p{L}*|utworz\p{L}*|utwórz\p{L}*|wpisz|zapisz|zaplanuj|przenie\p{L}*|przeloz|przełóż|przesu\p{L}*|zmie\p{L}*|usu\p{L}*|skas\p{L}*|odwo\p{L}*|znajd\p{L}*|szuk\p{L}*|wyszuk\p{L}*|woln\p{L}*|kolizj\p{L}*|konflikt\p{L}*|propozycj\p{L}*|jutro|pojutrze|dzis\p{L}*|dziś|add|create|schedule|move|reschedule|rename|change|delete|remove|cancel|find|search|free|conflicts|tomorrow|today|appointment|event|events|termin|termine|verschiebe|lösche|добавь|удали|перенеси|завтра|событие)(?![\p{L}])|\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2}/iu.test(query);
-  if (!calendarRelated && !context.pending && !((context.reference || context.proposal) && /\b(?:go|je|ono|it|that|trwa|duration)\b/iu.test(query))) {
+  if (!needsCalendarExtraction(query, now, context)) {
     trace.route = 'model'; trace.commandAction = 'chat';
     const chatTurns = turns.filter(turn => turn.role === 'user' || !turn.content.trim().startsWith('{'));
     const confirmed = context.lastConfirmedAction ? ` The only last confirmed calendar action is: ${JSON.stringify(context.lastConfirmedAction)}.` : '';

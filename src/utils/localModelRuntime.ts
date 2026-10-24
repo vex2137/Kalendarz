@@ -1,6 +1,6 @@
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, saveModel, verifyModel, discardDownloadedModel } from './localModelStore';
+import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels } from './localModelStore';
 import { recordModelMetric, type ModelMetric } from './modelDiagnostics';
 import { activeModel, DEFAULT_MODEL, findModel, persistModelSelection } from './modelRegistry';
 
@@ -86,7 +86,7 @@ export async function checkLocalModel() {
     const descriptor = findModel(status.modelId);
     const bundled = await bundledModelAvailable(descriptor);
     const installed = bundled || Boolean(await savedModel(descriptor));
-    if (status.phase === 'checking') update({ phase: recoveryRequired ? 'error' : installed ? 'installed' : 'missing', installed, bundled });
+    if (status.phase === 'checking' && status.modelId === descriptor.id) update({ phase: recoveryRequired ? 'error' : installed ? 'installed' : 'missing', installed, bundled });
   } catch { update({ phase: 'error', error: 'model-storage' }); }
 }
 
@@ -100,13 +100,14 @@ export async function installLocalModel(file?: Blob) {
   let blob: Blob | undefined;
   update({ phase: file ? 'verifying' : 'downloading', progress: 0, error: undefined });
   try {
+    await cleanPartialModels(descriptor);
     blob = file || await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     update({ phase: 'verifying', progress: 0 });
     await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     await saveModel(blob, controller.signal, descriptor);
     update({ phase: 'installed', installed: true, progress: 100 });
   } catch (error) {
-    update({ phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof Error ? error.message : 'model-download' });
+    update({ phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : error instanceof Error ? error.message : 'model-download' });
   } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; transition = false; } }
 }
 

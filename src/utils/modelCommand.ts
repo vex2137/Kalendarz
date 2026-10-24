@@ -187,12 +187,13 @@ export async function resolveModelCommand(command: ModelCommand, request: string
   if (!date || (!allDay && !time) || (!original && !command.title?.trim()) || (!original && !allDay && evidence && !evidence.time)) return ask('Podaj brakujący tytuł, datę i godzinę albo napisz „cały dzień”.', 'Provide the missing title, date and time, or specify “all day”.');
   const originalDays = original ? Math.round((Date.parse(original.endDate) - Date.parse(original.startDate)) / 86400000) : 0;
   const duration = original && !original.allDay ? originalDays * 1440 + minutes(original.endTime) - minutes(original.startTime) : 60;
-  const explicitEndTime = /\b(?:do|until|to|bis|до)\s+(?:[01]?\d|2[0-3])(?::[0-5]\d)?(?!\d)|\b\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}\b/iu.test(request);
+  const explicitEndTime = evidence?.explicitEnd || /\b(?:do|until|to|bis|до)\s+(?:[01]?\d|2[0-3])(?::[0-5]\d)?(?!\d)|\b\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}\b/iu.test(request);
   const explicitDuration = /\b\d+\s*(?:h|min)\b|godzin|\bhours?\b|\bminutes?\b|minut|stund|час|минут/iu.test(request);
   // A move preserves duration unless the user actually supplied an end time or duration.
   // Models may copy an old end time even when only a new start was requested.
-  const endTime = evidence?.duration !== undefined ? null : explicitEndTime || explicitDuration ? command.endTime : null;
-  const end = allDay ? originalDays * 1440 : endTime != null ? minutes(endTime) : minutes(time!) + (evidence?.duration ?? duration);
+  if (evidence?.explicitEnd && evidence.time && evidence.invalid) return ask('Podaj jednoznaczny zakres godzin.', 'Please specify an unambiguous time range.');
+  const endTime = evidence?.explicitEnd && evidence.time ? evidence.endTime : evidence?.duration !== undefined ? null : explicitEndTime || explicitDuration ? command.endTime : null;
+  const end = allDay ? originalDays * 1440 : endTime != null ? minutes(endTime) + (evidence?.explicitEnd && minutes(endTime) < minutes(time!) ? 1440 : 0) : minutes(time!) + (evidence?.duration ?? duration);
   const endClause = request.match(/(?:\b(?:do|until|through|bis)|до)\s+(.+)$/iu)?.[1];
   const explicitEndDate = (request.match(/\b\d{4}-\d{2}-\d{2}\b/g)?.length || 0) > 1 ||
     Boolean(endClause && parseDateFromNaturalLanguage(endClause, now, language).matched) || /\b(?:dni|days?|tage|tygodni|weeks?|wochen)|дн[еяй]|недел/iu.test(request);

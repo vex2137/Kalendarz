@@ -47,7 +47,7 @@ function clock(value: string): number | undefined {
   return h * 60 + min;
 }
 
-export interface CalendarFields { date?: string; time?: string; endTime?: string; endDate?: string; allDay?: boolean; duration?: number; rest: string; fragments: string[]; invalid: boolean }
+export interface CalendarFields { date?: string; time?: string; endTime?: string; endDate?: string; explicitEnd?: boolean; allDay?: boolean; duration?: number; rest: string; fragments: string[]; invalid: boolean }
 export function calendarFields(input: string, now: Date): CalendarFields {
   input = clean(input.normalize('NFC'));
   let masked = fold(input).replace(quoted, m => ' '.repeat(m.length));
@@ -77,12 +77,21 @@ export function calendarFields(input: string, now: Date): CalendarFields {
   if (allDay) { result.allDay = true; erase(allDay.index!, allDay[0].length); }
   const noon = masked.match(/\b(?:w poludnie|o polnocy|at noon|at midnight)\b/iu);
   if (noon) { result.time = /poludnie|noon/.test(noon[0]) ? '12:00' : '00:00'; erase(noon.index!, noon[0].length); }
-  const clocks = [...masked.matchAll(/\b(o|at|od|from|do|until|to)\s+(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.])/giu)];
   let end: number | undefined;
+  const ranges = [...masked.matchAll(/(?<![\p{L}\d:.–—-])(?:(?:o|at|od|from)\s+)?(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)\s*[-–—]\s*(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.–—-])(?:\s+(?:time|godziny|godzinach))?/giu)];
+  for (const range of ranges) {
+    const suffix = range[2].match(/(?:am|pm)$/iu)?.[0];
+    const first = clock(range[1].trim() + (suffix && !/am|pm/iu.test(range[1]) ? suffix : ''));
+    end = clock(range[2].trim()); result.explicitEnd = true;
+    result.invalid ||= first === undefined || end === undefined || Boolean(result.time) || ranges.length > 1;
+    if (first !== undefined) result.time = timeString(first);
+    erase(range.index!, range[0].length);
+  }
+  const clocks = [...masked.matchAll(/\b(o|at|od|from|do|until|to)\s+(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.])/giu)];
   for (const m of clocks) {
     const value = clock(m[2]);
     result.invalid ||= value === undefined;
-    if (/^(do|until|to)$/.test(m[1])) { if (end !== undefined) result.invalid = true; end = value; }
+    if (/^(do|until|to)$/.test(m[1])) { if (end !== undefined) result.invalid = true; end = value; result.explicitEnd = true; }
     else { if (result.time) result.invalid = true; if (value !== undefined) result.time = timeString(value); }
     erase(m.index!, m[0].length);
   }
@@ -90,8 +99,8 @@ export function calendarFields(input: string, now: Date): CalendarFields {
   if (end !== undefined && result.duration !== undefined) result.invalid = true;
   if (result.time) {
     const start = clock(result.time)!;
-    if (end !== undefined && end <= start) result.invalid = true; // Require an explicit next-day date for inverted ranges.
-    const finish = end !== undefined ? end : start + (result.duration ?? 60);
+    if (end === start) result.invalid = true;
+    const finish = end !== undefined ? end + (end < start ? 1440 : 0) : start + (result.duration ?? 60);
     result.endTime = timeString(finish);
     if (result.date) result.endDate = addDays(result.date, Math.floor(finish / 1440));
   } else if (end !== undefined) result.invalid = true;
@@ -137,7 +146,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
     return { ...make(merged, request), incomplete: !merged.title || !merged.date || (!merged.time && !merged.allDay) };
   }
   const action = /^(przenies|przesun|zmien|move|reschedule|change)/.test(prefix[1]) ? 'update' : /^(usun|skas|wykres|odwol|delete|remove|cancel)/.test(prefix[1]) ? 'delete' : /^(znajdz|znalezc|wyszuk|szuk|pokaz|find|search|show)/.test(prefix[1]) ? 'search' : 'create';
-  body = body.slice(prefix[0].length).replace(/^(?:mi\s+|(?:wydarzenie|wydarzenia|event)\s+)/iu, '').replace(/\s+(?:in my calendar|to my calendar)$/iu, '');
+  body = body.slice(prefix[0].length).replace(/^(?:mi\s+|(?:(?:new\s+)?(?:wydarzenie|wydarzenia|event))\s+)/iu, '').replace(/\s+(?:in my calendar|to my calendar)$/iu, '');
   // English calendar placement may occur before the date.
   body = body.replace(/\s+(?:in my calendar|to my calendar)(?=\s)/iu, '');
   let location: string | undefined, description: string | undefined;
@@ -158,7 +167,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
   if (!name && action !== 'create' && action !== 'search') return;
   // Leave unsupported trailing clauses to LFM rather than silently interpreting them as names.
   if (/\b(?:ale|but|oraz|and then|z opisem|with description|od|from|until)\b/iu.test(fold(name).replace(quoted, ''))) return;
-  const command = make({ action, ...(action === 'create' ? { title: unquote(name) || null } : { query: unquote(name) || null }), date: fields.date, time: fields.time, allDay: fields.allDay, ...(action === 'create' || fields.duration !== undefined || /\b(?:do|until|to)\s+\d/iu.test(body) ? { endTime: fields.endTime, endDate: fields.endDate } : {}), sourceDate: sourceDate || (action === 'delete' ? fields.date : undefined), location, description });
+  const command = make({ action, ...(action === 'create' ? { title: unquote(name) || null } : { query: unquote(name) || null }), date: fields.date, time: fields.time, allDay: fields.allDay, ...(action === 'create' || fields.duration !== undefined || fields.explicitEnd ? { endTime: fields.endTime, endDate: fields.endDate } : {}), sourceDate: sourceDate || (action === 'delete' ? fields.date : undefined), location, description });
   command.incomplete = action === 'create' && (!command.command.title || !fields.date || (!fields.time && !fields.allDay));
   return command;
 }

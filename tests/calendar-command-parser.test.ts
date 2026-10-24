@@ -77,3 +77,26 @@ test('sentence punctuation and negation inside explicit description data do not 
 test('polite infinitives keep action identity across create, move, delete and search', () => {
   for (const [query, action] of [['Czy mógłbyś wpisać Rezerwacja jutro o 11?', 'create'], ['Możesz przenieść Jogę na jutro?', 'update'], ['Proszę usunąć Jogę', 'delete'], ['Czy możesz znaleźć dentystę?', 'search']]) assert.equal(parseCalendarCommand(query, 'pl', now)?.command.action, action, query);
 });
+test('explicit PL/EN intervals survive proposal validation, including midnight', async () => {
+  for (const [query, language, start, end, endDate] of [
+    ['Add new event workout for today at 18-20 time', 'en', '18:00', '20:00', '2026-10-23'],
+    ['Dodaj trening dzisiaj o 18 - 20', 'pl', '18:00', '20:00', '2026-10-23'],
+    ['Add workout today from 18:15 – 20:45', 'en', '18:15', '20:45', '2026-10-23'],
+    ['Dodaj trening dzisiaj od 18:30 do 20:15', 'pl', '18:30', '20:15', '2026-10-23'],
+    ['Add workout today at 6-8 pm', 'en', '18:00', '20:00', '2026-10-23'],
+    ['Add workout today at 11 pm - 1 am', 'en', '23:00', '01:00', '2026-10-24'],
+    ['Dodaj trening dzisiaj o 23–1', 'pl', '23:00', '01:00', '2026-10-24'],
+  ] as const) {
+    const parsed = parseCalendarCommand(query, language, now);
+    assert.ok(parsed, query);
+    const result = await resolveModelCommand(parsed.command, query, [], language, now, DEFAULT_PLANNING);
+    const proposal = result.suggestedPlan?.events[0];
+    assert.equal(proposal?.startTime, start, query); assert.equal(proposal?.endTime, end, query); assert.equal(proposal?.endDate, endDate, query);
+    assert.doesNotMatch(proposal?.title || '', /new event|18|20|time/u);
+  }
+  const request = 'Add workout today at 18-20';
+  const parsed = parseCalendarCommand(request, 'en', now)!;
+  const repaired = await resolveModelCommand({...parsed.command,endTime:'19:00'}, request, [], 'en', now, DEFAULT_PLANNING);
+  assert.equal(repaired.suggestedPlan?.events[0].endTime, '20:00');
+  for (const query of ['today at 25-27', 'today at 18-18', 'today at 18-20 for 30 minutes']) assert.equal(calendarFields(query, now).invalid, true, query);
+});
