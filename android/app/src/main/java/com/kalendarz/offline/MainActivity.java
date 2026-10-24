@@ -11,6 +11,11 @@ import androidx.activity.OnBackPressedCallback;
 
 public class MainActivity extends BridgeActivity {
     @Override
+    public void onResume() {
+        super.onResume();
+        if (bridge != null) bridge.getWebView().post(() -> bridge.getWebView().evaluateJavascript("window.dispatchEvent(new Event('calendar-app-resume'))", null));
+    }
+    @Override
     protected void load() {
         super.load();
         if (bridge.getConfig().isResolveServiceWorkerRequests()) {

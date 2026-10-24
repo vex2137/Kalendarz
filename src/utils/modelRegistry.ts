@@ -19,6 +19,9 @@ export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, {
   ['qwen3.5-0.8b-iq4-xs', 'IQ4_XS', 488114496, '69b1c57926ade7ce1c5fa49cd5d722c626552f25fc9f9e2b1d6892f3454719a3'],
 ] as const).map(([id, quantization, bytes, sha256]) => ({ ...qwen, id, name: `Qwen3.5 0.8B ${quantization}`, quantization, bytes, sha256, file: `Qwen3.5-0.8B.${quantization}.gguf`, url: `https://huggingface.co/mradermacher/Qwen3.5-0.8B-GGUF/resolve/${qwenRevision}/Qwen3.5-0.8B.${quantization}.gguf` }))];
 export const findModel = (id?: string) => AI_MODELS.find(model => model.id === id) || DEFAULT_MODEL;
+export const PREFERRED_MODEL = AI_MODELS.find(model => model.id === 'qwen3.5-0.8b-q4-k-m')!;
+export const shortModelName = (model: ModelDescriptor) => model.name.replace(` ${model.quantization}`, '');
 const selectionKey = 'calendar_active_ai_model_v1';
+export function hasModelSelection() { try { return Boolean(localStorage.getItem(selectionKey)); } catch { return false; } }
 export function activeModel() { try { return findModel(localStorage.getItem(selectionKey) || undefined); } catch { return DEFAULT_MODEL; } }
 export function persistModelSelection(model: ModelDescriptor) { localStorage.setItem(selectionKey, model.id); }

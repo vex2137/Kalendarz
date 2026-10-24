@@ -1,22 +1,22 @@
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels } from './localModelStore';
-import { recordModelMetric, type ModelMetric } from './modelDiagnostics';
-import { activeModel, DEFAULT_MODEL, findModel, persistModelSelection } from './modelRegistry';
+import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels } from './localModelStore';
+import { recordModelMetric, recordModelState, type ModelMetric } from './modelDiagnostics';
+import { activeModel, DEFAULT_MODEL, PREFERRED_MODEL, hasModelSelection, findModel, persistModelSelection } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
-export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; bundled?: boolean; error?: string; modelId: string }
+export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; error?: string; errorDetail?: string; modelId: string }
 const operationMarker = 'calendar_model_operation_v1';
 const initialModelId = activeModel().id;
 let recoveryRequired = false;
 try { recoveryRequired = localStorage.getItem(operationMarker) === initialModelId; } catch {}
 const markModelOperation = (id: string) => { try { localStorage.setItem(operationMarker,id); } catch {} };
 const clearModelOperation = (id: string) => { try { if(localStorage.getItem(operationMarker)===id)localStorage.removeItem(operationMarker); } catch {} };
-let status: ModelStatus = { phase: 'checking', progress: 0, installed: false, modelId: initialModelId, ...(recoveryRequired ? {error:'model-previous-operation'} : {}) };
+let status: ModelStatus = { phase: 'checking', progress: 0, installed: false, loaded: false, modelId: initialModelId, ...(recoveryRequired ? {error:'model-previous-operation'} : {}) };
 const listeners = new Set<() => void>();
 export const modelStatus = () => status;
 export const subscribeModel = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
-const update = (patch: Partial<ModelStatus>) => { status = { ...status, ...patch }; listeners.forEach(l => l()); };
+const update = (patch: Partial<ModelStatus>) => { status = { ...status, ...patch }; recordModelState({...status,quantization:findModel(status.modelId).quantization}); listeners.forEach(l => l()); };
 let engine: Wllama | undefined;
 let operation: AbortController | undefined;
 let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -29,6 +29,8 @@ let assistantActive = false;
 let lifecycleInstalled = false;
 let actualThreads = 1;
 let transition = false;
+let lastLoad: Pick<ModelMetric, 'storageMs' | 'verifyMs' | 'initMs'> = {};
+const runtimeError = (error: unknown) => error instanceof Error && error.message.startsWith('model-') ? error.message : error instanceof Error && /out of memory|bad_alloc|memory access out of bounds|cannot enlarge memory|allocation failed/iu.test(error.message) ? 'model-memory' : error instanceof DOMException ? `model-storage-${error.name}` : 'model-inference';
 export async function selectLocalModel(id: string) {
   const descriptor = findModel(id);
   if (descriptor.id !== id) throw new Error('model-unknown');
@@ -39,7 +41,7 @@ export async function selectLocalModel(id: string) {
     await unloadLocalModel();
     clearModelOperation(status.modelId); recoveryRequired = false;
     persistModelSelection(descriptor);
-    update({ modelId: id, phase: 'checking', progress: 0, installed: false, bundled: false, error: undefined });
+    update({ modelId: id, phase: 'checking', progress: 0, installed: false, loaded: false, bundled: false, error: undefined, errorDetail:undefined });
     await checkLocalModel();
   } finally { transition = false; }
 }
@@ -47,7 +49,8 @@ export const restoreFallbackModel = () => selectLocalModel(DEFAULT_MODEL.id);
 export async function retryLocalModel() {
   if(operation||transition)return;
   recoveryRequired=false;clearModelOperation(status.modelId);
-  update({phase:status.installed?'installed':'checking',error:undefined});
+  update({phase:'checking',error:undefined,errorDetail:undefined});
+  await checkLocalModel();
   await prepareLocalModel();
 }
 export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); };
@@ -62,8 +65,8 @@ export function touchLocalModel() { if ((engine || loading) && !operation) sched
 export async function prepareLocalModel() {
   if (operation || transition || recoveryRequired || document.hidden) return;
   const started = performance.now();
-  const metric: ModelMetric = { route: 'preload', totalMs: 0 };
-  try { await checkLocalModel(); if (status.installed && !engine) await ensureEngine(metric); }
+  const metric: ModelMetric = { route:'preload',modelId:status.modelId,quantization:findModel(status.modelId).quantization,engineStateAtStart:engine?'loaded':loading?'loading':'unloaded',totalMs:0 };
+  try { await checkLocalModel(); if (status.installed && status.phase !== 'error' && !engine) await ensureEngine(metric); }
   catch (error) { metric.error = (error instanceof Error && error.name==='AbortError') || status.phase==='installed' ? 'cancelled' : 'inference'; }
   finally { metric.totalMs = performance.now() - started; recordModelMetric(metric); if (!operation) scheduleRelease(); }
 }
@@ -72,7 +75,12 @@ export function setAssistantActive(active: boolean) {
   clearTimeout(preloadTimer);
   if (!lifecycleInstalled) {
     lifecycleInstalled = true;
-    document.addEventListener('visibilitychange', () => { if (document.hidden) cancelModelOperation(); scheduleRelease(); });
+    const resume = () => {
+      if (document.hidden) { cancelModelOperation(); scheduleRelease(); }
+      else if (assistantActive) { clearTimeout(preloadTimer); preloadTimer = setTimeout(() => { void prepareLocalModel(); }, 300); }
+    };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('calendar-app-resume', resume);
     window.addEventListener('calendar-memory-pressure', () => { void unloadLocalModel(); });
     window.addEventListener('pagehide', () => { void unloadLocalModel(); });
   }
@@ -81,13 +89,21 @@ export function setAssistantActive(active: boolean) {
 }
 
 export async function checkLocalModel() {
-  if (status.phase !== 'checking') return;
+  if (engine || loading || !['checking','installed','missing','error'].includes(status.phase)) return;
+  const descriptor = findModel(status.modelId);
+  const phaseAtStart = status.phase;
   try {
-    const descriptor = findModel(status.modelId);
+    // A stored explicit choice, including IQ4_XS or 350M, always wins.
+    if (!hasModelSelection() && descriptor.id === DEFAULT_MODEL.id && await savedModel(PREFERRED_MODEL).catch(()=>undefined)) {
+      if (status.modelId !== descriptor.id || status.phase !== phaseAtStart) return;
+      persistModelSelection(PREFERRED_MODEL);
+      update({modelId:PREFERRED_MODEL.id,phase:'checking',installed:false,loaded:false});
+      return checkLocalModel();
+    }
     const bundled = await bundledModelAvailable(descriptor);
-    const installed = bundled || Boolean(await savedModel(descriptor));
-    if (status.phase === 'checking' && status.modelId === descriptor.id) update({ phase: recoveryRequired ? 'error' : installed ? 'installed' : 'missing', installed, bundled });
-  } catch { update({ phase: 'error', error: 'model-storage' }); }
+    const installed = bundled || Boolean(await recoverSavedModel(descriptor));
+    if (!engine && !loading && status.phase === phaseAtStart && status.modelId === descriptor.id) update({ phase: recoveryRequired || phaseAtStart === 'error' && installed ? 'error' : installed ? 'installed' : 'missing', installed, loaded:false, bundled });
+  } catch (error) { if(status.modelId===descriptor.id && !loading && !engine) update({ phase:'error', error:runtimeError(error), loaded:false }); }
 }
 
 export async function installLocalModel(file?: Blob) {
@@ -100,12 +116,13 @@ export async function installLocalModel(file?: Blob) {
   let blob: Blob | undefined;
   update({ phase: file ? 'verifying' : 'downloading', progress: 0, error: undefined });
   try {
+    await recoverSavedModel(descriptor, controller.signal);
     await cleanPartialModels(descriptor);
     blob = file || await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     update({ phase: 'verifying', progress: 0 });
     await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     await saveModel(blob, controller.signal, descriptor);
-    update({ phase: 'installed', installed: true, progress: 100 });
+    update({ phase: 'installed', installed: true, loaded:false, progress: 100, error:undefined,errorDetail:undefined });
   } catch (error) {
     update({ phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : error instanceof Error ? error.message : 'model-download' });
   } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; transition = false; } }
@@ -125,7 +142,7 @@ async function disposeEngine() {
   engine = undefined;
   if (current) disposing = disposing.then(() => current.exit()).catch(() => {});
   await disposing;
-  if (status.installed) update({ phase: 'installed' });
+  update({loaded:false, ...(status.installed && status.phase !== 'error' ? { phase:'installed' as const } : {})});
 }
 
 export async function deleteLocalModel() {
@@ -152,14 +169,18 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
     let instance: Wllama | undefined;
     let loadNotes = '';
     try {
-      update({ phase: 'loading', error: undefined });
+      update({ phase: 'loading', loaded:false, error: undefined, errorDetail:undefined });
       const descriptor = findModel(status.modelId);
       markModelOperation(descriptor.id);
       metric.modelId = descriptor.id;
       let started = performance.now();
-      const blob = await savedModel(descriptor) || (await bundledModelAvailable(descriptor) ? await loadBundledModel(controller.signal) : undefined);
+      const bundled = await bundledModelAvailable(descriptor);
+      const blob = bundled ? await loadBundledModel(controller.signal) : await recoverSavedModel(descriptor, controller.signal);
       metric.storageMs = performance.now() - started;
       if (!blob) { update({ installed: false }); throw new Error('model-missing'); }
+      // Disk presence and engine residency are separate. This also wins a race
+      // with an initial storage check that was overtaken by foreground inference.
+      update({installed:true});
       started = performance.now();
       await verifyModel(blob, controller.signal, undefined, descriptor);
       metric.verifyMs = performance.now() - started;
@@ -189,14 +210,15 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       controller.signal.throwIfAborted();
       metric.initMs = performance.now() - started;
       engine = instance!;
-      update({ phase: 'ready' });
+      lastLoad = {storageMs:metric.storageMs,verifyMs:metric.verifyMs,initMs:metric.initMs};
+      update({ phase: 'ready', installed:true, loaded:true });
       if(!operation)clearModelOperation(descriptor.id);
       return engine;
     } catch (error) {
       metric.initializationError = loadNotes || (error instanceof Error ? error.message.slice(0,600) : 'model-load');
       clearModelOperation(status.modelId);
       await instance?.exit().catch(() => {});
-      update({ phase: controller.signal.aborted ? 'installed' : 'error', error: controller.signal.aborted ? undefined : 'model-inference' });
+      update({ phase: controller.signal.aborted ? (status.installed?'installed':'checking') : 'error', loaded:false, error:controller.signal.aborted ? undefined : runtimeError(error), errorDetail:controller.signal.aborted ? undefined : metric.initializationError });
       throw error;
     }
   })();
@@ -217,12 +239,14 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
   clearTimeout(idleTimer);
   clearTimeout(preloadTimer);
   const started = performance.now();
-  const metric: ModelMetric = { route: 'model', modelId: status.modelId, totalMs: 0 };
+  const engineStateAtStart = engine ? 'loaded' : loading ? 'loading' : 'unloaded';
+  const metric: ModelMetric = { route: 'model', modelId: status.modelId, quantization:descriptor.quantization, engineStateAtStart, totalMs: 0 };
   const abortLoad = () => loadController?.abort();
   controller.signal.addEventListener('abort', abortLoad);
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? (status.modelId === DEFAULT_MODEL.id ? 120_000 : 600_000));
+  const timeout = setTimeout(() => controller.abort('model-timeout'), options.timeoutMs ?? (status.modelId === DEFAULT_MODEL.id ? 120_000 : 600_000));
   try {
     const current = await ensureEngine(metric, options.threads);
+    if (engineStateAtStart !== 'loaded') Object.assign(metric,lastLoad);
     controller.signal.throwIfAborted();
     metric.loadMs = performance.now() - started;
     update({ phase: 'running' });
@@ -258,9 +282,10 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     return text;
   } catch (error) {
     console.warn('Local model operation failed', { modelId: status.modelId, cancelled: controller.signal.aborted, outputLimit: error instanceof Error && error.message === 'model-incomplete' });
-    recordModelMetric({ ...metric, failureReason: error instanceof Error && error.message === 'model-incomplete' ? 'output-limit' : 'engine', totalMs: performance.now() - started, error: controller.signal.aborted ? 'cancelled' : 'inference' });
+    const code = controller.signal.aborted ? controller.signal.reason === 'model-timeout' ? 'model-timeout' : 'model-cancelled' : runtimeError(error);
+    recordModelMetric({ ...metric,errorCode:code, failureReason: error instanceof Error && error.message === 'model-incomplete' ? 'output-limit' : 'engine', totalMs: performance.now() - started, error: code === 'model-cancelled' ? 'cancelled' : 'inference' });
     await disposeEngine();
-    update({ phase: controller.signal.aborted ? 'installed' : 'error', error: controller.signal.aborted ? undefined : error instanceof Error ? error.message : 'model-inference' });
-    throw new Error(controller.signal.aborted ? 'model-cancelled' : 'model-inference');
+    update({ phase: code === 'model-cancelled' ? (status.installed?'installed':'missing') : 'error', loaded:false, error:code === 'model-cancelled' ? undefined : code });
+    throw new Error(code);
   } finally { clearModelOperation(descriptor.id); clearTimeout(timeout); controller.signal.removeEventListener('abort', abortLoad); operation = undefined; if (releaseRequested) await disposeEngine(); else scheduleRelease(); }
 }

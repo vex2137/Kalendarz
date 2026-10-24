@@ -46,6 +46,29 @@ export async function savedModel(descriptor: ModelDescriptor = DEFAULT_MODEL): P
   } finally { db.close(); }
 }
 
+// IndexedDB and OPFS can become inconsistent after a killed WebView. Adopt an
+// orphan only after full verification, instead of deleting valid weights on retry.
+export async function recoverSavedModel(descriptor: ModelDescriptor, signal?: AbortSignal): Promise<Blob | undefined> {
+  const existing = await savedModel(descriptor);
+  if (existing || !navigator.storage?.getDirectory) return existing;
+  let dir: FileSystemDirectoryHandle;
+  try { dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models'); }
+  catch (error) { if (error instanceof DOMException && error.name === 'NotFoundError') return; throw error; }
+  for await (const [name, handle] of dir.entries()) {
+    signal?.throwIfAborted();
+    if (!name.startsWith(descriptor.id + '-') || handle.kind !== 'file') continue;
+    const file = await (handle as FileSystemFileHandle).getFile();
+    if (file.size !== descriptor.bytes) continue;
+    try { await verifyModel(file, signal, undefined, descriptor); }
+    catch (error) { if (signal?.aborted) throw error; if (error instanceof Error && error.message === 'model-checksum') continue; throw error; }
+    signal?.throwIfAborted();
+    const db = await database();
+    try { await db.put('models', { opfsName:name, bytes:descriptor.bytes, sha256:descriptor.sha256 }, descriptor.id); }
+    finally { db.close(); }
+    return file;
+  }
+}
+
 export async function verifyModel(blob: Blob, signal?: AbortSignal, progress?: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL) {
   if (blob.size !== descriptor.bytes) throw new Error('model-size');
   const hash = sha256.create();

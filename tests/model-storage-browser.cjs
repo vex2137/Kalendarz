@@ -24,6 +24,11 @@ const base='http://127.0.0.1:4187';
         const signal=new AbortController().signal;
         let blob=await store.downloadModel(signal,()=>{},descriptor);await store.verifyModel(blob,signal,undefined,descriptor);await store.saveModel(blob,signal,descriptor);
         if(!(await store.savedModel(descriptor)))throw new Error('Disk-backed download was not committed');
+        // Lose only the registry entry: recovery must adopt the verified OPFS file.
+        await new Promise((resolve,reject)=>{const open=indexedDB.open('calendar-local-model');open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('models','readwrite');tx.objectStore('models').delete(descriptor.id);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});
+        if(await store.hasDownloadedModelData(descriptor))throw new Error('Missing metadata was hidden');
+        if(!(await store.recoverSavedModel(descriptor)))throw new Error('Verified orphan was not recovered');
+        if(!(await store.savedModel(descriptor)))throw new Error('Recovered metadata was not durable');
         await store.removeSavedModel(descriptor);
         // System-picked File follows the same import path, including worker OPFS.
         blob=new File([bytes],'storage-probe.gguf');await store.verifyModel(blob,signal,undefined,descriptor);await store.saveModel(blob,signal,descriptor);
