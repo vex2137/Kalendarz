@@ -5,16 +5,18 @@ import { assistantSystemPrompt, commandSchemaForRequest, parseModelCommand, reso
 import { assistantQuickReply } from './assistantQuickReply';
 import { timeString } from './dates';
 import { parseDateFromNaturalLanguage, type AiResponseResult } from './aiEngine';
-import { parseCalendarCommand } from './calendarCommandParser';
+import { parseCalendarCommand, type PendingCalendarCommand } from './calendarCommandParser';
 import type { ModelCommand } from './modelCommand';
 import { modelMetrics, recordModelMetric, recordAssistantTurn, type AssistantTurnMetric } from './modelDiagnostics';
 import { detectAssistantLanguage, normalizeAssistantInput } from './assistantLanguage';
 import { changesForPlan } from './assistantChanges';
 import { matchesCalendarText } from './assistantPlanning';
 import { tr } from './i18n';
+import { findModel } from './modelRegistry';
+import { guardCalendarWriteClaim } from './calendarWriteClaim';
 import { needsCalendarExtraction } from './assistantRoute';
 
-export interface ModelConversation { language?: AppLanguage; turns?: { role: 'user' | 'assistant'; content: string }[]; pending?: { command: ModelCommand; request: string }; reference?: { title: string; date: string }; lastConfirmedAction?: { kind:'create'|'move'|'delete';title:string;date:string }; proposal?: { command: ModelCommand; request: string; event?: Partial<CalendarEvent> } }
+export interface ModelConversation { language?: AppLanguage; turns?: { role: 'user' | 'assistant'; content: string }[]; pending?: PendingCalendarCommand; reference?: { title: string; date: string }; lastConfirmedAction?: { kind:'create'|'move'|'delete';title:string;date:string }; proposal?: { command: ModelCommand; request: string; event?: Partial<CalendarEvent> } }
 async function resolveInConversation(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, context: ModelConversation): Promise<AiResponseResult> {
   const pronoun = /^(?:go|je|to|ono|it|that|that event|this event|to wydarzenie)$/iu.test(command.query?.trim() || '');
   const draft = context.proposal?.event;
@@ -41,6 +43,7 @@ export async function runModelAssistant(query: string, events: CalendarEvent[], 
     normalized: normalized !== query, inputLength: query.length,
     nonAsciiCount: [...query].filter(c => c.codePointAt(0)! > 127).length,
     modelPhaseAtSend: modelStatus().phase };
+  Object.assign(trace,{modelId:modelStatus().modelId,quantization:findModel(modelStatus().modelId).quantization,modelLoadedAtSend:modelStatus().loaded});
   try {
     const result = await runDetectedAssistant(normalized, events, language, now, context, preferences, trace);
     return { ...result, language, traceId: trace.id, context: { ...result.context, language } };
@@ -60,9 +63,9 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   trace.rulesMs = performance.now() - rulesStarted;
   if (parsed) {
     trace.rulesMatched = true; trace.route = 'rules'; trace.commandAction = parsed.command.action;
-    const result = await resolveInConversation(parsed.command, parsed.request, events, language, now, preferences, context);
+    const result: AiResponseResult = parsed.unresolvedTime ? {text:({en:`I kept the title “${parsed.command.title}” and date ${parsed.command.date || '—'}. Which time did you mean by “${parsed.unresolvedTime.text}”? Specify AM/PM or a 24-hour range.`,pl:`Zachowano tytuł „${parsed.command.title}” i datę ${parsed.command.date || '—'}. Jakie godziny oznacza „${parsed.unresolvedTime.text}”? Podaj AM/PM lub zakres 24-godzinny.`,de:`Titel „${parsed.command.title}” und Datum ${parsed.command.date || '—'} bleiben erhalten. Welche Uhrzeit bedeutet „${parsed.unresolvedTime.text}”? Bitte AM/PM oder 24-Stunden-Zeit angeben.`,ru:`Название «${parsed.command.title}» и дата ${parsed.command.date || '—'} сохранены в черновике. Какое время означает «${parsed.unresolvedTime.text}»? Укажите AM/PM или 24-часовой диапазон.`})[language]} : await resolveInConversation(parsed.command, parsed.request, events, language, now, preferences, context);
     recordModelMetric({ route: 'rules', totalMs: performance.now() - started });
-    return { ...result, context: { reference: context.reference, lastConfirmedAction: context.lastConfirmedAction, turns: [{ role: 'user' as const, content: parsed.request }, { role: 'assistant' as const, content: JSON.stringify(parsed.command) }], ...(parsed.incomplete ? { pending: { command: parsed.command, request: parsed.request } } : {}), ...(result.suggestedPlan?.kind === 'create' ? { proposal: { command: parsed.command, request: parsed.request, event: result.suggestedPlan.events[0] } } : {}) }, route: 'rules' as const };
+    return { ...result, context: { reference: context.reference, lastConfirmedAction: context.lastConfirmedAction, turns: [{ role: 'user' as const, content: parsed.request }, { role: 'assistant' as const, content: JSON.stringify(parsed.command) }], ...(parsed.incomplete ? { pending: { command: parsed.command, request: parsed.request,unresolvedTime:parsed.unresolvedTime } } : {}), ...(result.suggestedPlan?.kind === 'create' ? { proposal: { command: parsed.command, request: parsed.request, event: result.suggestedPlan.events[0] } } : {}) }, route: 'rules' as const };
   }
   // Bound history to protect small-device memory and the 2K context window.
   const pair = (context.turns || []).slice(-2);
@@ -73,6 +76,7 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
     const chatTurns = turns.filter(turn => turn.role === 'user' || !turn.content.trim().startsWith('{'));
     const confirmed = context.lastConfirmedAction ? ` The only last confirmed calendar action is: ${JSON.stringify(context.lastConfirmedAction)}.` : '';
     let text = await inferLocalText(`You are a helpful offline assistant. Have a natural conversation. Keep your answer brief, usually two sentences. Reply in the user's actual language (${language} is a hint), respecting explicit language requests. Never invent calendar changes. Calendar mutations require a separate validated proposal and confirmation.${confirmed}`, query, chatTurns);
+    text = guardCalendarWriteClaim(text,language);
     if (modelMetrics().at(-1)?.outputTruncated) text += '\n\n' + ({en:'Response length limit reached. You can ask me to continue.',pl:'Osiągnięto limit długości odpowiedzi. Możesz poprosić o kontynuację.',de:'Die Antwortlänge wurde begrenzt. Du kannst um Fortsetzung bitten.',ru:'Достигнут предел длины ответа. Можно попросить продолжить.'}[language]);
     return { text, context: { ...context, turns: [...chatTurns, { role:'user' as const,content:query }, { role:'assistant' as const,content:text }].slice(-4) }, route:'model' as const };
   }

@@ -6,6 +6,7 @@ import { changesForPlan } from './assistantChanges';
 import { searchCalendar, matchesCalendarText, type AssistantPlan } from './assistantPlanning';
 import { parseDateFromNaturalLanguage, runLocalAiAssistant, type AiResponseResult } from './aiEngine';
 import { calendarFields } from './calendarCommandParser';
+import { guardCalendarWriteClaim } from './calendarWriteClaim';
 
 const actions = ['create', 'update', 'delete', 'search', 'assistant', 'clarify'] as const;
 type Action = typeof actions[number] | 'chat';
@@ -118,7 +119,7 @@ export function assistantSystemPrompt(language: AppLanguage, now: Date) {
 }
 export async function resolveModelCommand(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, referenceEvidence?: {title:string;date:string}): Promise<AiResponseResult> {
   const ask = (pl: string, en: string): AiResponseResult => ({ text: tr(language, pl, en) });
-  if (command.action === 'chat') return { text: command.reply?.trim() || tr(language, 'Co chcesz omówić?', 'What would you like to talk about?') };
+  if (command.action === 'chat') return { text: guardCalendarWriteClaim(command.reply?.trim() || tr(language, 'Co chcesz omówić?', 'What would you like to talk about?'),language) };
   const evidence = language === 'pl' || language === 'en' ? calendarFields(request, now) : undefined;
   const outsideQuotes = request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '');
   if (['create', 'update', 'delete'].includes(command.action) && /\b(?:nie|not|never|don't|gdyby\p{L}*|if|zamiast|instead)\b|не\s|nicht/iu.test(outsideQuotes)) return ask('Doprecyzuj, jaką zmianę mam przygotować; nic nie zmieniono.', 'Please clarify which change to prepare; nothing was changed.');

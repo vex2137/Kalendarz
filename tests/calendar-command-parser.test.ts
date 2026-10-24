@@ -100,3 +100,24 @@ test('explicit PL/EN intervals survive proposal validation, including midnight',
   assert.equal(repaired.suggestedPlan?.events[0].endTime, '20:00');
   for (const query of ['today at 25-27', 'today at 18-18', 'today at 18-20 for 30 minutes']) assert.equal(calendarFields(query, now).invalid, true, query);
 });
+test('named event titles and dates survive an uncertain clock suffix until clarified', async () => {
+  for(const [query,language,title] of [
+    ['Add new event called studying tomorrow at 4-5 pk','en','studying'],
+    ['Create event named Reading tomorrow at 4-5 pn','en','Reading'],
+    ['Dodaj wydarzenie o nazwie Nauka jutro o 4-5 pk','pl','Nauka'],
+    ['Dodaj wydarzenie pod tytułem Nauka jutro o 4 pk','pl','Nauka'],
+  ] as const){
+    const parsed=parseCalendarCommand(query,language,now)!;
+    assert.ok(parsed,query);assert.equal(parsed.command.title,title);assert.equal(parsed.command.date,'2026-10-24');
+    assert.equal(parsed.command.time,null);assert.equal(parsed.incomplete,true);assert.ok(parsed.unresolvedTime);
+    const corrected=parseCalendarCommand('pm',language,now,parsed)!;
+    assert.equal(corrected.command.title,title);assert.equal(corrected.command.time,'16:00');
+    const result=await resolveModelCommand(corrected.command,corrected.request,[],language,now,DEFAULT_PLANNING);
+    assert.equal(result.suggestedPlan?.events[0].title,title);assert.equal(result.suggestedPlan?.events[0].startTime,'16:00');
+    assert.equal(result.suggestedPlan?.events[0].endTime,'17:00');
+    const changed=parseCalendarCommand('Actually today at 18-20',language,now,parsed)!;
+    assert.equal(changed.command.date,'2026-10-23');
+    const revised=await resolveModelCommand(changed.command,changed.request,[],language,now,DEFAULT_PLANNING);
+    assert.equal(revised.suggestedPlan?.events[0].startDate,'2026-10-23');assert.equal(revised.suggestedPlan?.events[0].endTime,'20:00');
+  }
+});
