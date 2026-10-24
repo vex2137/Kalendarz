@@ -1,10 +1,16 @@
 {
-  "id": "lfm2.5-350m-q4-k-m",
-  "name": "LFM2.5 350M Q4_K_M",
-  "revision": "bb7ee58b243e4cede04187e323e760b04f8a0091",
-  "file": "LFM2.5-350M-Q4_K_M.gguf",
-  "sha256": "7e6f72643caafc9a68256686638c4d7916f2cec76d1df478d4c3ddcd95a6aed4",
-  "url": "https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/resolve/bb7ee58b243e4cede04187e323e760b04f8a0091/LFM2.5-350M-Q4_K_M.gguf",
-  "license": "https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/blob/main/LICENSE",
-  "bytes": 229312224
+  "id": "qwen3.5-0.8b-q4-k-m",
+  "name": "Qwen3.5 0.8B Q4_K_M",
+  "revision": "78fc4c891ff7dee2e8286c3f4cdc8a26f7544a07",
+  "file": "Qwen3.5-0.8B.Q4_K_M.gguf",
+  "sha256": "2c49cd8cb9c15a451dd6087b8ae9676f1fc2556501bb0717cc1ba3fcae413c27",
+  "url": "https://huggingface.co/mradermacher/Qwen3.5-0.8B-GGUF/resolve/78fc4c891ff7dee2e8286c3f4cdc8a26f7544a07/Qwen3.5-0.8B.Q4_K_M.gguf",
+  "license": "https://huggingface.co/Qwen/Qwen3.5-0.8B/blob/main/LICENSE",
+  "licenseDownloadUrl": "https://huggingface.co/Qwen/Qwen3.5-0.8B/resolve/main/LICENSE",
+  "licenseName": "Apache-2.0",
+  "bytes": 527503680,
+  "architecture": "qwen35",
+  "quantization": "Q4_K_M",
+  "estimatedRamMB": 1600,
+  "maxContext": 2048
 }

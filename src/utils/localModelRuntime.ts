@@ -2,7 +2,7 @@ import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
 import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels } from './localModelStore';
 import { recordModelMetric, recordModelState, type ModelMetric } from './modelDiagnostics';
-import { activeModel, DEFAULT_MODEL, PREFERRED_MODEL, hasModelSelection, findModel, persistModelSelection } from './modelRegistry';
+import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
 export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; importing?: boolean; error?: string; errorDetail?: string; modelId: string }
@@ -45,7 +45,7 @@ export async function selectLocalModel(id: string) {
     await checkLocalModel();
   } finally { transition = false; }
 }
-export const restoreFallbackModel = () => selectLocalModel(DEFAULT_MODEL.id);
+export const restoreFallbackModel = () => selectLocalModel(OPTIONAL_FALLBACK.id);
 export async function retryLocalModel() {
   if(operation||transition)return;
   recoveryRequired=false;clearModelOperation(status.modelId);
@@ -93,14 +93,6 @@ export async function checkLocalModel() {
   const descriptor = findModel(status.modelId);
   const phaseAtStart = status.phase;
   try {
-    // A stored explicit choice, including IQ4_XS or 350M, always wins.
-    if (!hasModelSelection() && descriptor.id === DEFAULT_MODEL.id && await savedModel(PREFERRED_MODEL).catch(()=>undefined)) {
-      if (status.modelId !== descriptor.id || status.phase !== phaseAtStart) return;
-      persistModelSelection(PREFERRED_MODEL);
-      try { recoveryRequired=localStorage.getItem(operationMarker)===PREFERRED_MODEL.id; } catch {}
-      update({modelId:PREFERRED_MODEL.id,phase:'checking',installed:false,loaded:false});
-      return checkLocalModel();
-    }
     const bundled = await bundledModelAvailable(descriptor);
     const installed = bundled || Boolean(await recoverSavedModel(descriptor));
     if (!engine && !loading && status.phase === phaseAtStart && status.modelId === descriptor.id) update({ phase: recoveryRequired || phaseAtStart === 'error' && installed ? 'error' : installed ? 'installed' : 'missing', installed, loaded:false, bundled });

@@ -67,7 +67,7 @@ export default defineConfig(() => {
         workbox: {
           // Both CPU runtimes must be available after installation without contacting a CDN.
           globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}', 'models/*.{gguf,json,txt}', 'build-info.json'],
-          maximumFileSizeToCacheInBytes: 240 * 1024 * 1024,
+          maximumFileSizeToCacheInBytes: 600 * 1024 * 1024,
         },
       }),
     ],

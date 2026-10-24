@@ -1,0 +1,49 @@
+[
+  {
+    "id": "lfm2.5-350m-q4-k-m",
+    "name": "LFM2.5 350M Q4_K_M",
+    "revision": "bb7ee58b243e4cede04187e323e760b04f8a0091",
+    "file": "LFM2.5-350M-Q4_K_M.gguf",
+    "sha256": "7e6f72643caafc9a68256686638c4d7916f2cec76d1df478d4c3ddcd95a6aed4",
+    "url": "https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/resolve/bb7ee58b243e4cede04187e323e760b04f8a0091/LFM2.5-350M-Q4_K_M.gguf",
+    "license": "https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/blob/main/LICENSE",
+    "bytes": 229312224,
+    "licenseName": "LFM1.0",
+    "architecture": "lfm2",
+    "quantization": "Q4_K_M",
+    "estimatedRamMB": 650,
+    "maxContext": 2048
+  },
+  {
+    "id": "lfm2.5-2.6b-q4-k-m",
+    "name": "LFM2.5 2.6B Q4_K_M",
+    "file": "LFM2.5-2.6B-Q4_K_M.gguf",
+    "revision": "e7caca5d835a3901a8e0d63e94009429bafafdfc",
+    "bytes": 1674455040,
+    "sha256": "02a8b7e17487d326e46d68ce0ba24211e1b80a14c4cd0597fa73c1cd697f52ed",
+    "url": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF/resolve/e7caca5d835a3901a8e0d63e94009429bafafdfc/LFM2.5-2.6B-Q4_K_M.gguf",
+    "license": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF/blob/e7caca5d835a3901a8e0d63e94009429bafafdfc/LICENSE",
+    "licenseName": "LFM1.0",
+    "architecture": "lfm2",
+    "quantization": "Q4_K_M",
+    "estimatedRamMB": 3200,
+    "maxContext": 2048,
+    "experimental": true
+  },
+  {
+    "id": "qwen3.5-0.8b-iq4-xs",
+    "name": "Qwen3.5 0.8B IQ4_XS",
+    "revision": "78fc4c891ff7dee2e8286c3f4cdc8a26f7544a07",
+    "file": "Qwen3.5-0.8B.IQ4_XS.gguf",
+    "sha256": "69b1c57926ade7ce1c5fa49cd5d722c626552f25fc9f9e2b1d6892f3454719a3",
+    "url": "https://huggingface.co/mradermacher/Qwen3.5-0.8B-GGUF/resolve/78fc4c891ff7dee2e8286c3f4cdc8a26f7544a07/Qwen3.5-0.8B.IQ4_XS.gguf",
+    "license": "https://huggingface.co/Qwen/Qwen3.5-0.8B/blob/main/LICENSE",
+    "licenseName": "Apache-2.0",
+    "bytes": 488114496,
+    "architecture": "qwen35",
+    "quantization": "IQ4_XS",
+    "estimatedRamMB": 1600,
+    "maxContext": 2048,
+    "experimental": true
+  }
+]
