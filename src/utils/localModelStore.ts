@@ -42,6 +42,19 @@ export async function discardDownloadedModel(blob?: Blob) {
 }
 export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL) {
   signal.throwIfAborted();
+  // Large imports use the same disk-backed representation as streamed downloads.
+  if (blob.size > 512_000_000 && !streamed.has(blob) && navigator.storage?.getDirectory) {
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });
+    const name = `${descriptor.id}-${crypto.randomUUID()}.gguf`;
+    const writer = await (await dir.getFileHandle(name, { create: true })).createWritable();
+    try {
+      for (let offset = 0; offset < blob.size; offset += 4 * 1024 * 1024) {
+        signal.throwIfAborted();
+        await writer.write(await blob.slice(offset, offset + 4 * 1024 * 1024).arrayBuffer());
+      }
+      await writer.close(); streamed.set(blob, name);
+    } catch (error) { await writer.abort().catch(() => {}); await dir.removeEntry(name).catch(() => {}); throw error; }
+  }
   const db = await database();
   try {
     const tx = db.transaction('models', 'readwrite');
