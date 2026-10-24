@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
-const { existsSync, writeFileSync } = require('node:fs');
+const { existsSync, writeFileSync, readFileSync } = require('node:fs');
 const { chromium } = require('playwright');
 const base='http://127.0.0.1:4184';
 (async()=>{
@@ -48,7 +48,18 @@ const base='http://127.0.0.1:4184';
     await page.reload();await open();await settings();await page.waitForFunction(()=>document.querySelector('[data-testid=local-model-setup]').dataset.modelPhase==='error');
     await page.getByRole('button',{name:'Restore fallback model',exact:true}).click();await page.waitForFunction(()=>['missing','installed','ready'].includes(document.querySelector('[data-testid=local-model-setup]').dataset.modelPhase));
     await closeSettings();await page.reload();await open();assert.equal(await page.locator('#ai-settings-panel').count(),0);
-    await page.locator('#btn-ai-chat-history').click();const before=(await saved()).length;
+    await page.locator('#btn-ai-chat-history').click();
+    await page.locator('[data-chat-id]').first().waitFor();
+    const originalCount=await page.locator('[data-chat-id]').count();
+    const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Export history JSON',exact:true}).click();
+    const download=await downloading;const backupFile=await download.path();const backup=JSON.parse(readFileSync(backupFile,'utf8'));
+    assert.equal(backup.chats.length,originalCount);assert.equal(backup.version,1);
+    await page.getByLabel('Import history JSON',{exact:true}).setInputFiles(backupFile);
+    await page.waitForFunction(count=>document.querySelectorAll('[data-chat-id]').length===count,originalCount*2);
+    const importedId=await page.locator('[data-chat-id]').evaluateAll((rows,ids)=>rows.find(row=>!ids.includes(row.dataset.chatId)).dataset.chatId,backup.chats.map(chat=>chat.id));
+    page.once('dialog',dialog=>dialog.accept());await page.locator(`[data-chat-id="${importedId}"]`).getByRole('button',{name:'Delete',exact:true}).click();
+    await page.waitForFunction(count=>document.querySelectorAll('[data-chat-id]').length===count,originalCount*2-1);
+    const before=(await saved()).length;
     page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Delete all history',exact:true}).click();assert.equal((await saved()).length,before);
     page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Delete all history',exact:true}).click();await page.locator('#drawer-ai-assistant').waitFor();assert.equal((await saved()).length,0);
     await page.waitForFunction(()=>!document.querySelector('#drawer-ai-assistant input[type=text]').disabled);
