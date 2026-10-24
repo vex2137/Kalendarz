@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 apk=android/app/build/outputs/apk/release/app-release.apk
-old_apk="$RUNNER_TEMP/calendar-official-1.3.1.apk"
+old_apk="$RUNNER_TEMP/calendar-official-1.4.0.apk"
 test_apk=android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk
-curl --fail --location --retry 2 --output "$old_apk" https://github.com/vex2137/Kalendarz/releases/download/v1.3.1/Calendar-1.3.1-android.apk
+curl --fail --location --retry 2 --output "$old_apk" https://github.com/vex2137/Kalendarz/releases/download/v1.4.0/Calendar-1.4.0-android.apk
+echo 'b1065426530dd46a2f3bf2790e0571f3bc24d46660271a28a12b34e96dfce674  '"$old_apk" | sha256sum -c -
 node scripts/verify-android-signature.cjs "$old_apk"
 node scripts/verify-android-signature.cjs "$apk"
 for candidate in "$old_apk" "$apk"; do
@@ -19,9 +20,9 @@ run_stage() {
   grep -F 'OK (1 test)' "$output"
   if grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' "$output"; then exit 1; fi
 }
-run_stage seedOfficial131
+run_stage seedOfficial140
 adb shell am force-stop com.kalendarz.offline
 # This install must succeed without an uninstall, proving matching signing identity.
 adb install -r "$apk"
-run_stage verifyUpgrade140
-printf '%s\n' 'Verified official 1.3.1 → 1.4.0 in-place update: event, times, settings, language and custom palette retained.'
+run_stage verifyUpgrade141
+printf '%s\n' 'Verified official 1.4.0 → 1.4.1 in-place update: event, times, settings, language, custom palette, model choice, downloaded weights and AI history retained.'

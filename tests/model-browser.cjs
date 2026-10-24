@@ -5,6 +5,7 @@ const { createHash } = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { chromium } = require('playwright');
 const base = process.env.MODEL_TEST_URL || 'http://127.0.0.1:4178';
+const manifest = require('../src/utils/localModelManifest.json');
 const file = process.env.CALENDAR_MODEL_FILE;
 const language = process.env.MODEL_TEST_LANGUAGE || 'pl';
 assert.ok(['pl', 'en'].includes(language), 'MODEL_TEST_LANGUAGE must be pl or en');
@@ -33,11 +34,11 @@ async function records(page) {
   });
 }
 (async () => {
-  assert.ok(file && existsSync(file), 'Set CALENDAR_MODEL_FILE to the official LFM2.5-350M-Q4_K_M.gguf');
-  assert.equal(statSync(file).size, 229312224);
+  assert.ok(file && existsSync(file), 'Set CALENDAR_MODEL_FILE to the bundled manifest GGUF');
+  assert.equal(statSync(file).size, manifest.bytes);
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(file)) hash.update(chunk);
-  assert.equal(hash.digest('hex'), '7e6f72643caafc9a68256686638c4d7916f2cec76d1df478d4c3ddcd95a6aed4');
+  assert.equal(hash.digest('hex'), manifest.sha256);
   const server = process.env.MODEL_TEST_URL ? undefined : spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host=127.0.0.1', '--port=4178', '--strictPort'], { stdio: 'ignore' });
   let browser, page;
   try {

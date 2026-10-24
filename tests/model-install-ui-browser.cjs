@@ -46,7 +46,7 @@ const quantization=id.endsWith('iq4-xs')?'IQ4_XS':'Q4_K_M';
     report.importResponse=await send('What is two plus two? Answer briefly.');
     assert.equal(report.importResponse.diagnostics.runtime.installed,true);
     assert.equal(report.importResponse.diagnostics.runtime.loaded,true);
-    await settings();await page.getByRole('button',{name:'Restore fallback model',exact:true}).click();
+    await settings();await page.getByRole('button',{name:'Choose optional 350M',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('[data-testid=local-model-setup]')?.getAttribute('aria-label')==='LFM2.5 350M Q4_K_M');
     report.fallback=true;assert.deepEqual(unexpected,[]);assert.deepEqual(errors,[]);report.passed=true;
     console.log(JSON.stringify({passed:true,modelId:id,downloaded:report.downloaded,imported:report.imported,incompatibleRejected:report.incompatibleRejected,fallback:report.fallback,sourceCommit:report.importResponse.diagnostics.build.commit,inferences:[report.downloadResponse,report.importResponse].map(result=>({reply:result.reply,model:result.diagnostics.lastModel,turn:result.diagnostics.lastTurn}))}));

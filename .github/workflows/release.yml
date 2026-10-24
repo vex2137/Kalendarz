@@ -2,7 +2,7 @@ name: Release packages
 
 on:
   push:
-    branches: [main, fix/ai-140-diagnostics]
+    branches: [main, fix/ai-140-diagnostics, feat/ai-141-qwen-native-gpu]
     tags: ['v*']
     paths:
       - '.github/workflows/release.yml'
@@ -16,6 +16,12 @@ on:
       - 'android/app/src/androidTest/**'
       - 'android/app/proguard*.pro'
       - 'android/app/build.gradle'
+      - 'electron/**'
+      - 'src/**'
+      - 'scripts/prepare-native.py'
+      - 'scripts/native-runtime-manifest.json'
+      - 'scripts/test-android-upgrade.sh'
+      - 'tests/native-*.cjs'
   workflow_dispatch:
     inputs:
       android_apk_only:
@@ -57,6 +63,7 @@ jobs:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
       - run: npm run check
+      - run: npm run test:native
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - name: Verify language settings, navigation and notification status
@@ -102,6 +109,15 @@ jobs:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
       - run: npm run build
+      - name: Stage verified native inference runtimes
+        run: python scripts/prepare-native.py
+      - name: Real native CPU inference and lifecycle
+        run: npm run test:native:model
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-inference-${{ matrix.platform }}
+          path: native-smoke-results.json
       - if: runner.os == 'Linux'
         run: npx playwright install-deps chromium
       - run: npx electron-builder ${{ matrix.targets }} --x64 --publish never
@@ -150,6 +166,12 @@ jobs:
           version=$(node -p 'require("./package.json").version')
           flatpak install --user -y --noninteractive "release/Calendar-${version}-linux-x86_64.flatpak"
           flatpak info --user com.vex2137.kalendarz
+      - name: Start installed Flatpak and execute bundled model
+        run: |
+          npx playwright install-deps chromium
+          printf '%s\n' '#!/bin/sh' 'exec flatpak run com.vex2137.kalendarz "$@"' > "$RUNNER_TEMP/calendar-flatpak"
+          chmod +x "$RUNNER_TEMP/calendar-flatpak"
+          ELECTRON_EXECUTABLE="$RUNNER_TEMP/calendar-flatpak" xvfb-run -a npm run test:desktop
       - uses: actions/upload-artifact@v4
         with:
           name: release-flatpak
@@ -233,6 +255,35 @@ jobs:
           path: release/*.apk
           if-no-files-found: error
 
+  candidate-checksums:
+    needs: [web, desktop, flatpak, android]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - run: node scripts/verify-release.cjs
+      - name: Record actual installer sizes and hashes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          rows=[{'file':p.name,'bytes':p.stat().st_size,'sha256':hashlib.file_digest(p.open('rb'),'sha256').hexdigest()} for p in sorted(Path('release').iterdir()) if p.is_file() and p.name!='SHA256SUMS.txt']
+          Path('release/installer-sizes.json').write_text(json.dumps(rows,indent=2)+'\n')
+          print(json.dumps(rows,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-checksums
+          path: |
+            release/SHA256SUMS.txt
+            release/installer-sizes.json
+
   publish:
     needs: [web, desktop, flatpak, android]
     if: startsWith(github.ref, 'refs/tags/v')
@@ -251,6 +302,8 @@ jobs:
           merge-multiple: true
       - name: Check all platforms and generate checksums
         run: node scripts/verify-release.cjs
+      - name: Require reviewed hardware acceptance for 1.4.1
+        run: node scripts/verify-hardware-acceptance.cjs
       - name: Publish tested release
         uses: softprops/action-gh-release@v2
         with:
@@ -313,6 +366,8 @@ jobs:
         run: node scripts/sign-tested-apk.cjs
       - name: Verify complete package set and checksums
         run: node scripts/verify-release.cjs
+      - name: Require reviewed hardware acceptance for 1.4.1
+        run: node scripts/verify-hardware-acceptance.cjs
       - name: Publish all verified packages
         run: |
           version=$(node -p 'require("./package.json").version')
@@ -346,6 +401,8 @@ jobs:
         with:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
+      - name: Require reviewed hardware acceptance for 1.4.1
+        run: node scripts/verify-hardware-acceptance.cjs
       - run: npm run build
       - run: npx cap sync android
       - name: Receive permanent key through one-use encrypted handoff

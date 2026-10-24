@@ -77,7 +77,8 @@
         "--share=ipc",
         "--device=dri",
         "--filesystem=xdg-download",
-        "--talk-name=org.freedesktop.Notifications"
+        "--talk-name=org.freedesktop.Notifications",
+        "--share=network"
       ]
     },
     "beforePack": "scripts/verify-packaged-model.cjs",

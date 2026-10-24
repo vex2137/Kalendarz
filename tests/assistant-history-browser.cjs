@@ -46,7 +46,7 @@ const base='http://127.0.0.1:4184';
     await closeSettings();await send('Hello');assert.match(await page.locator('#drawer-ai-assistant').innerText(),/HistoryProbe/u);
     await page.evaluate(()=>localStorage.setItem('calendar_model_operation_v1','qwen3.5-0.8b-q4-k-m'));
     await page.reload();await open();await settings();await page.waitForFunction(()=>document.querySelector('[data-testid=local-model-setup]').dataset.modelPhase==='error');
-    await page.getByRole('button',{name:'Restore fallback model',exact:true}).click();await page.waitForFunction(()=>['missing','installed','ready'].includes(document.querySelector('[data-testid=local-model-setup]').dataset.modelPhase));
+    await page.getByRole('button',{name:'Choose optional 350M',exact:true}).click();await page.waitForFunction(()=>['missing','installed','ready'].includes(document.querySelector('[data-testid=local-model-setup]').dataset.modelPhase));
     await closeSettings();await page.reload();await open();assert.equal(await page.locator('#ai-settings-panel').count(),0);
     await page.locator('#btn-ai-chat-history').click();
     await page.locator('[data-chat-id]').first().waitFor();
