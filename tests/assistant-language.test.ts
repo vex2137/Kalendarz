@@ -54,4 +54,9 @@ test('a numeric follow-up keeps message language; quoted names do not override i
   assert.equal(detectAssistantLanguage('Add "Cześć jutro dodaj wydarzenie" tomorrow at 14:00', 'pl'), 'en');
   assert.equal(detectAssistantLanguage('найди событие завтра', 'en'), 'ru');
   assert.equal(detectAssistantLanguage('Lösche den Termin morgen', 'en'), 'de');
+  assert.equal(detectAssistantLanguage('Możemy po prostu pogadać?', 'en'), 'pl');
+  assert.equal(detectAssistantLanguage('Opowiedz krótki dowcip o zegarku.', 'en'), 'pl');
+  assert.equal(detectAssistantLanguage('Can we just have a chat?', 'pl'), 'en');
+  assert.equal(detectAssistantLanguage('W sumie powiedz po angielsku, co zmieniłeś.', 'pl'), 'en');
+  assert.equal(detectAssistantLanguage('Now tell me in Polish what changed.', 'en'), 'pl');
 });

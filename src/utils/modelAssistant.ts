@@ -1,16 +1,35 @@
 import type { CalendarEvent, PlanningPreferences } from '../types';
 import type { AppLanguage } from './i18n';
-import { inferCalendarJson, touchLocalModel, modelStatus } from './localModelRuntime';
-import { calendarSystemPrompt, commandSchemaForRequest, parseModelCommand, resolveModelCommand } from './modelCommand';
+import { inferCalendarJson, inferLocalText, touchLocalModel, modelStatus } from './localModelRuntime';
+import { assistantSystemPrompt, commandSchemaForRequest, parseModelCommand, resolveModelCommand } from './modelCommand';
 import { assistantQuickReply } from './assistantQuickReply';
 import { timeString } from './dates';
-import { parseDateFromNaturalLanguage } from './aiEngine';
+import { parseDateFromNaturalLanguage, type AiResponseResult } from './aiEngine';
 import { parseCalendarCommand } from './calendarCommandParser';
 import type { ModelCommand } from './modelCommand';
 import { recordModelMetric, recordAssistantTurn, type AssistantTurnMetric } from './modelDiagnostics';
 import { detectAssistantLanguage, normalizeAssistantInput } from './assistantLanguage';
+import { changesForPlan } from './assistantChanges';
+import { matchesCalendarText } from './assistantPlanning';
+import { tr } from './i18n';
 
-export interface ModelConversation { language?: AppLanguage; turns?: { role: 'user' | 'assistant'; content: string }[]; pending?: { command: ModelCommand; request: string } }
+export interface ModelConversation { language?: AppLanguage; turns?: { role: 'user' | 'assistant'; content: string }[]; pending?: { command: ModelCommand; request: string }; reference?: { title: string; date: string }; lastConfirmedAction?: { kind:'create'|'move'|'delete';title:string;date:string }; proposal?: { command: ModelCommand; request: string; event?: Partial<CalendarEvent> } }
+async function resolveInConversation(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, context: ModelConversation): Promise<AiResponseResult> {
+  const pronoun = /^(?:go|je|to|ono|it|that|that event|this event|to wydarzenie)$/iu.test(command.query?.trim() || '');
+  const draft = context.proposal?.event;
+  const refersToDraft = draft?.title && (pronoun || (command.query && matchesCalendarText(draft.title, command.query)));
+  if (refersToDraft && ['update','delete'].includes(command.action)) {
+    if (command.action === 'delete') return { text: tr(language, 'Odrzucono propozycję. Nie zmieniono kalendarza.', 'The proposal was discarded. The calendar was not changed.') };
+    const original = changesForPlan({ kind:'create', originals:[], events:[draft] })[0].after!;
+    const patch = { ...command, query:original.title, sourceDate:original.startDate };
+    if (patch.title === original.title && !request.includes(patch.title)) patch.title = null;
+    const result = await resolveModelCommand(patch, request, [original], language, now, preferences, {title:original.title,date:original.startDate});
+    return result.suggestedPlan?.kind === 'move' ? { ...result, suggestedPlan: { kind:'create' as const, originals:[], events:result.suggestedPlan.events } } : result;
+  }
+  const referenced=context.reference&&(pronoun||command.query===context.reference.title&&/\b(?:go|mu|je|ono|it|its|that)\b/iu.test(request));
+  if (referenced && context.reference && ['update','delete','search'].includes(command.action)) command = { ...command, query:context.reference.title, sourceDate:command.sourceDate || context.reference.date };
+  return resolveModelCommand(command,request,events,language,now,preferences,referenced?context.reference:undefined);
+}
 let requestSequence = 0;
 export async function runModelAssistant(query: string, events: CalendarEvent[], uiLanguage: AppLanguage, now: Date, context: ModelConversation, preferences: PlanningPreferences) {
   const started = performance.now();
@@ -27,7 +46,7 @@ export async function runModelAssistant(query: string, events: CalendarEvent[], 
   } catch (error) { trace.error = true; throw error; }
   finally { trace.totalMs = performance.now() - started; recordAssistantTurn(trace); }
 }
-async function runDetectedAssistant(query: string, events: CalendarEvent[], language: AppLanguage, now: Date, context: ModelConversation, preferences: PlanningPreferences, trace: AssistantTurnMetric) {
+async function runDetectedAssistant(query: string, events: CalendarEvent[], language: AppLanguage, now: Date, context: ModelConversation, preferences: PlanningPreferences, trace: AssistantTurnMetric): Promise<AiResponseResult & {context:ModelConversation;route:'quick'|'rules'|'model'}> {
   const started = performance.now();
   if (!query.trim() || query.length > 1000) throw new Error('model-input');
   touchLocalModel();
@@ -40,20 +59,30 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   trace.rulesMs = performance.now() - rulesStarted;
   if (parsed) {
     trace.rulesMatched = true; trace.route = 'rules'; trace.commandAction = parsed.command.action;
-    const result = await resolveModelCommand(parsed.command, parsed.request, events, language, now, preferences);
+    const result = await resolveInConversation(parsed.command, parsed.request, events, language, now, preferences, context);
     recordModelMetric({ route: 'rules', totalMs: performance.now() - started });
-    return { ...result, context: { turns: [{ role: 'user' as const, content: parsed.request }, { role: 'assistant' as const, content: JSON.stringify(parsed.command) }], ...(parsed.incomplete ? { pending: { command: parsed.command, request: parsed.request } } : {}) }, route: 'rules' as const };
+    return { ...result, context: { reference: context.reference, lastConfirmedAction: context.lastConfirmedAction, turns: [{ role: 'user' as const, content: parsed.request }, { role: 'assistant' as const, content: JSON.stringify(parsed.command) }], ...(parsed.incomplete ? { pending: { command: parsed.command, request: parsed.request } } : {}), ...(result.suggestedPlan?.kind === 'create' ? { proposal: { command: parsed.command, request: parsed.request, event: result.suggestedPlan.events[0] } } : {}) }, route: 'rules' as const };
   }
   // Bound history to protect small-device memory and the 2K context window.
   const pair = (context.turns || []).slice(-2);
-  const turns = pair.length === 2 && pair[0].role === 'user' && pair[1].role === 'assistant' && pair.reduce((n, turn) => n + turn.content.length, 0) <= 1200 ? pair : [];
+  const historyLimit = modelStatus().modelId === 'lfm2.5-2.6b-q4-k-m' ? 500 : 1200;
+  const turns = pair.length === 2 && pair[0].role === 'user' && pair[1].role === 'assistant' && pair.reduce((n, turn) => n + turn.content.length, 0) <= historyLimit ? pair : [];
+  const calendarRelated = /(?<![\p{L}])(?:dod\p{L}*|utworz\p{L}*|utwórz\p{L}*|wpisz|zapisz|zaplanuj|przenie\p{L}*|przeloz|przełóż|przesu\p{L}*|zmie\p{L}*|usu\p{L}*|skas\p{L}*|odwo\p{L}*|znajd\p{L}*|szuk\p{L}*|wyszuk\p{L}*|woln\p{L}*|kolizj\p{L}*|konflikt\p{L}*|propozycj\p{L}*|jutro|pojutrze|dzis\p{L}*|dziś|add|create|schedule|move|reschedule|rename|change|delete|remove|cancel|find|search|free|conflicts|tomorrow|today|appointment|event|events|termin|termine|verschiebe|lösche|добавь|удали|перенеси|завтра|событие)(?![\p{L}])|\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2}/iu.test(query);
+  if (!calendarRelated && !context.pending && !((context.reference || context.proposal) && /\b(?:go|je|ono|it|that|trwa|duration)\b/iu.test(query))) {
+    trace.route = 'model'; trace.commandAction = 'chat';
+    const chatTurns = turns.filter(turn => turn.role === 'user' || !turn.content.trim().startsWith('{'));
+    const confirmed = context.lastConfirmedAction ? ` The only last confirmed calendar action is: ${JSON.stringify(context.lastConfirmedAction)}.` : '';
+    const text = await inferLocalText(`You are a helpful offline assistant. Have a natural conversation. Reply in the user's actual language (${language} is a hint), respecting explicit language requests. Never invent calendar changes. Calendar mutations require a separate validated proposal and confirmation.${confirmed}`, query, chatTurns);
+    return { text, context: { ...context, turns: [...chatTurns, { role:'user' as const,content:query }, { role:'assistant' as const,content:text }].slice(-4) }, route:'model' as const };
+  }
   const date = parseDateFromNaturalLanguage(query, now, language);
   const reference = date.matched ? `\nCalendar calculation for the date phrase in this request: ${date.dateStr}. For create/search use this exact date. For update distinguish original and new dates.` : '';
   const clock = /\b(?:teraz|now|za|in)\b|через|сейчас/iu.test(query) ? `\nCurrent local time: ${timeString(now.getHours() * 60 + now.getMinutes())}.` : '';
   trace.route = 'model';
-  const raw = await inferCalendarJson(calendarSystemPrompt(language, now), `Current request:\n${query}${reference}${clock}`, commandSchemaForRequest(query), turns);
+  const target = context.proposal?.event ? `\nCurrent unconfirmed proposal: ${JSON.stringify(context.proposal.event)}. For a requested revision use update with query=its title. It has not been saved.` : context.reference ? `\nLast explicitly confirmed event: ${JSON.stringify(context.reference)}. Pronouns may refer to this event; never invent a different event.` : '';
+  const raw = await inferCalendarJson(assistantSystemPrompt(language, now), `Current request:\n${query}${reference}${clock}${target}`, commandSchemaForRequest(query, true), turns);
   const command = parseModelCommand(raw);
   trace.commandAction = command.action;
-  const result = await resolveModelCommand(command, query, events, language, now, preferences);
-  return { ...result, context: { turns: [...turns, { role: 'user' as const, content: query }, { role: 'assistant' as const, content: raw }].slice(-4) }, route: 'model' as const };
+  const result = await resolveInConversation(command, query, events, language, now, preferences, context);
+  return { ...result, context: { reference: context.reference, lastConfirmedAction: context.lastConfirmedAction, turns: [...turns, { role: 'user' as const, content: query }, { role: 'assistant' as const, content: raw }].slice(-4), ...(result.suggestedPlan?.kind === 'create' ? { proposal: { command, request: query, event: result.suggestedPlan.events[0] } } : {}) }, route: 'model' as const };
 }

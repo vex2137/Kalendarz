@@ -6,6 +6,15 @@ import { DEFAULT_MODEL, type ModelDescriptor } from './modelRegistry';
 const database = () => openDB('calendar-local-model', 1, {
   upgrade(db) { db.createObjectStore('models'); },
 });
+async function ensureSpace(bytes: number) {
+  const estimate=await navigator.storage?.estimate?.();
+  if(estimate?.quota!==undefined&&estimate.usage!==undefined&&estimate.quota-estimate.usage<bytes+64*1024*1024)throw new Error('model-storage-space');
+}
+export async function hasDownloadedModelData(descriptor: ModelDescriptor) {
+  const db=await database();try { if(await db.getKey('models',descriptor.id))return true; }finally{db.close();}
+  if(navigator.storage?.getDirectory)try { const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');for await(const [name] of dir.entries())if(name.startsWith(descriptor.id+'-'))return true; }catch{}
+  return false;
+}
 
 export async function savedModel(descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob | undefined> {
   const db = await database();
@@ -44,6 +53,7 @@ export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: Mod
   signal.throwIfAborted();
   // Large imports use the same disk-backed representation as streamed downloads.
   if (blob.size > 512_000_000 && !streamed.has(blob) && navigator.storage?.getDirectory) {
+    await ensureSpace(blob.size);
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });
     const name = `${descriptor.id}-${crypto.randomUUID()}.gguf`;
     const writer = await (await dir.getFileHandle(name, { create: true })).createWritable();
@@ -75,11 +85,15 @@ export async function removeSavedModel(descriptor: ModelDescriptor = DEFAULT_MOD
   try {
     const previous = await db.get('models', descriptor.id);
     await db.delete('models', descriptor.id);
-    if (previous?.opfsName) { const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models'); await dir.removeEntry(previous.opfsName).catch(() => {}); }
+    if(navigator.storage?.getDirectory)try {
+      const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');
+      for await(const [name] of dir.entries())if(name===previous?.opfsName||name.startsWith(descriptor.id+'-'))await dir.removeEntry(name);
+    }catch(error){if(!(error instanceof DOMException&&error.name==='NotFoundError'))throw error;}
   } finally { db.close(); }
 }
 
 export async function downloadModel(signal: AbortSignal, progress: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob> {
+  await ensureSpace(descriptor.bytes);
   if (navigator.storage?.getDirectory) {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });
     const name = `${descriptor.id}-${crypto.randomUUID()}.gguf`;

@@ -2,18 +2,19 @@ name: Real AI candidate inference
 on:
   push:
     branches: [feat/local-ai-models-history]
-    paths: ['src/utils/modelRegistry.ts', '.github/workflows/ai-candidate-inference.yml', 'tests/model-candidates.cjs']
+    paths: ['src/utils/modelRegistry.ts', 'src/utils/localModelRuntime.ts', 'src/utils/localModelStore.ts', 'src/utils/modelAssistant.ts', 'src/utils/modelCommand.ts', '.github/workflows/ai-candidate-inference.yml', 'tests/model-candidates.cjs']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   candidate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         model: [lfm2.5-350m-q4-k-m, lfm2.5-2.6b-q4-k-m, qwen3.5-0.8b-q4-k-m, qwen3.5-0.8b-iq4-xs]
+        runtime: [jspi, compat]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,6 +26,7 @@ jobs:
       - name: Download exact pinned weights for compatibility test
         env:
           CANDIDATE_MODEL_ID: ${{ matrix.model }}
+          CANDIDATE_RUNTIME: ${{ matrix.runtime }}
         run: |
           node --import tsx scripts/fetch-candidate-model.ts "$CANDIDATE_MODEL_ID" "$RUNNER_TEMP/candidate.gguf"
           ln -s "$RUNNER_TEMP/candidate.gguf" dist/benchmark-model.gguf
@@ -32,10 +34,11 @@ jobs:
       - name: Execute real offline raw and JSON inference
         env:
           CANDIDATE_MODEL_ID: ${{ matrix.model }}
+          CANDIDATE_RUNTIME: ${{ matrix.runtime }}
         run: node tests/model-candidates.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: candidate-${{ matrix.model }}
+          name: candidate-${{ matrix.model }}-${{ matrix.runtime }}
           path: candidate-results.json
           if-no-files-found: warn
