@@ -65,7 +65,7 @@ with target.open('rb') as stream:
 }, indent=2) + '\n')
 shutil.copyfile(root / 'docs/android-diagnostics-download.md', destination / 'README.md')
 shutil.copyfile(root / 'docs/assistant-device-investigation.md', destination / 'assistant-device-investigation.md')
-for document in ['multimodel-progress.md', 'model-candidate-smoke.json', 'model-source-verification.json', 'ai-140-acceptance.md']:
+for document in ['multimodel-progress.md', 'model-candidate-smoke.json', 'model-source-verification.json', 'ai-140-acceptance.md', 'ai-140-poco-followup.md']:
     path = root / 'docs' / document
     if path.exists():
         shutil.copyfile(path, destination / document)

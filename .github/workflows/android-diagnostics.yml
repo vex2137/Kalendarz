@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ai-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   diagnostics:
     if: github.ref == 'refs/heads/optimize/lfm25-parser-runtime' || github.ref == 'refs/heads/feat/local-ai-models-history' || github.ref == 'refs/heads/fix/ai-140-diagnostics'
@@ -73,6 +77,24 @@ jobs:
           MODEL_IMPORT_FILE: ${{ runner.temp }}/import.gguf
           MODEL_INSTALL_REPORT: diagnostics-artifact/model-install-ui-results.json
         run: node tests/model-install-ui-browser.cjs
+      - name: Fetch verified preferred Q4_K_M for acceptance
+        run: node --import tsx scripts/fetch-candidate-model.ts qwen3.5-0.8b-q4-k-m "$RUNNER_TEMP/import-q4.gguf"
+      - name: Preferred Q4_K_M download, import and native offline APK conversation
+        env:
+          ASSISTANT_TEST_WEB_DIR: ${{ runner.temp }}/diagnostics-web
+          MODEL_TEST_ID: qwen3.5-0.8b-q4-k-m
+          MODEL_IMPORT_FILE: ${{ runner.temp }}/import-q4.gguf
+          MODEL_INSTALL_REPORT: diagnostics-artifact/model-install-q4-ui-results.json
+        run: node tests/model-install-ui-browser.cjs
+      - name: Build runtime evaluation harness from the same source
+        run: npm run build:evaluation
+      - name: Real installed-model lifecycle and bounded bilingual comparison
+        run: |
+          for model in qwen3.5-0.8b-q4-k-m qwen3.5-0.8b-iq4-xs; do
+            if [ "$model" = qwen3.5-0.8b-q4-k-m ]; then model_file="$RUNNER_TEMP/import-q4.gguf"; else model_file="$RUNNER_TEMP/import.gguf"; fi
+            ln -sf "$model_file" dist/candidate-lifecycle.gguf
+            CANDIDATE_MODEL_ID="$model" LIFECYCLE_REPORT="diagnostics-artifact/lifecycle-$model.json" node tests/model-lifecycle-browser.cjs
+          done
       # GitHub wraps these files in a downloadable ZIP. APK/GGUF never enter Git.
       - name: Upload diagnostics ZIP artifact
         id: upload
