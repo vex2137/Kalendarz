@@ -130,6 +130,34 @@ counts and stop/error fields, rather than interpreting a green Actions job as
 semantic success. The current engine compatibility matrix is recorded separately.
 These experiments do not justify changing the default model.
 
+| Five-pair cloud smoke | LLM-only automated passes | Full assistant automated passes |
+| --- | --- | --- |
+| 350M | 4/10 | 9/10 |
+| 2.6B | 5/9 attempted; stopped after one inference error | 10/10 |
+| Qwen Q4_K_M | 1/10 | 8/10 |
+| Qwen IQ4_XS | 3/10 | 9/10 |
+
+The 2.6B LLM run planned 10 inputs but did not complete. Six cases per completed
+smoke mode still require semantic review. Its full-assistant later-model calls
+averaged 97.5 s on its runner; Qwen IQ4 averaged 111.3 s, Q4 31.0 s and 350M
+12.1 s. Separate cloud hosts and this tiny development sample do not support
+a phone performance ranking or a new default.
+
+For the complete 350M corpus, Polish/English automated passes were respectively
+21/100 and 18/100 (rules), 31/100 and 42/100 (LLM), 41/100 and 48/100 (assistant).
+This exposes substantial remaining language/intent failures; do not present
+the hybrid assistant as a solved Polish-language benchmark.
+
+The repeated-arithmetic stability preset also completed 40 LLM turns and
+40 full-assistant turns without engine errors, carrying bounded conversation
+context. Arithmetic checks passed 18/40 and 36/40 respectively; completing
+generation is not evidence of correct reasoning. Results are in
+`model-stability-350m-results.json` (source `47d562b`). Repeated short questions
+exercise warm/cache behavior, not general conversation speed or a RAM leak
+assessment. Physical sustained-temperature and memory testing remains pending.
+Benchmark queues stop after native cancellation/timeouts rather than loading
+the model repeatedly for every remaining fixture.
+
 ## POCO X7 Pro diagnostic procedure
 
 1. Download the ZIP from the latest successful **Android AI diagnostics APK**
