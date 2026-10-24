@@ -78,7 +78,9 @@ async function records(page) {
     // Use the shipped model on a fresh profile: no import/download and no pre-existing IndexedDB copy.
     assert.equal(await page.evaluate(() => indexedDB.databases().then(dbs => dbs.some(db => db.name === 'calendar-local-model'))), false);
     console.log('Testing bundled GGUF on a fresh profile');
+    await page.locator('#btn-ai-settings').click();
     await page.locator('[data-model-installed="true"]').waitFor();
+    await page.locator('#ai-settings-panel header button').click();
     console.log('Bundled metadata ready; waiting for service-worker installation');
     await page.evaluate(() => Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise((_, reject) => setTimeout(() => reject(new Error('Service-worker installation exceeded 60 seconds')), 60000))]));
     await page.reload();

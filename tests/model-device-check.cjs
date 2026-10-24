@@ -7,8 +7,10 @@ module.exports = async function verifyDeviceModel(page, language) {
   const listener = message => { if (message.text().startsWith('Local model performance:')) metrics.push(JSON.parse(message.text().slice('Local model performance:'.length))); };
   page.on('console', listener);
   try {
-    const details = page.locator('details').filter({ has: page.getByText(text[0], { exact: true }) });
-    await details.locator('summary').click();
+    await page.locator('#btn-ai-settings').click();
+    await page.locator('[data-model-installed="true"]').waitFor();
+    await page.locator('#ai-tab-diagnostics').click();
+    const details = page.getByTestId('model-diagnostics');
     await page.waitForFunction(label => [...document.querySelectorAll('button')].some(b => b.textContent === label && !b.disabled), text[1], { timeout: 180000 });
     await page.getByRole('button', { name: text[1], exact: true }).click();
     console.log('Running real cold/warm device probe', language);
@@ -23,7 +25,8 @@ module.exports = async function verifyDeviceModel(page, language) {
       assert.ok(Number.isFinite(metric.promptMs) && Number.isFinite(metric.generationMs));
     }
     assert.ok(metrics[1].cachedTokens > 0, 'Warm model call must reuse the actual prompt');
-    await details.locator('summary').click();
+    await page.locator('#ai-settings-panel header button').click();
+    await page.locator('#drawer-ai-assistant').waitFor();
     return metrics;
   } finally { page.off('console', listener); }
 };
