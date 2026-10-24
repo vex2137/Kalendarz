@@ -376,6 +376,7 @@ export async function runAssistantBenchmark(options: {
   const abort = () => cancelModelOperation();
   options.signal.addEventListener("abort", abort);
   let stabilityHistory: { role: "user" | "assistant"; content: string }[] = [];
+  let stabilityConversation: ModelConversation = {};
   try {
     for (let i = run.nextIndex; i < queue.length; i++) {
       if (
@@ -402,7 +403,7 @@ export async function runAssistantBenchmark(options: {
       };
       try {
         const context: ModelConversation =
-          item.category === "context"
+          options.preset === 'stability' ? stabilityConversation : item.category === "context"
             ? {
                 reference: { title: "Yoga", date: "2026-10-25" },
                 turns: [
@@ -500,6 +501,7 @@ export async function runAssistantBenchmark(options: {
             context,
             DEFAULT_PLANNING,
           );
+          if (options.preset === 'stability') stabilityConversation = response.context || {};
           const plan = response.suggestedPlan,
             trace = assistantTurns().at(-1),
             event = plan?.events[0];
