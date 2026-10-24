@@ -59,7 +59,6 @@ async function records(page) {
       await page.clock.setFixedTime(new Date('2026-10-21T08:00:00Z'));
       await page.reload();
       await page.locator('#btn-open-ai-assistant').click();
-      await page.locator('[data-model-installed="true"]').waitFor();
       console.log('Android runtime:', await page.evaluate(() => JSON.stringify({ ua: navigator.userAgent, isolated: crossOriginIsolated, jspi: typeof WebAssembly.Suspending === 'function', language: document.documentElement.lang })));
       const before = await records(page);
       await require('./model-device-check.cjs')(page, example.language);

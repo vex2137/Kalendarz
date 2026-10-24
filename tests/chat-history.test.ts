@@ -5,6 +5,7 @@ import {
   chatMessages,
   clearChatHistory,
   createChat,
+  createOrReuseEmptyChat,
   deleteChat,
   exportChatHistory,
   getChat,
@@ -24,6 +25,18 @@ const messages = (count: number): AiChatMessage[] =>
     modelId: "lfm2.5-350m-q4-k-m",
     ...(i % 2 ? { route: "model" as const } : {}),
   }));
+test('new chat reuses an empty draft and preserves the previous conversation', async () => {
+  await clearChatHistory();
+  const previous = await createChat('Old', 'model-a');
+  await saveChat(previous.id, messages(2), {}, 'model-a');
+  const fresh = await createOrReuseEmptyChat('New', 'model-a', previous.id);
+  assert.notEqual(fresh.id, previous.id);
+  for (let i = 0; i < 5; i++) assert.equal((await createOrReuseEmptyChat('New', 'model-b', fresh.id)).id, fresh.id);
+  assert.equal((await listChats()).length, 2);
+  assert.equal((await chatMessages(previous.id)).length, 2);
+  await saveChat(fresh.id, messages(2), {}, 'model-b');
+  assert.equal((await getChat(fresh.id))?.selectedModelId, 'model-b');
+});
 test("chat storage keeps exact order at identical timestamps and pages older messages", async () => {
   await clearChatHistory();
   const chat = await createChat("New conversation", "lfm2.5-350m-q4-k-m");

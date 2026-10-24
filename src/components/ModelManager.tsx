@@ -1,7 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { AI_MODELS, DEFAULT_MODEL } from "../utils/modelRegistry";
+import { AI_MODELS, PREFERRED_MODEL } from "../utils/modelRegistry";
 import {
   hasDownloadedModelData,
+  bundledModelAvailable,
   removeSavedModel,
 } from "../utils/localModelStore";
 import {
@@ -16,6 +17,10 @@ import {
 } from "../utils/localModelRuntime";
 import { assistantUiText } from "../utils/assistantUiText";
 import type { AppLanguage } from "../utils/i18n";
+import { Capacitor } from '@capacitor/core';
+import { modelsForHuggingFaceLink } from '../utils/modelLinks';
+import { aiSettingsText, modelErrorText } from '../utils/aiSettingsText';
+import { modelLifecycleText } from '../utils/modelLifecycleText';
 
 export function ModelManager({
   language,
@@ -25,8 +30,11 @@ export function ModelManager({
   enabled: boolean;
 }) {
   const status = useSyncExternalStore(subscribeModel, modelStatus);
-  const [installed, setInstalled] = useState<string[]>([DEFAULT_MODEL.id]);
-  const [error, setError] = useState(false);
+  const [installed, setInstalled] = useState<string[]>([]);
+  const [error, setError] = useState<string>();
+  const [link, setLink] = useState('');
+  const [matches, setMatches] = useState<readonly string[]>();
+  const settings = aiSettingsText(language);
   const text = assistantUiText(language);
   const busy = [
     "checking",
@@ -39,7 +47,7 @@ export function ModelManager({
     let current = true;
     void Promise.all(
       AI_MODELS.map(async (model) =>
-        model.bundled ||
+        (model.bundled && await bundledModelAvailable(model)) ||
         (await hasDownloadedModelData(model).catch(() => false))
           ? model.id
           : "",
@@ -52,14 +60,26 @@ export function ModelManager({
     };
   }, [status.phase, status.modelId]);
   const perform = (fn: () => Promise<unknown>) => {
-    setError(false);
-    void fn().catch(() => setError(true));
+    setError(undefined);
+    void fn().catch(error => setError(error instanceof Error ? error.message : 'model-inference'));
   };
   return (
     <div className="space-y-3" aria-label={text.models}>
       <h4 className="font-semibold">{text.models}</h4>
-      {AI_MODELS.map((model) => {
+      {!installed.includes(PREFERRED_MODEL.id) && !(status.modelId===PREFERRED_MODEL.id&&status.installed) && <p className="theme-muted">{modelLifecycleText(language).offer}</p>}
+      <form className="space-y-2" onSubmit={event => {
+        event.preventDefault(); setError(undefined);
+        try { setMatches(modelsForHuggingFaceLink(link).map(model => model.id)); }
+        catch (error) { setMatches(undefined); setError((error as Error).message); }
+      }}>
+        <label className="block">{settings.link}<input type="url" aria-label={settings.link} value={link} onChange={event => setLink(event.target.value)} className="theme-input w-full rounded p-2" placeholder="https://huggingface.co/…" required /></label>
+        <button type="submit" disabled={busy} className="theme-border border rounded p-2 disabled:opacity-50">{settings.resolve}</button>
+        {matches && <button type="button" onClick={() => {setMatches(undefined);setLink('');}} className="underline ml-2">{text.models}</button>}
+        <p className="theme-muted">{settings.hint}</p>
+      </form>
+      {[...AI_MODELS].sort((a,b)=>Number(b.id===PREFERRED_MODEL.id)-Number(a.id===PREFERRED_MODEL.id)).filter(model => !matches || matches.includes(model.id)).map((model) => {
         const active = status.modelId === model.id;
+        const onDisk = installed.includes(model.id) || active && status.installed;
         return (
           <article
             key={model.id}
@@ -69,10 +89,12 @@ export function ModelManager({
             <p className="font-semibold">
               {model.name} {active && <span> · {text.selected}</span>}
             </p>
+            {model.id === PREFERRED_MODEL.id && <p className="font-semibold theme-muted">{modelLifecycleText(language).preferred}</p>}
             <p>
               {(model.bytes / 1_000_000).toFixed(1)} MB · {text.memory}: ~
               {model.estimatedRamMB} MB
             </p>
+            {onDisk && <p role="status">{settings.installed}</p>}
             {model.experimental && (
               <p className="theme-muted">{text.experimental}</p>
             )}
@@ -118,7 +140,7 @@ export function ModelManager({
                     <input
                       type="file"
                       className="sr-only"
-                      accept=".gguf"
+                      accept={Capacitor.getPlatform() === 'android' ? undefined : '.gguf,application/octet-stream'}
                       disabled={!enabled}
                       aria-label={text.import}
                       onChange={(event) => {
@@ -130,7 +152,7 @@ export function ModelManager({
                   </label>
                 </>
               )}
-              {!model.bundled && installed.includes(model.id) && !busy && (
+              {!model.bundled && onDisk && !busy && (
                 <button
                   type="button"
                   className="theme-border border rounded p-2"
@@ -160,7 +182,7 @@ export function ModelManager({
           {text.cancel}
         </button>
       )}
-      {status.modelId !== DEFAULT_MODEL.id && (
+      {!AI_MODELS.find(model=>model.id===status.modelId)?.bundled && (
         <button
           type="button"
           disabled={busy}
@@ -170,7 +192,7 @@ export function ModelManager({
           {text.fallback}
         </button>
       )}
-      {status.phase === "error" && status.installed && !busy && (
+      {status.phase === "error" && !busy && (
         <button
           type="button"
           className="theme-border border rounded p-2"
@@ -180,7 +202,7 @@ export function ModelManager({
         </button>
       )}
       {(error || status.phase === "error") && (
-        <p role="alert">{text.modelError}</p>
+        <p role="alert">{modelErrorText(error || status.error, language)} {status.installed && modelLifecycleText(language).retry}</p>
       )}
       <p className="theme-muted">{text.privacy}</p>
     </div>

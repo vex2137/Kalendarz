@@ -76,7 +76,10 @@ test('create uses existing validation, handles midnight and never writes until c
   assert.equal(changesForPlan(result.suggestedPlan!)[0].after?.title, 'Dentysta');
   assert.equal((await resolve(command({ action: 'create', title: 'Dentysta', date: '2026-10-22' }))).suggestedPlan, undefined);
   assert.equal((await resolve(command({ action: 'create', title: 'Dentysta', date: '2026-10-23', time: '10:00' }), 'Dodaj dentystę jutro o 10')).suggestedPlan, undefined);
-  await assert.rejects(resolve(command({ action: 'create', title: 'Dentysta', date: '2026-10-22', time: '13:00', endTime: '12:00' }), 'Dodaj dentystę jutro od 13:00 do 12:00'));
+  const overnight = await resolve(command({ action: 'create', title: 'Dentysta', date: '2026-10-22', time: '23:00', endTime: '01:00' }), 'Dodaj dentystę jutro od 23:00 do 01:00');
+  assert.equal(overnight.suggestedPlan?.events[0].endDate, '2026-10-23');
+  assert.equal(overnight.suggestedPlan?.events[0].endTime, '01:00');
+  assert.equal((await resolve(command({ action: 'create', title: 'Dentysta', date: '2026-10-22', time: '13:00', endTime: '13:00' }), 'Dodaj dentystę jutro od 13:00 do 13:00')).suggestedPlan, undefined);
 });
 test('edit preserves identity, reminders and original duration', async () => {
   const original = event({ title: 'Dentysta', reminders: [30], location: 'Gabinet' });

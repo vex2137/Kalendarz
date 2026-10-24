@@ -59,7 +59,6 @@ const { _electron } = require('playwright');
       return route.abort();
     });
     await page.locator('#btn-open-ai-assistant').click();
-    await page.locator('[data-model-installed="true"]').waitFor();
     await require('./model-device-check.cjs')(page, 'en');
     const started = performance.now();
     await page.locator('#drawer-ai-assistant input[type=text]').fill('Add event Desktopcheck on 2026-11-15 at 15:00 until 16:00');

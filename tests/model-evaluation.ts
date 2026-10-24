@@ -1,7 +1,10 @@
 import { runModelAssistant } from '../src/utils/modelAssistant';
 import { DEFAULT_PLANNING } from '../src/utils/assistantPlanning';
 import * as runtime from '../src/utils/localModelRuntime';
-import { calendarSystemPrompt, commandSchemaForRequest, parseModelCommand, resolveModelCommand } from '../src/utils/modelCommand';
+import { calendarSystemPrompt, assistantSystemPrompt, ASSISTANT_SCHEMA, commandSchemaForRequest, parseModelCommand, resolveModelCommand } from '../src/utils/modelCommand';
+import { parseCalendarCommand } from '../src/utils/calendarCommandParser';
+import { assistantQuickReply } from '../src/utils/assistantQuickReply';
+import * as registry from '../src/utils/modelRegistry';
 import { diagnosticsReport } from '../src/utils/modelDiagnostics';
 import * as benchmarks from '../src/utils/assistantBenchmarks';
-Object.assign(window, { calendarEvaluation: { runModelAssistant, DEFAULT_PLANNING, runtime, calendarSystemPrompt, commandSchemaForRequest, parseModelCommand, resolveModelCommand, diagnosticsReport, benchmarks } });
+Object.assign(window, { calendarEvaluation: { runModelAssistant, DEFAULT_PLANNING, runtime, registry, assistantSystemPrompt, ASSISTANT_SCHEMA, parseCalendarCommand, assistantQuickReply, calendarSystemPrompt, commandSchemaForRequest, parseModelCommand, resolveModelCommand, diagnosticsReport, benchmarks } });
