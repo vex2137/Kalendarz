@@ -404,7 +404,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
         {/* Messages Container */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 theme-bg">
-          {messages.length >= 200 && <button type="button" className="text-xs underline" onClick={() => { const id=chatIdRef.current; if(id&&messages[0].sequence!==undefined)void chatMessages(id,messages[0]).then(older=>setMessages(current=>[...older,...current])).catch(()=>setHistoryError(true)); }}>{ui.older}</button>}
+          {messages.length >= 200 && <button type="button" className="text-xs underline" onClick={() => { const id=chatIdRef.current; if(id)void chatMessages(id,messages[0]).then(older=>setMessages(current=>[...older,...current])).catch(()=>setHistoryError(true)); }}>{ui.older}</button>}
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
             const isAdded = addedEventsIds.includes(msg.id);
@@ -424,6 +424,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 >
                   {/* Markdown Renderer */}
                   <MarkdownMessage content={msg.content} isUser={isUser} />
+                  {msg.proposalSummary && <p className="mt-2 whitespace-pre-wrap theme-muted">{msg.proposalSummary}</p>}
 
                   {plan && (
                     <div className="mt-3 p-3 theme-subtle rounded-xl theme-border border theme-text space-y-3 text-xs">

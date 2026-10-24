@@ -34,6 +34,7 @@ test("chat storage keeps exact order at identical timestamps and pages older mes
   const earlier = await chatMessages(chat.id, recent[0]);
   assert.equal(earlier[0].content, "Message 50");
   assert.equal(earlier.at(-1)?.content, "Message 249");
+  assert.deepEqual(await chatMessages(chat.id,{id:recent[0].id}),earlier,'Newly sent messages can page by ID before their sequence is reloaded');
   await saveChat(chat.id, recent, {}, "qwen3.5-0.8b-q4-k-m");
   assert.equal((await chatMessages(chat.id, recent[0])).length, 200);
   assert.equal(

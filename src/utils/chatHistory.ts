@@ -15,7 +15,7 @@ export interface ChatRecord {
 }
 export type StoredChatMessage = Pick<
   AiChatMessage,
-  "id" | "role" | "content" | "timestamp" | "modelId" | "route" | "sequence"
+  "id" | "role" | "content" | "timestamp" | "modelId" | "route" | "sequence" | "proposalSummary"
 > & { chatId: string };
 const db = () =>
   openDB("calendar-ai-chats", 1, {
@@ -50,6 +50,7 @@ const cleanMessage = (
   id: message.id,
   role: message.role,
   content: message.content,
+  proposalSummary: message.proposalSummary || (message.suggestedPlan?.events || (message.suggestedEvent ? [message.suggestedEvent] : [])).map(event => [event.title, event.startDate, event.startTime, event.endDate, event.endTime].filter(Boolean).join(' · ')).join('\n') || undefined,
   timestamp: message.timestamp,
   ...(message.modelId ? { modelId: message.modelId } : {}),
   ...(message.route ? { route: message.route } : {}),
@@ -128,7 +129,7 @@ export async function saveChat(
       if (!previous) chat.nextSequence = sequence + 1;
       await tx
         .objectStore("messages")
-        .put({ ...cleanMessage(message, id), sequence });
+        .put({ ...cleanMessage(message, id), proposalSummary: cleanMessage(message,id).proposalSummary || previous?.proposalSummary, sequence });
     }
     const first = messages.find((message) => message.role === "user");
     if (chat.autoTitle && first) {
@@ -164,9 +165,11 @@ export async function chatMessages(
 ): Promise<AiChatMessage[]> {
   const database = await db();
   try {
+    const anchor = before && before.sequence === undefined ? await database.get('messages',[id,before.id]) : before;
+    if (before && !anchor) return [];
     const range = IDBKeyRange.bound(
       [id, 0, ""],
-      [id, before?.sequence ?? Number.MAX_SAFE_INTEGER, before?.id ?? "\uffff"],
+      [id, anchor?.sequence ?? Number.MAX_SAFE_INTEGER, anchor?.id ?? "\uffff"],
       false,
       Boolean(before),
     );
@@ -355,6 +358,7 @@ export async function importChatHistory(text: string) {
       sequence,
       role: message.role,
       content: message.content,
+      ...(typeof message.proposalSummary === 'string' ? {proposalSummary: message.proposalSummary.slice(0,12000)} : {}),
       timestamp: message.timestamp,
       ...(typeof message.modelId === "string"
         ? { modelId: message.modelId.slice(0, 100) }
