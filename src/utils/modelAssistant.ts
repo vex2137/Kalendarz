@@ -7,7 +7,7 @@ import { timeString } from './dates';
 import { parseDateFromNaturalLanguage, type AiResponseResult } from './aiEngine';
 import { parseCalendarCommand } from './calendarCommandParser';
 import type { ModelCommand } from './modelCommand';
-import { recordModelMetric, recordAssistantTurn, type AssistantTurnMetric } from './modelDiagnostics';
+import { modelMetrics, recordModelMetric, recordAssistantTurn, type AssistantTurnMetric } from './modelDiagnostics';
 import { detectAssistantLanguage, normalizeAssistantInput } from './assistantLanguage';
 import { changesForPlan } from './assistantChanges';
 import { matchesCalendarText } from './assistantPlanning';
@@ -72,7 +72,8 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
     trace.route = 'model'; trace.commandAction = 'chat';
     const chatTurns = turns.filter(turn => turn.role === 'user' || !turn.content.trim().startsWith('{'));
     const confirmed = context.lastConfirmedAction ? ` The only last confirmed calendar action is: ${JSON.stringify(context.lastConfirmedAction)}.` : '';
-    const text = await inferLocalText(`You are a helpful offline assistant. Have a natural conversation. Reply in the user's actual language (${language} is a hint), respecting explicit language requests. Never invent calendar changes. Calendar mutations require a separate validated proposal and confirmation.${confirmed}`, query, chatTurns);
+    let text = await inferLocalText(`You are a helpful offline assistant. Have a natural conversation. Keep your answer brief, usually two sentences. Reply in the user's actual language (${language} is a hint), respecting explicit language requests. Never invent calendar changes. Calendar mutations require a separate validated proposal and confirmation.${confirmed}`, query, chatTurns);
+    if (modelMetrics().at(-1)?.outputTruncated) text += '\n\n' + ({en:'Response length limit reached. You can ask me to continue.',pl:'Osiągnięto limit długości odpowiedzi. Możesz poprosić o kontynuację.',de:'Die Antwortlänge wurde begrenzt. Du kannst um Fortsetzung bitten.',ru:'Достигнут предел длины ответа. Можно попросить продолжить.'}[language]);
     return { text, context: { ...context, turns: [...chatTurns, { role:'user' as const,content:query }, { role:'assistant' as const,content:text }].slice(-4) }, route:'model' as const };
   }
   const date = parseDateFromNaturalLanguage(query, now, language);

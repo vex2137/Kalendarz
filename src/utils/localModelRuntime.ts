@@ -245,7 +245,10 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
       if (chunk.timings) Object.assign(metric, { promptMs: chunk.timings.prompt_ms, generationMs: chunk.timings.predicted_ms, tokensPerSecond: chunk.timings.predicted_per_second, promptTokens: chunk.timings.prompt_n + chunk.timings.cache_n, cachedTokens: chunk.timings.cache_n, completionTokens: chunk.timings.predicted_n });
     }
     controller.signal.throwIfAborted();
-    if (finish !== 'stop') throw new Error('model-incomplete');
+    // A length-limited conversation remains useful text. A partial calendar
+    // command must never reach parsing/confirmation as a successful completion.
+    if (finish !== 'stop' && !(schema === undefined && finish === 'length' && text)) throw new Error('model-incomplete');
+    if (finish === 'length') metric.outputTruncated = true;
     if (!text) throw new Error('model-response');
     Object.assign(metric, { threads: actualThreads, multithread: current.isMultithread(), isolated: globalThis.crossOriginIsolated, totalMs: performance.now() - started });
     recordModelMetric(metric);

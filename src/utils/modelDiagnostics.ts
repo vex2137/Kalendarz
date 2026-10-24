@@ -2,6 +2,7 @@ import { BUILD_INFO } from './buildInfo';
 import type { AppLanguage } from './i18n';
 
 export interface ModelMetric {
+  outputTruncated?: boolean;
   modelId?: string;
   initializationError?: string;
   failureReason?: 'output-limit' | 'engine';
