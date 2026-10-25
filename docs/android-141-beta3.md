@@ -30,7 +30,7 @@ Manual imports are identified from GGUF metadata and a computed content hash, in
 - Unknown-size streams use bounded disk storage; the UI shows indeterminate progress. Streaming limits and available-storage errors still apply.
 - The source stream is hashed before writes and the copied file is read back and compared. A mismatch rejects the import and removes only its new uncommitted temporary copy.
 - Metadata parsing uses a 64 KiB sliding window and skips large tokenizer payloads. The old unconditional 16 MiB buffer limit no longer rejects otherwise valid larger headers. Work remains bounded to 128 MiB of metadata inspection, with an explicit limit error. Safe 64-bit integer metadata is accepted.
-- Multi-part, malformed and truncated metadata remain errors. Metadata validity plus verified copying is separate from tensor/architecture support at actual load.
+- Multi-part, malformed and truncated metadata remain errors. Metadata validity plus verified copying is separate from tensor/architecture support at actual load. Engine messages identifying an unsupported architecture have a dedicated localized error; successful storage is not presented as successful engine loading.
 - Logs record lookup, stream opening, copy, metadata, integrity, registration, commit, native cache and load stages. Errors preserve the earliest failing stage, public code, exception type and measured byte counts. They do not include SAF URIs or signed CDN tokens.
 
 ## Actual model files and evidence
@@ -44,7 +44,7 @@ Qwen3.5 Q4_K_M/IQ4_XS and other families such as llama/smollm3 were exercised on
 
 ## Regression results
 
-- 137 application tests and 24 native/folder/backend tests passed, no failures/skips.
+- 138 application tests and 24 native/folder/backend tests passed, no failures/skips.
 - Two targeted JVM tests passed against the actual Android identity helper (plus the existing Gradle example test).
 - TypeScript check passed.
 - Actual full GGUF transfer/import/restart/WASM test passed as described above.

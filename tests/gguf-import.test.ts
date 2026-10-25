@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ggufMetadata } from '../src/utils/ggufMetadata';
+import { ggufMetadata, ggufLoadError } from '../src/utils/ggufMetadata';
 import { modelChecksum, verifyModel, saveModel, savedModel } from '../src/utils/localModelStore';
 import { registerImportedModel, modelChoices, findModel, persistModelSelection, activeModel, type ModelDescriptor } from '../src/utils/modelRegistry';
 import 'fake-indexeddb/auto';
@@ -50,4 +50,9 @@ test('metadata identifies other compatible GGUF families without a catalogue ide
     const blob=new Blob([Buffer.from('GGUF'),u32(3),u64(1),u64(3),str('general.architecture'),u32(8),str(architecture),str(architecture+'.context_length'),u32(4),u32(4096),str('general.file_type'),u32(4),u32(7)]);
     const meta=await ggufMetadata(blob);assert.equal(meta.architecture,architecture);assert.equal(meta.quantization,'Q8_0');
   }
+});
+
+test('actual engine architecture errors are distinct from successful storage and memory failures',()=>{
+  for(const notes of ['unknown model architecture: example_arch','unsupported architecture: new_arch','architecture abc is not supported'])assert.equal((ggufLoadError(Error('load failed'),notes) as Error).message,'model-architecture-unsupported');
+  const memory=Error('out of memory');assert.equal(ggufLoadError(memory,''),memory);
 });

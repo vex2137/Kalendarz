@@ -55,3 +55,9 @@ export async function ggufMetadata(blob: Blob) {
   const type=Number(metadata['general.file_type']);
   return {architecture,name:String(metadata['general.name']||architecture).slice(0,200),quantization:quants[type]||(Number.isFinite(type)?`GGUF type ${type}`:'GGUF'),maxContext:Math.min(2048,context)};
 }
+
+export function ggufLoadError(error:unknown,notes:string) {
+  const detail=notes+' '+(error instanceof Error?error.message:'');
+  return /unknown (?:model )?architecture|unsupported (?:model )?architecture|architecture .{0,80}(?:not supported|unsupported)/iu.test(detail)
+    ? new Error('model-architecture-unsupported') : error;
+}

@@ -1,6 +1,6 @@
 import { androidAIReady } from './nativeAndroidAI';
 import { completionTokenLimit } from './inferencePolicy';
-import { ggufMetadata } from './ggufMetadata';
+import { ggufMetadata, ggufLoadError } from './ggufMetadata';
 import { desktopAI, backendMode, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
@@ -21,7 +21,7 @@ let status: ModelStatus = { phase: 'checking', progress: 0, installed: false, lo
 const listeners = new Set<() => void>();
 export const modelStatus = () => status;
 export const subscribeModel = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
-const update = (patch: Partial<ModelStatus>) => { status = { ...status, ...patch }; recordModelState({...status,quantization:findModel(status.modelId).quantization}); listeners.forEach(l => l()); };
+const update = (patch: Partial<ModelStatus>) => { status = { ...status, ...patch }; recordModelState({...status,quantization:findModel(status.modelId).quantization,architecture:findModel(status.modelId).architecture}); listeners.forEach(l => l()); };
 let engine: RuntimeEngine | undefined;
 let operation: AbortController | undefined;
 let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -348,6 +348,8 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       if(!operation)clearModelOperation(descriptor.id);
       return engine;
     } catch (error) {
+      error=ggufLoadError(error,loadNotes);
+      recordDiagnosticAction('bridge-info','error',error,{modelId:status.modelId,failedStage:'engine-load'});
       metric.initializationError = loadNotes || (error instanceof Error ? error.message.slice(0,600) : 'model-load');
       if(error instanceof Error&&['model-size','model-checksum'].includes(error.message))update({installed:false});
       clearModelOperation(status.modelId);
