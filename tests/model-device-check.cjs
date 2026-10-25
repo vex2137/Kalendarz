@@ -16,7 +16,7 @@ module.exports = async function verifyDeviceModel(page, language) {
     console.log('Running real cold/warm device probe', language);
     const end = Date.now() + 300000;
     while (metrics.length < 2 && Date.now() < end) {
-      if (await details.getByRole('alert').count()) throw new Error(await details.getByRole('alert').innerText());
+      if (await details.getByRole('alert').count()) throw new Error((await details.getByRole('alert').allTextContents()).join(' | '));
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     assert.equal(metrics.length, 2, 'Both cold and warm calls must execute the actual GGUF');
