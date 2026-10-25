@@ -40,7 +40,7 @@ public class CalendarNativeAIPlugin extends Plugin {
     private File directory(){File dir=new File(getContext().getFilesDir(),"calendar-native-models");dir.mkdirs();return dir;}
     private JSONObject descriptor(PluginCall call)throws Exception {
         JSONObject m=call.getObject("model");
-        if(m==null||!m.getString("id").matches("[a-z0-9-]{1,90}")||!m.getString("sha256").matches("[a-f0-9]{64}")||m.getLong("bytes")<24||m.getLong("bytes")>16L*1024*1024*1024||m.getInt("maxContext")<1||m.getInt("maxContext")>2048||m.optBoolean("external"))throw new Exception("model-input");
+        if(m==null||!ModelIdentity.valid(m.getString("id"))||!m.getString("sha256").matches("[a-f0-9]{64}")||m.getLong("bytes")<24||m.getLong("bytes")>16L*1024*1024*1024||m.getInt("maxContext")<1||m.getInt("maxContext")>2048||m.optBoolean("external"))throw new Exception("model-input");
         return m;
     }
     private File file(JSONObject m)throws Exception{return new File(directory(),m.getString("id")+".gguf");}
@@ -166,7 +166,7 @@ public class CalendarNativeAIPlugin extends Plugin {
     });}
     static WebResourceResponse intercept(android.content.Context context,Uri url){
         if(!"https".equals(url.getScheme())||!"localhost".equals(url.getHost())||url.getPort()!=-1||!url.getPath().startsWith("/_calendar_native_model/"))return null;
-        String id=url.getLastPathSegment();try{if(!id.matches("[a-z0-9-]{1,90}"))throw new IOException();File f=new File(new File(context.getFilesDir(),"calendar-native-models"),id+".gguf");return new WebResourceResponse("application/octet-stream",null,200,"OK",Collections.singletonMap("Cache-Control","no-store"),new FileInputStream(f));}catch(Exception e){return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",Collections.singletonMap("Cache-Control","no-store"),new ByteArrayInputStream(new byte[0]));}
+        String id=url.getLastPathSegment();try{if(!ModelIdentity.valid(id))throw new IOException();File f=new File(new File(context.getFilesDir(),"calendar-native-models"),id+".gguf");return new WebResourceResponse("application/octet-stream",null,200,"OK",Collections.singletonMap("Cache-Control","no-store"),new FileInputStream(f));}catch(Exception e){return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",Collections.singletonMap("Cache-Control","no-store"),new ByteArrayInputStream(new byte[0]));}
     }
     @Override protected void handleOnDestroy(){interrupt();worker.execute(()->{try{stopProcess();if(upload!=null){upload.stream.close();upload.part.delete();upload=null;}}catch(Exception ignored){}});worker.shutdown();}
 }

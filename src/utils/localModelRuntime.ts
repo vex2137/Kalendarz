@@ -5,8 +5,8 @@ import { desktopAI, backendMode, backendStatus, updateBackend, ensureNativeModel
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel, modelChecksum } from './localModelStore';
-import { recordModelMetric, recordModelState, recordDiagnosticAction, type ModelMetric } from './modelDiagnostics';
+import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel, modelChecksum, copiedModelChecksum } from './localModelStore';
+import { recordModelMetric, recordModelState, recordDiagnosticAction, type DiagnosticStage, type ModelMetric } from './modelDiagnostics';
 import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection, AI_MODELS, registerImportedModel, type ModelDescriptor } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
@@ -111,34 +111,37 @@ export async function checkLocalModel() {
 // A temporary streamed file is committed only after metadata and SHA-256 verification.
 export async function importLocalModel(source: Blob | {url:string;bytes:number}, name: string) {
   if (operation || transition) throw Error('model-busy');
-  const bytes = source instanceof Blob ? source.size : source.bytes;
-  if (!Number.isSafeInteger(bytes) || bytes <= 24 || bytes > 16 * 1024 ** 3) throw Error('model-size');
+  let bytes = source instanceof Blob ? source.size : source.bytes;
+  if (!Number.isSafeInteger(bytes) || (bytes!==-1&&bytes<=24) || bytes > 16 * 1024 ** 3) throw Error('model-size');
   await unloadLocalModel();
   const controller = operation = new AbortController();
   let blob: Blob | undefined;
   const previous = {...status};
-  update({phase:'downloading',importing:true,progress:0,error:undefined,errorDetail:undefined});
-  recordDiagnosticAction('import-gguf','start');
+  update({phase:'downloading',importing:true,progress:bytes>0?0:-1,error:undefined,errorDetail:undefined});
+  let stage:DiagnosticStage='stream-open';
+  const step=(next:DiagnosticStage)=>{stage=next;recordDiagnosticAction('import-gguf',stage,undefined,{expectedBytes:bytes>0?bytes:undefined});};
+  recordDiagnosticAction('import-gguf','start');step(stage);
   try {
-    blob = source instanceof Blob ? source : await downloadModel(controller.signal, n => update({progress:n/bytes*100}), {...DEFAULT_MODEL,id:'import-staging',bytes,url:source.url});
+    blob = source instanceof Blob ? source : await downloadModel(controller.signal, n => update({progress:bytes>0?n/bytes*100:-1}), {...DEFAULT_MODEL,id:'import-staging',bytes,url:source.url});
+    bytes=blob.size;if(bytes<=24)throw Error('model-size');
     update({phase:'verifying',progress:0});
-    const meta = await ggufMetadata(blob);
+    step('metadata');const meta = await ggufMetadata(blob);
     controller.signal.throwIfAborted();
-    const checksum = await modelChecksum(blob,controller.signal,n=>update({progress:n/bytes*100}));
+    step('verify');const checksum = copiedModelChecksum(blob) || await modelChecksum(blob,controller.signal,n=>update({progress:n/bytes*100}));
     let descriptor = AI_MODELS.find(m => m.bytes === bytes && m.sha256 === checksum);
     if (!descriptor) {
       descriptor = {...meta,id:'imported-'+checksum,file:name.slice(0,240),bytes,sha256:checksum,revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(bytes/1048576*1.5)+512,imported:true,experimental:true};
-      registerImportedModel(descriptor);
+      step('register');registerImportedModel(descriptor);
     }
     operation = undefined;
     update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false});
     await selectLocalModel(descriptor.id);
-    await installLocalModel(blob);
+    step('commit');await installLocalModel(blob);
     if (!status.installed || status.phase === 'error') throw Error(status.error || 'model-import-file');
     recordDiagnosticAction('import-gguf','success');
   } catch(error){
-    recordDiagnosticAction('import-gguf',controller.signal.aborted?'cancelled':'error',controller.signal.aborted?undefined:error);
-    throw controller.signal.aborted?new Error('model-cancelled'):error;
+    recordDiagnosticAction('import-gguf',controller.signal.aborted?'cancelled':'error',controller.signal.aborted?undefined:error,{failedStage:stage,bytes:blob?.size,expectedBytes:bytes>0?bytes:undefined});
+    throw controller.signal.aborted?new Error('model-cancelled'):new Error(runtimeError(error));
   } finally {
     if (operation === controller) { operation=undefined; update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false}); }
     await discardDownloadedModel(blob);
@@ -152,7 +155,10 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
   const descriptor = findModel(status.modelId);
   const controller = operation = new AbortController();
   const action=file?'import-gguf':'download-model';
-  recordDiagnosticAction(action,'start');
+  recordDiagnosticAction(action,'start',undefined,{modelId:descriptor.id});
+  let stage:DiagnosticStage='lookup';
+  const step=(next:DiagnosticStage)=>{stage=next;recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:descriptor.bytes});};
+  step(stage);
   const previouslyInstalled = status.installed;
   let blob: Blob | undefined;
   update({ phase: file instanceof Blob ? 'verifying' : 'downloading', importing: Boolean(file), progress: 0, error: undefined, errorDetail:undefined });
@@ -173,14 +179,15 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
     }
     await cleanPartialModels(descriptor);
     if(file && !(file instanceof Blob) && file.bytes !== descriptor.bytes) throw new Error('model-size');
+    step(file?'copy':'stream-open');
     blob = file instanceof Blob ? file : await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), file ? {...descriptor,url:file.url} : descriptor);
     update({ phase: 'verifying', progress: 0 });
-    await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
-    await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}));
+    step('verify');await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
+    step('commit');await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}),action);
     update({ phase: 'installed', installed: true, loaded:false, progress: 100, error:undefined,errorDetail:undefined });
   } catch (error) {
-    recordDiagnosticAction(action,controller.signal.aborted?'cancelled':'error',controller.signal.aborted?undefined:error);
-    update({ phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : error instanceof Error ? error.message : 'model-download' });
+    recordDiagnosticAction(action,controller.signal.aborted?'cancelled':'error',controller.signal.aborted?undefined:error,{modelId:descriptor.id,failedStage:stage,bytes:blob?.size,expectedBytes:descriptor.bytes});
+    update({ phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : runtimeError(error) });
     throw controller.signal.aborted?new Error('model-cancelled'):error;
   } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; transition = false; update({importing:false}); } }
 }
@@ -276,12 +283,17 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
             const previous=await recoverSavedModel(descriptor,controller.signal);
             if(!previous)throw new Error('model-missing');
             await verifyModel(previous,controller.signal,undefined,descriptor);
+            recordDiagnosticAction('bridge-info','native-cache',undefined,{modelId:descriptor.id,bytes:previous.size});
             await ensureNativeModel(descriptor.id,previous,controller.signal);
-            controller.signal.throwIfAborted();await removeLegacyModel(descriptor);
+            controller.signal.throwIfAborted();
+            // Android retains the verified OPFS source when building a native cache;
+            // failure or a WASM fallback must not require another download.
           }
           update({installed:true});metric.storageMs=performance.now()-started;started=performance.now();
+          recordDiagnosticAction('bridge-info','engine-load',undefined,{modelId:descriptor.id});
           const native=await prepareNativeEngine(descriptor.id,controller.signal);
           metric.initMs=performance.now()-started;engine=native;actualThreads=backendStatus().threads||1;
+          if(desktopAI()?.platform!=='android')await removeLegacyModel(descriptor);
           Object.assign(metric,{backend:backendStatus().backend,gpuActive:backendStatus().gpuActive});
           lastLoad={storageMs:metric.storageMs,initMs:metric.initMs};
           update({phase:'ready',installed:true,loaded:true});if(!operation)clearModelOperation(descriptor.id);return native;

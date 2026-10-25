@@ -1,5 +1,5 @@
 import { diagnosticActionText } from '../utils/diagnosticActionText';
-import { recordDiagnosticAction, diagnosticErrorCode, type DiagnosticAction } from '../utils/modelDiagnostics';
+import { diagnosticActions, recordDiagnosticAction, diagnosticErrorCode, type DiagnosticAction } from '../utils/modelDiagnostics';
 import { BackendSettings } from './BackendSettings';
 import { ModelFoldersPanel } from './ModelFoldersPanel';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -67,6 +67,8 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
     finally { if (token) await releaseNativeModel(token).catch(error=>{recordDiagnosticAction('import-gguf','error',error);setError('model-import-release');}); setPicking(false); }
   };
   const openImport = () => { recordDiagnosticAction('import-gguf','click');setOperationMessage(feedback.importing);if (Capacitor.getPlatform() === 'android') void importNative(); else fileInput.current?.click(); };
+  const lastFailure=[...diagnosticActions()].reverse().find(event=>event.stage==='error'&&event.failedStage&&event.code===(error||status.error));
+  const failureLabels={en:['Stage','Type'],pl:['Etap','Typ'],de:['Schritt','Typ'],ru:['Этап','Тип']}[language];
   const modelIcon = (model: ModelDescriptor) => model.bundled ? <Activity className="w-6 h-6"/> : <Box className="w-6 h-6"/>;
   return <div className="space-y-3 ai-design" aria-label={text.models}>
     <article className="ai-active-card rounded-2xl border overflow-hidden" data-testid="active-model-card">
@@ -99,9 +101,9 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
     </div>
     <input ref={fileInput} type="file" className="sr-only" accept=".gguf,application/octet-stream" aria-label={text.import} disabled={busy || !enabled} onChange={event => {const file=event.currentTarget.files?.[0];event.currentTarget.value='';if(file)importFile(file);}}/>
     <p className="text-[11px] theme-muted flex gap-2"><Info className="w-4 h-4 shrink-0"/>{view.importHint}</p>
-    {['downloading','verifying'].includes(status.phase) && <div role="status"><progress className="w-full" value={status.progress} max={100}/><span>{Math.floor(status.progress)}%</span></div>}
+    {['downloading','verifying'].includes(status.phase) && <div role="status"><progress className="w-full" value={status.progress>=0?status.progress:undefined} max={100}/><span>{status.progress>=0?`${Math.floor(status.progress)}%`:view.importing}</span></div>}
     {operationMessage && !error && status.phase!=='error' && <p role="status" aria-live="polite" data-testid="model-operation-result">{operationMessage}</p>}
-    {(error || status.phase === 'error') && <p role="alert" className="text-xs">{modelErrorText(error || status.error,language)} {status.installed && lifecycle.retry}</p>}
+    {(error || status.phase === 'error') && <p role="alert" className="text-xs">{modelErrorText(error || status.error,language)} {status.installed && lifecycle.retry}{lastFailure && <span className="block mt-1">{failureLabels[0]}: {lastFailure.failedStage} · {failureLabels[1]}: {lastFailure.cause||'Error'} · {lastFailure.code}</span>}</p>}
     {busy && status.phase !== 'checking' && <button type="button" className="ai-action rounded-lg p-2 min-h-11" onClick={cancelModelOperation}>{text.cancel}</button>}
     {status.phase === 'error' && !busy && <button type="button" className="ai-action rounded-lg p-2 min-h-11" onClick={() => perform(retryLocalModel)}>{text.retry}</button>}
     {!installed.includes(PREFERRED_MODEL.id) && !(descriptor.id === PREFERRED_MODEL.id && status.installed) && <p className="theme-muted text-xs">{lifecycle.offer}</p>}

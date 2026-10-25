@@ -64,16 +64,19 @@ export function runtimeCapabilities() {
   return { isolated: globalThis.crossOriginIsolated === true, sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined', jspi: typeof wasm.Suspending === 'function', hardwareConcurrency: navigator.hardwareConcurrency || 1, deviceMemoryGB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory, userAgent: navigator.userAgent };
 }
 export type DiagnosticAction = 'export-json'|'release-memory'|'device-test'|'import-gguf'|'download-model'|'bridge-info';
-export type DiagnosticStage = 'click'|'start'|'bridge-call'|'success'|'cancelled'|'error';
-export interface DiagnosticActionEvent { action:DiagnosticAction; stage:DiagnosticStage; at:number; code?:string }
+export type DiagnosticStage = 'click'|'start'|'bridge-call'|'success'|'cancelled'|'error'|'lookup'|'stream-open'|'copy'|'verify'|'metadata'|'register'|'commit'|'native-cache'|'engine-load';
+export interface DiagnosticActionEvent { action:DiagnosticAction; stage:DiagnosticStage; at:number; code?:string; cause?:string; modelId?:string; bytes?:number; expectedBytes?:number; failedStage?:DiagnosticStage }
 let actions:DiagnosticActionEvent[]=[];
+const firstFailedStage=new WeakMap<object,DiagnosticStage>();
 export const diagnosticActions=()=>actions;
 export function diagnosticErrorCode(error:unknown) {
+  if(typeof DOMException!=='undefined'&&error instanceof DOMException)return error.name==='AbortError'?'model-cancelled':error.name==='QuotaExceededError'?'model-storage-space':`model-storage-${error.name}`;
   const message=error instanceof Error?error.message:typeof error==='string'?error:'';
   return message.match(/(?:model|native|diagnostics)-[a-zA-Z0-9-]+/)?.[0] || 'diagnostics-operation-failed';
 }
-export function recordDiagnosticAction(action:DiagnosticAction,stage:DiagnosticStage,error?:unknown) {
-  const event:DiagnosticActionEvent={action,stage,at:Date.now(),...(error===undefined?{}:{code:diagnosticErrorCode(error)})};
+export function recordDiagnosticAction(action:DiagnosticAction,stage:DiagnosticStage,error?:unknown,context:Partial<Pick<DiagnosticActionEvent,'modelId'|'bytes'|'expectedBytes'|'failedStage'>>={}) {
+  if(stage==='error'&&error&&typeof error==='object'&&context.failedStage){if(!firstFailedStage.has(error))firstFailedStage.set(error,context.failedStage);context={...context,failedStage:firstFailedStage.get(error)};}
+  const event:DiagnosticActionEvent={action,stage,at:Date.now(),...context,...(error===undefined?{}:{code:diagnosticErrorCode(error),cause:error instanceof Error?error.name:'Unknown'})};
   actions=[...actions.slice(-99),event];
   console.info('AI diagnostic action:',JSON.stringify(event));
   listeners.forEach(fn=>fn());

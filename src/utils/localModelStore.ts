@@ -1,3 +1,4 @@
+import { recordDiagnosticAction, type DiagnosticStage } from './modelDiagnostics';
 import { androidAIReady } from './nativeAndroidAI';
 import { openDB } from 'idb';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -33,11 +34,17 @@ export async function hasDownloadedModelData(descriptor: ModelDescriptor) {
 
 export async function hasNativeModelData(descriptor:ModelDescriptor){ await androidAIReady;if(descriptor.imported&&desktopAI()?.registerImported)await desktopAI()!.registerImported!(descriptor);return Boolean(await desktopAI()?.info(descriptor.id).then(value=>value.installed)); }
 
-export async function savedModel(descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob | undefined> {
-  if (await hasNativeModelData(descriptor)) {
-    const response=await fetch(desktopAI()?.platform === 'android' ? new URL(`/_calendar_native_model/${descriptor.id}`, location.origin).href : `calendar-asset://installed-models/${descriptor.id}`);
-    if(!response.ok)throw new Error('model-storage');return response.blob();
+export async function savedModel(descriptor:ModelDescriptor=DEFAULT_MODEL):Promise<Blob|undefined>{
+  if(desktopAI()?.platform==='android'){
+    const legacy=await savedLegacyModel(descriptor);if(legacy)return legacy;
   }
+  if(await hasNativeModelData(descriptor)){
+    const url=desktopAI()?.platform==='android'?new URL(`/_calendar_native_model/${descriptor.id}`,location.origin).href:`calendar-asset://installed-models/${descriptor.id}`;
+    const response=await fetch(url);if(!response.ok)throw Error('model-storage');return response.blob();
+  }
+  return savedLegacyModel(descriptor);
+}
+async function savedLegacyModel(descriptor:ModelDescriptor):Promise<Blob|undefined>{
   const db = await database();
   try {
     const model = await db.get('models', descriptor.id);
@@ -104,15 +111,18 @@ export async function modelChecksum(blob: Blob, signal?: AbortSignal, progress?:
 }
 
 const streamed = new WeakMap<Blob, string>();
+const copiedChecksums=new WeakMap<Blob,string>();
+export const copiedModelChecksum=(blob:Blob)=>copiedChecksums.get(blob);
 export async function discardDownloadedModel(blob?: Blob) {
   const name = blob && streamed.get(blob);
   if (name) { const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models'); await dir.removeEntry(name).catch(() => {}); streamed.delete(blob!); }
 }
-export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL, progress?: (loaded:number)=>void) {
+export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL, progress?: (loaded:number)=>void, action:'import-gguf'|'download-model'='import-gguf') {
   signal.throwIfAborted();
-  if(desktopAI()){if(descriptor.imported&&desktopAI()?.registerImported)await desktopAI()!.registerImported!(descriptor);await ensureNativeModel(descriptor.id,blob,signal,progress);signal.throwIfAborted();await removeLegacyModel(descriptor);return;}
+  if(desktopAI()&&desktopAI()?.platform!=='android'){if(descriptor.imported&&desktopAI()?.registerImported)await desktopAI()!.registerImported!(descriptor);await ensureNativeModel(descriptor.id,blob,signal,progress);signal.throwIfAborted();await removeLegacyModel(descriptor);return;}
   // Large imports use the same disk-backed representation as streamed downloads.
   if (!streamed.has(blob) && navigator.storage?.getDirectory) {
+    recordDiagnosticAction(action,'copy',undefined,{modelId:descriptor.id,bytes:blob.size});
     await ensureSpace(blob.size);
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });
     const name = `${descriptor.id}-${crypto.randomUUID()}.gguf`;
@@ -125,12 +135,14 @@ export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: Mod
         progress?.(Math.min(blob.size, offset + 4 * 1024 * 1024));
       }
       await writer.close(); streamed.set(blob, name);
+      recordDiagnosticAction(action,'verify',undefined,{modelId:descriptor.id,bytes:blob.size});
       await verifyModel(await (await dir.getFileHandle(name)).getFile(), signal, progress, descriptor);
     } catch (error) { await writer?.abort().catch(() => {}); await dir.removeEntry(name).catch(() => {}); throw error; }
   }
   const db = await database();
   try {
     const previous = await db.get('models', descriptor.id);
+    recordDiagnosticAction(action,'commit',undefined,{modelId:descriptor.id,bytes:blob.size});
     const tx = db.transaction('models', 'readwrite');
     const abort = () => { try { tx.abort(); } catch { /* Already committed. */ } };
     signal.addEventListener('abort', abort, { once: true });
@@ -177,33 +189,48 @@ async function openModelDownload(url:string,signal:AbortSignal) {
 }
 
 export async function downloadModel(signal: AbortSignal, progress: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob> {
-  await ensureSpace(descriptor.bytes);
+  const expected=descriptor.bytes>0?descriptor.bytes:undefined;
+  if(expected===undefined&&!new URL(descriptor.url,location.origin).pathname.startsWith('/_calendar_model_import/'))throw Error('model-input');
+  const limit=expected??16*1024**3;
+  await ensureSpace(expected??64*1024*1024);
   if (navigator.storage?.getDirectory) {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });
     const name = `${descriptor.id}-${crypto.randomUUID()}.gguf`;
     const handle = await dir.getFileHandle(name, { create: true });
-    let writer;
+    let writer,loaded=0;
+    let stage:DiagnosticStage='copy';
+    const action=new URL(descriptor.url,location.origin).pathname.startsWith('/_calendar_model_import/')?'import-gguf':'download-model';
+    const sourceHash=action==='import-gguf'?sha256.create():undefined;
     try {
+      recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:expected});
       writer = await modelFileWriter(handle, name);
+      stage='stream-open';recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:expected});
       const response = await openModelDownload(descriptor.url,signal);
       if (!response.body) throw new Error('model-download');
       const reader = response.body.getReader();
-      let loaded = 0;
+      stage='copy';recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:expected});
       try {
         while (true) {
           signal.throwIfAborted();
           const { value, done } = await reader.read().catch(error=>{if(signal.aborted)throw error;throw Error('model-download');}); if (done) break;
-          loaded += value.byteLength; if (loaded > descriptor.bytes) throw new Error('model-size');
+          loaded += value.byteLength; if (loaded > limit) throw new Error('model-size');
+          sourceHash?.update(value);
           await writer.write(value); progress(loaded);
         }
       } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-      if (loaded !== descriptor.bytes) throw new Error('model-download-incomplete');
+      if (expected!==undefined && loaded !== expected) throw new Error('model-download-incomplete');
       await writer.close();
-      const file = await handle.getFile(); streamed.set(file, name); return file;
-    } catch (error) { await writer?.abort().catch(() => {}); await dir.removeEntry(name).catch(() => {}); throw error; }
+      const file = await handle.getFile();stage='verify';recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,bytes:loaded,expectedBytes:expected});
+      if(sourceHash){
+        const checksum=Array.from(sourceHash.digest(),b=>b.toString(16).padStart(2,'0')).join('');
+        if(await modelChecksum(file,signal)!==checksum)throw Error('model-copy-checksum');
+        copiedChecksums.set(file,checksum);
+      }
+      streamed.set(file,name);return file;
+    } catch (error) {recordDiagnosticAction(action,'error',error,{modelId:descriptor.id,failedStage:stage,bytes:loaded,expectedBytes:expected});await writer?.abort().catch(() => {});await dir.removeEntry(name).catch(() => {});throw error;}
   }
   // Older file/WebView origins can import a file without buffering a large download in JS.
-  if (descriptor.bytes > 512_000_000) throw new Error('model-stream-storage-unavailable');
+  if (expected===undefined||expected > 512_000_000) throw new Error('model-stream-storage-unavailable');
   const response = await openModelDownload(descriptor.url,signal);
   if (!response.body) throw new Error('model-download');
   const reader = response.body.getReader();
@@ -215,14 +242,14 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
       if (done) break;
       signal.throwIfAborted();
       loaded += value.byteLength;
-      if (loaded > descriptor.bytes) throw new Error('model-size');
+      if (loaded > limit) throw new Error('model-size');
       chunks.push(value as Uint8Array<ArrayBuffer>);
       progress(loaded);
     }
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   const blob = new Blob(chunks, { type: 'application/octet-stream' });
   chunks.length = 0;
-  if(blob.size!==descriptor.bytes)throw Error('model-download-incomplete');
+  if(expected!==undefined&&blob.size!==expected)throw Error('model-download-incomplete');
   return blob;
 }
 

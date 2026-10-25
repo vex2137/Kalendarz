@@ -42,20 +42,25 @@ public class CalendarModelImportPlugin extends Plugin {
         Uri uri = result.getData().getData();
         if (uri == null || !"content".equals(uri.getScheme())) { call.reject("model-import-file"); return; }
         io.execute(() -> {
-        try (Cursor cursor = getContext().getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE}, null, null, null)) {
-            if (cursor == null || !cursor.moveToFirst()) throw new IllegalArgumentException("No document metadata");
-            String name = cursor.getString(0);
-            long bytes = cursor.isNull(1) ? -1 : cursor.getLong(1);
-            if (bytes < 0) {
-                try (android.os.ParcelFileDescriptor fd = getContext().getContentResolver().openFileDescriptor(uri, "r")) {
-                    if (fd != null) bytes = fd.getStatSize();
+        try {
+            String name="model.gguf";long bytes=-1;
+            try (Cursor cursor=getContext().getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE},null,null,null)) {
+                if(cursor!=null&&cursor.moveToFirst()){
+                    int ni=cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME),si=cursor.getColumnIndex(OpenableColumns.SIZE);
+                    if(ni>=0&&!cursor.isNull(ni))name=cursor.getString(ni);
+                    if(si>=0&&!cursor.isNull(si))bytes=cursor.getLong(si);
                 }
+            }catch(Exception metadataError){android.util.Log.w("CalendarModelImport","picker metadata unavailable; streaming determines size: "+metadataError.getClass().getSimpleName());}
+            if(bytes<0){
+                try(android.os.ParcelFileDescriptor fd=getContext().getContentResolver().openFileDescriptor(uri,"r")){if(fd!=null)bytes=fd.getStatSize();}
+                catch(Exception statError){android.util.Log.w("CalendarModelImport","document size unavailable; streaming determines size: "+statError.getClass().getSimpleName());}
             }
-            if (bytes <= 0) throw new IllegalArgumentException("Document must be available locally");
+            if(bytes==0)throw new IllegalArgumentException("Empty document");
             String token = UUID.randomUUID().toString(); files.put(token, uri);
+            android.util.Log.i("CalendarModelImport","picker granted; sizeKnown="+(bytes>0));
             JSObject file = new JSObject(); file.put("token", token); file.put("name", name); file.put("bytes", bytes);
             call.resolve(file);
-        } catch (Exception error) { call.reject("model-import-file", error); }
+        } catch (Exception error) {android.util.Log.e("CalendarModelImport","picker failed: "+error.getClass().getSimpleName());call.reject("model-import-file", error); }
         });
     }
 
@@ -67,9 +72,11 @@ public class CalendarModelImportPlugin extends Plugin {
         Uri file = files.get(url.getLastPathSegment());
         try {
             if (file == null) throw new IllegalArgumentException("Expired import token");
+            android.util.Log.i("CalendarModelImport","opening SAF input stream");
             return new WebResourceResponse("application/octet-stream", null, 200, "OK",
                 Collections.singletonMap("Cache-Control", "no-store"), context.getContentResolver().openInputStream(file));
         } catch (Exception error) {
+            android.util.Log.e("CalendarModelImport","stream-open failed: "+error.getClass().getSimpleName());
             return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(new byte[0]));
         }
     }
