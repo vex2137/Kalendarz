@@ -3,6 +3,7 @@ export interface BackendInfo {
   backend:'cpu-native'|'vulkan'|'cpu-wasm'; mode:BackendMode; available:boolean;
   loaded:boolean;gpuActive:boolean;deviceName?:string;offloadedLayers?:number;
   fallbackReason?:string;threads?:number;ramBytes?:number;vramBytes?:number;memoryScope?:string;
+  errorCode?:string;modelId?:string;modelName?:string;loadMs?:number;tokensPerSecond?:number;
   gpuDevices?:{id:string;name:string;totalBytes?:number;freeBytes?:number}[];
 }
 interface NativeResult {text:string;finish:string;usage:{prompt_tokens?:number;completion_tokens?:number};timings:Record<string,number>;firstTokenMs?:number;backend:BackendInfo}

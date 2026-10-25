@@ -19,10 +19,11 @@ const {NativeModelStore}=require('../electron/native-model-store.cjs');
     const now=new Date('2026-10-24T12:00:00+02:00');
     await ai.setMode(process.env.REQUIRE_REAL_GPU==='1'?'gpu':'auto');
     let started=performance.now();report.prepared=await ai.prepare(model.id);report.loadMs=performance.now()-started;
-    const request=prompt=>({messages:[{role:'system',content:calendarSystemPrompt('pl',now)},{role:'user',content:prompt}],max_tokens:256,response_format:{type:'json_schema',json_schema:{name:'calendar_command',schema:COMMAND_SCHEMA,strict:true}}});
+    const request=prompt=>({messages:[{role:'system',content:calendarSystemPrompt('pl',now)},{role:'user',content:prompt}],max_tokens:model.id==='lfm2.5-2.6b-q4-k-m'?768:256,response_format:{type:'json_schema',json_schema:{name:'calendar_command',schema:COMMAND_SCHEMA,strict:true}}});
     const prompts=['Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00','Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00','Przenieś wydarzenie Dentysta na poniedziałek o 14:00','Jaki mam plan na dziś?','Dodaj spotkanie kiedyś po południu'];
     for(const prompt of (process.env.NATIVE_QUICK_COMPAT==='1'?prompts.slice(0,1):prompts)){
       started=performance.now();const result=await ai.complete(model.id,request(prompt));
+      assert.equal(result.finish,'stop',`Incomplete structured command (${result.finish}): ${result.text.slice(0,500)}`);
       const command=parseModelCommand(result.text);assert.ok(result.usage.completion_tokens>0);assert.ok(result.firstTokenMs>=0);
       // Record raw extraction separately from the application's deterministic
       // routing/validation. A syntactically valid JSON answer is not a quality pass.

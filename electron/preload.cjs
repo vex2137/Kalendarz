@@ -1,15 +1,19 @@
 const {contextBridge,ipcRenderer}=require('electron');
-// No IPC primitives, filesystem paths, keys or process handles cross the bridge.
+// Expose only named operations; normalize public error codes across Electron IPC.
+const invoke=(name,...args)=>ipcRenderer.invoke('calendar-ai:'+name,...args).catch(error=>{
+  const code=error.message.match(/\b(?:model|native)-[a-z-]+\b/)?.[0];
+  throw Error(code||'model-inference');
+});
 contextBridge.exposeInMainWorld('calendarNativeAI',{
-  info:id=>ipcRenderer.invoke('calendar-ai:model-info',id),
-  begin:id=>ipcRenderer.invoke('calendar-ai:upload-begin',id),
-  write:(token,chunk)=>ipcRenderer.invoke('calendar-ai:upload-write',token,chunk),
-  finish:token=>ipcRenderer.invoke('calendar-ai:upload-finish',token),
-  abortUpload:token=>ipcRenderer.invoke('calendar-ai:upload-abort',token),
-  remove:id=>ipcRenderer.invoke('calendar-ai:model-remove',id),
-  prepare:id=>ipcRenderer.invoke('calendar-ai:prepare',id),
-  complete:(id,request)=>ipcRenderer.invoke('calendar-ai:complete',id,request),
-  stop:()=>ipcRenderer.invoke('calendar-ai:stop'),
-  setMode:mode=>ipcRenderer.invoke('calendar-ai:mode',mode),
-  status:()=>ipcRenderer.invoke('calendar-ai:status'),
+  info:id=>invoke('model-info',id),
+  begin:id=>invoke('upload-begin',id),
+  write:(token,chunk)=>invoke('upload-write',token,chunk),
+  finish:token=>invoke('upload-finish',token),
+  abortUpload:token=>invoke('upload-abort',token),
+  remove:id=>invoke('model-remove',id),
+  prepare:id=>invoke('prepare',id),
+  complete:(id,request)=>invoke('complete',id,request),
+  stop:()=>invoke('stop'),
+  setMode:mode=>invoke('mode',mode),
+  status:()=>invoke('status'),
 });

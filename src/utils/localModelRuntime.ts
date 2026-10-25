@@ -1,4 +1,4 @@
-import { desktopAI, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
+import { desktopAI, backendMode, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
@@ -203,6 +203,8 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
         } catch(error) {
           if(controller.signal.aborted)throw error;
           await desktopAI()!.stop().catch(()=>{});
+          updateBackend(await desktopAI()!.status());
+          if(backendMode()==='gpu')throw error;
           updateBackend({backend:'cpu-wasm',loaded:false,gpuActive:false,fallbackReason:'native-runtime-unavailable'});
           started=performance.now();
         }

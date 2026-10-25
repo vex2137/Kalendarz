@@ -52,3 +52,47 @@ test('GPU generation failure retries the identical request once on CPU; cancella
   calls.length=0;ai.stream=async request=>{calls.push(request);ai.operation.abort();throw Error('cancelled');};
   await assert.rejects(ai.complete('known',{messages:[{role:'user',content:'Stop'}],max_tokens:32}),/cancelled/);assert.equal(calls.length,1);
 });
+
+test('CPU bypasses device probing; Auto handles absent GPUs and insufficient VRAM once',async()=>{
+  for(const [mode,devices,reason] of [['cpu',[],undefined],['auto',[],'no-compatible-gpu'],['auto',[{id:'Vulkan0',freeBytes:1}],'insufficient-vram']]){
+    const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({estimatedRamMB:100})}});ai.mode=mode;
+    let probes=0;ai.probe=async()=>{probes++;return devices;};
+    const backends=[];ai.start=async(id,backend)=>{backends.push(backend);return ai.snapshot();};
+    await ai.prepare('known');assert.deepEqual(backends,['cpu']);assert.equal(probes,mode==='cpu'?0:1);assert.equal(ai.snapshot().fallbackReason,reason);
+  }
+});
+test('Auto makes one CPU attempt after Vulkan initialization, memory, driver or runtime failure',async()=>{
+  for(const log of ['GPU startup failed','VK_ERROR_OUT_OF_DEVICE_MEMORY','VK_ERROR_DEVICE_LOST']){
+    const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({estimatedRamMB:100})}});
+    ai.probe=async()=>[{id:'Vulkan0'}];const calls=[];
+    ai.start=async(id,backend)=>{calls.push(backend);if(backend==='vulkan'){ai.log=log;throw Error('native-start-failed');}return ai.snapshot();};
+    await ai.prepare('known');assert.deepEqual(calls,['vulkan','cpu']);
+    assert.equal(ai.snapshot().fallbackReason,log.includes('MEMORY')?'insufficient-vram':log.includes('VK_ERROR')?'gpu-driver-failed':'gpu-start-failed');
+  }
+  const ai=new NativeAI({runtimeRoot:'/definitely-missing-runtime',store:{descriptor:()=>({})}});const calls=[];
+  ai.start=async(id,backend)=>{calls.push(backend);throw Error('native-runtime-missing');};
+  await assert.rejects(ai.prepare('known'),/native-runtime-missing/);assert.deepEqual(calls,['cpu']);assert.equal(ai.snapshot().fallbackReason,'gpu-runtime-unavailable');
+});
+test('explicit GPU mode reports failure and never starts CPU or retries generation there',async()=>{
+  for(const devices of [[],[{id:'Vulkan0'}]]){
+    const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({estimatedRamMB:100})}});ai.mode='gpu';ai.probe=async()=>devices;
+    const calls=[];ai.start=async(id,backend)=>{calls.push(backend);throw Error('driver failure');};
+    await assert.rejects(ai.prepare('known'),/model-gpu-unavailable/);assert.equal(calls.includes('cpu'),false);assert.equal(ai.snapshot().gpuActive,false);assert.equal(ai.snapshot().loaded,false);
+  }
+  const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({})}});ai.mode='gpu';ai.prepare=async()=>{ai.backend='vulkan';};
+  ai.stream=async()=>{throw Error('device loss');};const calls=[];ai.start=async(id,backend)=>calls.push(backend);
+  await assert.rejects(ai.complete('known',{messages:[{role:'user',content:'x'}],max_tokens:2}),/model-gpu-inference/);assert.deepEqual(calls,[]);assert.equal(ai.snapshot().gpuActive,false);
+});
+test('model switching cannot adopt another model\'s pending load',async()=>{
+  const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({})}});ai.mode='cpu';
+  let resolveLoad;ai.start=()=>new Promise(resolve=>{resolveLoad=resolve;});
+  const first=ai.prepare('first');await assert.rejects(ai.prepare('second'),/model-busy/);
+  const joined=ai.prepare('first');resolveLoad({loaded:true});assert.deepEqual(await first,await joined);
+});
+test('cancellation interrupts initialization without a CPU fallback and permits the next model',async()=>{
+  const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({})}});ai.probe=async()=>[{id:'Vulkan0'}];
+  const backends=[];let started;const ready=new Promise(resolve=>{started=resolve;});
+  ai.start=async(id,backend,device,signal)=>{backends.push(backend);started();await new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));};
+  const first=assert.rejects(ai.prepare('first'),/abort/i);await ready;await ai.cancel();await first;assert.deepEqual(backends,['vulkan']);
+  ai.mode='cpu';ai.start=async()=>({loaded:true});assert.equal((await ai.prepare('second')).loaded,true);
+});
