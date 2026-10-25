@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tarfile
 import zipfile
+from native_runtime_state import verified_cuda_state
 
 ROOT=Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser();parser.add_argument('--platform',default=sys.platform);parser.add_argument('--arch',default={'x86_64':'x64','AMD64':'x64','aarch64':'arm64'}.get(host_platform.machine(),host_platform.machine()));parser.add_argument('--output',default=str(ROOT/'native'));args=parser.parse_args()
@@ -20,7 +21,7 @@ output=Path(args.output)/key;output.mkdir(parents=True,exist_ok=True)
 cache=Path(os.environ.get('CALENDAR_NATIVE_ARCHIVE_DIR',str(ROOT/'native/downloads')));cache.mkdir(parents=True,exist_ok=True)
 def digest(path):
  with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
-files={}
+files,cuda_sources=verified_cuda_state(output,meta['commit'])
 for backend,asset in meta['targets'][key].items():
  directory=output/backend;shutil.rmtree(directory,ignore_errors=True);directory.mkdir()
  archive=cache/asset['file']
@@ -67,5 +68,5 @@ for backend,asset in meta['targets'][key].items():
    notice=Path('/usr/share/doc/libvulkan1/copyright')
    if notice.exists():shutil.copyfile(notice,directory/'VULKAN-LOADER-LICENSE.txt')
  for file in directory.iterdir():files[file.relative_to(output).as_posix()]=digest(file)
-(output/'runtime-manifest.json').write_text(json.dumps({'version':meta['version'],'commit':meta['commit'],'files':files},indent=2)+'\n')
+(output/'runtime-manifest.json').write_text(json.dumps({'version':meta['version'],'commit':meta['commit'],'files':files,**({'cudaSources':cuda_sources} if cuda_sources else {})},indent=2)+'\n')
 print(json.dumps({'target':key,'version':meta['version'],'bytes':sum(p.stat().st_size for p in output.rglob('*') if p.is_file()),'files':len(files)}))
