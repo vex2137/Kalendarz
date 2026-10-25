@@ -45,3 +45,9 @@ diagnostics-artifact/
 
 # Verified native inference runtime archives and staged libraries
 native/
+__pycache__/
+*.pyc
+training/data/
+training/runs/
+training/exports/
+/native-smoke-results.json

@@ -1,4 +1,5 @@
 import { BackendSettings } from './BackendSettings';
+import { ModelFoldersPanel } from './ModelFoldersPanel';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Box, Cpu, Download, Upload, Activity, CheckCircle2, Check, HardDrive, Laptop, Settings, Star, Trash2, Play, Info } from 'lucide-react';
 import { AI_MODELS, PREFERRED_MODEL, OPTIONAL_FALLBACK, findModel, type ModelDescriptor } from '../utils/modelRegistry';
@@ -80,6 +81,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
       </div>
     </article>
     <BackendSettings language={language} busy={busy}/>
+    <ModelFoldersPanel language={language} busy={busy||!enabled}/>
     <div className="grid grid-cols-3 gap-1.5 text-[11px]">
       <button id="ai-download-model" type="button" disabled={busy || !enabled} className="ai-primary min-h-12 rounded-lg px-1 flex gap-1 items-center justify-center disabled:opacity-50" onClick={() => {setDownloadOpen(true);catalogue.current?.scrollIntoView({block:'nearest'});}}><Download className="w-5 h-5 shrink-0"/>{view.download}</button>
       <button id="ai-import-gguf" type="button" disabled={busy || !enabled} className="ai-action min-h-12 rounded-lg px-1 flex gap-1 items-center justify-center disabled:opacity-50" onClick={openImport}><Upload className="w-5 h-5 shrink-0"/>{view.import}</button>

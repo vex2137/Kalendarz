@@ -204,7 +204,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
           if(controller.signal.aborted)throw error;
           await desktopAI()!.stop().catch(()=>{});
           updateBackend(await desktopAI()!.status());
-          if(backendMode()==='gpu')throw error;
+          if(backendMode()==='gpu'||descriptor.external)throw error;
           updateBackend({backend:'cpu-wasm',loaded:false,gpuActive:false,fallbackReason:'native-runtime-unavailable'});
           started=performance.now();
         }

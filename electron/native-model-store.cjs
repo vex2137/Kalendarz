@@ -4,19 +4,21 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 class NativeModelStore {
-  constructor({root,bundledPath,catalogue,bundledId}) {
+  constructor({root,bundledPath,catalogue,bundledId,external}) {
     this.root=root;this.bundledPath=bundledPath;this.bundledId=bundledId;
-    this.models=new Map(catalogue.map(m=>[m.id,m]));this.uploads=new Map();
+    this.models=new Map(catalogue.map(m=>[m.id,m]));this.uploads=new Map();this.external=external;
   }
-  descriptor(id) { const d=this.models.get(id);if(!d)throw Error('model-unknown');return d; }
+  descriptor(id) { const d=this.models.get(id)||this.external?.models.get(id);if(!d)throw Error('model-unknown');return d; }
   file(id) { const d=this.descriptor(id);return id===this.bundledId?this.bundledPath:path.join(this.root,`${id}-${d.sha256}.gguf`); }
-  async info(id) { const d=this.descriptor(id);try{const stat=await fs.stat(this.file(id));return {installed:stat.isFile()&&stat.size===d.bytes,bytes:stat.size};}catch(e){if(e.code==='ENOENT')return {installed:false};throw e;} }
+  async info(id) { if(id?.startsWith('external-')){await this.external?.ready;try{const file=await this.external.verifiedPath(id);const stat=await fs.stat(file);return {installed:true,bytes:stat.size};}catch{return {installed:false};}}const d=this.descriptor(id);try{const stat=await fs.stat(this.file(id));return {installed:stat.isFile()&&stat.size===d.bytes,bytes:stat.size};}catch(e){if(e.code==='ENOENT')return {installed:false};throw e;} }
   async verifiedPath(id,signal) {
+    if(id?.startsWith('external-'))return this.external.verifiedPath(id,signal);
     const d=this.descriptor(id),file=this.file(id);if(!(await this.info(id)).installed)throw Error('model-missing');
     const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file)){signal?.throwIfAborted();hash.update(chunk);}
     if(hash.digest('hex')!==d.sha256)throw Error('model-checksum');return file;
   }
   async begin(id) {
+    if(id?.startsWith('external-'))throw Error('model-external-readonly');
     const d=this.descriptor(id);if(id===this.bundledId)throw Error('model-bundled');
     if(this.uploads.size||this.beginning)throw Error('model-busy');
     this.beginning=true;
@@ -47,7 +49,7 @@ class NativeModelStore {
     }catch(error){await this.abort(token);throw error;}
   }
   async abort(token){const u=this.uploads.get(token);if(u){this.uploads.delete(token);await u.handle.close().catch(()=>{});await fs.rm(u.file,{force:true});}}
-  async remove(id){if(id===this.bundledId)throw Error('model-bundled');await fs.rm(this.file(id),{force:true});}
+  async remove(id){if(id?.startsWith('external-'))throw Error('model-external-readonly');if(id===this.bundledId)throw Error('model-bundled');await fs.rm(this.file(id),{force:true});}
   async close(){for(const token of [...this.uploads.keys()])await this.abort(token);}
 }
 module.exports={NativeModelStore};

@@ -30,6 +30,22 @@
         "bytes": 32182350,
         "sha256": "2c07574e7bde71321cb785282b20cc821e951132149eeceeea32ddebdbf0598e"
       }
+    },
+    "mac-arm64": {
+      "cpu": {
+        "file": "llama-b11669-bin-macos-arm64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-macos-arm64.tar.gz",
+        "bytes": 12191582,
+        "sha256": "dbed55493d72bc1ba2babc8770d669c2289b5bc4ee9fb2a4dfc158d45b7d13fd"
+      }
+    },
+    "mac-x64": {
+      "cpu": {
+        "file": "llama-b11669-bin-macos-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-macos-x64.tar.gz",
+        "bytes": 11677404,
+        "sha256": "cab28238d78158109b48deb27b05d50e0dcef56275d2e76da9ca8281526c7532"
+      }
     }
   }
 }

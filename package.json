@@ -26,8 +26,9 @@
     "test:assistant:evaluation": "node tests/model-evaluation.cjs",
     "test:model:runtime": "node tests/model-runtime-browser.cjs",
     "prebuild": "node scripts/prepare-model.cjs",
-    "test:native": "node --test tests/native-ai.test.cjs",
-    "test:native:model": "node --import tsx tests/native-model-smoke.cjs"
+    "test:native": "node --test tests/native-ai.test.cjs tests/model-folders.test.cjs",
+    "test:native:model": "node --import tsx tests/native-model-smoke.cjs",
+    "test:models:folders": "node tests/model-folders-electron.cjs"
   },
   "build": {
     "appId": "com.vex2137.kalendarz",

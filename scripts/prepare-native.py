@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import os
+import platform as host_platform
 import shutil
 import subprocess
 import sys
@@ -11,10 +12,10 @@ import tarfile
 import zipfile
 
 ROOT=Path(__file__).resolve().parent.parent
-parser=argparse.ArgumentParser();parser.add_argument('--platform',default=sys.platform);parser.add_argument('--output',default=str(ROOT/'native'));args=parser.parse_args()
-platform={'win32':'win','linux':'linux'}.get(args.platform,args.platform)
-key=platform+'-x64';meta=json.loads((ROOT/'scripts/native-runtime-manifest.json').read_text())
-if key not in meta['targets']:raise SystemExit('Native runtime is packaged for Linux/Windows x64 only')
+parser=argparse.ArgumentParser();parser.add_argument('--platform',default=sys.platform);parser.add_argument('--arch',default={'x86_64':'x64','AMD64':'x64','aarch64':'arm64'}.get(host_platform.machine(),host_platform.machine()));parser.add_argument('--output',default=str(ROOT/'native'));args=parser.parse_args()
+platform={'win32':'win','linux':'linux','darwin':'mac'}.get(args.platform,args.platform)
+key=platform+'-'+args.arch;meta=json.loads((ROOT/'scripts/native-runtime-manifest.json').read_text())
+if key not in meta['targets']:raise SystemExit('Unsupported native runtime target: '+key+'')
 output=Path(args.output)/key;output.mkdir(parents=True,exist_ok=True)
 cache=Path(os.environ.get('CALENDAR_NATIVE_ARCHIVE_DIR',str(ROOT/'native/downloads')));cache.mkdir(parents=True,exist_ok=True)
 def digest(path):
@@ -32,7 +33,7 @@ for backend,asset in meta['targets'][key].items():
  # whitelisted; never extract archive paths or symlinks onto the host filesystem.
  def wanted(name):
   base=Path(name).name
-  return base in ['llama-server','llama-server.exe','LICENSE'] or ('.so' in base and base.startswith(('libllama-server-impl','libllama-common','libllama.so','libmtmd','libggml'))) or base.lower().endswith('.dll') or base.upper().startswith(('LICENSE','NOTICE'))
+  return base in ['llama-server','llama-server.exe','LICENSE'] or ('.so' in base and base.startswith(('libllama-server-impl','libllama-common','libllama.so','libmtmd','libggml'))) or base.endswith('.dylib') or base.lower().endswith('.dll') or base.upper().startswith(('LICENSE','NOTICE'))
  if archive.name.endswith('.zip'):
   with zipfile.ZipFile(archive) as z:
    for info in z.infolist():
@@ -43,8 +44,9 @@ for backend,asset in meta['targets'][key].items():
     if wanted(member.name) and (member.isfile() or member.issym() or member.islnk()):
      source=tar.extractfile(member)
      if source:(directory/Path(member.name).name).write_bytes(source.read())
+ if platform in ['linux','mac']:
+  for file in directory.iterdir():file.chmod(0o755 if file.name=='llama-server' or '.so' in file.name or file.name.endswith('.dylib') else 0o644)
  if platform=='linux':
-  for file in directory.iterdir():file.chmod(0o755 if file.name=='llama-server' or '.so' in file.name else 0o644)
   # Ship non-glibc system dependencies rather than rely on undocumented host
   # installations. Preserve their distribution copyright/license notices.
   dependencies={'libssl.so.3':['libssl3t64','libssl3'],'libcrypto.so.3':['libssl3t64','libssl3'],'libgomp.so.1':['libgomp1'],'libz.so.1':['zlib1g'],'libzstd.so.1':['libzstd1']}

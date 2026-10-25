@@ -16,4 +16,8 @@ contextBridge.exposeInMainWorld('calendarNativeAI',{
   stop:()=>invoke('stop'),
   setMode:mode=>invoke('mode',mode),
   status:()=>invoke('status'),
+  folders:()=>invoke('folders-list'),
+  addFolder:()=>invoke('folders-add'),
+  refreshFolders:()=>invoke('folders-refresh'),
+  removeFolder:id=>invoke('folders-remove',id),
 });

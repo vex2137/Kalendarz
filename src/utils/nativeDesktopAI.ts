@@ -8,12 +8,19 @@ export interface BackendInfo {
 }
 interface NativeResult {text:string;finish:string;usage:{prompt_tokens?:number;completion_tokens?:number};timings:Record<string,number>;firstTokenMs?:number;backend:BackendInfo}
 export interface DesktopBridge {
+  folders():Promise<ModelFolderSnapshot>;addFolder():Promise<ModelFolderSnapshot>;
+  refreshFolders():Promise<ModelFolderSnapshot>;removeFolder(id:string):Promise<ModelFolderSnapshot>;
   info(id:string):Promise<{installed:boolean;bytes?:number}>;
   begin(id:string):Promise<{exists?:boolean;token?:string}>;
   write(token:string,chunk:Uint8Array):Promise<number>;finish(token:string):Promise<{installed:boolean}>;
   abortUpload(token:string):Promise<void>;remove(id:string):Promise<void>;
   prepare(id:string):Promise<BackendInfo>;complete(id:string,request:unknown):Promise<NativeResult>;
   stop():Promise<void>;setMode(mode:BackendMode):Promise<BackendInfo>;status():Promise<BackendInfo>;
+}
+export interface ModelFolderSnapshot {
+  folders:{id:string;path:string}[];
+  models:(import('./modelRegistry').ModelDescriptor&{folderIds:string[]})[];
+  warnings:{folderId:string;file?:string;code:string}[];
 }
 declare global {interface Window {calendarNativeAI?:DesktopBridge}}
 export const desktopAI = () => typeof window!=='undefined'?window.calendarNativeAI:undefined;

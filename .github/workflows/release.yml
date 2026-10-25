@@ -167,6 +167,8 @@ jobs:
           flatpak install --user -y --noninteractive "release/Calendar-${version}-linux-x86_64.flatpak"
           flatpak info --user com.vex2137.kalendarz
       - name: Start installed Flatpak and execute bundled model
+        env:
+          DEBUG: 'pw:browser*'
         run: |
           npx playwright install-deps chromium
           printf '%s\n' '#!/bin/sh' 'exec flatpak run com.vex2137.kalendarz "$@"' > "$RUNNER_TEMP/calendar-flatpak"

@@ -18,9 +18,11 @@ identifiers are retained. No signing, licensing or calendar schema changes.
 
 At PR #10 head, six completed checks failed. Four desktop checks (two Web checks,
 Linux AppImage and Windows packaging) reached real model diagnostics, then failed
-in `tests/electron.cjs`: a `data:` renderer did not receive the preload bridge.
+in `tests/electron.cjs`: Electron 44 no longer returns the preload path in
+`getLastWebPreferences()`, so the test created a renderer without its bridge.
 The corrected test loads a second renderer at the application's actual file URL
-and requires its working bridge to reject the sender. Isolation assertions remain.
+using the explicit packaged preload path and requires its working bridge to
+reject the sender. This was reproduced and verified locally. Isolation assertions remain.
 
 The Linux optional LFM2.5 2.6B check returned incomplete JSON. Its smoke test used
 256 tokens while the application allows 768 for this model. The probe now uses
@@ -58,3 +60,30 @@ optional-model checks passed; Web checks were still marked in progress when read
 
 Hugging Face is blocked by this environment's destination policy. GitHub tools
 and Git fetch work; no repeated authentication failures. No push or release.
+
+
+## External GGUF directories
+
+Desktop settings can register several chosen directories, scan nested LM Studio
+layouts, select a discovered model, refresh, and remove a registration. Files
+remain in place and external models are never passed to download/delete APIs.
+The main process stores directory grants in `model-folders-v1.json`; the renderer
+receives opaque model identifiers and display metadata. Calendar storage is unchanged.
+
+Scans read bounded GGUF metadata, reject malformed and multipart GGUF, skip
+symlinks, deduplicate overlapping roots/hardlinks, report missing/access-limited
+folders, and bound traversal to 50,000 entries, 2,000 models and depth 16.
+A changed file requires refresh. Discovery is not a guarantee of compatibility
+with the runtime's supported architectures or a model's chat template.
+
+Eight directory tests and the nine native tests pass. A real 350M external GGUF
+passed an Electron UI integration test: add via picker, discover, select, execute
+cold/warm diagnostic inference on CPU, enforce IPC isolation, restart with model,
+backend and event preserved, then remove registration with file size and mtime
+unchanged. The frontend build and existing browser regression suite also passed.
+This frontend build omits unavailable bundled Qwen weights and is not an installer.
+
+Pinned macOS CPU runtime staging was added for x64/arm64, with upstream archive
+checksums and dylib handling. arm64 staging was verified on Linux; macOS execution
+is unverified. A macOS CI job was added but has not run. Vulkan remains an
+experimental Windows/Linux backend. Android/Web do not expose desktop folder APIs.

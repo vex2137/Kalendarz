@@ -55,3 +55,19 @@ jobs:
         with:
           name: native-compat-${{ runner.os }}-${{ matrix.model }}
           path: native-smoke-results.json
+  macos-folders:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: '1.4.3'}
+      - run: bun install --frozen-lockfile
+      - run: npm run lint && npm run test:native && npm run build
+      - run: python3 scripts/prepare-native.py
+      - name: Real external model inference, restart and read-only folders
+        env:
+          CALENDAR_EXTERNAL_MODEL: public/models/Qwen3.5-0.8B.Q4_K_M.gguf
+        run: npm run test:models:folders

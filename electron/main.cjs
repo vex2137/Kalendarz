@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, protocol, net, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, protocol, net, ipcMain, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
@@ -15,7 +15,7 @@ const profileOverride = app.commandLine.getSwitchValue('user-data-dir');
 app.setPath('userData', profileOverride || path.join(app.getPath('appData'), 'Kalendarz Offline'));
 
 let mainWindow;
-let nativeAI, nativeModels;
+let nativeAI, nativeModels, modelFolders;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -75,12 +75,15 @@ function createWindow() {
 app.whenReady().then(() => {
   const {NativeModelStore}=require('./native-model-store.cjs');
   const {NativeAI}=require('./native-ai.cjs');
+  const {ModelFolders}=require('./model-folders.cjs');
   const catalogue=require('../dist/models/catalogue.json');
   const bundled=require('../dist/models/manifest.json');
   const bundledId=catalogue[0].id;
   const physicalApp=app.getAppPath().endsWith('.asar')?app.getAppPath()+'.unpacked':app.getAppPath();
-  nativeModels=new NativeModelStore({root:path.join(app.getPath('userData'),'native-models-v1'),bundledPath:path.join(physicalApp,'dist/models',bundled.file),catalogue,bundledId});
-  const nativeRoot=app.isPackaged?path.join(process.resourcesPath,'native'):path.join(__dirname,'..','native',`${process.platform==='win32'?'win':'linux'}-x64`);
+  modelFolders=new ModelFolders({configFile:path.join(app.getPath('userData'),'model-folders-v1.json')});
+  void modelFolders.ready.catch(()=>{}); // Report damaged configuration through the folder panel; preserve the file.
+  nativeModels=new NativeModelStore({root:path.join(app.getPath('userData'),'native-models-v1'),bundledPath:path.join(physicalApp,'dist/models',bundled.file),catalogue,bundledId,external:modelFolders});
+  const nativeRoot=app.isPackaged?path.join(process.resourcesPath,'native'):path.join(__dirname,'..','native',`${process.platform==='win32'?'win':process.platform==='darwin'?'mac':process.platform}-${process.arch}`);
   nativeAI=new NativeAI({runtimeRoot:nativeRoot,store:nativeModels});
   const allowed=event=>{
     if(!mainWindow||event.sender!==mainWindow.webContents||event.senderFrame!==mainWindow.webContents.mainFrame||event.senderFrame.url!==mainWindow.webContents.getURL()||!event.senderFrame.url.startsWith('file:'))throw Error('native-sender-denied');
@@ -92,11 +95,19 @@ app.whenReady().then(() => {
   handle('upload-finish',token=>nativeModels.finish(token));
   handle('upload-abort',token=>nativeModels.abort(token));
   handle('model-remove',id=>{if(nativeAI.operation||nativeAI.loading)throw Error('model-busy');return nativeModels.remove(id);});
-  handle('prepare',id=>nativeAI.prepare(id));
-  handle('complete',(id,request)=>nativeAI.complete(id,request));
+  handle('prepare',async id=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.prepare(id);});
+  handle('complete',async(id,request)=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.complete(id,request);});
   handle('stop',()=>nativeAI.cancel());
   handle('mode',mode=>nativeAI.setMode(mode));
   handle('status',()=>nativeAI.snapshot());
+  handle('folders-list',()=>modelFolders.list());
+  const foldersIdle=()=>{if(nativeAI.operation||nativeAI.loading)throw Error('model-busy');};
+  handle('folders-add',async()=>{
+    foldersIdle();const choice=await dialog.showOpenDialog(mainWindow,{properties:['openDirectory'],title:'GGUF models'});
+    if(choice.canceled||!choice.filePaths[0])return modelFolders.list();foldersIdle();return modelFolders.add(choice.filePaths[0]);
+  });
+  handle('folders-refresh',async()=>{foldersIdle();await nativeAI.cancel();return modelFolders.refresh();});
+  handle('folders-remove',async id=>{foldersIdle();await nativeAI.cancel();return modelFolders.remove(id);});
 
   const assetDirectory = path.join(__dirname, '../dist/assets');
   const wasmFiles = new Set(fs.readdirSync(assetDirectory).filter(name => /^wllama-[a-zA-Z0-9_-]+\.wasm$/.test(name)));

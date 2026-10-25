@@ -65,13 +65,13 @@ const { _electron } = require('playwright');
     const isolation=await application.evaluate(({BrowserWindow})=>{const prefs=BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();return {sandbox:prefs.sandbox,contextIsolation:prefs.contextIsolation,nodeIntegration:prefs.nodeIntegration};});
     assert.deepEqual(isolation,{sandbox:true,contextIsolation:true,nodeIntegration:false});
     assert.equal(await page.evaluate(()=>typeof require),'undefined');
-    assert.equal(await application.evaluate(async({BrowserWindow})=>{
+    assert.equal(await application.evaluate(async({BrowserWindow,app})=>{
       const trusted=BrowserWindow.getAllWindows()[0].webContents;
-      const preload=trusted.getLastWebPreferences().preload;
+      const preload=app.getAppPath()+'/electron/preload.cjs';
       const untrusted=new BrowserWindow({show:false,webPreferences:{preload,sandbox:true,contextIsolation:true,nodeIntegration:false}});
-      // A data: page does not get this preload on current Electron. Load the
-      // real file origin to exercise the sender check with a working bridge.
-      try{await untrusted.loadURL(trusted.getURL());return await untrusted.webContents.executeJavaScript('window.calendarNativeAI.status().then(()=>false,()=>true)');}finally{untrusted.destroy();}
+      // Electron 44 omits preload from getLastWebPreferences(). Use the
+      // packaged path and require a real bridge before testing sender rejection.
+      try{await untrusted.loadURL(trusted.getURL());return await untrusted.webContents.executeJavaScript("typeof window.calendarNativeAI?.status==='function' && window.calendarNativeAI.status().then(()=>false,()=>true)");}finally{untrusted.destroy();}
     }),true,'Another renderer must not access the inference bridge');
     await page.locator('#btn-ai-settings').click();
     await page.getByLabel('Processing mode',{exact:true}).selectOption('cpu');

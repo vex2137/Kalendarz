@@ -32,7 +32,7 @@ class NativeAI {
   constructor({runtimeRoot,store,platform=process.platform}){this.root=runtimeRoot;this.store=store;this.platform=platform;this.mode='auto';this.state={backend:'cpu-native',gpuActive:false,loaded:false,available:false};this.checked=new Set();}
   snapshot(){return {...this.state,mode:this.mode,gpuDevices:this.devices||[]};}
   binary(backend){return path.join(this.root,backend,this.platform==='win32'?'llama-server.exe':'llama-server');}
-  env(backend){const directory=path.join(this.root,backend);return {...process.env,PATH:directory+path.delimiter+(process.env.PATH||''),...(this.platform==='linux'?{LD_LIBRARY_PATH:directory+(process.env.LD_LIBRARY_PATH?':'+process.env.LD_LIBRARY_PATH:'')}:{})};}
+  env(backend){const directory=path.join(this.root,backend);return {...process.env,...(this.platform==='darwin'?{DYLD_LIBRARY_PATH:directory+(process.env.DYLD_LIBRARY_PATH?':'+process.env.DYLD_LIBRARY_PATH:'')}:{}),PATH:directory+path.delimiter+(process.env.PATH||''),...(this.platform==='linux'?{LD_LIBRARY_PATH:directory+(process.env.LD_LIBRARY_PATH?':'+process.env.LD_LIBRARY_PATH:'')}:{})};}
   async verifyRuntime(backend){
     if(this.checked.has(backend))return;
     const manifest=JSON.parse(await fs.readFile(path.join(this.root,'runtime-manifest.json'),'utf8'));
