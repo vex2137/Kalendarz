@@ -28,6 +28,17 @@ directly through GitHub's secret UI or a trusted local secret-management process
 do not send them through chat. This workflow does not use an environment, so
 environment-only secrets are insufficient.
 
+On a trusted Linux workstation with the original keystore, replace only the
+base64 secret without printing it or creating a public file:
+
+```sh
+base64 --wrap=0 /secure/path/existing-update-keystore.p12 | \
+  gh secret set CALENDAR_ANDROID_KEYSTORE_BASE64 --repo vex2137/Kalendarz
+```
+
+The path is an example: select the existing keystore for the certificate above.
+Keep shell tracing disabled. Do not use a freshly generated keystore.
+
 The first job checks that all four values are available, opens the keystore,
 checks certificate validity/fingerprint and performs a private-key sign/verify
 challenge. It exposes only success/failure. Temporary keystores have restrictive
@@ -115,3 +126,20 @@ The checksum job requires exactly four packages and calculates every SHA-256
 from this run's uploaded files. Historical sums are never copied. A successful
 signing-only run intentionally produces no downloadable artifacts. A failed
 packaging run may contain partial platform artifacts; it is not a complete set.
+
+## Observed signing check, 2026-10-25
+
+The signing-only run [40228281860](https://github.com/vex2137/Kalendarz/actions/runs/40228281860)
+received all four secret values, but keystore base64 decoding failed even after
+allowing line wrapping/whitespace. The stored base64 secret must be corrected
+before the private-key password and certificate can be verified. The value was
+not printed. All platform/checksum jobs were skipped and no artifact was created.
+Repository-secret enumeration returned HTTP 403; actual runner access was checked
+instead. No release, tag or merge was performed. There are no new package hashes
+to report until a full packaging run succeeds.
+
+Local validation: actionlint 1.7.7, Bash syntax, Git whitespace/source-diff checks,
+and disposable-keystore checks for valid single/multiline base64, wrong certificate,
+wrong key password, missing secret, malformed base64 and temporary-file cleanup
+passed. Disposable fixtures were never committed or uploaded. Platform builds and
+physical upgrade tests remain unexecuted in this CI process.
