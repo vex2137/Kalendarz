@@ -96,3 +96,41 @@ test('cancellation interrupts initialization without a CPU fallback and permits 
   const first=assert.rejects(ai.prepare('first'),/abort/i);await ready;await ai.cancel();await first;assert.deepEqual(backends,['vulkan']);
   ai.mode='cpu';ai.start=async()=>({loaded:true});assert.equal((await ai.prepare('second')).loaded,true);
 });
+
+test('content-addressed private imports reject paths and adopt verified bytes after restart',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'calendar-imported-store-'));
+  const data=Buffer.from('GGUF synthetic storage fixture'),sha256=createHash('sha256').update(data).digest('hex');
+  const d={id:'imported-'+sha256,sha256,bytes:data.length,name:'Local Qwen',architecture:'qwen35',maxContext:2048,imported:true,url:''};
+  const store=new NativeModelStore({root,catalogue:[]});
+  try{
+    await assert.rejects(store.registerImported({...d,id:'../../outside'}),/model-input/);
+    await store.registerImported(d);
+    const {token}=await store.begin(d.id);await store.write(token,data);await store.finish(token);
+    assert.equal(await store.verifiedPath(d.id),store.file(d.id));
+    const restarted=new NativeModelStore({root,catalogue:[]});await restarted.registerImported(d);
+    assert.equal((await restarted.info(d.id)).installed,true);
+    await restarted.close();
+  }finally{await store.close();await fs.rm(root,{recursive:true,force:true});}
+});
+
+
+test('CUDA and Metal device probes filter software devices and preserve backend identity',()=>{
+  const devices=parseDevices(' CUDA0: NVIDIA RTX 4090 (24000 MiB, 22000 MiB free)\n Metal0: Apple M3\n Vulkan0: swiftshader');
+  assert.deepEqual(devices.map(d=>[d.backend,d.id]),[['cuda','CUDA0'],['metal','Metal0']]);
+});
+test('Auto tries CUDA then Vulkan at most once before CPU; GPU-only never starts CPU',async()=>{
+  for(const mode of ['auto','gpu']){
+    const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({estimatedRamMB:100})}});ai.mode=mode;
+    ai.probe=async()=>[{id:'CUDA0',backend:'cuda'},{id:'CUDA1',backend:'cuda'},{id:'Vulkan0',backend:'vulkan'}];
+    const calls=[];ai.start=async(id,backend)=>{calls.push(backend);if(backend!=='cpu')throw Error('driver unavailable');return ai.snapshot();};
+    if(mode==='auto')await ai.prepare('known');else await assert.rejects(ai.prepare('known'),/model-gpu-unavailable/);
+    assert.deepEqual(calls,mode==='auto'?['cuda','vulkan','cpu']:['cuda','vulkan']);
+  }
+});
+test('macOS Metal uses its verified native macOS archive and GPU mode selects Metal',async()=>{
+  const ai=new NativeAI({runtimeRoot:'/runtime',platform:'darwin',store:{descriptor:()=>({estimatedRamMB:100})}});ai.mode='gpu';
+  assert.equal(ai.binary('metal'),path.join('/runtime','cpu','llama-server'));
+  ai.probe=async()=>[{id:'Metal0',backend:'metal',name:'Apple M3'}];const calls=[];
+  ai.start=async(id,backend)=>{calls.push(backend);return ai.snapshot();};
+  await ai.prepare('known');assert.deepEqual(calls,['metal']);
+});
