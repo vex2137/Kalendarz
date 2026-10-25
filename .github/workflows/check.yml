@@ -20,6 +20,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - run: node tests/gguf-import-browser.cjs
+      - run: node tests/diagnostics-actions-browser.cjs
+      - run: node tests/model-actions-browser.cjs
   desktop:
     runs-on: ubuntu-24.04
     steps:

@@ -117,7 +117,7 @@ jobs:
         run: bash gradlew :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarBeta=true -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
-          name: Calendar-1.4.1-beta-android-native-test
+          name: KALENDARZ-1.4.1-BETA-2
           path: |
             android/app/build/outputs/apk/diagnostics/*.apk
             android/app/build/outputs/apk/androidTest/diagnostics/*.apk

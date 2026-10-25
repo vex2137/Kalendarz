@@ -8,7 +8,7 @@ const path=require('node:path');
     if(entry==='models')continue;
     await fs.cp(path.join(root,'public',entry),path.join(target,entry),{recursive:true});
   }
-  const label='Calendar 1.4.1 beta';
+  const label='KALENDARZ 1.4.1 BETA 2';
   const names=['app_name','title_activity_main','launcher_name_en','launcher_name_pl','launcher_name_ru','launcher_name_de'];
   const xml='<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'+names.map(name=>`    <string name="${name}" translatable="false">${label}</string>`).join('\n')+'\n</resources>\n';
   for(const qualifier of ['values','values-en','values-pl','values-de','values-ru']){

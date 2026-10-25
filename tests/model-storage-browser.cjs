@@ -39,12 +39,14 @@ const base='http://127.0.0.1:4187';
         await store.verifyModel(await store.savedModel(descriptor),signal,undefined,descriptor);
         await store.removeSavedModel(descriptor);
         const failures=[];
-        for(const [name,response] of [['http',()=>new Response('',{status:403})],['short',()=>new Response(bytes.slice(0,10))],['checksum',()=>new Response(new Uint8Array(bytes.length))]]){
+        for(const [name,response] of [['http',()=>new Response('',{status:403})],['missing',()=>new Response('',{status:404})],['short',()=>new Response(bytes.slice(0,10))],['checksum',()=>new Response(new Uint8Array(bytes.length))]]){
           window.fetch=async()=>response();let partial;
           try{partial=await store.downloadModel(signal,()=>{},descriptor);await store.verifyModel(partial,signal,undefined,descriptor);throw new Error('unexpected-success');}
           catch(error){if(error.message==='unexpected-success')throw error;failures.push(error.message);}
           finally{await store.discardDownloadedModel(partial);}
         }
+        window.fetch=async()=>{throw new TypeError('network failure')};
+        try{await store.downloadModel(signal,()=>{},descriptor);throw new Error('unexpected-success');}catch(error){if(error.message!=='model-download')throw error;}
         window.fetch=async()=>new Response(bytes);
         const cancel=new AbortController();try{await store.downloadModel(cancel.signal,()=>cancel.abort(),descriptor);throw new Error('unexpected-success');}catch(error){if(error.message==='unexpected-success')throw error;failures.push(error.name);}
         const estimate=navigator.storage.estimate.bind(navigator.storage);navigator.storage.estimate=async()=>({quota:1,usage:1});
@@ -53,7 +55,7 @@ const base='http://127.0.0.1:4187';
         const directory=await(await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');const files=[];for await(const [name]of directory.entries())files.push(name);
         return {failures,files,installed:await store.hasDownloadedModelData(descriptor)};
       },workerOnly);
-      assert.deepEqual(result.failures,['model-http-403','model-download-incomplete','model-checksum','AbortError','model-storage-space']);assert.deepEqual(result.files,[]);assert.equal(result.installed,false);
+      assert.deepEqual(result.failures,['model-http-403','model-http-404','model-download-incomplete','model-checksum','AbortError','model-storage-space']);assert.deepEqual(result.files,[]);assert.equal(result.installed,false);
       console.log(`OPFS ${workerOnly?'sync worker':'createWritable'}: download/import, HTTP, truncation, checksum, cancellation and quota passed.`);
       await context.close();
     }
