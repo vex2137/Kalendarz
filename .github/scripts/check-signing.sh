@@ -14,7 +14,9 @@ python3 - <<'PY'
 import base64, os
 from pathlib import Path
 try:
-    data = base64.b64decode(os.environ['CALENDAR_ANDROID_KEYSTORE_BASE64'], validate=True)
+    # GitHub secrets commonly contain line-wrapped output from base64.
+    encoded = ''.join(os.environ['CALENDAR_ANDROID_KEYSTORE_BASE64'].split())
+    data = base64.b64decode(encoded, validate=True)
     if not data: raise ValueError()
     Path(os.environ['CALENDAR_KEYSTORE_PATH']).write_bytes(data)
 except Exception:
