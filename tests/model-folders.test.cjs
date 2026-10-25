@@ -32,6 +32,14 @@ test('several folders deduplicate hardlinks and overlapping roots; removal never
   for(const folder of snapshot.folders)await folders.remove(folder.id);
   assert.deepEqual((await folders.list()).models,[]);assert.deepEqual(await fs.readFile(file),data);assert.deepEqual(await fs.readFile(path.join(second,'b.gguf')),data);
 }));
+test('independent byte-identical copies are deduplicated while same-name different weights remain selectable',()=>workspace(async root=>{
+  const directory=path.join(root,'models');await fs.mkdir(directory);const bytes=fixture();
+  await fs.writeFile(path.join(directory,'a.gguf'),bytes);await fs.writeFile(path.join(directory,'b.gguf'),bytes);
+  const withTensor=Buffer.concat([bytes,Buffer.from([1,2,3,4])]);const otherTensor=Buffer.concat([bytes,Buffer.from([4,3,2,1])]);
+  await fs.writeFile(path.join(directory,'c.gguf'),withTensor);await fs.writeFile(path.join(directory,'d.gguf'),otherTensor);
+  const folders=new ModelFolders({configFile:configFile(root)});const snapshot=await folders.add(directory);assert.equal(snapshot.models.length,3);
+  assert.deepEqual(await fs.readFile(path.join(directory,'b.gguf')),bytes);
+}));
 test('empty, missing, unreadable and malformed model directories report bounded errors',()=>workspace(async root=>{
   const directory=path.join(root,'models');await fs.mkdir(directory);
   const folders=new ModelFolders({configFile:configFile(root)});assert.equal((await folders.add(directory)).models.length,0);

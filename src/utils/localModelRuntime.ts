@@ -244,7 +244,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       controller.signal.throwIfAborted();
       metric.initMs = performance.now() - started;
       engine = instance!;
-      updateBackend({backend:'cpu-wasm',loaded:true,gpuActive:false});
+      updateBackend({backend:'cpu-wasm',loaded:true,gpuActive:false,errorCode:undefined});
       lastLoad = {storageMs:metric.storageMs,verifyMs:metric.verifyMs,initMs:metric.initMs};
       update({ phase: 'ready', installed:true, loaded:true });
       if(!operation)clearModelOperation(descriptor.id);

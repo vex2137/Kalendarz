@@ -113,3 +113,69 @@ A real, schema-constrained 350M CPU baseline on 22 held-out synthetic requests
 returned valid JSON 22/22, expected intent 8/22 and exact extraction 1/22. These
 figures describe raw model extraction, not deterministic application routing.
 See `training/README.md` for commands, model-source links and limitations.
+
+## Upgrade and fault-injection regression checks
+
+The official Web 1.4.0 artifact (`228f339e7032209f55193b68938ce6035dcc865d`)
+was served before this build at the same HTTP origin. The test preserved a weekly
+event and its three reminders, custom theme, explicit Polish, settings, AI chat
+and message, selected 350M identity, CPU preference and OPFS fixture bytes across
+upgrade and another reload. The OPFS fixture establishes storage preservation,
+not inference. Existing OPFS streaming and sync-worker tests also passed imports,
+HTTP/truncation/checksum failures, cancellation and quota handling.
+
+A deliberately failing GPU subprocess reported an injected memory error and
+ignored SIGTERM. The test verified its PID had exited (after bounded SIGKILL)
+**before** starting real llama.cpp CPU inference, which returned actual tokens.
+Another real native process rejected an invalid GGUF, reported an explicit model
+error and left no running process. This is fault injection, not physical GPU proof.
+
+Date validation now also rejects invented edit dates and separately validates a
+move's target date. The existing same-Friday rule/parser corpus passes unchanged.
+Directory discovery additionally hashes suspected equal-name/size copies to avoid
+duplicates without conflating different weights; ordinary discovery reads only
+bounded metadata. Native load and changed-folder errors have localized messages.
+
+Useful additional commands (run against prepared frontend/native runtime assets):
+
+```sh
+npm run test:native
+CALENDAR_140_WEB_DIR=/path/to/extracted/official-1.4.0-web npm run test:upgrade:141
+CALENDAR_EXTERNAL_MODEL=/path/to/real/model.gguf npm run test:models:folders
+CALENDAR_MODEL_FILE=/path/to/LFM2.5-350M-Q4_K_M.gguf npm run test:native:fallback
+```
+
+The process fault test is Linux-only and intentionally uses an injected Vulkan
+launcher. The directory integration test executes actual GGUF inference and
+requires a compatible complete file. On headless Linux, provide an X display.
+
+## Remaining release gates
+
+- No physical GPU is attached to this cloud environment (Debian 13 x64, Intel
+  Xeon Platinum 8573C, 2 available CPU threads). Vulkan inference/offload, real
+  driver loss and real VRAM exhaustion have not been tested on physical hardware.
+- The six failed remote checks still describe PR #10 head `592e998`; local fixes
+  have not been pushed. Three Web jobs were still reported in progress on read.
+  CI cannot be declared green. The desktop isolation regression was reproduced
+  and fixed locally, but packaged Linux/Windows checks must run again remotely.
+- Flatpak launch remains unresolved: original logs hide subprocess stderr.
+  Browser-launch logging was enabled for the next CI run. Local Flatpak execution
+  is blocked by this container's read-only user-namespace UID map (`bwrap`).
+  Do not infer that a built/installed package was runnable.
+- The optional 2.6B JSON fix uses the application's real token budget and preserves
+  failed completions in artifacts. Those weights were unavailable for a local rerun.
+- Hugging Face is denied by network policy. A frontend-only `vite build` passed;
+  complete new Qwen-bundled installers were not built. Production build hooks still
+  reject absent/incorrect weights. Neither a partial bundle nor a test model was
+  substituted for a production installer.
+- macOS x64 and arm64 archive staging/checksums passed on Linux; actual macOS
+  execution and Windows execution of this branch remain unverified. Android's
+  native Java/signing/application IDs are unchanged; its new package/upgrade was
+  not built here because the SDK and complete production bundle are unavailable.
+- The 432-record corpus needs expansion/review. Real Qwen 0.8B LoRA training and
+  base-vs-adapter evaluation remain pending; no tuned model was created.
+
+**Release recommendation: not ready to publish 1.4.1.** Review the local changes,
+then run the candidate CI and physical GPU acceptance gates before considering a
+release. No source history was rewritten, no user data removed, and no push,
+release publication or signing changes occurred during this session.

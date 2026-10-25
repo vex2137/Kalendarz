@@ -16,7 +16,8 @@ export function ModelFoldersPanel({language,busy}:{language:AppLanguage;busy:boo
   const [snapshot,setSnapshot]=useState<ModelFolderSnapshot>(),[working,setWorking]=useState(false),[error,setError]=useState<string>();
   const accept=async(next:ModelFolderSnapshot)=>{
     registerExternalModels(next.models);setSnapshot(next);
-    if(status.modelId.startsWith('external-')&&!next.models.some(m=>m.id===status.modelId))await selectLocalModel(DEFAULT_MODEL.id);
+    const selected=modelStatus().modelId;
+    if(selected.startsWith('external-')&&!next.models.some(m=>m.id===selected))await selectLocalModel(DEFAULT_MODEL.id);
   };
   useEffect(()=>{if(bridge)void bridge.folders().then(accept).catch(e=>setError(e.message));},[bridge]);
   if(!bridge)return null;
@@ -24,7 +25,8 @@ export function ModelFoldersPanel({language,busy}:{language:AppLanguage;busy:boo
     setWorking(true);setError(undefined);
     try{await unloadLocalModel();await accept(await action());}catch(e){setError(e instanceof Error?e.message:'model-folder-read');}finally{setWorking(false);}
   };
-  const message=(code:string)=>code==='model-folder-limit'?text.limit:code==='model-folder-config'?text.config:code==='model-folder-changed'?text.changed:text.warning;
+  const incompatible={en:'This GGUF is invalid, multipart or has unsupported metadata. Choose a complete compatible single-file model.',pl:'Ten GGUF jest uszkodzony, podzielony na części lub ma nieobsługiwane metadane. Wybierz kompletny, zgodny model w jednym pliku.',de:'GGUF ungültig, mehrteilig oder mit nicht unterstützten Metadaten. Ein vollständiges kompatibles Einzeldatei-Modell wählen.',ru:'GGUF повреждён, разбит на части или имеет неподдерживаемые метаданные. Выберите совместимую модель в одном полном файле.'}[language];
+  const message=(code:string)=>code.startsWith('model-gguf')?incompatible:code==='model-folder-limit'?text.limit:code==='model-folder-config'?text.config:code==='model-folder-changed'?text.changed:text.warning;
   return <section className="theme-border border rounded-xl p-3 space-y-3 text-xs" data-testid="model-folders">
     <h4 className="font-semibold">{text.title}</h4><p className="theme-muted">{text.hint}</p>
     <div className="flex gap-2"><button type="button" className="ai-action rounded-lg p-2 min-h-11" disabled={busy||working} onClick={()=>void perform(()=>bridge.addFolder())}>{text.add}</button><button type="button" className="ai-action rounded-lg p-2 min-h-11" disabled={busy||working} onClick={()=>void perform(()=>bridge.refreshFolders())}>{text.refresh}</button></div>

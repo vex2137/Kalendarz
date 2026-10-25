@@ -30,7 +30,9 @@
     "test:native:model": "node --import tsx tests/native-model-smoke.cjs",
     "test:models:folders": "node tests/model-folders-electron.cjs",
     "ai:data": "node --import tsx training/generate.ts",
-    "ai:data:validate": "python3 training/validate_dataset.py"
+    "ai:data:validate": "python3 training/validate_dataset.py",
+    "test:upgrade:141": "node tests/upgrade-141-browser.cjs",
+    "test:native:fallback": "node tests/native-process-fallback.cjs"
   },
   "build": {
     "appId": "com.vex2137.kalendarz",

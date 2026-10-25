@@ -93,7 +93,14 @@ class NativeAI {
       while(Date.now()<end){signal.throwIfAborted();if(failed||child.exitCode!==null||child.signalCode!==null)throw Error('native-start-failed');try{const response=await fetch(this.endpoint+'/health',{headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(1500)});if(response.ok){healthy=true;break;}}catch{}await delay(100);}
       if(!healthy)throw Error('native-load-timeout');if(backend==='vulkan'&&!this.offloaded)throw Error('native-offload-unconfirmed');
       this.loadedId=id;this.state={...this.state,modelId:id,modelName:model.name,loadMs:performance.now()-started,tokensPerSecond:undefined,errorCode:undefined,available:true,loaded:true,threads:Math.min(4,require('node:os').availableParallelism()),backend:backend==='vulkan'?'vulkan':'cpu-native',deviceName:device?.name,gpuActive:false,offloadedLayers:this.offloaded};await this.memory();return this.snapshot();
-    }catch(error){await this.stop();throw error;}
+    }catch(error){
+      const log=this.log;await this.stop();
+      if(!signal.aborted&&backend==='cpu'){
+        const code=/out of memory|bad_alloc|allocation failed|cannot allocate/iu.test(log)?'model-memory':/unknown model architecture|unsupported.*(?:model|architecture|gguf)|invalid.*gguf|failed to load model/iu.test(log)?'model-gguf-unsupported':'model-native-load';
+        this.state.errorCode=code;throw Error(code);
+      }
+      throw error;
+    }
     finally{signal.removeEventListener('abort',abort);}
   }
   async prepare(id){

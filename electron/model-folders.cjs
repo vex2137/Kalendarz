@@ -2,8 +2,10 @@
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const crypto=require('node:crypto');
+const {createReadStream}=require('node:fs');
 const {setImmediate:yieldLoop}=require('node:timers/promises');
 const idFor=(prefix,value)=>prefix+crypto.createHash('sha256').update(value).digest('hex').slice(0,32);
+async function digest(file){const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file))hash.update(chunk);return hash.digest('hex');}
 
 // Parse only bounded GGUF metadata. Tensor data is never buffered or copied.
 async function readGGUF(file){
@@ -70,7 +72,7 @@ class ModelFolders{
   async edit(action){await this.ready;if(this.mutating||this.scanning)throw Error('model-busy');this.mutating=true;try{return await action();}finally{this.mutating=false;}}
   async refresh(){return this.edit(()=>this.scan());}
   async scan(){
-    this.scanning=true;const models=new Map(),identities=new Map(),warnings=[];let entries=0;
+    this.scanning=true;const models=new Map(),identities=new Map(),candidates=new Map(),hashes=new Map(),warnings=[];let entries=0;
     try{
       for(const folder of this.folders){
         const pending=[{directory:folder.path,depth:0}];let limited=false;
@@ -87,8 +89,15 @@ class ModelFolders{
               try{
                 const {stat,...meta}=await readGGUF(file);const identity=stat.ino?`${stat.dev}:${stat.ino}`:file;
                 if(identities.has(identity)){const previous=models.get(identities.get(identity));if(!previous.folderIds.includes(folder.id))previous.folderIds.push(folder.id);continue;}
+                // Hash complete files only when metadata/size suggest duplicate
+                // copies. Never merge distinct fine-tunes just because names match.
+                const key=JSON.stringify([meta.name,meta.architecture,stat.size]),possible=candidates.get(key)||[];
+                let duplicate;
+                if(possible.length){const current=await digest(file);for(const candidate of possible){if(!hashes.has(candidate))hashes.set(candidate,await digest(models.get(candidate).file));if(hashes.get(candidate)===current){duplicate=candidate;break;}}}
+                if(duplicate){const previous=models.get(duplicate);if(!previous.folderIds.includes(folder.id))previous.folderIds.push(folder.id);identities.set(identity,duplicate);continue;}
                 const id=idFor('external-',file);identities.set(identity,id);
                 models.set(id,{...meta,id,file,identity,mtimeMs:stat.mtimeMs,bytes:stat.size,folderIds:[folder.id],external:true,experimental:true,bundled:false,sha256:'',revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(stat.size/1048576*1.5)+512});
+                possible.push(id);candidates.set(key,possible);
               }catch(error){if(warnings.length<100)warnings.push({folderId:folder.id,file:entry.name,code:error.code==='EACCES'?'model-folder-permission':error.message.startsWith('model-')?error.message:'model-folder-read'});}
             }
           }catch(error){if(warnings.length<100)warnings.push({folderId:folder.id,code:error.code==='ENOENT'?'model-folder-missing':error.code==='EACCES'?'model-folder-permission':'model-folder-read'});}

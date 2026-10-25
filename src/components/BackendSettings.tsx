@@ -18,6 +18,7 @@ export function BackendSettings({language,busy}:{language:AppLanguage;busy:boole
   const change=async(mode:BackendMode)=>{setChanging(true);setError(false);try{await unloadLocalModel();await applyBackendMode(mode);}catch{setError(true);}finally{setChanging(false);}};
   const memory=(bytes?:number)=>bytes===undefined?text.unknown:`${(bytes/1048576).toFixed(1)} MiB`;
   const reason=status.fallbackReason as keyof typeof text.reasons|undefined;
+  const gpuError=status.errorCode?.startsWith('model-gpu');
   const metrics={en:{layers:'GPU layers',load:'Load time',speed:'Tokens/s',failure:'GPU unavailable'},pl:{layers:'Warstwy GPU',load:'Czas ładowania',speed:'Tokeny/s',failure:'GPU niedostępne'},de:{layers:'GPU-Schichten',load:'Ladezeit',speed:'Token/s',failure:'GPU nicht verfügbar'},ru:{layers:'Слои GPU',load:'Время загрузки',speed:'Токены/с',failure:'GPU недоступен'}}[language];
   return <section className="theme-border border rounded-xl p-3 space-y-2 text-xs" data-testid="backend-settings">
     <h4 className="font-semibold">{text.title}</h4>
@@ -27,7 +28,7 @@ export function BackendSettings({language,busy}:{language:AppLanguage;busy:boole
     <p data-backend={status.loaded?status.backend:'unloaded'} data-gpu-active={status.gpuActive}>{status.loaded ? status.backend==='vulkan'?'Vulkan':status.backend==='cpu-native'?'CPU · llama.cpp':'CPU · WebAssembly' : text.unloaded} · {status.gpuActive?text.active:text.inactive}</p>
     {native && <><p>{text.device}: {status.deviceName||status.gpuDevices?.map(device=>device.name).join(', ')||text.unknown}</p><p>{text.memory}: {memory(status.ramBytes)} / {memory(status.vramBytes)}</p><p className="theme-muted">{text.scope}</p></>}
     {status.loaded && <p>{status.modelName} · {metrics.layers}: {status.offloadedLayers ?? 0}{status.loadMs !== undefined ? ` · ${metrics.load}: ${(status.loadMs/1000).toFixed(2)} s` : ''}{status.tokensPerSecond !== undefined ? ` · ${metrics.speed}: ${status.tokensPerSecond.toFixed(1)}` : ''}</p>}
-    {reason && <p role={status.errorCode?'alert':'status'}>{status.errorCode?metrics.failure:text.fallback}: {text.reasons[reason]||text.reasons['no-compatible-gpu']}</p>}
+    {reason && <p role={gpuError?'alert':'status'}>{gpuError?metrics.failure:text.fallback}: {text.reasons[reason]||text.reasons['no-compatible-gpu']}</p>}
     {error && <p role="alert">{text.failed}</p>}
   </section>;
 }

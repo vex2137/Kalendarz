@@ -227,6 +227,14 @@ export async function resolveModelCommand(command: ModelCommand, request: string
   const parsedDate = parseDateFromNaturalLanguage(normalizeGermanInput(normalizeRussianInput(request)), now, language);
   const requestedDate = evidence?.date || (parsedDate.matched ? parsedDate.dateStr : undefined);
   if(!original&&request.trim()&&!requestedDate)return ask('Podaj datę wydarzenia.', 'Please specify the event date.');
+  if(original&&request.trim()&&command.date){
+    // Validate the target separately when an edit mentions both old and new dates.
+    const targetClause=request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu,'').match(/(?:\b(?:na|to|auf)|на)\s+([\s\S]+)$/iu)?.[1];
+    const targetText=targetClause?normalizeGermanInput(normalizeRussianInput(targetClause)):undefined;
+    const target=targetText?parseDateFromNaturalLanguage(targetText,now,language):undefined;
+    const expected=(targetText?calendarFields(targetText,now).date:undefined)||(target?.matched?target.dateStr:requestedDate);
+    if((expected&&command.date!==expected)||(!expected&&command.date!==original.startDate))return ask('Podaj jednoznaczną nową datę wydarzenia.', 'Please specify the exact new event date.');
+  }
   if (!original && requestedDate && requestedDate !== date) return ask('Daty w poleceniu są niejednoznaczne. Podaj datę w formacie RRRR-MM-DD.', 'The requested date is ambiguous. Please use YYYY-MM-DD.');
   const plan: AssistantPlan = { kind: original ? 'move' : 'create', originals: original ? [original] : [], events: [draft] };
   changesForPlan(plan); // Existing event validation runs before displaying a proposal, then again at commit.

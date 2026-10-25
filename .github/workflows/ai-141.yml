@@ -1,12 +1,32 @@
 name: AI 1.4.1 candidate validation
 on:
   push:
-    branches: [feat/ai-141-qwen-native-gpu]
+    branches: ['feat/ai-141-*']
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  sft-pipeline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: '1.4.3'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12', cache: pip, cache-dependency-path: training/requirements.txt}
+      - run: bun install --frozen-lockfile
+      - run: npm run ai:data && npm run ai:data:validate
+      - run: pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r training/requirements.txt
+      - name: Offline random-weight architecture, masking, resume and adapter export
+        env:
+          HF_HUB_OFFLINE: '1'
+          TRANSFORMERS_OFFLINE: '1'
+        run: python training/test_pipeline.py
   upstream-license:
     runs-on: ubuntu-24.04
     steps:

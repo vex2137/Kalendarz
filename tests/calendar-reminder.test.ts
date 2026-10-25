@@ -31,3 +31,11 @@ test('clarifications cannot claim a write succeeded and complex recurrence canno
   const recurrence=await resolveModelCommand(parseModelCommand('{"action":"create","title":"Review","date":"2026-10-26","time":"09:30","recurrence":"WEEKLY"}'),'Add Review tomorrow at 09:30 every other week',[],'en',now,DEFAULT_PLANNING);
   assert.equal(recurrence.suggestedPlan,undefined);assert.match(recurrence.text,/editor/);
 });
+test('model edits cannot move an event to an invented date or confuse its original and target dates',async()=>{
+  const original=event({title:'Review',startDate:'2026-10-27',endDate:'2026-10-27'});
+  const run=(command:unknown,request:string)=>resolveModelCommand(parseModelCommand(JSON.stringify(command)),request,[original],'en',now,DEFAULT_PLANNING);
+  assert.equal((await run({action:'update',query:'Review',title:'Planning',date:'2026-11-01'},'Rename Review to Planning')).suggestedPlan,undefined);
+  assert.equal((await run({action:'update',query:'Review',date:'2026-10-25'},'Move Review to tomorrow')).suggestedPlan,undefined);
+  const moved=await run({action:'update',query:'Review',sourceDate:'2026-10-27',date:'2026-10-29'},'Move Review from 2026-10-27 to 2026-10-29');
+  assert.equal(moved.suggestedPlan?.events[0].startDate,'2026-10-29');
+});
