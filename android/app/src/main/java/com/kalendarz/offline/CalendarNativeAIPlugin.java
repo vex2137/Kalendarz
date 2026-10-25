@@ -79,12 +79,12 @@ public class CalendarNativeAIPlugin extends Plugin {
     });}
     private Upload upload(PluginCall call)throws Exception{if(upload==null||!upload.token.equals(call.getString("token")))throw new Exception("model-upload");return upload;}
     @PluginMethod public void write(PluginCall call){submit(call,()->{Upload u=upload(call);String encoded=call.getString("data","");if(encoded.length()>400000)throw new Exception("model-input");byte[] data=Base64.decode(encoded,Base64.NO_WRAP);if(u.bytes+data.length>u.model.getLong("bytes"))throw new Exception("model-size");u.stream.write(data);u.bytes+=data.length;JSObject out=new JSObject();out.put("bytes",u.bytes);return out;});}
-    @PluginMethod public void finish(PluginCall call){submit(call,()->{Upload u=upload(call);u.stream.getFD().sync();u.stream.close();verify(u.part,u.model,epoch.get());Files.move(u.part.toPath(),file(u.model).toPath(),StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);upload=null;JSObject out=new JSObject();out.put("installed",true);return out;});}
+    @PluginMethod public void finish(PluginCall call){submit(call,()->{Upload u=upload(call);u.stream.getFD().sync();u.stream.close();verify(u.part,u.model,epoch.get());Files.move(u.part.toPath(),file(u.model).toPath(),StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);verified.add(cacheKey(file(u.model),u.model));upload=null;JSObject out=new JSObject();out.put("installed",true);return out;});}
     @PluginMethod public void abortUpload(PluginCall call){submit(call,()->{if(upload!=null&&upload.token.equals(call.getString("token"))){upload.stream.close();upload.part.delete();upload=null;}return new JSObject();});}
     @PluginMethod public void remove(PluginCall call){submit(call,()->{JSONObject m=descriptor(call);if(m.getString("id").equals(loadedId))stopProcess();Files.deleteIfExists(file(m).toPath());verified.clear();return new JSObject();});}
     private void interrupt(){epoch.incrementAndGet();HttpURLConnection c=connection;if(c!=null)c.disconnect();Process p=process;if(p!=null)p.destroy();p=probeProcess;if(p!=null)p.destroy();}
     private void kill(Process p)throws Exception{if(p==null)return;p.destroy();if(!p.waitFor(1500,TimeUnit.MILLISECONDS)){p.destroyForcibly();if(!p.waitFor(3500,TimeUnit.MILLISECONDS))throw new Exception("model-stop-timeout");}}
-    private void stopProcess()throws Exception{Process p=process;process=null;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;kill(p);}
+    private void stopProcess()throws Exception{Process p=process;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;kill(p);if(process==p)process=null;}
     @PluginMethod public void stop(PluginCall call){interrupt();submit(call,()->{stopProcess();return new JSObject();});}
     @PluginMethod public void setMode(PluginCall call){String next=call.getString("mode","");if(!Arrays.asList("auto","gpu","cpu").contains(next)){call.reject("model-input");return;}interrupt();submit(call,()->{stopProcess();mode=next;fallback=null;lastError=null;return snapshot();});}
     private Process spawn(List<String> args)throws Exception{
@@ -113,7 +113,7 @@ public class CalendarNativeAIPlugin extends Plugin {
             try(InputStream in=getContext().getAssets().open("public/models/"+name);FileOutputStream out=new FileOutputStream(part)){
                 byte[] b=new byte[1024*1024];int n;long copied=0;while((n=in.read(b))!=-1){check(version);copied+=n;if(copied>m.getLong("bytes"))throw new Exception("model-size");out.write(b,0,n);}out.getFD().sync();
             }catch(Exception e){part.delete();throw e;}
-            try{verify(part,m,version);Files.move(part.toPath(),f.toPath(),StandardCopyOption.ATOMIC_MOVE);}finally{part.delete();}
+            try{verify(part,m,version);Files.move(part.toPath(),f.toPath(),StandardCopyOption.ATOMIC_MOVE);verified.add(cacheKey(f,m));}finally{part.delete();}
         }
         verify(f,m,version);int port;try(ServerSocket socket=new ServerSocket(0,0,InetAddress.getByName("127.0.0.1"))){port=socket.getLocalPort();}
         key=UUID.randomUUID().toString()+UUID.randomUUID();endpoint="http://127.0.0.1:"+port;log="";layers=0;

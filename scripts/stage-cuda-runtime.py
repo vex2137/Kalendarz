@@ -2,7 +2,7 @@
 May download large NVIDIA runtime archives. Run only on a CUDA build host.
 No model weights are downloaded. Existing CPU/Vulkan files remain untouched.
 """
-import argparse, hashlib, json, os, subprocess, tarfile, zipfile
+import argparse, hashlib, json, os, re, shutil, subprocess, tarfile, zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser();parser.add_argument('--target',choices=['linux-x64','win-x64'],required=True);args=parser.parse_args()
@@ -20,12 +20,19 @@ if meta.get('commit')!='620d2225cc436ab0b001e3200e590e3b286ef9ab':raise SystemEx
 cache=ROOT/'native/downloads';cache.mkdir(parents=True,exist_ok=True)
 # Build a separate directory and update the manifest last; failed downloads cannot
 # invalidate an already staged CUDA runtime or a working CPU/Vulkan installation.
-stage=root/'cuda-staging';stage.mkdir(exist_ok=True)
+stage=ROOT/'native'/('.cuda-staging-'+args.target)
+if stage.exists():shutil.rmtree(stage)
+stage.mkdir()
 def digest(file):
  with file.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
 def wanted(name):
  base=Path(name).name
- return base in ['llama-server','llama-server.exe'] or '.so' in base or base.lower().endswith('.dll') or base.upper().startswith(('LICENSE','NOTICE','COPYING'))
+ return base in ['llama-server','llama-server.exe'] or '.so' in base or base.lower().endswith('.dll') or base.upper().startswith(('LICENSE','NOTICE','COPYING','EULA')) or base.lower().endswith('.txt')
+def target_name(name,archive):
+ base=Path(name).name
+ if base.upper().startswith(('LICENSE','NOTICE','COPYING','EULA')) or base.lower().endswith('.txt'):
+  return re.sub('[^a-zA-Z0-9._+-]','_',archive+'-'+base)
+ return base
 for name,expected in assets[args.target]:
  archive=cache/name
  if not archive.exists() or digest(archive)!=expected:
@@ -35,12 +42,12 @@ for name,expected in assets[args.target]:
  if name.endswith('.zip'):
   with zipfile.ZipFile(archive) as z:
    for item in z.infolist():
-    if not item.is_dir() and wanted(item.filename):(stage/Path(item.filename).name).write_bytes(z.read(item))
+    if not item.is_dir() and wanted(item.filename):(stage/target_name(item.filename,name)).write_bytes(z.read(item))
  else:
   with tarfile.open(archive) as tar:
    for item in tar.getmembers():
     if wanted(item.name) and (item.isfile() or item.issym() or item.islnk()):
-     with tar.extractfile(item) as source:(stage/Path(item.name).name).write_bytes(source.read())
+     with tar.extractfile(item) as source:(stage/target_name(item.name,name)).write_bytes(source.read())
 if not (stage/('llama-server.exe' if args.target.startswith('win') else 'llama-server')).is_file():raise SystemExit('CUDA server missing')
 if args.target.startswith('linux'):
  import shutil
@@ -49,12 +56,18 @@ if args.target.startswith('linux'):
   if file.name.startswith(('libssl.so','libcrypto.so','libgomp.so','libz.so','libzstd.so')):shutil.copyfile(file,stage/file.name)
  for file in stage.iterdir():file.chmod(0o755 if file.name=='llama-server' or '.so' in file.name else 0o644)
 import shutil
-out=root/'cuda';backup=root/'cuda-previous'
+out=root/'cuda';backup=ROOT/'native'/('.cuda-previous-'+args.target)
 if backup.exists():shutil.rmtree(backup)
 if out.exists():out.rename(backup)
 stage.rename(out)
 meta['files']={key:value for key,value in meta['files'].items() if not key.startswith('cuda/')}
 for file in out.iterdir():meta['files']['cuda/'+file.name]=digest(file)
 meta['cudaSources']=[{'file':name,'sha256':sha}for name,sha in assets[args.target]]
-part=manifest.with_suffix('.partial');part.write_text(json.dumps(meta,indent=2)+'\n');part.replace(manifest)
+try:
+ part=manifest.with_suffix('.partial');part.write_text(json.dumps(meta,indent=2)+'\n');part.replace(manifest)
+except Exception:
+ shutil.rmtree(out)
+ if backup.exists():backup.rename(out)
+ raise
+if backup.exists():shutil.rmtree(backup)
 print('CUDA runtime staged and checksummed; physical GPU inference remains a separate verification gate.')

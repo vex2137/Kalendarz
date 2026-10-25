@@ -15,7 +15,7 @@ public class CalendarWebViewClient extends BridgeWebViewClient {
     @Override
     public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
         WebResourceResponse response = CalendarModelImportPlugin.intercept(view.getContext(), request.getUrl());
-        if (response == null) response = CalendarNativeAIPlugin.intercept(view.getContext(), request.getUrl());
+        if (response == null && android.os.Build.VERSION.SDK_INT >= 28) response = CalendarNativeAIPlugin.intercept(view.getContext(), request.getUrl());
         if (response == null) response = super.shouldInterceptRequest(view, request);
         return isolate(response, request.getUrl());
     }

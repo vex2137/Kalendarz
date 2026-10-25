@@ -134,3 +134,19 @@ test('macOS Metal uses its verified native macOS archive and GPU mode selects Me
   ai.start=async(id,backend)=>{calls.push(backend);return ai.snapshot();};
   await ai.prepare('known');assert.deepEqual(calls,['metal']);
 });
+
+
+test('a GPU shutdown timeout prevents CPU startup',async()=>{
+  const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({estimatedRamMB:100})}});
+  ai.probe=async()=>[{id:'Vulkan0'}];const calls=[];
+  ai.start=async(id,backend)=>{calls.push(backend);throw Error('model-stop-timeout');};
+  await assert.rejects(ai.prepare('known'),/model-stop-timeout/);assert.deepEqual(calls,['vulkan']);
+});
+test('shutdown retains ownership of a live process after the termination deadline',async t=>{
+  const {EventEmitter}=require('node:events');t.mock.timers.enable({apis:['setTimeout']});
+  const child=new EventEmitter();child.exitCode=null;child.signalCode=null;const signals=[];child.kill=signal=>{signals.push(signal||'SIGTERM');return false;};
+  const ai=new NativeAI({runtimeRoot:'/unused',store:{}});ai.child=child;
+  const stopped=assert.rejects(ai.stop(),/model-stop-timeout/);t.mock.timers.tick(5000);await stopped;
+  assert.equal(ai.child,child,'Keep the live handle so cleanup/retry cannot overlook it');
+  assert.deepEqual(signals,['SIGTERM','SIGKILL']);child.exitCode=137;await ai.stop();assert.equal(ai.child,undefined);
+});

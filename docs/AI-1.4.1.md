@@ -199,3 +199,6 @@ At the last remote read of PR #10 head: 7 checks passed, 6 failed, 2 skipped and
 results do not replace CI or establish release readiness.
 
 Machine-readable evidence, scope and remaining work: [`validation-141.json`](validation-141.json).
+
+
+Android native GPU/import follow-up and newer beta build evidence: see [AI-1.4.1-android-gpu.md](AI-1.4.1-android-gpu.md). It supersedes the earlier Android build-environment limitation; physical hardware gates remain.

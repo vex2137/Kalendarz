@@ -25,7 +25,7 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
                     WebResourceResponse response = CalendarModelImportPlugin.intercept(MainActivity.this, request.getUrl());
-                    if (response == null) response = CalendarNativeAIPlugin.intercept(MainActivity.this, request.getUrl());
+                    if (response == null && android.os.Build.VERSION.SDK_INT >= 28) response = CalendarNativeAIPlugin.intercept(MainActivity.this, request.getUrl());
                     if (response == null) response = bridge.getLocalServer().shouldInterceptRequest(request);
                     return CalendarWebViewClient.isolate(response, request.getUrl());
                 }
@@ -49,7 +49,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(CalendarDevicePlugin.class);
         registerPlugin(CalendarModelImportPlugin.class);
-        registerPlugin(CalendarNativeAIPlugin.class);
+        if (android.os.Build.VERSION.SDK_INT >= 28) registerPlugin(CalendarNativeAIPlugin.class);
         super.onCreate(savedInstanceState);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override

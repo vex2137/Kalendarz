@@ -19,6 +19,7 @@ jobs:
       - run: npm run ai:data && npm run ai:data:validate
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: node tests/gguf-import-browser.cjs
   desktop:
     runs-on: ubuntu-24.04
     steps:

@@ -74,8 +74,9 @@ class NativeAI {
   }
   async stop(){
     if(this.stopping)return this.stopping;
-    const child=this.child;this.child=undefined;this.loadedId=undefined;this.backend=undefined;this.state={...this.state,loaded:false,gpuActive:false,deviceName:undefined,offloadedLayers:undefined,ramBytes:undefined,vramBytes:undefined};
+    const child=this.child;this.loadedId=undefined;this.backend=undefined;this.state={...this.state,loaded:false,gpuActive:false,deviceName:undefined,offloadedLayers:undefined,ramBytes:undefined,vramBytes:undefined};
     if(child&&child.exitCode===null&&child.signalCode===null){this.stopping=new Promise((resolve,reject)=>{let kill,deadline;const finish=error=>{clearTimeout(kill);clearTimeout(deadline);child.removeListener('exit',exited);child.removeListener('error',failed);error?reject(error):resolve();};const exited=()=>finish();const failed=error=>finish(error);child.once('exit',exited);child.once('error',failed);kill=setTimeout(()=>child.kill('SIGKILL'),1500);deadline=setTimeout(()=>finish(Error('model-stop-timeout')),5000);child.kill();});try{await this.stopping;}finally{this.stopping=undefined;}}
+    if(this.child===child)this.child=undefined;
   }
   async cancel(){
     if(this.cancelling)return this.cancelling;
@@ -126,7 +127,7 @@ class NativeAI {
       // Try each packaged GPU backend once, in CUDA/Vulkan or Metal preference order.
       const attempted=new Set();
       for(const device of compatible){const backend=device.backend||'vulkan';if(attempted.has(backend))continue;attempted.add(backend);
-        try{return await this.start(id,backend,device,controller.signal);}catch(error){if(controller.signal.aborted)throw error;this.state.fallbackReason=gpuFailure(error,this.log);}}
+        try{return await this.start(id,backend,device,controller.signal);}catch(error){if(controller.signal.aborted||error.message==='model-stop-timeout')throw error;this.state.fallbackReason=gpuFailure(error,this.log);}}
       if(this.mode!=='cpu'&&!attempted.size)this.state.fallbackReason=devices.length?'insufficient-vram':this.probeReason||'no-compatible-gpu';
       if(this.mode==='gpu'){await this.stop();this.state.errorCode='model-gpu-unavailable';throw Error('model-gpu-unavailable');}
       return this.start(id,'cpu',undefined,controller.signal);

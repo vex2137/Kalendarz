@@ -91,3 +91,34 @@ jobs:
         env:
           CALENDAR_EXTERNAL_MODEL: public/models/Qwen3.5-0.8B.Q4_K_M.gguf
         run: npm run test:models:folders
+  android-native-beta-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: '1.4.3'}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: android-actions/setup-android@v3
+      - run: bun install --frozen-lockfile
+      - run: sdkmanager 'ndk;29.0.14206865' 'cmake;3.31.6'
+      - name: Cross-compile the pinned ARM64 CPU/Vulkan runtime (no hardware claim)
+        run: python3 scripts/build-android-native.py --sdk "$ANDROID_HOME" --jobs 2
+      - run: node scripts/prepare-beta-apk.cjs
+      - name: Build explicit test frontend without model weights
+        env: {CALENDAR_BETA_APK: 'true', CALENDAR_ANDROID_NATIVE: 'true'}
+        run: node node_modules/vite/bin/vite.js build
+      - run: npx cap sync android
+      - name: Compile beta APK and device tests without changing production signing
+        working-directory: android
+        run: bash gradlew :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarBeta=true -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Calendar-1.4.1-beta-android-native-test
+          path: |
+            android/app/build/outputs/apk/diagnostics/*.apk
+            android/app/build/outputs/apk/androidTest/diagnostics/*.apk
+            build/android-native-assets/android-native-runtime.json

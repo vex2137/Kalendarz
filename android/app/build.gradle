@@ -6,7 +6,7 @@ def calendarWebBuild = calendarBuildFile.isFile() ? new groovy.json.JsonSlurper(
 def calendarVersion = calendarPackage.version.tokenize('.').collect { it as int }
 def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
 def calendarBeta = providers.gradleProperty('calendarBeta').orElse('false').get().toBoolean()
-if (calendarBeta && !gradle.startParameter.taskNames.every { it.tokenize(':').last() == 'assembleDiagnostics' }) {
+if (calendarBeta && !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['assembleDiagnostics','assembleDiagnosticsAndroidTest','testDiagnosticsUnitTest'] }) {
     throw new GradleException('Beta without bundled weights is allowed only for assembleDiagnostics')
 }
 def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
@@ -64,10 +64,12 @@ android {
             testProguardFiles 'proguard-test-rules.pro'
         }
     }
-    // Opt-in staged Android native runtime; builds without it retain WASM.
-    sourceSets.main.jniLibs.srcDirs += [rootProject.file('../build/android-jni')]
-    sourceSets.main.assets.srcDirs += [rootProject.file('../build/android-native-assets')]
-    packagingOptions { jniLibs { useLegacyPackaging = true } }
+    // Production builds without the explicit native flag retain their original packaging.
+    if (calendarWebBuild.androidNative == true) {
+        sourceSets.main.jniLibs.srcDirs += [rootProject.file('../build/android-jni')]
+        sourceSets.main.assets.srcDirs += [rootProject.file('../build/android-native-assets')]
+        packagingOptions { jniLibs { useLegacyPackaging = true } }
+    }
     if (calendarBeta) {
         sourceSets.diagnostics.res.setSrcDirs([rootProject.file('../build/beta-res')])
     }

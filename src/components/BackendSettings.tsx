@@ -22,9 +22,10 @@ export function BackendSettings({language,busy}:{language:AppLanguage;busy:boole
   const metrics={en:{layers:'GPU layers',load:'Load time',speed:'Tokens/s',failure:'GPU unavailable'},pl:{layers:'Warstwy GPU',load:'Czas ładowania',speed:'Tokeny/s',failure:'GPU niedostępne'},de:{layers:'GPU-Schichten',load:'Ladezeit',speed:'Token/s',failure:'GPU nicht verfügbar'},ru:{layers:'Слои GPU',load:'Время загрузки',speed:'Токены/с',failure:'GPU недоступен'}}[language];
   return <section className="theme-border border rounded-xl p-3 space-y-2 text-xs" data-testid="backend-settings">
     <h4 className="font-semibold">{text.title}</h4>
-    {native ? <label className="flex items-center gap-2">{text.mode}<select aria-label={text.mode} value={backendMode()} disabled={busy||changing} onChange={event=>void change(event.target.value as BackendMode)} className="theme-input rounded-lg p-2 flex-1">
-      <option value="auto">{text.auto}</option><option value="gpu">{text.gpu}</option><option value="cpu">{text.cpu}</option>
-    </select></label> : <p className="theme-muted">{text.mobile}</p>}
+    <label className="flex items-center gap-2">{text.mode}<select aria-label={text.mode} value={backendMode()} disabled={busy||changing} onChange={event=>void change(event.target.value as BackendMode)} className="theme-input rounded-lg p-2 flex-1">
+      <option value="auto">{text.auto}</option><option value="gpu" disabled={!native}>{text.gpu}</option><option value="cpu">{text.cpu}</option>
+    </select></label>
+    {!native && <p className="theme-muted">{text.mobile}</p>}
     <p data-backend={status.loaded?status.backend:'unloaded'} data-gpu-active={status.gpuActive}>{status.loaded ? status.backend==='vulkan'?'Vulkan':status.backend==='cuda'?'CUDA':status.backend==='metal'?'Metal':status.backend==='cpu-native'?'CPU · llama.cpp':'CPU · WebAssembly' : text.unloaded} · {status.gpuActive?text.active:text.inactive}</p>
     {native && <><p>{text.device}: {status.deviceName||status.gpuDevices?.map(device=>device.name).join(', ')||text.unknown}</p><p>{text.memory}: {memory(status.ramBytes)} / {memory(status.vramBytes)}</p><p className="theme-muted">{text.scope}</p></>}
     {status.loaded && <p>{status.modelName} · {metrics.layers}: {status.offloadedLayers ?? 0}{status.loadMs !== undefined ? ` · ${metrics.load}: ${(status.loadMs/1000).toFixed(2)} s` : ''}{status.tokensPerSecond !== undefined ? ` · ${metrics.speed}: ${status.tokensPerSecond.toFixed(1)}` : ''}</p>}

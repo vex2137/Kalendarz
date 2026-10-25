@@ -53,7 +53,7 @@ const base='http://127.0.0.1:4187';
         const directory=await(await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');const files=[];for await(const [name]of directory.entries())files.push(name);
         return {failures,files,installed:await store.hasDownloadedModelData(descriptor)};
       },workerOnly);
-      assert.deepEqual(result.failures,['model-http-403','model-size','model-checksum','AbortError','model-storage-space']);assert.deepEqual(result.files,[]);assert.equal(result.installed,false);
+      assert.deepEqual(result.failures,['model-http-403','model-download-incomplete','model-checksum','AbortError','model-storage-space']);assert.deepEqual(result.files,[]);assert.equal(result.installed,false);
       console.log(`OPFS ${workerOnly?'sync worker':'createWritable'}: download/import, HTTP, truncation, checksum, cancellation and quota passed.`);
       await context.close();
     }

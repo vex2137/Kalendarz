@@ -45,6 +45,7 @@ run(cmake,'-S',work/'llama-src','-B',work/'llama-android-arm64','-G','Ninja',
  '-DBUILD_SHARED_LIBS=OFF','-DGGML_OPENMP=OFF','-DGGML_VULKAN=ON','-DGGML_NATIVE=OFF',
  '-DLLAMA_BUILD_TESTS=OFF','-DLLAMA_BUILD_EXAMPLES=OFF','-DLLAMA_BUILD_TOOLS=ON','-DLLAMA_BUILD_SERVER=ON',
  '-DLLAMA_OPENSSL=OFF','-DLLAMA_CURL=OFF','-DLLAMA_SERVER_WEBUI=OFF',
+ '-DLLAMA_BUILD_NUMBER=11669','-DLLAMA_BUILD_COMMIT=620d2225cc436ab0b001e3200e590e3b286ef9ab',
  f'-DVulkan_GLSLC_EXECUTABLE={ndk}/shader-tools/linux-x86_64/glslc',
  f'-DVulkan_INCLUDE_DIR={work}/vulkan-headers/include',f'-DSPIRV-Headers_DIR={work}/spirv-install/share/cmake/SPIRV-Headers')
 run(cmake,'--build',work/'llama-android-arm64','--target','llama-server','-j',max(1,min(args.jobs,8)))

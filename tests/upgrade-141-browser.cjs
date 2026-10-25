@@ -54,7 +54,7 @@ const {chromium}=require('playwright');
       return {event:records.find(r=>r.id==='upgrade-event-141'),chat:chats.find(r=>r.id==='upgrade-chat'),messages:messages.filter(r=>r.chatId==='upgrade-chat'),settings:{language:settings.language,theme:settings.theme,customThemes:settings.customThemes,defaultReminder:settings.defaultReminder,soundEnabled:settings.soundEnabled,ai:settings.ai},model:localStorage.getItem('calendar_active_ai_model_v1'),backend:localStorage.getItem('calendar_ai_backend_mode_v1'),modelBytes:[...new Uint8Array(await file.arrayBuffer())]};
     });
     await page.reload();await page.locator('#btn-open-ai-assistant').click();await page.getByText('Synthetic upgrade history',{exact:true}).waitFor();const before=await snapshot();assert.deepEqual(before.event.event,fixture);
-    root=path.resolve(process.env.CALENDAR_141_WEB_DIR||'dist');const newBuild=JSON.parse(await fs.readFile(path.join(root,'build-info.json'),'utf8'));assert.equal(newBuild.version,'1.4.1');
+    root=path.resolve(process.env.CALENDAR_141_WEB_DIR||'dist');const newBuild=JSON.parse(await fs.readFile(path.join(root,'build-info.json'),'utf8'));assert.ok(['1.4.1','1.4.1 beta'].includes(newBuild.version),`Unexpected upgrade target: ${newBuild.version}`);
     await page.reload();await page.locator('#btn-open-ai-assistant').click();await page.getByText('Synthetic upgrade history',{exact:true}).waitFor();
     assert.deepEqual(await snapshot(),before,'The same browser/origin must retain events, history, settings, model selection and OPFS bytes');
     assert.equal(await page.locator('html').getAttribute('data-theme'),'custom:upgrade-fixture');
