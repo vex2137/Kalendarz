@@ -59,6 +59,18 @@ const { _electron } = require('playwright');
       return route.abort();
     });
     await page.locator('#btn-open-ai-assistant').click();
+    // Model-free distributions must exercise real model installation rather
+    // than skip the inference assertions or pretend weights are bundled.
+    if(process.env.CALENDAR_EXTERNAL_MODEL){
+      const directory=require('node:path').dirname(require('node:fs').realpathSync(process.env.CALENDAR_EXTERNAL_MODEL));
+      await page.locator('#btn-ai-settings').click();
+      await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').click();
+      await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
+      await application.evaluate(({dialog},directory)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[directory]});},directory);
+      const folders=page.getByTestId('model-folders');await folders.getByRole('button',{name:'Add folder',exact:true}).click();
+      await folders.locator('[data-external-model-id]').first().getByRole('button',{name:'Use model',exact:true}).click();
+      await page.locator('#ai-settings-panel header button').click();
+    }
     const modelMetrics=await require('./model-device-check.cjs')(page, 'en');
     for(const metric of modelMetrics)assert.ok(['cpu-native','vulkan'].includes(metric.backend),'Packaged desktop must execute the native runtime');
     assert.equal(await page.evaluate(()=>typeof window.calendarNativeAI?.status),'function','The trusted renderer must have the native bridge');
@@ -74,11 +86,12 @@ const { _electron } = require('playwright');
       try{await untrusted.loadURL(trusted.getURL());return await untrusted.webContents.executeJavaScript("typeof window.calendarNativeAI?.status==='function' && window.calendarNativeAI.status().then(()=>false,()=>true)");}finally{untrusted.destroy();}
     }),true,'Another renderer must not access the inference bridge');
     await page.locator('#btn-ai-settings').click();
-    await page.getByLabel('Processing mode',{exact:true}).selectOption('cpu');
+    await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').click();
+    await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
     await page.waitForFunction(()=>localStorage.getItem('calendar_ai_backend_mode_v1')==='cpu');
-    assert.equal(await page.getByTestId('backend-settings').locator('[data-backend]').getAttribute('data-gpu-active'),'false');
+    assert.equal(await page.locator('[data-testid=backend-settings]:visible [data-backend]').getAttribute('data-gpu-active'),'false');
     await page.reload();await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();
-    assert.equal(await page.getByLabel('Processing mode',{exact:true}).inputValue(),'cpu');
+    assert.equal(await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').getAttribute('aria-pressed'),'true');
     await page.locator('#ai-settings-panel header button').click();
     const started = performance.now();
     await page.locator('#drawer-ai-assistant input[type=text]').fill('Add event Desktopcheck on 2026-11-15 at 15:00 until 16:00');

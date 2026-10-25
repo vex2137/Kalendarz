@@ -13,13 +13,31 @@ const {_electron}=require('playwright');
     application=await launch();let page=await application.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.locator('#btn-create-event-top').click();await page.locator('#input-event-title').fill('Folder upgrade preservation');await page.locator('#btn-save-event-form').click();await page.getByText('Folder upgrade preservation',{exact:true}).waitFor();
     await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();
-    await page.getByLabel('Processing mode',{exact:true}).selectOption('cpu');
+    await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').click();
+    await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
     await application.evaluate(({dialog},directory)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[directory]});},directory);
     const panel=page.getByTestId('model-folders');await panel.getByRole('button',{name:'Add folder',exact:true}).click();
     const card=panel.locator('[data-external-model-id]').first();await card.waitFor();const id=await card.getAttribute('data-external-model-id');
     await card.getByRole('button',{name:'Use model',exact:true}).click();await page.waitForFunction(id=>localStorage.getItem('calendar_active_ai_model_v1')===id,id);
     await page.locator('#ai-settings-panel header button').click();
     const metrics=await require('./model-device-check.cjs')(page,'en');for(const metric of metrics)assert.equal(metric.backend,'cpu-native');
+    if(process.env.CALENDAR_EXPECT_NO_GPU==='1'){
+      await page.locator('#btn-ai-settings').click();
+      await page.locator('[data-testid=backend-settings]:visible [data-mode=gpu]').click();
+      await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
+      await page.locator('#ai-tab-diagnostics').click();
+      const diagnostics=page.getByTestId('model-diagnostics');
+      await diagnostics.getByRole('button',{name:'Device test: cold + warm',exact:true}).click();
+      await diagnostics.getByRole('alert').filter({hasText:'model-gpu-unavailable'}).first().waitFor({timeout:30000});
+      const failed=await page.evaluate(()=>window.calendarNativeAI.status());
+      assert.equal(failed.mode,'gpu');assert.equal(failed.loaded,false);assert.equal(failed.gpuActive,false);
+      await diagnostics.locator('[data-mode=cpu]').click();
+      await diagnostics.getByTestId('backend-mode-result').filter({hasText:'Mode saved'}).waitFor();
+      const recovered=await page.evaluate(async id=>window.calendarNativeAI.complete(id,{messages:[{role:'user',content:'Say hello.'}],max_tokens:8}),id);
+      assert.equal(recovered.backend.backend,'cpu-native');assert.equal(recovered.backend.gpuActive,false);assert.ok(recovered.usage.completion_tokens>0);
+      await page.locator('#ai-settings-panel header button').click();
+      console.log('PASS actual packaged UI CPU → GPU-only unavailable/error with no CPU fallback → CPU recovery and real tokens');
+    }
     assert.equal(await page.evaluate(()=>typeof require),'undefined');
     assert.equal(await application.evaluate(async({BrowserWindow,app})=>{
       const trusted=BrowserWindow.getAllWindows()[0].webContents;const preload=app.getAppPath()+'/electron/preload.cjs';
@@ -30,7 +48,7 @@ const {_electron}=require('playwright');
     await application.close();application=await launch();page=await application.firstWindow();
     await page.getByText('Folder upgrade preservation',{exact:true}).waitFor();await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();
     await page.getByTestId('model-folders').locator(`[data-external-model-id="${id}"]`).waitFor();assert.equal(await page.evaluate(()=>localStorage.getItem('calendar_active_ai_model_v1')),id);
-    assert.equal(await page.getByLabel('Processing mode',{exact:true}).inputValue(),'cpu');
+    assert.equal(await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').getAttribute('aria-pressed'),'true');
     // Removing a registration resets an unavailable active selection and leaves bytes intact.
     await page.getByTestId('model-folders').getByRole('button',{name:`Remove folder: ${directory}`,exact:true}).click();
     await page.waitForFunction(()=>!localStorage.getItem('calendar_active_ai_model_v1')?.startsWith('external-'));
