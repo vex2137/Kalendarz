@@ -1,0 +1,22 @@
+KALENDARZ 1.4.1 - signed Android APK recovery
+
+This is a recovery copy of the existing signed APK, not an official Release.
+The APK has not been rebuilt or re-signed.
+
+SHA-256:
+d187778c9185af75dfc8c61d8436fe1412e8f0c5c6f85a2cbc5abe8e633a5c89  KALENDARZ-1.4.1-ANDROID.apk
+Size: 24005277 bytes
+Signing certificate SHA-256:
+ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143
+
+Download the binary file (not the GitHub preview):
+https://github.com/vex2137/Kalendarz/raw/refs/heads/artifacts/141-android-recovery/KALENDARZ-1.4.1-ANDROID.apk?download=1
+
+If your browser opens a preview, long-press the link and choose Download link.
+Verify the downloaded APK with sha256sum or a trusted SHA-256 checker.
+For an update, install over the existing Beta/diagnostic application without
+uninstalling it or clearing its data. Android may ask you to allow installation
+from the browser or file manager. Keep your existing app and data.
+
+This branch contains only the signed APK and this text file.
+No keystore, password, signing configuration, or application source is included.
