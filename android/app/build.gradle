@@ -31,7 +31,7 @@ android {
         resValue 'string', 'calendar_build_commit', calendarWebBuild.commit
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarVulkanDiagnostics ? 4 : calendarStableUpdate ? 3 : calendarBeta ? 2 : 0)
+        versionCode calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarVulkanDiagnostics ? 4 : calendarStableUpdate ? 5 : calendarBeta ? 2 : 0)
         versionName calendarPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
