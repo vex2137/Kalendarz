@@ -1,0 +1,73 @@
+{
+  "version": "1.4.1",
+  "androidCode": 10406,
+  "androidBuild": {
+    "commit": "dbac195d9435623959fd501a74004b4382f47db6",
+    "branch": "feat/ai-141-ultimate",
+    "version": "1.4.1",
+    "bundledModel": false,
+    "distribution": "model-free",
+    "androidNative": true,
+    "dirty": false,
+    "builtAt": "2026-10-25T16:20:22.212Z"
+  },
+  "androidCertificateSha256": "ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143",
+  "packages": [
+    {
+      "file": "KALENDARZ-1.4.1-ANDROID.apk",
+      "bytes": 24005277,
+      "sha256": "d187778c9185af75dfc8c61d8436fe1412e8f0c5c6f85a2cbc5abe8e633a5c89"
+    },
+    {
+      "file": "KALENDARZ-1.4.1-linux-x86_64.AppImage",
+      "bytes": 165035840,
+      "sha256": "1dd853fc8e64d62337ad0dcee7119a34d7c07b969d8c979ce8f0f01a0564d7ad"
+    },
+    {
+      "file": "KALENDARZ-1.4.1-WINDOWS-x86_64.exe",
+      "bytes": 117048817,
+      "sha256": "ed39c29581b232ec195a77a7de9601b053b8605340bcef822ca86aa3069be0d3"
+    },
+    {
+      "file": "KALENDARZ-1.4.1-WEB.zip",
+      "bytes": 6954776,
+      "sha256": "029906228d815547c24ec5b11709dcb755725baf2ab70a440d95be71790cd8da"
+    }
+  ],
+  "delivery": "Draft creation/upload authorized; blocked by invalid CLI GH_TOKEN and no connector release upload method",
+  "targets": [
+    "android-arm64",
+    "linux-x86_64",
+    "windows-x64",
+    "web"
+  ],
+  "windowsWebBuild": {
+    "commit": "1973ea8258b623911c71679db1222a89f99a2e7d",
+    "branch": "feat/ai-141-ultimate",
+    "version": "1.4.1",
+    "bundledModel": false,
+    "distribution": "model-free",
+    "androidNative": false,
+    "dirty": false,
+    "builtAt": "2026-10-25T16:36:40.090Z"
+  },
+  "webProductionValidation": {
+    "passed": true,
+    "actualGguf": true,
+    "coldWarmCpu": true,
+    "offlineReload": true,
+    "initialContendedRun": "model-timeout at unchanged 120-second limit while Windows compression ran; idle rerun passed without application or timeout changes"
+  },
+  "windowsValidation": {
+    "build": "portable EXE with x64 payload",
+    "peVerified": true,
+    "nsisContainerVerified": true,
+    "embeddedArchiveIntegrityVerified": true,
+    "nativeFileChecksumsVerified": 63,
+    "executedOnWindows": false,
+    "signed": false
+  },
+  "draftUploadAuthorizedByUser": true,
+  "draftCreated": false,
+  "siteDeployed": false
+}
