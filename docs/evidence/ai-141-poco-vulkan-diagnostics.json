@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-25",
+  "sourceCommit": "fd8dd25",
+  "physicalGpuTested": false,
+  "physicalAndroidTestedHere": false,
+  "rootCauseStatus": "undetermined: original device report has only generic GPU initialization fallback",
+  "confirmedDefect": "GPU startup log was overwritten when CPU fallback started",
+  "unitTests": {
+    "nativeNode": 25,
+    "jvmExisting": 3,
+    "jvmGpuDiagnostics": 9,
+    "failed": 0,
+    "skipped": 0
+  },
+  "browserSuitesPassed": [
+    "diagnostics-actions-browser",
+    "backend-mode-browser"
+  ],
+  "android": {
+    "versionName": "1.4.1",
+    "versionCode": 10405,
+    "applicationId": "com.kalendarz.offline.diagnostics",
+    "sameSigningAs10404": true,
+    "signatureVerified": true,
+    "alignment16KiBVerified": true,
+    "nativeBinaryUnchanged": true,
+    "nativeBinarySha256": "832842c3d264e227186c2839a470527632a07b3af854e28cdaa10a35558b4402"
+  },
+  "delivery": {
+    "confirmedDownloadTransport": false,
+    "genericAttachmentToolAvailable": false,
+    "genericArtifactExportToolAvailable": false,
+    "configuredArtifactStorage": false,
+    "publicUploadAttempted": false,
+    "status": "blocked: managed session provides no confirmed binary attachment/export transport"
+  },
+  "artifacts": [
+    {
+      "file": "KALENDARZ-1.4.1-ANDROID-vulkan-diagnostics.apk",
+      "bytes": 24005289,
+      "sha256": "576bf11ccb48150b2b49fc0ed55cc85262a69c8ffe88f132dd1a89ef1d70d5c0",
+      "executable": false
+    },
+    {
+      "file": "KALENDARZ-1.4.1-ANDROID-vulkan-diagnostics-tests.apk",
+      "bytes": 637350,
+      "sha256": "d0f0f58c6ffb4e65d0648bd356c3a4bcfd227d68167429e30ca7ee0c62a6d03a",
+      "executable": false
+    },
+    {
+      "file": "KALENDARZ-1.4.1-linux-x86_64.AppImage",
+      "bytes": 165035840,
+      "sha256": "1dd853fc8e64d62337ad0dcee7119a34d7c07b969d8c979ce8f0f01a0564d7ad",
+      "executable": true
+    }
+  ]
+}
