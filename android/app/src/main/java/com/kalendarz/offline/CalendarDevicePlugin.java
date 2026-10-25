@@ -1,6 +1,15 @@
 package com.kalendarz.offline;
 
 import android.app.ActivityManager;
+import android.app.Activity;
+import android.util.Log;
+import androidx.activity.result.ActivityResult;
+import com.getcapacitor.annotation.ActivityCallback;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.json.JSONObject;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ComponentName;
@@ -24,6 +33,54 @@ public class CalendarDevicePlugin extends Plugin {
         // the first main document as well as WASM/worker subresources.
         bridge.setWebViewClient(new CalendarWebViewClient(bridge));
     }
+    private final ExecutorService diagnosticIo = Executors.newSingleThreadExecutor();
+    private boolean exportingDiagnostics;
+
+    @PluginMethod
+    public void exportDiagnostics(PluginCall call) {
+        synchronized(this) {
+            if(exportingDiagnostics) { call.reject("diagnostics-export-busy"); return; }
+            exportingDiagnostics=true;
+        }
+        try {
+            String json=call.getString("json");
+            if(json==null||json.length()>512*1024||json.getBytes(StandardCharsets.UTF_8).length>512*1024)throw new IllegalArgumentException();
+            new JSONObject(json); // Reject invalid/truncated reports before opening the picker.
+        } catch(Exception error) { finishDiagnosticExport();call.reject("diagnostics-export-invalid",error);return; }
+        Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/json").putExtra(Intent.EXTRA_TITLE,"calendar-ai-diagnostics.json")
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        Log.i("CalendarDiagnostics","export-json: opening document picker");
+        try { startActivityForResult(call,intent,"diagnosticsSaved"); }
+        catch(Exception error) { finishDiagnosticExport();Log.e("CalendarDiagnostics","export-json: picker failed");call.reject("diagnostics-export-picker",error); }
+    }
+
+    @ActivityCallback
+    private void diagnosticsSaved(PluginCall call,ActivityResult result) {
+        if(call==null) { finishDiagnosticExport();Log.e("CalendarDiagnostics","export-json: callback has no pending call");return; }
+        if(result.getResultCode()!=Activity.RESULT_OK) {
+            finishDiagnosticExport();JSObject response=new JSObject();response.put("status","cancelled");call.resolve(response);
+            Log.i("CalendarDiagnostics","export-json: cancelled");return;
+        }
+        Uri uri=result.getData()==null?null:result.getData().getData();
+        if(uri==null||!"content".equals(uri.getScheme())) { finishDiagnosticExport();call.reject("diagnostics-export-document");return; }
+        diagnosticIo.execute(()->{
+            try {
+                Log.i("CalendarDiagnostics","export-json: writing selected document");
+                // SAF grants write access to the chosen document. No storage-wide permissions.
+                try(OutputStream out=getContext().getContentResolver().openOutputStream(uri,"wt")) {
+                    if(out==null)throw new java.io.IOException("Document is not writable");
+                    out.write(call.getString("json").getBytes(StandardCharsets.UTF_8));out.flush();
+                }
+                JSObject response=new JSObject();response.put("status","saved");call.resolve(response);
+                Log.i("CalendarDiagnostics","export-json: saved");
+            } catch(Exception error) { Log.e("CalendarDiagnostics","export-json: write failed");call.reject("diagnostics-export-write",error); }
+            finally { finishDiagnosticExport(); }
+        });
+    }
+    private synchronized void finishDiagnosticExport() { exportingDiagnostics=false; }
+    @Override protected void handleOnDestroy() { diagnosticIo.shutdown(); }
+
     // Keep the existing notification channel: never bypass a user's mute choice.
     private static final String REMINDER_CHANNEL = "default";
     private static final String[] LANGUAGES = { "en", "pl", "ru", "de" };

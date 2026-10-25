@@ -1,8 +1,10 @@
+import { diagnosticActionText } from '../utils/diagnosticActionText';
+import { exportDiagnosticsJson } from '../utils/diagnosticExport';
 import { BackendSettings } from './BackendSettings';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { AppLanguage } from '../utils/i18n';
-import { diagnosticsReport, modelMetrics, assistantTurns, nativeBuildInfo, recordNativeBuild, subscribeMetrics } from '../utils/modelDiagnostics';
-import { inferCalendarJson, modelStatus, subscribeModel, unloadLocalModel } from '../utils/localModelRuntime';
+import { diagnosticActions, diagnosticErrorCode, recordDiagnosticAction, type DiagnosticAction, diagnosticsReport, modelMetrics, assistantTurns, nativeBuildInfo, recordNativeBuild, subscribeMetrics } from '../utils/modelDiagnostics';
+import { inferCalendarJson, modelStatus, subscribeModel, unloadLocalModel, releaseLocalModelMemory } from '../utils/localModelRuntime';
 import { findModel } from '../utils/modelRegistry';
 import { modelLifecycleText } from '../utils/modelLifecycleText';
 import { calendarSystemPrompt, COMMAND_SCHEMA } from '../utils/modelCommand';
@@ -24,28 +26,54 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
   useSyncExternalStore(subscribeMetrics, nativeBuildInfo);
   const status = useSyncExternalStore(subscribeModel, modelStatus);
   const [testing, setTesting] = useState(false);
-  const [error, setError] = useState(false);
+  useSyncExternalStore(subscribeMetrics, diagnosticActions);
+  const [actionState,setActionState]=useState<{pending:boolean;message:string;error?:boolean}>();
+  const [bridgeError,setBridgeError]=useState<string>();
+  const actionRunning=useRef(false);
   const [singleThread, setSingleThread] = useState(false);
-  const text = copy[language];
+  const text = copy[language],feedback=diagnosticActionText(language);
   useEffect(() => {
-    if (Capacitor.getPlatform() === 'android') void CalendarDevice.diagnosticsBuildInfo().then(recordNativeBuild).catch(() => {});
+    let current=true;
+    if (Capacitor.getPlatform() === 'android') {
+      recordDiagnosticAction('bridge-info','bridge-call');
+      void CalendarDevice.diagnosticsBuildInfo().then(build=>{recordNativeBuild(build);recordDiagnosticAction('bridge-info','success');}).catch(error=>{recordDiagnosticAction('bridge-info','error',error);if(current)setBridgeError(diagnosticErrorCode(error));});
+    }
+    return ()=>{current=false;};
   }, []);
   const busy = testing || ['loading', 'running', 'downloading', 'verifying', 'checking'].includes(status.phase);
-  const test = async () => {
-    setTesting(true); setError(false);
+  const runAction=async(action:DiagnosticAction,work:()=>Promise<string>,pending:string)=>{
+    recordDiagnosticAction(action,'click');
+    if(actionRunning.current)return;
+    actionRunning.current=true;setActionState({pending:true,message:pending});recordDiagnosticAction(action,'start');
+    try {
+      const message=await work();
+      const cancelled=message===feedback.cancelled;
+      recordDiagnosticAction(action,cancelled?'cancelled':'success');
+      setActionState({pending:false,message});
+    }catch(error){
+      recordDiagnosticAction(action,'error',error);
+      setActionState({pending:false,error:true,message:`${action==='export-json'?feedback.exportError:action==='release-memory'?feedback.releaseError:text[5]} (${diagnosticErrorCode(error)})`});
+    }finally{actionRunning.current=false;}
+  };
+  const test = () => runAction('device-test',async()=>{
+    setTesting(true);
     try {
       await unloadLocalModel();
       const system = calendarSystemPrompt(language, new Date());
       const query = language === 'pl' ? 'Dodaj wydarzenie Pomiar jutro o 14:15' : 'Add event Measurement tomorrow at 14:15';
       await inferCalendarJson(system, `Current request:\n${query}`, COMMAND_SCHEMA, [], { threads: singleThread ? 1 : undefined });
       await inferCalendarJson(system, `Current request:\n${query}`, COMMAND_SCHEMA, [], { threads: singleThread ? 1 : undefined });
-    } catch { setError(true); } finally { setTesting(false); }
-  };
-  const exportJson = () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(diagnosticsReport(), null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a'); link.href = url; link.download = 'calendar-ai-diagnostics.json'; link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
+      return feedback.tested;
+    }finally{setTesting(false);}
+  },feedback.testing);
+  const exportJson = () => runAction('export-json',async()=>{
+    const result=await exportDiagnosticsJson(diagnosticsReport());
+    return result==='saved'?feedback.saved:result==='cancelled'?feedback.cancelled:feedback.download;
+  },feedback.exporting);
+  const release = () => runAction('release-memory',async()=>{
+    const result=await releaseLocalModelMemory();
+    return result==='released'?feedback.released:feedback.already;
+  },feedback.releasing);
   const last = [...metrics].reverse().find(metric=>metric.route==='model');
   const labels = {
     en:['Total response','Model access','Integrity check','Backend initialization','Prompt processing','First token','Generation','Tokens/s','Input / output tokens','Context / CPU threads','Native RAM / JS heap'],
@@ -67,12 +95,14 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
     <p className="my-2">{text[4]}</p>
     {!desktopAI() && <label className="flex gap-2 mb-2"><input type="checkbox" checked={singleThread} disabled={busy} onChange={e => setSingleThread(e.target.checked)} />{({ en: 'Compare with one CPU thread', pl: 'Porównaj z jednym wątkiem CPU', ru: 'Сравнить с одним потоком CPU', de: 'Mit einem CPU-Thread vergleichen' })[language]}</label>}
     <div className="flex flex-wrap gap-2">
-      <button type="button" disabled={busy || !enabled || !status.installed} onClick={() => { void test(); }} className="theme-border border rounded p-2 disabled:opacity-50">{text[1]}</button>
-      <button type="button" onClick={exportJson} className="theme-border border rounded p-2">{text[2]}</button>
-      <button type="button" disabled={busy} onClick={() => { void unloadLocalModel(); }} className="theme-border border rounded p-2 disabled:opacity-50">{text[3]}</button>
+      <button type="button" disabled={busy || actionState?.pending || !enabled || !status.installed} onClick={() => { void test(); }} className="theme-border border rounded p-2 disabled:opacity-50">{text[1]}</button>
+      <button id="btn-ai-export-diagnostics" type="button" disabled={actionState?.pending} onClick={()=>{void exportJson();}} className="theme-border border rounded p-2">{text[2]}</button>
+      <button id="btn-ai-release-memory" type="button" disabled={busy||actionState?.pending} onClick={()=>{void release();}} className="theme-border border rounded p-2 disabled:opacity-50">{text[3]}</button>
     </div>
-    {error && <p role="alert">{text[5]}</p>}
+    {actionState && <p data-testid="diagnostic-action-result" role={actionState.error?'alert':'status'} aria-live="polite" aria-busy={actionState.pending} className="mt-2 break-words">{actionState.pending && <span className="inline-block animate-spin mr-2" aria-hidden="true">◌</span>}{actionState.message}</p>}
+    {busy&&!actionState?.pending&&<p role="status">{feedback.busy}</p>}
+    {bridgeError&&<p role="alert">{feedback.bridgeError} ({bridgeError})</p>}
     <pre id="ai-diagnostics-report" className="overflow-auto max-h-48 mt-2" aria-live="polite">{JSON.stringify({ ...diagnosticsReport(), metrics: undefined, turns: undefined, lastTurn: turns.at(-1), lastModel: [...metrics].reverse().find(metric=>metric.route==='model'), lastRouteMetric:metrics.at(-1) }, null, 2)}</pre>
-    <ModelBenchmarks language={language} disabled={busy || !enabled || !status.installed}/>
+    <ModelBenchmarks language={language} disabled={busy || actionState?.pending || !enabled || !status.installed}/>
   </section>;
 }

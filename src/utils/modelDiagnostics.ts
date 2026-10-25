@@ -63,6 +63,21 @@ export function runtimeCapabilities() {
   const wasm = WebAssembly as typeof WebAssembly & { Suspending?: unknown };
   return { isolated: globalThis.crossOriginIsolated === true, sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined', jspi: typeof wasm.Suspending === 'function', hardwareConcurrency: navigator.hardwareConcurrency || 1, deviceMemoryGB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory, userAgent: navigator.userAgent };
 }
+export type DiagnosticAction = 'export-json'|'release-memory'|'device-test'|'import-gguf'|'download-model'|'bridge-info';
+export type DiagnosticStage = 'click'|'start'|'bridge-call'|'success'|'cancelled'|'error';
+export interface DiagnosticActionEvent { action:DiagnosticAction; stage:DiagnosticStage; at:number; code?:string }
+let actions:DiagnosticActionEvent[]=[];
+export const diagnosticActions=()=>actions;
+export function diagnosticErrorCode(error:unknown) {
+  const message=error instanceof Error?error.message:typeof error==='string'?error:'';
+  return message.match(/(?:model|native|diagnostics)-[a-zA-Z0-9-]+/)?.[0] || 'diagnostics-operation-failed';
+}
+export function recordDiagnosticAction(action:DiagnosticAction,stage:DiagnosticStage,error?:unknown) {
+  const event:DiagnosticActionEvent={action,stage,at:Date.now(),...(error===undefined?{}:{code:diagnosticErrorCode(error)})};
+  actions=[...actions.slice(-99),event];
+  console.info('AI diagnostic action:',JSON.stringify(event));
+  listeners.forEach(fn=>fn());
+}
 export function diagnosticsReport() {
-  return { version: 3, build: BUILD_INFO, nativeBuild, buildMismatch: nativeBuild ? nativeBuild.commit !== BUILD_INFO.commit : undefined, capabilities: runtimeCapabilities(), backend:backendStatus(), runtime:runtimeState, session, turns, metrics };
+  return { version: 4, actions, build: BUILD_INFO, nativeBuild, buildMismatch: nativeBuild ? nativeBuild.commit !== BUILD_INFO.commit : undefined, capabilities: runtimeCapabilities(), backend:backendStatus(), runtime:runtimeState, session, turns, metrics };
 }
