@@ -11,7 +11,7 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
    window.__bridge={loaded:false,prepares:0,stops:0,stopFailure:false,exportMode:'saved',exportCalls:0};
    window.calendarNativeAI={
     platform:'android',
-    status:async()=>({backend:'cpu-native',mode:'cpu',available:true,loaded:window.__bridge.loaded,gpuActive:false,threads:2}),
+    status:async()=>({backend:'cpu-native',mode:'cpu',available:true,loaded:window.__bridge.loaded,gpuActive:false,threads:2,gpuAttempt:{stage:'shader-pipeline-create',status:'failed',requestedDevice:'Vulkan0',requestedLayers:999,contextLength:2048,offloadedLayersObserved:0,code:'model-native-load',nativeCode:'VK_ERROR_FEATURE_NOT_PRESENT',exitCode:134,nativeLog:'ggml_vulkan: VK_ERROR_FEATURE_NOT_PRESENT',stages:[]}}),
     info:async()=>({installed:true}),setMode:async()=>window.calendarNativeAI.status(),
     prepare:async()=>{window.__bridge.loaded=true;window.__bridge.prepares++;return window.calendarNativeAI.status();},
     stop:async()=>{window.__bridge.stops++;await new Promise(r=>setTimeout(r,70));if(window.__bridge.stopFailure)throw Error('model-stop-timeout');window.__bridge.loaded=false;},
@@ -33,6 +33,7 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   await page.locator('#btn-open-ai-assistant').click();
   await page.waitForFunction(()=>window.__bridge.loaded);
   await page.locator('#btn-ai-settings').click();await page.locator('#ai-tab-diagnostics').click();
+  const attempt=page.locator('[data-testid=gpu-attempt-details]:visible');await attempt.locator('summary').click();await attempt.getByText('model-native-load VK_ERROR_FEATURE_NOT_PRESENT',{exact:false}).waitFor();
   const result=page.getByTestId('diagnostic-action-result');
   await page.getByRole('button',{name:'Release memory',exact:true}).click();
   await result.filter({hasText:'Model unloaded'}).waitFor();
@@ -52,7 +53,7 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   await page.evaluate(()=>window.__bridge.stopFailure=false);await page.getByRole('button',{name:'Release memory',exact:true}).click();await result.filter({hasText:'Model unloaded'}).waitFor();
   // Real browser download dispatch contains valid diagnostics and click evidence.
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();
-  const file=await download;const json=JSON.parse(await fs.readFile(await file.path(),'utf8'));assert.equal(json.version,4);assert.ok(json.actions.some(e=>e.action==='export-json'&&e.stage==='click'));await result.filter({hasText:'download started'}).waitFor();
+  const file=await download;const json=JSON.parse(await fs.readFile(await file.path(),'utf8'));assert.equal(json.version,4);assert.equal(json.backend.gpuAttempt.nativeCode,'VK_ERROR_FEATURE_NOT_PRESENT');assert.equal(json.backend.gpuAttempt.requestedLayers,999);assert.ok(json.actions.some(e=>e.action==='export-json'&&e.stage==='click'));await result.filter({hasText:'download started'}).waitFor();
   // Exercise Android proxy success/cancel/error with visible outcomes.
   await page.evaluate(()=>window.androidBridge={});
   for(const [mode,text] of [['saved','JSON report saved'],['cancelled','Operation cancelled'],['failure','diagnostics-export-write']]){

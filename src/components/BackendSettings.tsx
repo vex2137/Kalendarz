@@ -36,6 +36,13 @@ export function BackendSettings({language,busy}:{language:AppLanguage;busy:boole
     {status.loaded && <p>{status.modelName} · {metrics.layers}: {status.offloadedLayers ?? 0}{status.loadMs !== undefined ? ` · ${metrics.load}: ${(status.loadMs/1000).toFixed(2)} s` : ''}{status.tokensPerSecond !== undefined ? ` · ${metrics.speed}: ${status.tokensPerSecond.toFixed(1)}` : ''}</p>}
     {reason && <p role={gpuError?'alert':'status'}>{gpuError?metrics.failure:text.fallback}: {text.reasons[reason]||reason}</p>}
     {native && <><p>{labels.system}: {status.system||text.unknown} / {status.cpuArchitecture||text.unknown}</p><p>{labels.packaged}: {status.packagedBackends?.join(', ')||text.unknown}</p><p>{labels.available}: {status.availableBackends?.join(', ')||text.unknown}</p></>}
+    {status.gpuAttempt && <details data-testid="gpu-attempt-details" className="theme-border border rounded p-2">
+      <summary>{({en:'Last native GPU attempt',pl:'Ostatnia natywna próba GPU',de:'Letzter nativer GPU-Versuch',ru:'Последняя попытка GPU'})[language]} · {status.gpuAttempt.status} · {status.gpuAttempt.stage}</summary>
+      <p>{status.gpuAttempt.code} {status.gpuAttempt.nativeCode} {status.gpuAttempt.message}</p>
+      <p>GPU: {status.gpuAttempt.requestedDevice||'—'} · {metrics.layers}: {status.gpuAttempt.offloadedLayersObserved} / {status.gpuAttempt.requestedLayers} · HTTP: {status.gpuAttempt.healthHttpStatus??'—'} · Exit: {status.gpuAttempt.exitCode??'—'}</p>
+      <pre className="whitespace-pre-wrap break-words max-h-64 overflow-auto" dir="ltr">{status.gpuAttempt.nativeLog}</pre>
+      {status.nativeRuntime && <p>{status.nativeRuntime.version} · {status.nativeRuntime.abi} · {status.nativeRuntime.vulkanLinkage}</p>}
+    </details>}
     {status.errorCode && <p role="alert">{status.errorCode}</p>}
     {error && <p role="alert" data-testid="backend-mode-result">{text.failed} ({error})</p>}
   </section>;
