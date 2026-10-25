@@ -35,3 +35,19 @@ test('content-addressed import is persisted independently and checksum catches c
   await assert.rejects(verifyModel(new Blob([new Uint8Array(blob.size)]),undefined,undefined,descriptor),/model-checksum/);
   assert.throws(()=>registerImportedModel({...descriptor,id:'../../bad'}),/model-input/);
 });
+
+test('GGUF inspection streams past a tokenizer table larger than the old 16 MiB cap',async()=>{
+  const huge=17*1024*1024;
+  const fields=Buffer.concat([str('tokenizer.ggml.merges'),u32(9),u32(8),u64(1),u64(huge)]);
+  const tail=Buffer.concat([str('general.architecture'),u32(8),str('llama'),str('llama.context_length'),u32(10),u64(8192),str('general.file_type'),u32(4),u32(15)]);
+  const blob=new Blob([Buffer.from('GGUF'),u32(3),u64(1),u64(4),fields,Buffer.alloc(huge),tail]);
+  const calls:number[]=[];const original=blob.slice.bind(blob);blob.slice=(a?:number,b?:number)=>{calls.push((b??blob.size)-(a??0));return original(a,b);};
+  const meta=await ggufMetadata(blob);assert.equal(meta.architecture,'llama');assert.equal(meta.quantization,'Q4_K_M');assert.equal(meta.maxContext,2048);
+  assert.ok(Math.max(...calls)<=64*1024,'Never buffer a whole tokenizer table');
+});
+test('metadata identifies other compatible GGUF families without a catalogue identity',async()=>{
+  for(const architecture of ['llama','lfm2','qwen35','smollm3']){
+    const blob=new Blob([Buffer.from('GGUF'),u32(3),u64(1),u64(3),str('general.architecture'),u32(8),str(architecture),str(architecture+'.context_length'),u32(4),u32(4096),str('general.file_type'),u32(4),u32(7)]);
+    const meta=await ggufMetadata(blob);assert.equal(meta.architecture,architecture);assert.equal(meta.quantization,'Q8_0');
+  }
+});

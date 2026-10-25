@@ -51,6 +51,17 @@ const base='http://127.0.0.1:4187';
         const cancel=new AbortController();try{await store.downloadModel(cancel.signal,()=>cancel.abort(),descriptor);throw new Error('unexpected-success');}catch(error){if(error.message==='unexpected-success')throw error;failures.push(error.name);}
         const estimate=navigator.storage.estimate.bind(navigator.storage);navigator.storage.estimate=async()=>({quota:1,usage:1});
         try{await store.downloadModel(signal,()=>{},descriptor);throw new Error('unexpected-success');}catch(error){if(error.message==='unexpected-success')throw error;failures.push(error.message);}finally{navigator.storage.estimate=estimate;}
+        // Unknown-size SAF uses a bounded disk stream and a source/destination hash.
+        window.fetch=async()=>new Response(bytes);
+        const unknown={...descriptor,id:'unknown-size',bytes:-1,url:location.origin+'/_calendar_model_import/test'};
+        let measured=await store.downloadModel(signal,()=>{},unknown);
+        if(measured.size!==bytes.length||await store.modelChecksum(measured)!==sha256)throw Error('Unknown document size failed');
+        await store.discardDownloadedModel(measured);
+        const nativeGetFile=FileSystemFileHandle.prototype.getFile;
+        FileSystemFileHandle.prototype.getFile=async function(){if(this.name.startsWith('unknown-corrupt-'))return new File([new Uint8Array(bytes.length)],this.name);return nativeGetFile.call(this);};
+        try{await store.downloadModel(signal,()=>{},{...unknown,id:'unknown-corrupt'});throw Error('unexpected-success');}
+        catch(error){if(error.message!=='model-copy-checksum')throw error;}
+        finally{FileSystemFileHandle.prototype.getFile=nativeGetFile;}
         window.fetch=actualFetch;
         const directory=await(await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');const files=[];for await(const [name]of directory.entries())files.push(name);
         return {failures,files,installed:await store.hasDownloadedModelData(descriptor)};

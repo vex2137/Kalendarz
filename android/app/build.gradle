@@ -24,7 +24,7 @@ android {
         resValue 'string', 'calendar_build_commit', calendarWebBuild.commit
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarBeta ? 1 : 0)
+        versionCode calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarBeta ? 2 : 0)
         versionName calendarPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -47,7 +47,7 @@ android {
         diagnostics {
             initWith debug
             applicationIdSuffix '.diagnostics'
-            versionNameSuffix calendarBeta ? ' beta 2' : '-diagnostics'
+            versionNameSuffix calendarBeta ? ' beta 3' : '-diagnostics'
             matchingFallbacks = ['debug']
             signingConfig signingConfigs.debug
         }
@@ -114,7 +114,7 @@ tasks.register('verifyBundledModel') {
         }
         if (calendarBeta) {
             def packagedBuild = new groovy.json.JsonSlurper().parse(file('src/main/assets/public/build-info.json'))
-            if (packagedBuild.version != calendarPackage.version + ' beta 2' || packagedBuild.bundledModel != false || file('src/main/assets/public/models/manifest.json').exists()) {
+            if (packagedBuild.version != calendarPackage.version + ' beta 3' || packagedBuild.bundledModel != false || file('src/main/assets/public/models/manifest.json').exists()) {
                 throw new GradleException('Rebuild the explicit beta frontend before assembling the beta APK')
             }
             logger.lifecycle('Beta test APK: model download/import is required; production model verification is unchanged')

@@ -14,7 +14,7 @@ const bytes=Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(fields.length),
    window.__picker={mode:'file',releases:0};
    window.Capacitor={PluginHeaders:[{name:'CalendarModelImport',methods:[{name:'pick',rtype:'promise'},{name:'release',rtype:'promise'}]}],nativePromise:async(plugin,method)=>{
     if(method==='release'){window.__picker.releases++;return;}
-    if(method==='pick')return window.__picker.mode==='cancel'?{cancelled:true}:{token:'11111111-1111-4111-8111-111111111111',bytes,name:'fixture-IQ4_XS.gguf'};
+    if(method==='pick')return window.__picker.mode==='cancel'?{cancelled:true}:{token:'11111111-1111-4111-8111-111111111111',bytes:window.__picker.mode==='unknown'?-1:bytes,name:'fixture-IQ4_XS.gguf'};
     throw Error('unexpected-native-call');
    }};
   },bytes.length);
@@ -32,12 +32,14 @@ const bytes=Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(fields.length),
   await page.locator('#ai-import-gguf').click();await page.getByTestId('model-operation-result').filter({hasText:'installed and verified'}).waitFor();
   assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().installed),true);
   assert.equal(await page.evaluate(()=>window.__picker.releases),1);
+  await page.evaluate(()=>window.__picker.mode='unknown');await page.locator('#ai-import-gguf').click();await page.getByTestId('model-operation-result').filter({hasText:'installed and verified'}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__picker.releases),2,'SAF can omit SIZE; copy must measure its stream');
   importHttp=404;await page.locator('#ai-import-gguf').click();await page.getByRole('alert').filter({hasText:'Cannot read the selected document'}).waitFor();
-  assert.equal(await page.evaluate(()=>window.__picker.releases),2);
+  assert.equal(await page.evaluate(()=>window.__picker.releases),3);
   assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().installed),true,'Failed import must preserve the earlier installed copy');
   assert.ok(await page.evaluate(()=>window.__diagnostics.diagnosticActions().some(e=>e.action==='import-gguf'&&e.stage==='error'&&e.code==='model-import-file')));
   await page.evaluate(()=>window.__picker.mode='cancel');await page.locator('#ai-import-gguf').click();await page.getByTestId('model-operation-result').filter({hasText:'Operation cancelled'}).waitFor();
-  assert.equal(await page.evaluate(()=>window.__picker.releases),2,'Cancelling a picker does not invent or release a file token');
+  assert.equal(await page.evaluate(()=>window.__picker.releases),3,'Cancelling a picker does not invent or release a file token');
   assert.deepEqual(errors,[]);console.log('PASS model action UI: download HTTP 404 -> visible failure/no false success; Android picker proxy + streamed GGUF storage; expired grant -> readable error/old model retained; picker cancel -> visible outcome.');
   await context.close();
  }finally{await browser?.close();server.kill();}

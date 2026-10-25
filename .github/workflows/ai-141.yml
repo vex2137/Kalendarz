@@ -70,6 +70,14 @@ jobs:
           node --import tsx scripts/fetch-candidate-model.ts "$env:NATIVE_MODEL_ID" "$env:CALENDAR_MODEL_FILE"
           npm run test:native:model
         shell: pwsh
+      - name: Real full-file HTTP redirect, OPFS import and WASM regression
+        if: runner.os == 'Linux' && matrix.model == 'lfm2.5-350m-q4-k-m'
+        env:
+          CALENDAR_MODEL_FILE: ${{ runner.temp }}/candidate.gguf
+          CALENDAR_TRANSFER_REPORT: ${{ runner.temp }}/real-transfer.json
+        run: |
+          npx playwright install --with-deps chromium
+          node tests/model-real-transfer-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -114,10 +122,10 @@ jobs:
       - run: npx cap sync android
       - name: Compile beta APK and device tests without changing production signing
         working-directory: android
-        run: bash gradlew :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarBeta=true -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
+        run: bash gradlew :app:testDiagnosticsUnitTest :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarBeta=true -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
-          name: KALENDARZ-1.4.1-BETA-2
+          name: KALENDARZ-1.4.1-BETA-3
           path: |
             android/app/build/outputs/apk/diagnostics/*.apk
             android/app/build/outputs/apk/androidTest/diagnostics/*.apk
