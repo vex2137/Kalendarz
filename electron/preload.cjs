@@ -5,6 +5,7 @@ const invoke=(name,...args)=>ipcRenderer.invoke('calendar-ai:'+name,...args).cat
   throw Error(code||'model-inference');
 });
 contextBridge.exposeInMainWorld('calendarNativeAI',{
+  registerImported:descriptor=>invoke('register-imported',descriptor),
   info:id=>invoke('model-info',id),
   begin:id=>invoke('upload-begin',id),
   write:(token,chunk)=>invoke('upload-write',token,chunk),

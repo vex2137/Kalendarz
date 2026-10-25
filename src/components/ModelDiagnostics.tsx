@@ -47,7 +47,7 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
   };
   return <section data-testid="model-diagnostics" className="p-3 text-xs theme-text">
     <h4 className="font-semibold">{text[0]}</h4>
-    <p className="my-2">{findModel(status.modelId).name} · {findModel(status.modelId).bytes.toLocaleString()} B<br/>{modelLifecycleText(language).disk}: {status.installed?modelLifecycleText(language).yes:modelLifecycleText(language).no} · {modelLifecycleText(language).ram}: {status.loaded?modelLifecycleText(language).yes:modelLifecycleText(language).no}</p>
+    <p className="my-2">{findModel(status.modelId).name} · {findModel(status.modelId).quantization} · {findModel(status.modelId).bytes.toLocaleString()} B<br/>{modelLifecycleText(language).disk}: {status.installed?modelLifecycleText(language).yes:modelLifecycleText(language).no} · {modelLifecycleText(language).ram}: {status.loaded?modelLifecycleText(language).yes:modelLifecycleText(language).no}</p>
     {status.error && <p role="alert" className="break-words">{status.error}{status.errorDetail ? ': '+status.errorDetail : ''}</p>}
     <p className="mt-2 break-all" data-build-commit={BUILD_INFO.commit}>Commit: {BUILD_INFO.commit}{BUILD_INFO.dirty ? ' (modified)' : ''}</p>
     <p data-assistant-route={turns.at(-1)?.route || 'none'}>{({ en: 'Last message path', pl: 'Ścieżka ostatniej wiadomości', ru: 'Путь последнего сообщения', de: 'Pfad der letzten Nachricht' })[language]}: {turns.at(-1)?.route || '—'} {turns.at(-1) ? `(${turns.at(-1)!.language}, ${Math.round(turns.at(-1)!.totalMs)} ms)` : ''}</p>

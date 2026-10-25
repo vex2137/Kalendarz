@@ -64,6 +64,10 @@ android {
             testProguardFiles 'proguard-test-rules.pro'
         }
     }
+    // Opt-in staged Android native runtime; builds without it retain WASM.
+    sourceSets.main.jniLibs.srcDirs += [rootProject.file('../build/android-jni')]
+    sourceSets.main.assets.srcDirs += [rootProject.file('../build/android-native-assets')]
+    packagingOptions { jniLibs { useLegacyPackaging = true } }
     if (calendarBeta) {
         sourceSets.diagnostics.res.setSrcDirs([rootProject.file('../build/beta-res')])
     }
@@ -103,6 +107,9 @@ try {
 // cap sync must have copied the verified weights before any APK can be assembled.
 tasks.register('verifyBundledModel') {
     doLast {
+        if (calendarWebBuild.androidNative == true && !rootProject.file('../build/android-jni/arm64-v8a/libcalendar_llama.so').isFile()) {
+            throw new GradleException('Native Android frontend requires scripts/build-android-native.py artifacts')
+        }
         if (calendarBeta) {
             def packagedBuild = new groovy.json.JsonSlurper().parse(file('src/main/assets/public/build-info.json'))
             if (packagedBuild.version != calendarPackage.version + ' beta' || packagedBuild.bundledModel != false || file('src/main/assets/public/models/manifest.json').exists()) {

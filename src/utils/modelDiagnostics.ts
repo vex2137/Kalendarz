@@ -4,6 +4,7 @@ import type { AppLanguage } from './i18n';
 
 export interface ModelMetric {
   backend?:string;gpuActive?:boolean;deviceName?:string;ramBytes?:number;vramBytes?:number;fallbackReason?:string;
+  contextLength?:number; modelBytes?:number; historyMessages?:number; maxOutputTokens?:number; jsHeapBytes?:number;
   outputTruncated?: boolean;
   modelId?: string;
   quantization?: string;

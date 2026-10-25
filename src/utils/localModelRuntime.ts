@@ -1,10 +1,13 @@
+import { androidAIReady } from './nativeAndroidAI';
+import { completionTokenLimit } from './inferencePolicy';
+import { ggufMetadata } from './ggufMetadata';
 import { desktopAI, backendMode, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel } from './localModelStore';
+import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel, modelChecksum } from './localModelStore';
 import { recordModelMetric, recordModelState, type ModelMetric } from './modelDiagnostics';
-import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection } from './modelRegistry';
+import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection, AI_MODELS, registerImportedModel, type ModelDescriptor } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
 export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; importing?: boolean; error?: string; errorDetail?: string; modelId: string }
@@ -101,6 +104,39 @@ export async function checkLocalModel() {
   } catch (error) { if(status.modelId===descriptor.id && !loading && !engine) update({ phase:'error', error:runtimeError(error), loaded:false,...(error instanceof Error && ['model-size','model-checksum'].includes(error.message)?{installed:false}:{}) }); }
 }
 
+// Content-addressed imports support quantizations outside the pinned download catalogue.
+// A temporary streamed file is committed only after metadata and SHA-256 verification.
+export async function importLocalModel(source: Blob | {url:string;bytes:number}, name: string) {
+  if (operation || transition) throw Error('model-busy');
+  const bytes = source instanceof Blob ? source.size : source.bytes;
+  if (!Number.isSafeInteger(bytes) || bytes <= 24 || bytes > 16 * 1024 ** 3) throw Error('model-size');
+  await unloadLocalModel();
+  const controller = operation = new AbortController();
+  let blob: Blob | undefined;
+  const previous = {...status};
+  update({phase:'downloading',importing:true,progress:0,error:undefined});
+  try {
+    blob = source instanceof Blob ? source : await downloadModel(controller.signal, n => update({progress:n/bytes*100}), {...DEFAULT_MODEL,id:'import-staging',bytes,url:source.url});
+    update({phase:'verifying',progress:0});
+    const meta = await ggufMetadata(blob);
+    controller.signal.throwIfAborted();
+    const checksum = await modelChecksum(blob,controller.signal,n=>update({progress:n/bytes*100}));
+    let descriptor = AI_MODELS.find(m => m.bytes === bytes && m.sha256 === checksum);
+    if (!descriptor) {
+      descriptor = {...meta,id:'imported-'+checksum,file:name.slice(0,240),bytes,sha256:checksum,revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(bytes/1048576*1.5)+512,imported:true,experimental:true};
+      registerImportedModel(descriptor);
+    }
+    operation = undefined;
+    update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false});
+    await selectLocalModel(descriptor.id);
+    await installLocalModel(blob);
+    if (!status.installed || status.phase === 'error') throw Error(status.error || 'model-import-file');
+  } finally {
+    if (operation === controller) { operation=undefined; update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false}); }
+    await discardDownloadedModel(blob);
+  }
+}
+
 export async function installLocalModel(file?: Blob | { url: string; bytes: number }) {
   if (operation || transition) return;
   transition = true;
@@ -172,6 +208,7 @@ function assetUrl(path: string) {
 
 async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 1): Promise<RuntimeEngine> {
   await disposing;
+  await androidAIReady;
   if (loading) return loading;
   if (engine) return engine;
   const controller = loadController = new AbortController();
@@ -183,6 +220,8 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       const descriptor = findModel(status.modelId);
       markModelOperation(descriptor.id);
       metric.modelId = descriptor.id;
+      metric.contextLength = descriptor.maxContext;
+      metric.modelBytes = descriptor.bytes;
       let started = performance.now();
       const bundled = await bundledModelAvailable(descriptor);
       if(desktopAI()) {
@@ -209,6 +248,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
           started=performance.now();
         }
       }
+      if(backendMode()==='gpu')throw Error('model-gpu-unavailable');
       const blob = bundled ? await loadBundledModel(controller.signal) : await recoverSavedModel(descriptor, controller.signal);
       metric.storageMs = performance.now() - started;
       if (!blob) { update({ installed: false }); throw new Error('model-missing'); }
@@ -284,12 +324,13 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     const current = await ensureEngine(metric, options.threads);
     Object.assign(metric,{backend:backendStatus().backend});
     if (engineStateAtStart !== 'loaded') Object.assign(metric,lastLoad);
+    Object.assign(metric,{contextLength:descriptor.maxContext,modelBytes:descriptor.bytes,historyMessages:history.length,maxOutputTokens:completionTokenLimit(descriptor.id,prompt,schema!==undefined,options.maxTokens)});
     controller.signal.throwIfAborted();
     metric.loadMs = performance.now() - started;
     update({ phase: 'running' });
     const result = await current.createChatCompletion({
       messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: prompt }],
-      max_tokens: options.maxTokens ?? (descriptor.id === 'lfm2.5-2.6b-q4-k-m' ? 768 : /opis|description|описан|beschreib/iu.test(prompt) ? 384 : 256), temperature: 0, top_k: 50, penalty_repeat: 1.05,
+      max_tokens: completionTokenLimit(descriptor.id,prompt,schema!==undefined,options.maxTokens), temperature: 0, top_k: 50, penalty_repeat: 1.05,
       ...(schema ? { response_format: { type: 'json_schema' as const, json_schema: { name: 'calendar_command', schema, strict: true } } } : {}),
       ...(descriptor.architecture === 'qwen35' ? { chat_template_kwargs: { enable_thinking: false } } : {}),
       abortSignal: controller.signal,
@@ -314,6 +355,8 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     if (finish !== 'stop' && !(schema === undefined && finish === 'length' && text)) throw new Error('model-incomplete');
     if (finish === 'length') metric.outputTruncated = true;
     if (!text) throw new Error('model-response');
+    const heap = (performance as Performance & {memory?:{usedJSHeapSize:number}}).memory;
+    if (heap) metric.jsHeapBytes = heap.usedJSHeapSize;
     Object.assign(metric, { threads: actualThreads, multithread: current.isMultithread(), isolated: globalThis.crossOriginIsolated, totalMs: performance.now() - started });
     recordModelMetric(metric);
     console.info('Local model performance:', JSON.stringify(metric));

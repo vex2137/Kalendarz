@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /** SAF grants are streamed to OPFS; no filesystem path or base64 model crosses the bridge. */
 @CapacitorPlugin(name = "CalendarModelImport")
 public class CalendarModelImportPlugin extends Plugin {
+    private final java.util.concurrent.ExecutorService io = java.util.concurrent.Executors.newSingleThreadExecutor();
     private static final ConcurrentHashMap<String, Uri> files = new ConcurrentHashMap<>();
 
     @PluginMethod
@@ -40,6 +41,7 @@ public class CalendarModelImportPlugin extends Plugin {
         }
         Uri uri = result.getData().getData();
         if (uri == null || !"content".equals(uri.getScheme())) { call.reject("model-import-file"); return; }
+        io.execute(() -> {
         try (Cursor cursor = getContext().getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE}, null, null, null)) {
             if (cursor == null || !cursor.moveToFirst()) throw new IllegalArgumentException("No document metadata");
             String name = cursor.getString(0);
@@ -54,6 +56,7 @@ public class CalendarModelImportPlugin extends Plugin {
             JSObject file = new JSObject(); file.put("token", token); file.put("name", name); file.put("bytes", bytes);
             call.resolve(file);
         } catch (Exception error) { call.reject("model-import-file", error); }
+        });
     }
 
     @PluginMethod
@@ -72,5 +75,5 @@ public class CalendarModelImportPlugin extends Plugin {
     }
 
     @Override
-    protected void handleOnDestroy() { files.clear(); }
+    protected void handleOnDestroy() { files.clear(); io.shutdownNow(); }
 }

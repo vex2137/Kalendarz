@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Check, Cpu } from 'lucide-react';
-import { AI_MODELS, externalModelChoices } from '../utils/modelRegistry';
+import { modelChoices, externalModelChoices } from '../utils/modelRegistry';
 import { bundledModelAvailable, hasDownloadedModelData } from '../utils/localModelStore';
 import { modelStatus, subscribeModel, selectLocalModel, prepareLocalModel } from '../utils/localModelRuntime';
 import { aiInterfaceText } from '../utils/aiInterfaceText';
@@ -8,7 +8,7 @@ import { modelErrorText } from '../utils/aiSettingsText';
 import type { AppLanguage } from '../utils/i18n';
 export function QuickModelMenu({language,onClose}:{language:AppLanguage;onClose:()=>void}) {
   const status=useSyncExternalStore(subscribeModel,modelStatus);
-  const choices=[...AI_MODELS,...externalModelChoices()];
+  const choices=[...modelChoices(),...externalModelChoices()];
   const [ids,setIds]=useState<string[]>([]),[error,setError]=useState<string>();
   const busy=['running','loading','downloading','verifying','checking'].includes(status.phase);
   useEffect(()=>{let current=true;void Promise.all(choices.map(async m=>(m.bundled&&await bundledModelAvailable(m))||await hasDownloadedModelData(m).catch(()=>false)?m.id:'')).then(ids=>{if(current)setIds(ids.filter(Boolean));});return()=>{current=false;};},[]);

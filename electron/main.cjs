@@ -89,6 +89,7 @@ app.whenReady().then(() => {
     if(!mainWindow||event.sender!==mainWindow.webContents||event.senderFrame!==mainWindow.webContents.mainFrame||event.senderFrame.url!==mainWindow.webContents.getURL()||!event.senderFrame.url.startsWith('file:'))throw Error('native-sender-denied');
   };
   const handle=(name,fn)=>ipcMain.handle('calendar-ai:'+name,async(event,...args)=>{allowed(event);return fn(...args);});
+  handle('register-imported',d=>nativeModels.registerImported(d));
   handle('model-info',id=>nativeModels.info(id));
   handle('upload-begin',id=>nativeModels.begin(id));
   handle('upload-write',(token,chunk)=>nativeModels.write(token,chunk));

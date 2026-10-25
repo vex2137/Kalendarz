@@ -8,6 +8,11 @@ class NativeModelStore {
     this.root=root;this.bundledPath=bundledPath;this.bundledId=bundledId;
     this.models=new Map(catalogue.map(m=>[m.id,m]));this.uploads=new Map();this.external=external;
   }
+  async registerImported(d) {
+    if(!d||d.imported!==true||d.id!=='imported-'+d.sha256||!/^imported-[a-f0-9]{64}$/.test(d.id)||!Number.isSafeInteger(d.bytes)||d.bytes<24||d.bytes>16*1024**3||typeof d.name!=='string'||d.name.length>200||!Number.isInteger(d.maxContext)||d.maxContext<1||d.maxContext>2048||typeof d.architecture!=='string'||!/^[a-z0-9_]{1,64}$/.test(d.architecture)||d.external||d.bundled||d.url!=='')throw Error('model-input');
+    // Paths are always derived by the main process, never from renderer metadata.
+    this.models.set(d.id,{...d,file:'local.gguf'});
+  }
   descriptor(id) { const d=this.models.get(id)||this.external?.models.get(id);if(!d)throw Error('model-unknown');return d; }
   file(id) { const d=this.descriptor(id);return id===this.bundledId?this.bundledPath:path.join(this.root,`${id}-${d.sha256}.gguf`); }
   async info(id) { if(id?.startsWith('external-')){await this.external?.ready;try{const file=await this.external.verifiedPath(id);const stat=await fs.stat(file);return {installed:true,bytes:stat.size};}catch{return {installed:false};}}const d=this.descriptor(id);try{const stat=await fs.stat(this.file(id));return {installed:stat.isFile()&&stat.size===d.bytes,bytes:stat.size};}catch(e){if(e.code==='ENOENT')return {installed:false};throw e;} }

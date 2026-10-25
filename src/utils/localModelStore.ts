@@ -1,3 +1,4 @@
+import { androidAIReady } from './nativeAndroidAI';
 import { openDB } from 'idb';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { LOCAL_MODEL, bundledModelUrl } from './localModelManifest';
@@ -30,11 +31,11 @@ export async function hasDownloadedModelData(descriptor: ModelDescriptor) {
   return Boolean(await savedModel(descriptor));
 }
 
-export async function hasNativeModelData(descriptor:ModelDescriptor){ return Boolean(await desktopAI()?.info(descriptor.id).then(value=>value.installed)); }
+export async function hasNativeModelData(descriptor:ModelDescriptor){ await androidAIReady;if(descriptor.imported&&desktopAI()?.registerImported)await desktopAI()!.registerImported!(descriptor);return Boolean(await desktopAI()?.info(descriptor.id).then(value=>value.installed)); }
 
 export async function savedModel(descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob | undefined> {
   if (await hasNativeModelData(descriptor)) {
-    const response=await fetch(`calendar-asset://installed-models/${descriptor.id}`);
+    const response=await fetch(desktopAI()?.platform === 'android' ? new URL(`/_calendar_native_model/${descriptor.id}`, location.origin).href : `calendar-asset://installed-models/${descriptor.id}`);
     if(!response.ok)throw new Error('model-storage');return response.blob();
   }
   const db = await database();
@@ -84,6 +85,11 @@ export async function recoverSavedModel(descriptor: ModelDescriptor, signal?: Ab
 
 export async function verifyModel(blob: Blob, signal?: AbortSignal, progress?: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL) {
   if (blob.size !== descriptor.bytes) throw new Error('model-size');
+  const checksum = await modelChecksum(blob, signal, progress);
+  if (checksum !== descriptor.sha256) throw new Error('model-checksum');
+}
+
+export async function modelChecksum(blob: Blob, signal?: AbortSignal, progress?: (loaded: number) => void) {
   const hash = sha256.create();
   // Bound temporary allocations and yield between chunks, including on older WebViews.
   const chunkSize = 4 * 1024 * 1024;
@@ -94,7 +100,7 @@ export async function verifyModel(blob: Blob, signal?: AbortSignal, progress?: (
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   const checksum = Array.from(hash.digest(), b => b.toString(16).padStart(2, '0')).join('');
-  if (checksum !== descriptor.sha256) throw new Error('model-checksum');
+  return checksum;
 }
 
 const streamed = new WeakMap<Blob, string>();
@@ -104,7 +110,7 @@ export async function discardDownloadedModel(blob?: Blob) {
 }
 export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL, progress?: (loaded:number)=>void) {
   signal.throwIfAborted();
-  if(desktopAI()){await ensureNativeModel(descriptor.id,blob,signal,progress);signal.throwIfAborted();await removeLegacyModel(descriptor);return;}
+  if(desktopAI()){if(descriptor.imported&&desktopAI()?.registerImported)await desktopAI()!.registerImported!(descriptor);await ensureNativeModel(descriptor.id,blob,signal,progress);signal.throwIfAborted();await removeLegacyModel(descriptor);return;}
   // Large imports use the same disk-backed representation as streamed downloads.
   if (!streamed.has(blob) && navigator.storage?.getDirectory) {
     await ensureSpace(blob.size);
@@ -158,6 +164,18 @@ export async function removeLegacyModel(descriptor: ModelDescriptor) {
   } finally { db.close(); }
 }
 
+async function openModelDownload(url:string,signal:AbortSignal) {
+  let response:Response;
+  try { response=await fetch(url,{signal,credentials:'omit',referrerPolicy:'no-referrer'}); }
+  catch(error) {if(signal.aborted)throw error;throw Error('model-download');}
+  if(!response.ok) {
+    const local=new URL(url,globalThis.location?.origin || 'https://localhost');
+    if(local.origin===globalThis.location?.origin&&local.pathname.startsWith('/_calendar_model_import/'))throw Error('model-import-file');
+    throw Error(`model-http-${response.status}`);
+  }
+  return response;
+}
+
 export async function downloadModel(signal: AbortSignal, progress: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob> {
   await ensureSpace(descriptor.bytes);
   if (navigator.storage?.getDirectory) {
@@ -167,35 +185,33 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
     let writer;
     try {
       writer = await modelFileWriter(handle, name);
-      const response = await fetch(descriptor.url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
-      if (!response.ok) throw new Error(`model-http-${response.status}`);
+      const response = await openModelDownload(descriptor.url,signal);
       if (!response.body) throw new Error('model-download');
       const reader = response.body.getReader();
       let loaded = 0;
       try {
         while (true) {
           signal.throwIfAborted();
-          const { value, done } = await reader.read(); if (done) break;
+          const { value, done } = await reader.read().catch(error=>{if(signal.aborted)throw error;throw Error('model-download');}); if (done) break;
           loaded += value.byteLength; if (loaded > descriptor.bytes) throw new Error('model-size');
           await writer.write(value); progress(loaded);
         }
       } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-      if (loaded !== descriptor.bytes) throw new Error('model-size');
+      if (loaded !== descriptor.bytes) throw new Error('model-download-incomplete');
       await writer.close();
       const file = await handle.getFile(); streamed.set(file, name); return file;
     } catch (error) { await writer?.abort().catch(() => {}); await dir.removeEntry(name).catch(() => {}); throw error; }
   }
   // Older file/WebView origins can import a file without buffering a large download in JS.
   if (descriptor.bytes > 512_000_000) throw new Error('model-stream-storage-unavailable');
-  const response = await fetch(descriptor.url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
-  if (!response.ok) throw new Error(`model-http-${response.status}`);
+  const response = await openModelDownload(descriptor.url,signal);
   if (!response.body) throw new Error('model-download');
   const reader = response.body.getReader();
   const chunks: Uint8Array<ArrayBuffer>[] = [];
   let loaded = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await reader.read().catch(error=>{if(signal.aborted)throw error;throw Error('model-download');});
       if (done) break;
       signal.throwIfAborted();
       loaded += value.byteLength;
@@ -206,6 +222,7 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   const blob = new Blob(chunks, { type: 'application/octet-stream' });
   chunks.length = 0;
+  if(blob.size!==descriptor.bytes)throw Error('model-download-incomplete');
   return blob;
 }
 

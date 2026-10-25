@@ -1,6 +1,7 @@
+import { androidAI } from './nativeAndroidAI';
 export type BackendMode = 'auto'|'gpu'|'cpu';
 export interface BackendInfo {
-  backend:'cpu-native'|'vulkan'|'cpu-wasm'; mode:BackendMode; available:boolean;
+  backend:'cpu-native'|'vulkan'|'cuda'|'metal'|'cpu-wasm'; mode:BackendMode; available:boolean;
   loaded:boolean;gpuActive:boolean;deviceName?:string;offloadedLayers?:number;
   fallbackReason?:string;threads?:number;ramBytes?:number;vramBytes?:number;memoryScope?:string;
   errorCode?:string;modelId?:string;modelName?:string;loadMs?:number;tokensPerSecond?:number;
@@ -8,6 +9,8 @@ export interface BackendInfo {
 }
 interface NativeResult {text:string;finish:string;usage:{prompt_tokens?:number;completion_tokens?:number};timings:Record<string,number>;firstTokenMs?:number;backend:BackendInfo}
 export interface DesktopBridge {
+  platform?: 'android';
+  registerImported?(model:import('./modelRegistry').ModelDescriptor):Promise<void>;
   folders():Promise<ModelFolderSnapshot>;addFolder():Promise<ModelFolderSnapshot>;
   refreshFolders():Promise<ModelFolderSnapshot>;removeFolder(id:string):Promise<ModelFolderSnapshot>;
   info(id:string):Promise<{installed:boolean;bytes?:number}>;
@@ -23,7 +26,7 @@ export interface ModelFolderSnapshot {
   warnings:{folderId:string;file?:string;code:string}[];
 }
 declare global {interface Window {calendarNativeAI?:DesktopBridge}}
-export const desktopAI = () => typeof window!=='undefined'?window.calendarNativeAI:undefined;
+export const desktopAI = () => typeof window!=='undefined'?window.calendarNativeAI || androidAI():undefined;
 let status:BackendInfo={backend:'cpu-wasm',mode:'auto',available:false,loaded:false,gpuActive:false};
 const listeners=new Set<()=>void>();
 export const backendStatus=()=>status;
@@ -36,6 +39,6 @@ export async function ensureNativeModel(id:string,blob:Blob,signal:AbortSignal,p
   const bridge=desktopAI();if(!bridge)return false;
   signal.throwIfAborted();const upload=await bridge.begin(id);if(upload.exists)return true;
   const token=upload.token!;
-  try{for(let offset=0;offset<blob.size;offset+=4*1024*1024){signal.throwIfAborted();const chunk=new Uint8Array(await blob.slice(offset,offset+4*1024*1024).arrayBuffer());await bridge.write(token,chunk);progress?.(Math.min(blob.size,offset+chunk.byteLength));}signal.throwIfAborted();await bridge.finish(token);return true;}
+  try{for(let offset=0, size=bridge.platform==='android'?256*1024:4*1024*1024;offset<blob.size;offset+=size){signal.throwIfAborted();const chunk=new Uint8Array(await blob.slice(offset,offset+size).arrayBuffer());await bridge.write(token,chunk);progress?.(Math.min(blob.size,offset+chunk.byteLength));}signal.throwIfAborted();await bridge.finish(token);return true;}
   finally{await bridge.abortUpload(token).catch(()=>{});}
 }

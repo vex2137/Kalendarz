@@ -12,7 +12,7 @@ const copy={
   ru:{title:'Папки моделей GGUF',add:'Добавить папку',refresh:'Обновить папки',remove:'Убрать папку из списка',select:'Использовать модель',empty:'Модели GGUF не найдены.',hint:'Файлы остаются в своих папках, включая папки LM Studio. Удаляется только запись о папке. Требуется нативный llama.cpp; совместимость зависит от архитектуры и шаблона чата.',scan:'Сканирование папок…',warning:'Некоторые файлы или папки недоступны. Проверьте права и обновите список.',changed:'Модель перемещена или изменена. Обновите папку перед загрузкой.',limit:'Достигнут предел сканирования. Выберите меньшую папку.',config:'Не удалось прочитать настройки папок. Существующий файл сохранён.'},
 };
 export function ModelFoldersPanel({language,busy}:{language:AppLanguage;busy:boolean}){
-  const bridge=desktopAI(),text=copy[language],status=useSyncExternalStore(subscribeModel,modelStatus);
+  const bridge=desktopAI()?.platform==='android'?undefined:desktopAI(),text=copy[language],status=useSyncExternalStore(subscribeModel,modelStatus);
   const [snapshot,setSnapshot]=useState<ModelFolderSnapshot>(),[working,setWorking]=useState(false),[error,setError]=useState<string>();
   const accept=async(next:ModelFolderSnapshot)=>{
     registerExternalModels(next.models);setSnapshot(next);

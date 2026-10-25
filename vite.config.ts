@@ -10,7 +10,7 @@ export default defineConfig(() => {
   const betaApk = process.env.CALENDAR_BETA_APK === 'true';
   const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
   const buildInfo = { commit: git('rev-parse', 'HEAD'), branch: process.env.GITHUB_REF_NAME || git('branch', '--show-current'),
-    version: JSON.parse(readFileSync('package.json', 'utf8')).version + (betaApk ? ' beta' : ''), ...(betaApk ? {bundledModel:false} : {}), dirty: Boolean(git('status', '--porcelain', '--untracked-files=no')), builtAt: new Date().toISOString() };
+    version: JSON.parse(readFileSync('package.json', 'utf8')).version + (betaApk ? ' beta' : ''), ...(betaApk ? {bundledModel:false} : {}), androidNative: process.env.CALENDAR_ANDROID_NATIVE === 'true', dirty: Boolean(git('status', '--porcelain', '--untracked-files=no')), builtAt: new Date().toISOString() };
   const modelHeaders = {
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Cross-Origin-Embedder-Policy': 'require-corp',

@@ -5,7 +5,7 @@ import { BUILD_INFO } from './buildInfo';
 export interface ModelDescriptor {
   id: string; name: string; file: string; bytes: number; sha256: string; revision: string;
   url: string; license: string; licenseName: string; architecture: string; quantization: string;
-  estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean;
+  estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean; imported?: boolean;
 }
 export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, bundled: BUILD_INFO.bundledModel !== false };
 export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, ...optionalModels];
@@ -18,7 +18,20 @@ export function registerExternalModels(models:ModelDescriptor[]){
 }
 try{const saved=JSON.parse(localStorage.getItem(externalKey)||'[]');if(Array.isArray(saved))registerExternalModels(saved);}catch{}
 export const externalModelChoices=()=>externalModels;
-export const findModel = (id?: string) => AI_MODELS.find(model => model.id === id) || externalModels.find(model=>model.id===id) || DEFAULT_MODEL;
+const importedKey = 'calendar_imported_ai_models_v1';
+let importedModels: ModelDescriptor[] = [];
+export function registerImportedModel(model: ModelDescriptor) {
+  if (!validImportedModel(model)) throw Error('model-input');
+  const next = [...importedModels.filter(m => m.id !== model.id), model];
+  localStorage.setItem(importedKey, JSON.stringify(next));
+  importedModels = next;
+}
+function validImportedModel(m: ModelDescriptor) {
+  return m?.imported === true && /^imported-[a-f0-9]{64}$/.test(m.id) && m.id === 'imported-' + m.sha256 && Number.isSafeInteger(m.bytes) && m.bytes > 24 && m.bytes <= 16 * 1024 ** 3 && typeof m.name === 'string' && m.name.length <= 200 && /^[a-z0-9_]{1,64}$/.test(m.architecture) && Number.isInteger(m.maxContext) && m.maxContext >= 1 && m.maxContext <= 2048 && m.url === '' && !m.external && !m.bundled;
+}
+try { const models = JSON.parse(localStorage.getItem(importedKey) || '[]'); if (Array.isArray(models)) importedModels = models.filter(validImportedModel).slice(0,128); } catch {}
+export const modelChoices = () => [...AI_MODELS, ...importedModels];
+export const findModel = (id?: string) => modelChoices().find(model => model.id === id) || externalModels.find(model=>model.id===id) || DEFAULT_MODEL;
 export const PREFERRED_MODEL = DEFAULT_MODEL;
 export const shortModelName = (model: ModelDescriptor) => model.name.replace(` ${model.quantization}`, '');
 const selectionKey = 'calendar_active_ai_model_v1';
