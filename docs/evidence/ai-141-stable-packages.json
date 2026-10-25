@@ -1,0 +1,38 @@
+{
+  "version": "1.4.1",
+  "applicationBuildCommit": "641f00e608e4e3a264a7730ba4d484d9fd7c52d9",
+  "distribution": "model-free",
+  "physicalGpusTested": [],
+  "physicalAndroidTestedInThisSession": false,
+  "android": {
+    "applicationId": "com.kalendarz.offline.diagnostics",
+    "versionCode": 10404,
+    "versionName": "1.4.1",
+    "sameCertificateAsBeta3": true,
+    "certificateSha256": "ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143",
+    "signatureVerified": true,
+    "alignment16KiBVerified": true
+  },
+  "packages": [
+    {
+      "file": "KALENDARZ-1.4.1-ANDROID.apk",
+      "bytes": 24294344,
+      "sha256": "e61075ae62451c1c0b2045ea94ab77e2177c6dbe8c4b4f5cdf6605cd71e3e104"
+    },
+    {
+      "file": "KALENDARZ-1.4.1-ANDROID-device-tests.apk",
+      "bytes": 637350,
+      "sha256": "4116667c3d7040531eb3ca6c5a78fbda85dc6e154bb09c14a066adbaa78aef1c"
+    },
+    {
+      "file": "KALENDARZ-1.4.1-LINUX-x64.AppImage",
+      "bytes": 165035840,
+      "sha256": "1dd853fc8e64d62337ad0dcee7119a34d7c07b969d8c979ce8f0f01a0564d7ad"
+    },
+    {
+      "file": "KALENDARZ-1.4.1-WINDOWS-x64.zip",
+      "bytes": 209439212,
+      "sha256": "50bd5dbe35714d1181e310f0ba5a7d1f13d76e2c85936c92ec3229e731db916f"
+    }
+  ]
+}

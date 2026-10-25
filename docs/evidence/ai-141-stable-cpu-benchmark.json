@@ -1,0 +1,473 @@
+{
+  "createdAt": "2026-10-25T15:23:33.606Z",
+  "platform": "linux",
+  "arch": "x64",
+  "hardware": {
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "availableCpuThreads": 2
+  },
+  "model": {
+    "name": "LFM2.5-350M",
+    "bytes": 229312224,
+    "sha256": "7e6f72643caafc9a68256686638c4d7916f2cec76d1df478d4c3ddcd95a6aed4"
+  },
+  "physicalGpuClaims": "Only rows with gpuActive=true confirm inference; device enumeration alone does not.",
+  "rows": [
+    {
+      "mode": "cpu",
+      "name": "short",
+      "run": "cold-prompt",
+      "loadMs": 8564.122362,
+      "totalMs": 3104.025759,
+      "firstTokenMs": 2214.233274,
+      "finish": "stop",
+      "usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 40,
+        "total_tokens": 46,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 40,
+        "prompt_ms": 2187.338,
+        "prompt_per_token_ms": 54.68345000000001,
+        "prompt_per_second": 18.28706857376409,
+        "predicted_n": 6,
+        "predicted_ms": 840.006,
+        "predicted_per_token_ms": 168.00119999999998,
+        "predicted_per_second": 5.952338435677841
+      },
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": true,
+        "available": true,
+        "offloadedLayers": 0,
+        "ramBytes": 439062528,
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 8418.638452,
+        "tokensPerSecond": 5.952338435677841,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "cpu",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      },
+      "outputCharacters": 16
+    },
+    {
+      "mode": "cpu",
+      "name": "short",
+      "run": "warm-prompt",
+      "loadMs": 0,
+      "totalMs": 700.6162249999998,
+      "firstTokenMs": 152.07370700000138,
+      "finish": "stop",
+      "usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 40,
+        "total_tokens": 46,
+        "prompt_tokens_details": {
+          "cached_tokens": 36
+        }
+      },
+      "timings": {
+        "cache_n": 36,
+        "prompt_n": 4,
+        "prompt_ms": 144.733,
+        "prompt_per_token_ms": 36.18325,
+        "prompt_per_second": 27.637097275673135,
+        "predicted_n": 6,
+        "predicted_ms": 541.346,
+        "predicted_per_token_ms": 108.2692,
+        "predicted_per_second": 9.23623708312244
+      },
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": true,
+        "available": true,
+        "offloadedLayers": 0,
+        "ramBytes": 439132160,
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 8418.638452,
+        "tokensPerSecond": 9.23623708312244,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "cpu",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      },
+      "outputCharacters": 16
+    },
+    {
+      "mode": "cpu",
+      "name": "long",
+      "run": "cold-prompt",
+      "loadMs": 0,
+      "totalMs": 25291.335209999997,
+      "firstTokenMs": 11756.38723,
+      "finish": "stop",
+      "usage": {
+        "completion_tokens": 119,
+        "prompt_tokens": 444,
+        "total_tokens": 563,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 444,
+        "prompt_ms": 11733.452,
+        "prompt_per_token_ms": 26.426693693693693,
+        "prompt_per_second": 37.84052638558542,
+        "predicted_n": 119,
+        "predicted_ms": 13496.576,
+        "predicted_per_token_ms": 114.3777627118644,
+        "predicted_per_second": 8.742958213994424
+      },
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": true,
+        "available": true,
+        "offloadedLayers": 0,
+        "ramBytes": 442925056,
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 8418.638452,
+        "tokensPerSecond": 8.742958213994424,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "cpu",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      },
+      "outputCharacters": 465
+    },
+    {
+      "mode": "cpu",
+      "name": "long",
+      "run": "warm-prompt",
+      "loadMs": 0,
+      "totalMs": 4824.540188999999,
+      "firstTokenMs": 59.2765470000013,
+      "finish": "stop",
+      "usage": {
+        "completion_tokens": 119,
+        "prompt_tokens": 444,
+        "total_tokens": 563,
+        "prompt_tokens_details": {
+          "cached_tokens": 440
+        }
+      },
+      "timings": {
+        "cache_n": 440,
+        "prompt_n": 4,
+        "prompt_ms": 43.113,
+        "prompt_per_token_ms": 10.77825,
+        "prompt_per_second": 92.77944007607914,
+        "predicted_n": 119,
+        "predicted_ms": 4763.404,
+        "predicted_per_token_ms": 40.36783050847458,
+        "predicted_per_second": 24.772200720325213
+      },
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": true,
+        "available": true,
+        "offloadedLayers": 0,
+        "ramBytes": 443072512,
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 8418.638452,
+        "tokensPerSecond": 24.772200720325213,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "cpu",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      },
+      "outputCharacters": 465
+    },
+    {
+      "mode": "auto",
+      "name": "short",
+      "run": "cold-prompt",
+      "loadMs": 4684.802066999997,
+      "totalMs": 1167.7135609999968,
+      "firstTokenMs": 773.3752940000049,
+      "finish": "stop",
+      "usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 40,
+        "total_tokens": 46,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 40,
+        "prompt_ms": 765.02,
+        "prompt_per_token_ms": 19.1255,
+        "prompt_per_second": 52.28621473948394,
+        "predicted_n": 6,
+        "predicted_ms": 393.313,
+        "predicted_per_token_ms": 78.6626,
+        "predicted_per_second": 12.712521579505383
+      },
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": true,
+        "available": true,
+        "offloadedLayers": 0,
+        "ramBytes": 439222272,
+        "fallbackReason": "no-compatible-gpu",
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 3785.659636999997,
+        "tokensPerSecond": 12.712521579505383,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "auto",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      },
+      "outputCharacters": 16
+    },
+    {
+      "mode": "auto",
+      "name": "short",
+      "run": "warm-prompt",
+      "loadMs": 0,
+      "totalMs": 220.93483399999968,
+      "firstTokenMs": 38.37016600000061,
+      "finish": "stop",
+      "usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 40,
+        "total_tokens": 46,
+        "prompt_tokens_details": {
+          "cached_tokens": 36
+        }
+      },
+      "timings": {
+        "cache_n": 36,
+        "prompt_n": 4,
+        "prompt_ms": 32.125,
+        "prompt_per_token_ms": 8.03125,
+        "prompt_per_second": 124.5136186770428,
+        "predicted_n": 6,
+        "predicted_ms": 180.821,
+        "predicted_per_token_ms": 36.1642,
+        "predicted_per_second": 27.651655504615064
+      },
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": true,
+        "available": true,
+        "offloadedLayers": 0,
+        "ramBytes": 439291904,
+        "fallbackReason": "no-compatible-gpu",
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 3785.659636999997,
+        "tokensPerSecond": 27.651655504615064,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "auto",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      },
+      "outputCharacters": 16
+    },
+    {
+      "mode": "auto",
+      "name": "long",
+      "run": "cold-prompt",
+      "loadMs": 0,
+      "totalMs": 7395.615786999995,
+      "firstTokenMs": 3061.962637000004,
+      "finish": "stop",
+      "usage": {
+        "completion_tokens": 119,
+        "prompt_tokens": 444,
+        "total_tokens": 563,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 444,
+        "prompt_ms": 3053.394,
+        "prompt_per_token_ms": 6.877013513513513,
+        "prompt_per_second": 145.4119579720141,
+        "predicted_n": 119,
+        "predicted_ms": 4331.099,
+        "predicted_per_token_ms": 36.704228813559325,
+        "predicted_per_second": 27.244817077605475
+      },
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": true,
+        "available": true,
+        "offloadedLayers": 0,
+        "ramBytes": 443084800,
+        "fallbackReason": "no-compatible-gpu",
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 3785.659636999997,
+        "tokensPerSecond": 27.244817077605475,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "auto",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      },
+      "outputCharacters": 465
+    },
+    {
+      "mode": "auto",
+      "name": "long",
+      "run": "warm-prompt",
+      "loadMs": 0,
+      "totalMs": 5419.974596,
+      "firstTokenMs": 74.8695579999985,
+      "finish": "stop",
+      "usage": {
+        "completion_tokens": 119,
+        "prompt_tokens": 444,
+        "total_tokens": 563,
+        "prompt_tokens_details": {
+          "cached_tokens": 440
+        }
+      },
+      "timings": {
+        "cache_n": 440,
+        "prompt_n": 4,
+        "prompt_ms": 69.714,
+        "prompt_per_token_ms": 17.4285,
+        "prompt_per_second": 57.377284333132515,
+        "predicted_n": 119,
+        "predicted_ms": 5343.492,
+        "predicted_per_token_ms": 45.28383050847458,
+        "predicted_per_second": 22.08293752474973
+      },
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": true,
+        "available": true,
+        "offloadedLayers": 0,
+        "ramBytes": 443232256,
+        "fallbackReason": "no-compatible-gpu",
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 3785.659636999997,
+        "tokensPerSecond": 22.08293752474973,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "auto",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      },
+      "outputCharacters": 465
+    },
+    {
+      "mode": "gpu",
+      "error": "model-gpu-unavailable",
+      "backend": {
+        "backend": "cpu-native",
+        "gpuActive": false,
+        "loaded": false,
+        "available": true,
+        "fallbackReason": "no-compatible-gpu",
+        "errorCode": "model-gpu-unavailable",
+        "modelId": "benchmark-local",
+        "modelName": "LFM2.5-350M",
+        "loadMs": 3785.659636999997,
+        "tokensPerSecond": 22.08293752474973,
+        "threads": 2,
+        "memoryScope": "native-server resident memory",
+        "mode": "gpu",
+        "gpuLayers": 999,
+        "system": "linux",
+        "cpuArchitecture": "x64",
+        "packagedBackends": [
+          "cpu-native",
+          "vulkan"
+        ],
+        "availableBackends": [],
+        "gpuDevices": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "environment": "Linux Chromium; injected native-unavailable boundary, actual WASM inference",
+  "physicalAndroid": false,
+  "original": {
+    "id": "lfm2.5-350m-q4-k-m",
+    "bytes": 229312224,
+    "sha256": "7e6f72643caafc9a68256686638c4d7916f2cec76d1df478d4c3ddcd95a6aed4"
+  },
+  "outsideCatalogue": {
+    "id": "imported-8a0731e7052e413018f0dc4e0c3d3ef9dbdccd398de5ac47e536932241e5f0e9",
+    "sha": "8a0731e7052e413018f0dc4e0c3d3ef9dbdccd398de5ac47e536932241e5f0e9",
+    "bytes": 229312224,
+    "name": "XFM2.5-350M",
+    "change": "Only the first byte of general.name was changed; tensor weights were unchanged"
+  },
+  "httpRedirect": true,
+  "downloadCount": 1,
+  "inference": {
+    "route": "model",
+    "modelId": "imported-8a0731e7052e413018f0dc4e0c3d3ef9dbdccd398de5ac47e536932241e5f0e9",
+    "quantization": "Q4_K_M",
+    "engineStateAtStart": "unloaded",
+    "totalMs": 14014.004999998957,
+    "contextLength": 2048,
+    "modelBytes": 229312224,
+    "storageMs": 2.6799999997019768,
+    "verifyMs": 4671.394999999553,
+    "initMs": 2128.094999998808,
+    "backend": "cpu-wasm",
+    "historyMessages": 0,
+    "maxOutputTokens": 8,
+    "loadMs": 11243.504999998957,
+    "firstTokenMs": 13732.73999999836,
+    "firstAnswerTokenMs": 13732.75,
+    "promptMs": 2426.706,
+    "generationMs": 279.32,
+    "tokensPerSecond": 7.1602463124731495,
+    "promptTokens": 21,
+    "cachedTokens": 0,
+    "completionTokens": 3,
+    "jsHeapBytes": 45094499,
+    "threads": 2,
+    "multithread": true,
+    "isolated": true
+  },
+  "passed": true
+}
