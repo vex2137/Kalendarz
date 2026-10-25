@@ -90,7 +90,7 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
     {status.error && <p role="alert" className="break-words">{status.error}{status.errorDetail ? ': '+status.errorDetail : ''}</p>}
     <p className="mt-2 break-all" data-build-commit={BUILD_INFO.commit}>Commit: {BUILD_INFO.commit}{BUILD_INFO.dirty ? ' (modified)' : ''}</p>
     <p data-assistant-route={turns.at(-1)?.route || 'none'}>{({ en: 'Last message path', pl: 'Ścieżka ostatniej wiadomości', ru: 'Путь последнего сообщения', de: 'Pfad der letzten Nachricht' })[language]}: {turns.at(-1)?.route || '—'} {turns.at(-1) ? `(${turns.at(-1)!.language}, ${Math.round(turns.at(-1)!.totalMs)} ms)` : ''}</p>
-    <BackendSettings language={language} busy={busy||['loading','running','verifying','downloading'].includes(status.phase)}/>
+    <BackendSettings language={language} busy={testing||Boolean(actionState?.pending)||['running','verifying','downloading'].includes(status.phase)}/>
     {last && <dl className="grid grid-cols-2 gap-x-3 gap-y-1 my-3" data-testid="inference-metrics">{labels.map((label,i)=><div key={label} className="contents"><dt className="theme-muted">{label}</dt><dd>{values[i]}</dd></div>)}</dl>}
     <p className="my-2">{text[4]}</p>
     {!desktopAI() && <label className="flex gap-2 mb-2"><input type="checkbox" checked={singleThread} disabled={busy} onChange={e => setSingleThread(e.target.checked)} />{({ en: 'Compare with one CPU thread', pl: 'Porównaj z jednym wątkiem CPU', ru: 'Сравнить с одним потоком CPU', de: 'Mit einem CPU-Thread vergleichen' })[language]}</label>}

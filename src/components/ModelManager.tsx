@@ -92,7 +92,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
         <button id="ai-background-work" role="switch" aria-checked={background} aria-label={view.background} onClick={() => setAssistantBackground(!background)} className={`ai-switch shrink-0 ${background ? 'ai-switch-on' : ''}`}><span/></button>
       </div>
     </article>
-    <BackendSettings language={language} busy={busy}/>
+    <BackendSettings language={language} busy={picking||['downloading','verifying','running'].includes(status.phase)}/>
     <ModelFoldersPanel language={language} busy={busy||!enabled}/>
     <div className="grid grid-cols-3 gap-1.5 text-[11px]">
       <button id="ai-download-model" type="button" disabled={busy || !enabled} className="ai-primary min-h-12 rounded-lg px-1 flex gap-1 items-center justify-center disabled:opacity-50" onClick={() => {recordDiagnosticAction('download-model','click');setDownloadOpen(true);catalogue.current?.scrollIntoView({block:'nearest'});}}><Download className="w-5 h-5 shrink-0"/>{view.download}</button>

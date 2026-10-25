@@ -1,7 +1,7 @@
 import { androidAIReady } from './nativeAndroidAI';
 import { completionTokenLimit } from './inferencePolicy';
 import { ggufMetadata, ggufLoadError } from './ggufMetadata';
-import { desktopAI, backendMode, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
+import { desktopAI, applyBackendMode, type BackendMode, backendMode, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
@@ -74,7 +74,7 @@ export async function prepareLocalModel() {
   if (operation || transition || recoveryRequired || manualRelease || document.hidden) return;
   const started = performance.now();
   const metric: ModelMetric = { route:'preload',modelId:status.modelId,quantization:findModel(status.modelId).quantization,engineStateAtStart:engine?'loaded':loading?'loading':'unloaded',totalMs:0 };
-  try { await checkLocalModel(); if (status.installed && status.phase !== 'error' && !engine) await ensureEngine(metric); }
+  try { await checkLocalModel(); if (transition || manualRelease) return; if (status.installed && status.phase !== 'error' && !engine) await ensureEngine(metric); }
   catch (error) { metric.error = (error instanceof Error && error.name==='AbortError') || status.phase==='installed' ? 'cancelled' : 'inference'; }
   finally { metric.totalMs = performance.now() - started; recordModelMetric(metric); if (!operation) scheduleRelease(); }
 }
@@ -199,6 +199,26 @@ export async function unloadLocalModel() {
   loadController?.abort();
   if (loading) await loading.catch(() => {});
   await disposeEngine();
+}
+
+// A mode change may interrupt an automatic preload, but never a model transfer
+// or foreground generation. Keep preloading paused until an explicit next use.
+export async function changeLocalBackend(mode:BackendMode,layers?:number) {
+  if(operation||transition)throw Error('model-busy');
+  transition=true;manualRelease=true;updateBackend({modeChanging:true});
+  recordDiagnosticAction('backend-mode','start');
+  try{
+    await unloadLocalModel();
+    // Aborted startup can still own a native process before a JS engine handle
+    // exists. Its signal callback is asynchronous; explicitly join shutdown.
+    const bridge=desktopAI();
+    if(bridge){await bridge.stop();const state=await bridge.status();updateBackend(state);if(state.loaded||state.gpuActive)throw Error('model-release-unconfirmed');}
+    await applyBackendMode(mode,layers);
+    recoveryRequired=false;clearModelOperation(status.modelId);
+    update({phase:status.installed?'installed':'missing',error:undefined,errorDetail:undefined});
+    recordDiagnosticAction('backend-mode','success');
+  }catch(error){recordDiagnosticAction('backend-mode','error',error);throw error;}
+  finally{transition=false;updateBackend({modeChanging:false});}
 }
 
 async function disposeEngine() {

@@ -99,7 +99,7 @@ app.whenReady().then(() => {
   handle('prepare',async id=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.prepare(id);});
   handle('complete',async(id,request)=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.complete(id,request);});
   handle('stop',()=>nativeAI.cancel());
-  handle('mode',mode=>nativeAI.setMode(mode));
+  handle('mode',(mode,layers)=>nativeAI.setMode(mode,layers));
   handle('status',()=>nativeAI.snapshot());
   handle('folders-list',()=>modelFolders.list());
   const foldersIdle=()=>{if(nativeAI.operation||nativeAI.loading)throw Error('model-busy');};

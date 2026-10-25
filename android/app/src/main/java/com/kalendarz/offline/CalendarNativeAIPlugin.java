@@ -28,6 +28,9 @@ public class CalendarNativeAIPlugin extends Plugin {
     private String mode="auto", loadedId, key, endpoint, log="", fallback, lastError;
     private boolean gpu, confirmed;
     private volatile int layers;
+    private int gpuLayerLimit=999;
+    private boolean vulkanDetected;
+    private String modelName;
     private double loadMs;
     private Double speed;
     private String gpuName;
@@ -58,8 +61,8 @@ public class CalendarNativeAIPlugin extends Plugin {
     private void check(long version)throws Exception{if(epoch.get()!=version)throw new Exception("model-cancelled");}
     private File binary(){return new File(getContext().getApplicationInfo().nativeLibraryDir,"libcalendar_llama.so");}
     private JSObject snapshot(){
-        JSObject s=new JSObject();s.put("mode",mode);s.put("backend",gpu?"vulkan":"cpu-native");s.put("available",binary().isFile()&&android.os.Build.VERSION.SDK_INT>=28);s.put("loaded",process!=null&&process.isAlive()&&loadedId!=null);s.put("gpuActive",confirmed&&process!=null&&process.isAlive()&&loadedId!=null);s.put("offloadedLayers",layers);s.put("threads",Math.min(4,Runtime.getRuntime().availableProcessors()));s.put("loadMs",loadMs);
-        if(loadedId!=null)s.put("modelId",loadedId);if(gpuName!=null)s.put("deviceName",gpuName);if(fallback!=null)s.put("fallbackReason",fallback);if(lastError!=null)s.put("errorCode",lastError);if(speed!=null)s.put("tokensPerSecond",speed);
+        JSObject s=new JSObject();s.put("system","Android "+android.os.Build.VERSION.RELEASE);s.put("cpuArchitecture",android.os.Build.SUPPORTED_ABIS.length>0?android.os.Build.SUPPORTED_ABIS[0]:"unknown");s.put("gpuLayers",gpuLayerLimit);s.put("packagedBackends",new JSArray(binary().isFile()?Arrays.asList("cpu-native","vulkan"):Collections.emptyList()));s.put("availableBackends",new JSArray(vulkanDetected?Arrays.asList("vulkan"):Collections.emptyList()));s.put("mode",mode);s.put("backend",gpu?"vulkan":"cpu-native");s.put("available",binary().isFile()&&android.os.Build.VERSION.SDK_INT>=28);s.put("loaded",process!=null&&process.isAlive()&&loadedId!=null);s.put("gpuActive",confirmed&&process!=null&&process.isAlive()&&loadedId!=null);s.put("offloadedLayers",layers);s.put("threads",Math.min(4,Runtime.getRuntime().availableProcessors()));s.put("loadMs",loadMs);
+        if(loadedId!=null){s.put("modelId",loadedId);if(modelName!=null)s.put("modelName",modelName);}if(gpuName!=null)s.put("deviceName",gpuName);if(fallback!=null)s.put("fallbackReason",fallback);if(lastError!=null)s.put("errorCode",lastError);if(speed!=null)s.put("tokensPerSecond",speed);
         // Android does not provide portable per-process VRAM counters. Never invent them.
         try{if(process!=null){for(String line:Files.readAllLines(Paths.get("/proc/"+((Number)process.getClass().getMethod("pid").invoke(process)).longValue()+"/status")))if(line.startsWith("VmRSS:")){s.put("ramBytes",Long.parseLong(line.replaceAll("[^0-9]",""))*1024);s.put("memoryScope","native-server resident memory");}}}catch(Exception ignored){}
         for(android.content.pm.FeatureInfo feature:getContext().getPackageManager().getSystemAvailableFeatures()){
@@ -86,7 +89,7 @@ public class CalendarNativeAIPlugin extends Plugin {
     private void kill(Process p)throws Exception{if(p==null)return;p.destroy();if(!p.waitFor(1500,TimeUnit.MILLISECONDS)){p.destroyForcibly();if(!p.waitFor(3500,TimeUnit.MILLISECONDS))throw new Exception("model-stop-timeout");}}
     private void stopProcess()throws Exception{Process p=process;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;kill(p);if(process==p)process=null;}
     @PluginMethod public void stop(PluginCall call){interrupt();submit(call,()->{stopProcess();return new JSObject();});}
-    @PluginMethod public void setMode(PluginCall call){String next=call.getString("mode","");if(!Arrays.asList("auto","gpu","cpu").contains(next)){call.reject("model-input");return;}interrupt();submit(call,()->{stopProcess();mode=next;fallback=null;lastError=null;return snapshot();});}
+    @PluginMethod public void setMode(PluginCall call){String next=call.getString("mode","");Integer limit=call.getInt("gpuLayers",999);if(!Arrays.asList("auto","gpu","cpu").contains(next)||limit==null||limit<1||limit>999){call.reject("model-input");return;}interrupt();submit(call,()->{stopProcess();mode=next;gpuLayerLimit=limit;fallback=null;lastError=null;return snapshot();});}
     private Process spawn(List<String> args)throws Exception{
         List<String> command=new ArrayList<>();command.add(binary().getAbsolutePath());command.addAll(args);
         ProcessBuilder b=new ProcessBuilder(command).redirectErrorStream(true);b.environment().put("LD_LIBRARY_PATH",binary().getParent());return b.start();
@@ -118,11 +121,11 @@ public class CalendarNativeAIPlugin extends Plugin {
         verify(f,m,version);int port;try(ServerSocket socket=new ServerSocket(0,0,InetAddress.getByName("127.0.0.1"))){port=socket.getLocalPort();}
         key=UUID.randomUUID().toString()+UUID.randomUUID();endpoint="http://127.0.0.1:"+port;log="";layers=0;
         long started=System.nanoTime();
-        List<String> args=Arrays.asList("--host","127.0.0.1","--port",Integer.toString(port),"--api-key",key,"--model",f.getAbsolutePath(),"--ctx-size",Integer.toString(m.getInt("maxContext")),"--parallel","1","--threads",Integer.toString(Math.min(4,Runtime.getRuntime().availableProcessors())),"--batch-size","128","--ubatch-size","64","--no-webui","--n-gpu-layers",device==null?"0":"999","--device",device==null?"none":device,"--jinja");
+        List<String> args=Arrays.asList("--host","127.0.0.1","--port",Integer.toString(port),"--api-key",key,"--model",f.getAbsolutePath(),"--ctx-size",Integer.toString(m.getInt("maxContext")),"--parallel","1","--threads",Integer.toString(Math.min(4,Runtime.getRuntime().availableProcessors())),"--batch-size","128","--ubatch-size","64","--no-webui","--n-gpu-layers",device==null?"0":Integer.toString(gpuLayerLimit),"--device",device==null?"none":device,"--jinja");
         Process p=spawn(args);process=p;
         Thread reader=new Thread(()->{try(BufferedReader r=new BufferedReader(new InputStreamReader(p.getInputStream()))){String line;while((line=r.readLine())!=null){synchronized(this){log=(log+line+'\n');if(log.length()>32000)log=log.substring(log.length()-32000);Matcher match=Pattern.compile("offloaded (\\d+)/\\d+ layers to GPU").matcher(line);if(match.find())layers=Integer.parseInt(match.group(1));}}}catch(IOException ignored){}});reader.setDaemon(true);reader.start();
         try{long deadline=System.nanoTime()+120_000_000_000L;boolean ready=false;while(System.nanoTime()<deadline){check(version);if(!p.isAlive())throw new Exception("model-native-load");try{request("/health",null,1000);ready=true;break;}catch(Exception ignored){}check(version);Thread.sleep(100);}
-            check(version);if(!ready)throw new Exception("model-timeout");if(device!=null&&layers<1)throw new Exception("model-gpu-offload");loadedId=m.getString("id");gpu=device!=null;confirmed=false;loadMs=(System.nanoTime()-started)/1e6;
+            check(version);if(!ready)throw new Exception("model-timeout");if(device!=null&&layers<1)throw new Exception("model-gpu-offload");loadedId=m.getString("id");modelName=m.optString("name",loadedId);gpu=device!=null;confirmed=false;loadMs=(System.nanoTime()-started)/1e6;
         }catch(Exception e){String detail;synchronized(this){detail=log.toLowerCase(Locale.ROOT);}stopProcess();
             if(device==null&&!e.getMessage().equals("model-cancelled")){
                 if(detail.contains("out of memory")||detail.contains("bad_alloc")||detail.contains("allocation failed"))throw new Exception("model-memory",e);
@@ -137,8 +140,8 @@ public class CalendarNativeAIPlugin extends Plugin {
             try{
                 String devices=probe(version);Matcher match=Pattern.compile("(?m)^\\s*(Vulkan\\d+):\\s*(.+)$").matcher(devices);String device=null;
                 while(match.find()){if(!match.group(2).matches("(?i).*(llvmpipe|lavapipe|swiftshader|software|cpu).*")){device=match.group(1);gpuName=match.group(2);break;}}
-                if(device==null)fallback="no-compatible-gpu";else{start(m,device,version);return;}
-            }catch(Exception e){check(version);String detail; synchronized(this){detail=log.toLowerCase(Locale.ROOT);}fallback=detail.contains("out of device memory")||detail.contains("out of memory")?"insufficient-vram":"gpu-start-failed";stopProcess();}
+                vulkanDetected=device!=null;if(device==null)fallback="no-compatible-gpu";else{start(m,device,version);return;}
+            }catch(Exception e){check(version);String detail; synchronized(this){detail=log.toLowerCase(Locale.ROOT);}fallback=detail.contains("out of device memory")||detail.contains("out of memory")?"insufficient-vram":e.getMessage().equals("model-gpu-driver")||detail.contains("vk_error")?"gpu-driver-failed":"gpu-start-failed";stopProcess();}
             if(mode.equals("gpu")){lastError="model-gpu-unavailable";throw new Exception(lastError);}
         }
         start(m,null,version);

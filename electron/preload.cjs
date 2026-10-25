@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('calendarNativeAI',{
   prepare:id=>invoke('prepare',id),
   complete:(id,request)=>invoke('complete',id,request),
   stop:()=>invoke('stop'),
-  setMode:mode=>invoke('mode',mode),
+  setMode:(mode,layers)=>invoke('mode',mode,layers),
   status:()=>invoke('status'),
   folders:()=>invoke('folders-list'),
   addFolder:()=>invoke('folders-add'),

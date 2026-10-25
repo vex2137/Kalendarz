@@ -2,7 +2,7 @@ const {spawn,execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const run=promisify(execFile);
 const fs=require('node:fs/promises');
-const {createReadStream}=require('node:fs');
+const {createReadStream,readFileSync}=require('node:fs');
 const path=require('node:path');
 const net=require('node:net');
 const crypto=require('node:crypto');
@@ -29,8 +29,8 @@ function gpuFailure(error,log=''){
   return 'gpu-start-failed';
 }
 class NativeAI {
-  constructor({runtimeRoot,store,platform=process.platform}){this.root=runtimeRoot;this.store=store;this.platform=platform;this.mode='auto';this.state={backend:'cpu-native',gpuActive:false,loaded:false,available:false};this.checked=new Set();}
-  snapshot(){return {...this.state,mode:this.mode,gpuDevices:this.devices||[]};}
+  constructor({runtimeRoot,store,platform=process.platform}){this.root=runtimeRoot;this.store=store;this.platform=platform;this.mode='auto';this.gpuLayers=999;this.packaged=[];try{const m=JSON.parse(readFileSync(path.join(runtimeRoot,'runtime-manifest.json'),'utf8'));this.packaged=[...new Set(Object.keys(m.files).map(file=>file.split('/')[0]==='cpu'?'cpu-native':file.split('/')[0]))];if(platform==='darwin'&&this.packaged.includes('cpu-native'))this.packaged.push('metal');}catch{}this.state={backend:'cpu-native',gpuActive:false,loaded:false,available:false};this.checked=new Set();}
+  snapshot(){return {...this.state,mode:this.mode,gpuLayers:this.gpuLayers,system:this.platform,cpuArchitecture:process.arch,packagedBackends:this.packaged,availableBackends:[...new Set((this.devices||[]).map(d=>d.backend))],gpuDevices:this.devices||[]};}
   binary(backend){return path.join(this.root,backend==='metal'?'cpu':backend,this.platform==='win32'?'llama-server.exe':'llama-server');}
   env(backend){const directory=path.join(this.root,backend==='metal'?'cpu':backend);return {...process.env,...(this.platform==='darwin'?{DYLD_LIBRARY_PATH:directory+(process.env.DYLD_LIBRARY_PATH?':'+process.env.DYLD_LIBRARY_PATH:'')}:{}),PATH:directory+path.delimiter+(process.env.PATH||''),...(this.platform==='linux'?{LD_LIBRARY_PATH:directory+(process.env.LD_LIBRARY_PATH?':'+process.env.LD_LIBRARY_PATH:'')}:{})};}
   async verifyRuntime(backend){
@@ -83,7 +83,7 @@ class NativeAI {
     this.cancelling=(async()=>{this.operation?.abort();this.startController?.abort();await this.stop();await this.loading?.catch(()=>{});await this.operationDone;await this.stop();})();
     try{await this.cancelling;}finally{this.cancelling=undefined;}
   }
-  async setMode(mode){if(!['auto','gpu','cpu'].includes(mode))throw Error('model-input');if(this.operation)throw Error('model-busy');await this.cancel();this.mode=mode;this.state.fallbackReason=undefined;return this.snapshot();}
+  async setMode(mode,gpuLayers=999){if(!['auto','gpu','cpu'].includes(mode)||!Number.isInteger(gpuLayers)||gpuLayers<1||gpuLayers>999)throw Error('model-input');if(this.operation)throw Error('model-busy');await this.cancel();this.mode=mode;this.gpuLayers=gpuLayers;this.state.fallbackReason=undefined;this.state.errorCode=undefined;return this.snapshot();}
   async start(id,backend,device,signal){
     const started=performance.now();
     await this.stop();await this.verifyRuntime(backend);signal.throwIfAborted();
@@ -92,7 +92,7 @@ class NativeAI {
     signal.throwIfAborted();
     const key=crypto.randomBytes(32).toString('hex');this.endpoint=`http://127.0.0.1:${port}`;this.key=key;this.log='';this.offloaded=0;
     const args=['--host','127.0.0.1','--port',String(port),'--api-key',key,'--model',file,'--ctx-size',String(model.maxContext),'--parallel','1','--threads',String(Math.min(4,require('node:os').availableParallelism())),'--batch-size','128','--ubatch-size','64','--no-webui','--timeout','180','--sleep-idle-seconds','300',
-      '--n-gpu-layers',backend!=='cpu'?'999':'0','--device',backend!=='cpu'?device.id:'none'];
+      '--n-gpu-layers',backend!=='cpu'?String(this.gpuLayers):'0','--device',backend!=='cpu'?device.id:'none'];
     const child=spawn(this.binary(backend),args,{env:this.env(backend),stdio:['ignore','pipe','pipe'],windowsHide:true});this.child=child;this.backend=backend;
     const logs=chunk=>{this.log=(this.log+chunk.toString()).slice(-32000);const matches=[...this.log.matchAll(/offloaded (\d+)\/(\d+) layers to GPU/g)];if(matches.length)this.offloaded=Number(matches.at(-1)[1]);};
     child.stdout.on('data',logs);child.stderr.on('data',logs);let failed=false;child.on('error',()=>{failed=true;});child.on('exit',()=>{if(this.child===child){this.state.loaded=false;this.state.gpuActive=false;}});
@@ -122,7 +122,7 @@ class NativeAI {
     this.loading=(async()=>{
       this.probeReason=undefined;
       const devices=this.mode==='cpu'?[]:await this.probe(true),descriptor=this.store.descriptor(id);
-      const compatible=devices.filter(d=>d.freeBytes===undefined||d.freeBytes>=(descriptor.estimatedRamMB+256)*1048576);
+      const compatible=devices.filter(d=>this.gpuLayers<999||d.freeBytes===undefined||d.freeBytes>=(descriptor.estimatedRamMB+256)*1048576);
       controller.signal.throwIfAborted();
       // Try each packaged GPU backend once, in CUDA/Vulkan or Metal preference order.
       const attempted=new Set();

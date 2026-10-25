@@ -1,12 +1,12 @@
 import { recordDiagnosticAction } from './modelDiagnostics';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
-import { backendMode,backendStatus,desktopAI,updateBackend } from './nativeDesktopAI';
+import { backendGpuLayers,backendMode,backendStatus,desktopAI,updateBackend } from './nativeDesktopAI';
 export type RuntimeEngine=Pick<Wllama,'exit'|'isMultithread'|'createChatCompletion'>;
 export async function prepareNativeEngine(id:string,signal:AbortSignal):Promise<RuntimeEngine>{
   const bridge=desktopAI()!;
   const stop=()=>{void bridge.stop().catch(error=>recordDiagnosticAction('release-memory','error',error));};signal.addEventListener('abort',stop,{once:true});
   try{
-    if(backendStatus().mode!==backendMode())await bridge.setMode(backendMode());
+    if(backendStatus().mode!==backendMode()||backendStatus().gpuLayers!==backendGpuLayers())updateBackend(await bridge.setMode(backendMode(),backendGpuLayers()));
     const status=await bridge.prepare(id);signal.throwIfAborted();if(!status.loaded)throw Error('native-not-loaded');updateBackend(status);
   }finally{signal.removeEventListener('abort',stop);}
   const engine={
