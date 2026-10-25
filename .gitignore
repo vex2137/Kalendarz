@@ -50,4 +50,5 @@ __pycache__/
 training/data/
 training/runs/
 training/exports/
+.venv-training/
 /native-smoke-results.json

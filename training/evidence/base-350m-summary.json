@@ -1,0 +1,11 @@
+{
+  "records": 22,
+  "validJson": 22,
+  "intent": 8,
+  "exact": 1,
+  "model": "lfm2.5-350m-q4-k-m",
+  "fineTuned": false,
+  "constrainedDecoding": true,
+  "calendarWrites": 0,
+  "scope": "One example per available held-out category and language; original 350M GGUF on CPU. Exact clarification wording is strict."
+}

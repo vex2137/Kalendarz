@@ -28,7 +28,9 @@
     "prebuild": "node scripts/prepare-model.cjs",
     "test:native": "node --test tests/native-ai.test.cjs tests/model-folders.test.cjs",
     "test:native:model": "node --import tsx tests/native-model-smoke.cjs",
-    "test:models:folders": "node tests/model-folders-electron.cjs"
+    "test:models:folders": "node tests/model-folders-electron.cjs",
+    "ai:data": "node --import tsx training/generate.ts",
+    "ai:data:validate": "python3 training/validate_dataset.py"
   },
   "build": {
     "appId": "com.vex2137.kalendarz",

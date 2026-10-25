@@ -97,7 +97,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   ai: {
     planning: DEFAULT_PLANNING,
     enabled: true,
-    model: 'lfm2.5-350m-q4-k-m',
+    model: 'qwen3.5-0.8b-q4-k-m',
     autoExtractEvents: true,
     temperature: 0.2,
     modelLoaded: false,

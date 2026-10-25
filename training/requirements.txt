@@ -1,0 +1,5 @@
+# Install a suitable torch build separately, e.g. torch==2.14.1 CPU/CUDA.
+transformers==5.20.2
+peft==0.21.2
+accelerate==1.15.0
+datasets==5.1.0

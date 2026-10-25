@@ -23,6 +23,7 @@ const {NativeModelStore}=require('../electron/native-model-store.cjs');
     const prompts=['Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00','Dodaj wydarzenie Dentysta jutro o 15:00 do 16:00','Przenieś wydarzenie Dentysta na poniedziałek o 14:00','Jaki mam plan na dziś?','Dodaj spotkanie kiedyś po południu'];
     for(const prompt of (process.env.NATIVE_QUICK_COMPAT==='1'?prompts.slice(0,1):prompts)){
       started=performance.now();const result=await ai.complete(model.id,request(prompt));
+      report.lastCompletion={prompt,...result}; // Preserve incomplete/invalid output in failed CI artifacts.
       assert.equal(result.finish,'stop',`Incomplete structured command (${result.finish}): ${result.text.slice(0,500)}`);
       const command=parseModelCommand(result.text);assert.ok(result.usage.completion_tokens>0);assert.ok(result.firstTokenMs>=0);
       // Record raw extraction separately from the application's deterministic
@@ -45,5 +46,6 @@ const {NativeModelStore}=require('../electron/native-model-store.cjs');
     report.physicalGpuProof=report.results.every(row=>row.backend.backend==='vulkan'&&row.backend.gpuActive&&row.backend.offloadedLayers>0);
     if(process.env.REQUIRE_REAL_GPU==='1')assert.equal(report.physicalGpuProof,true,'Real GPU inference was not established; publication is blocked');
     report.passed=true;
-  }finally{await ai.cancel();await store.close();await fs.rm(root,{recursive:true,force:true});await fs.writeFile(process.env.NATIVE_REPORT||'native-smoke-results.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({model:model.id,passed:report.passed,loadMs:report.loadMs,physicalGpuProof:report.physicalGpuProof,results:report.results.map(r=>({prompt:r.prompt,command:r.command,backend:r.backend,firstTokenMs:r.firstTokenMs,timings:r.timings,usage:r.usage}))}));}
+  }catch(error){report.error={name:error.name,message:error.message};throw error;}
+  finally{await ai.cancel();await store.close();await fs.rm(root,{recursive:true,force:true});await fs.writeFile(process.env.NATIVE_REPORT||'native-smoke-results.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({model:model.id,passed:report.passed,loadMs:report.loadMs,physicalGpuProof:report.physicalGpuProof,results:report.results.map(r=>({prompt:r.prompt,command:r.command,backend:r.backend,firstTokenMs:r.firstTokenMs,timings:r.timings,usage:r.usage}))}));}
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -7,6 +7,9 @@ import { searchCalendar, matchesCalendarText, type AssistantPlan } from './assis
 import { parseDateFromNaturalLanguage, runLocalAiAssistant, type AiResponseResult } from './aiEngine';
 import { calendarFields } from './calendarCommandParser';
 import { guardCalendarWriteClaim } from './calendarWriteClaim';
+import { requestedReminderMinutes } from './calendarReminder';
+import { normalizeGermanInput } from './germanQuery';
+import { normalizeRussianInput } from './russianQuery';
 
 const actions = ['create', 'update', 'delete', 'search', 'assistant', 'clarify'] as const;
 type Action = typeof actions[number] | 'chat';
@@ -17,6 +20,7 @@ export interface ModelCommand {
   recurrence: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
   sourceDate: string | null; question: string | null;
   reply: string | null;
+  reminderMinutes: number | null;
 }
 const nullableString = { type: ['string', 'null'] };
 const nullableDate = { ...nullableString, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' };
@@ -30,6 +34,7 @@ export const COMMAND_SCHEMA = {
     location: nullableString, description: nullableString,
     recurrence: { type: ['string', 'null'], enum: [null, 'NONE', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'] },
     sourceDate: nullableDate, question: nullableString,
+    reminderMinutes: {type:['integer','null'],minimum:0,maximum:525600},
   },
   required: ['action'],
 };
@@ -63,6 +68,7 @@ export function parseModelCommand(json: string): ModelCommand {
   const value = { ...Object.fromEntries(Object.keys(ASSISTANT_SCHEMA.properties).map(key => [key, null])), ...parsed };
   for (const [key, v] of Object.entries(value)) {
     if (v === null) continue;
+    if(key==='reminderMinutes'){if(!Number.isSafeInteger(v)||(v as number)<0||(v as number)>525600)throw new Error('Invalid model reminder');continue;}
     // The model sometimes uses an empty string for an absent nullable text field.
     // Treat absence consistently before validating actual date/time values.
     if (typeof v === 'string' && !v.trim() && !['action', 'allDay', 'recurrence'].includes(key)) {
@@ -97,6 +103,7 @@ Understand Polish, English, Russian, German. Questions in ${language}; event nam
 Actions: create=add, update=edit, delete=remove, search=find, assistant=free slots/conflicts/agenda/batch planning, clarify=unclear/unrelated.
 Add/Dodaj always means create a NEW event, never update a saved one. Keep names unchanged; Dentist and Dentysta are different names.
 Omit unspecified fields. No invented data. Dates YYYY-MM-DD; times HH:mm (24h). title=name only, no action/date/time words. allDay:true ONLY if explicitly all day. recurrence/location/description ONLY if requested. Omit unspecified end time; the calendar defaults to one hour or preserves duration.
+reminderMinutes=explicit whole minutes before the event (0=at start), only if requested. Missing/ambiguous reminder offset requires clarification. Missing date/time/title requires clarification, never guess.
 update/delete: query=existing title ONLY (no action words or generic event noun), sourceDate=original date if given; date=NEW date; title=NEW name only if renaming.
 search: query=title keyword (empty means all), date/endDate=range.
 assistant: query=equivalent English calendar command, preserving names, dates, duration and count.
@@ -121,6 +128,7 @@ export async function resolveModelCommand(command: ModelCommand, request: string
   const ask = (pl: string, en: string): AiResponseResult => ({ text: tr(language, pl, en) });
   if (command.action === 'chat') return { text: guardCalendarWriteClaim(command.reply?.trim() || tr(language, 'Co chcesz omówić?', 'What would you like to talk about?'),language) };
   const evidence = language === 'pl' || language === 'en' ? calendarFields(request, now) : undefined;
+  const requestedReminder=requestedReminderMinutes(request);
   const outsideQuotes = request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '');
   if (['create', 'update', 'delete'].includes(command.action) && /\b(?:nie|not|never|don't|gdyby\p{L}*|if|zamiast|instead)\b|не\s|nicht/iu.test(outsideQuotes)) return ask('Doprecyzuj, jaką zmianę mam przygotować; nic nie zmieniono.', 'Please clarify which change to prepare; nothing was changed.');
   if (['update','delete'].includes(command.action) && command.query?.trim() && request.trim()) {
@@ -129,7 +137,7 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     if(!evidenced)return ask('Nie wskazano tego wydarzenia w poleceniu. Podaj tytuł przed przygotowaniem zmiany.','This event was not identified in the request. Specify its title before preparing a change.');
   }
   if ((command.action === 'create' || command.action === 'update') && request.trim() && command.title && !request.toLocaleLowerCase().includes(command.title.toLocaleLowerCase()) && !matchesCalendarText(request, command.title)) return ask('Podaj dokładny tytuł wydarzenia; model zwrócił inną nazwę.', 'Please specify the exact event title; the model returned another name.');
-  if (command.action === 'clarify') return { text: command.question || tr(language, 'Podaj tytuł, datę i godzinę wydarzenia.', 'Please specify the event title, date and time.') };
+  if (command.action === 'clarify') return { text: guardCalendarWriteClaim(command.question || tr(language, 'Podaj tytuł, datę i godzinę wydarzenia.', 'Please specify the event title, date and time.'),language) };
   if (command.action === 'assistant') {
     if (!command.query?.trim()) return ask('Doprecyzuj polecenie kalendarza.', 'Please clarify the calendar request.');
     // The model interprets language; the existing deterministic tools calculate actual availability,
@@ -159,8 +167,11 @@ export async function resolveModelCommand(command: ModelCommand, request: string
   // A valid JSON schema does not prevent invented event properties. Require evidence
   // in the request before proposing optional changes, even though saves need confirmation.
   if (command.action === 'create' || command.action === 'update') {
+    if(/every\s+(?:other|[2-9]|\d{2,})\s|co\s+drug|co\s+\d+\s+(?:dni|tygod|miesi)|кажд\p{L}*\s+втор|jede\p{L}*\s+zweite/iu.test(request))return ask('Ustaw tę regułę powtarzania w edytorze wydarzenia.', 'Set this recurrence rule in the event editor.');
+    const reminderMentioned=/remind|notification|przypomn|powiadom|напом|уведом|erinner|benachrichtig/iu.test(request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu,''));
+    if((command.reminderMinutes!=null&&command.reminderMinutes!==requestedReminder)||(reminderMentioned&&requestedReminder===undefined))return ask('Podaj, ile minut przed wydarzeniem mam przypomnieć.', 'Specify how many minutes before the event to remind you.');
     const explicitlyAllDay = /ca[łl]y dzie[ńn]|ca[łl]odniow|all[ -]day|весь день|целый день|ganzt[äa]gig|ganztags|ganzen tag/iu.test(request);
-    const explicitlyRecurring = /\bco\s|codzien|ka[żz]d|raz (?:w|na)\s|every\s|daily|weekly|monthly|yearly|кажд|ежеднев|еженедел|ежемесяч|ежегод|t[äa]glich|w[öo]chentlich|monatlich|j[äa]hrlich|jede/iu.test(request);
+    const explicitlyRecurring = /\bco\s|codzien|corocz|ka[żz]d|raz (?:w|na)\s|every\s|daily|weekly|monthly|yearly|кажд|ежеднев|еженедел|ежемесяч|ежегод|t[äa]glich|w[öo]chentlich|monatlich|j[äa]hrlich|jede/iu.test(request);
     const unmentionedText = [command.location, command.description].some(value => value?.trim() && !request.toLocaleLowerCase().includes(value.trim().toLocaleLowerCase()));
     const clocks = [...request.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g)].map(match => `${match[1].padStart(2, '0')}:${match[2]}`);
     const wrongClock = evidence?.time ? (command.time && command.time !== evidence.time) || (command.endTime && /\b(?:do|until|to)\s+\d/iu.test(request) && command.endTime !== evidence.endTime) : (command.time && clocks.length && !clocks.includes(command.time)) || (command.endTime && clocks.length > 1 && !clocks.includes(command.endTime));
@@ -181,7 +192,7 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     };
   }
   const original = command.action === 'update' ? matches[0] : undefined;
-  if (original && !command.date && !command.time && !command.title && !command.location && !command.description && command.allDay === null && !command.recurrence) return ask('Podaj nową datę, godzinę lub nazwę wydarzenia.', 'Please specify a new date, time or event name.');
+  if (original && !command.date && !command.time && !command.title && !command.location && !command.description && command.allDay === null && !command.recurrence && requestedReminder===undefined) return ask('Podaj nową datę, godzinę lub nazwę wydarzenia.', 'Please specify a new date, time or event name.');
   const date = command.date || original?.startDate;
   const allDay = command.allDay ?? original?.allDay ?? false;
   const time = command.time || original?.startTime;
@@ -209,11 +220,13 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     allDay, startTime: allDay ? undefined : time, endTime: allDay ? undefined : timeString(end),
     location: command.location ?? original?.location, description: command.description ?? original?.description,
     recurrence: command.recurrence || original?.recurrence || 'NONE',
+    ...(requestedReminder!==undefined?{reminders:[requestedReminder]}:{}),
   };
   // Reject a conflict between a recognized explicit/relative date and the generated date.
   // Source/target date phrases in update commands are intentionally handled separately by the model.
-  const parsedDate = parseDateFromNaturalLanguage(request, now, language);
+  const parsedDate = parseDateFromNaturalLanguage(normalizeGermanInput(normalizeRussianInput(request)), now, language);
   const requestedDate = evidence?.date || (parsedDate.matched ? parsedDate.dateStr : undefined);
+  if(!original&&request.trim()&&!requestedDate)return ask('Podaj datę wydarzenia.', 'Please specify the event date.');
   if (!original && requestedDate && requestedDate !== date) return ask('Daty w poleceniu są niejednoznaczne. Podaj datę w formacie RRRR-MM-DD.', 'The requested date is ambiguous. Please use YYYY-MM-DD.');
   const plan: AssistantPlan = { kind: original ? 'move' : 'create', originals: original ? [original] : [], events: [draft] };
   changesForPlan(plan); // Existing event validation runs before displaying a proposal, then again at commit.

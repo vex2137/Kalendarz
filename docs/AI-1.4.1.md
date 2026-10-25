@@ -87,3 +87,29 @@ Pinned macOS CPU runtime staging was added for x64/arm64, with upstream archive
 checksums and dylib handling. arm64 staging was verified on Linux; macOS execution
 is unverified. A macOS CI job was added but has not run. Vulkan remains an
 experimental Windows/Linux backend. Android/Web do not expose desktop folder APIs.
+
+
+## Calendar contract and fine-tuning preparation
+
+The JSON contract now supports validated `reminderMinutes` (0..525600). Reminder
+changes require explicit request evidence; unclear/multiple offsets ask a question.
+Creation requires an evidenced date, complex unsupported recurrence asks for the
+editor, and generated clarification text cannot claim a successful calendar write.
+Existing confirmations, identifiers, recurrence and reminder storage are retained.
+The legacy settings default now agrees with the existing Qwen registry default;
+explicit saved settings are still loaded without replacement.
+
+`training/` contains a deterministic synthetic-data generator, TypeScript and
+standalone Python validators, a pinned original-checkpoint configuration, masked
+SFT/PEFT LoRA training, bounded checkpoints/resume, evaluation and adapter export.
+All 432 records validate (264 train / 78 validation / 90 test, 42 template groups).
+This is a seed corpus; the 2,000–5,000-record target is not complete.
+
+Three Python tests exercised the actual Qwen3.5 Transformers architecture with
+**tiny random local weights**, including two optimizer steps, checkpoint resume,
+validation loss and adapter export. No Qwen3.5 0.8B training or tuned-vs-base
+comparison occurred. No new production model or default replacement was made.
+A real, schema-constrained 350M CPU baseline on 22 held-out synthetic requests
+returned valid JSON 22/22, expected intent 8/22 and exact extraction 1/22. These
+figures describe raw model extraction, not deterministic application routing.
+See `training/README.md` for commands, model-source links and limitations.
