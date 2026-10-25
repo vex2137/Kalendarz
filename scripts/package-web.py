@@ -38,7 +38,8 @@ models and data stay in browser storage; do not clear that storage during upgrad
 GPU-only reports unavailable without a native bridge; no browser GPU acceleration
 is claimed. Native Vulkan/CUDA belongs to the desktop/Android distributions.
 
-LICENSE contains the application's unchanged MIT license. build-info.json records
+PROJECT-README.md retains the repository's existing MIT license declaration.
+build-info.json records
 the application source commit and production variant. Verify the download using the
 release SHA-256 checksum file before deployment.
 '''
@@ -56,11 +57,14 @@ nginx = '''server {
 }
 '''
 args.output.parent.mkdir(parents=True, exist_ok=True)
-with zipfile.ZipFile(args.output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+project_readme = (ROOT / 'README.md').read_bytes()
+temporary = args.output.with_suffix(args.output.suffix + '.partial')
+with zipfile.ZipFile(temporary, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
     for file in files:
         archive.write(file, file.relative_to(args.dist).as_posix())
     archive.writestr('DEPLOYMENT.md', readme)
     archive.writestr('nginx.example.conf', nginx)
     archive.writestr('_headers', '/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n')
-    archive.writestr('LICENSE', (ROOT / 'LICENSE').read_bytes())
+    archive.writestr('PROJECT-README.md', project_readme)
+temporary.replace(args.output)
 print(json.dumps({'artifact': str(args.output), 'version': version, 'sourceCommit': build['commit'], 'files': len(files), 'deployed': False}))
