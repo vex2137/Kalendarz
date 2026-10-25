@@ -1,37 +1,290 @@
-name: Android release
+name: KALENDARZ 1.4.1 manual packages
+
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
+    inputs:
+      preflight_only:
+        description: Check Android secret access and update certificate without building
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kalendarz-141-manual-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Existing Beta/diagnostic update certificate recorded in the secured commit.
+  EXPECTED_ANDROID_CERTIFICATE: ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143
+
 jobs:
-  android:
+  signing-preflight:
+    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/ci/141-manual-packages'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          node-version: '24'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.4.3'
-      - uses: actions/setup-java@v5
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the secured application source and unchanged version
+        shell: bash
+        run: |
+          git diff --exit-code 1ea6f9ed19ce08964b72a1723a6a8855d9150757 HEAD -- . ':!.github' ':!docs'
+          node -e "if(require('./package.json').version !== '1.4.1') process.exit(1)"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '21'
-      - name: Install Android SDK packages
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
-      - uses: gradle/actions/setup-gradle@v4
-      - run: bun install --frozen-lockfile
-      - run: npm run check
-      - run: npx cap sync android
-      - run: bash ./gradlew assembleRelease --no-daemon
-        working-directory: android
-      - uses: actions/upload-artifact@v4
+      - name: Validate available secrets and the actual update private key
+        run: bash .github/scripts/check-signing.sh
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+      - name: Record preflight success
+        run: echo 'Android update signing verified. No secret or key is included in artifacts.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/calendar-release.p12"
+
+  web:
+    needs: signing-preflight
+    if: inputs.preflight_only != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: Calendar-release-unsigned
-          path: android/app/build/outputs/apk/release/*-unsigned.apk
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the secured application source and unchanged version
+        shell: bash
+        run: |
+          git diff --exit-code 1ea6f9ed19ce08964b72a1723a6a8855d9150757 HEAD -- . ':!.github' ':!docs'
+          node -e "if(require('./package.json').version !== '1.4.1') process.exit(1)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - run: node scripts/prepare-model-free.cjs
+      - name: Build production Web with native Android integration disabled
+        env:
+          CALENDAR_ANDROID_NATIVE: 'false'
+        run: node node_modules/vite/bin/vite.js build --mode production
+      - run: python3 scripts/package-web.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: KALENDARZ-1.4.1-Web
+          path: release/KALENDARZ-1.4.1-WEB.zip
           if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  desktop:
+    needs: signing-preflight
+    if: inputs.preflight_only != true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: Linux
+            targets: --linux AppImage
+            output: KALENDARZ-1.4.1-linux-x86_64.AppImage
+          - os: windows-2025
+            platform: Windows
+            targets: --win portable
+            output: KALENDARZ-1.4.1-WINDOWS-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'false'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the secured application source and unchanged version
+        shell: bash
+        run: |
+          git diff --exit-code 1ea6f9ed19ce08964b72a1723a6a8855d9150757 HEAD -- . ':!.github' ':!docs'
+          node -e "if(require('./package.json').version !== '1.4.1') process.exit(1)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - name: Install Linux runtime packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1 libssl3t64 libgomp1 zlib1g libzstd1
+      - run: node scripts/prepare-model-free.cjs
+      - run: node node_modules/vite/bin/vite.js build --mode production
+      # Existing beforePack hook stages and verifies pinned native CPU/Vulkan runtimes.
+      - name: Package x86_64 application without publication
+        env:
+          PACKAGE_TARGETS: ${{ matrix.targets }}
+        run: npx --no-install electron-builder $PACKAGE_TARGETS --x64 --publish never
+      - name: Select exactly one requested package
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          OUTPUT: ${{ matrix.output }}
+        run: |
+          python - <<'PYTHON'
+          import os, shutil
+          from pathlib import Path
+          pattern = '*.AppImage' if os.environ['PLATFORM'] == 'Linux' else '*-portable.exe'
+          files = list(Path('release').glob(pattern))
+          if len(files) != 1: raise SystemExit('Expected exactly one package')
+          shutil.move(str(files[0]), str(Path('release') / os.environ['OUTPUT']))
+          PYTHON
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: KALENDARZ-1.4.1-${{ matrix.platform }}
+          path: release/${{ matrix.output }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  android:
+    needs: signing-preflight
+    if: inputs.preflight_only != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the secured application source and unchanged version
+        shell: bash
+        run: |
+          git diff --exit-code 1ea6f9ed19ce08964b72a1723a6a8855d9150757 HEAD -- . ':!.github' ':!docs'
+          node -e "if(require('./package.json').version !== '1.4.1') process.exit(1)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install pinned Android SDK and native toolchains
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865" "cmake;3.31.6"'
+      - run: python3 scripts/build-android-native.py --sdk "$ANDROID_HOME" --jobs 2
+      - run: node scripts/prepare-model-free.cjs
+      - run: node node_modules/vite/bin/vite.js build --mode production
+      - run: npx --no-install cap sync android
+      - name: Recheck signing identity before restoring the key
+        run: bash .github/scripts/check-signing.sh
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+      - name: Sign the existing update variant with the validated existing key
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+          CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
+        run: |
+          set +x
+          trap 'rm -f "$RUNNER_TEMP/calendar-release.p12"' EXIT
+          node scripts/restore-android-signing.cjs
+          export CALENDAR_KEYSTORE_PATH="$RUNNER_TEMP/calendar-release.p12"
+          bash android/gradlew -p android --init-script "$PWD/.github/scripts/android-update.init.gradle" :app:assembleDiagnostics -PcalendarStableUpdate=true --no-daemon --max-workers=2
+      - name: Verify update identity, code, certificate and APK alignment
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, json, os, re, shutil, subprocess
+          from pathlib import Path
+          apk = Path('android/app/build/outputs/apk/diagnostics/app-diagnostics.apk')
+          tools = Path(os.environ['ANDROID_HOME']) / 'build-tools/35.0.0'
+          def call(tool, *args):
+              return subprocess.check_output([str(tools / tool), *map(str, args)], text=True)
+          cert = call('apksigner', 'verify', '--print-certs', apk)
+          digest = re.findall(r'Signer #\d+ certificate SHA-256 digest: ([a-f0-9]{64})', cert)
+          if digest != [os.environ['EXPECTED_ANDROID_CERTIFICATE']]: raise SystemExit('Update certificate mismatch')
+          badging = call('aapt', 'dump', 'badging', apk)
+          for field in ["name='com.kalendarz.offline.diagnostics'", "versionCode='10406'", "versionName='1.4.1'"]:
+              if field not in badging.splitlines()[0]: raise SystemExit('APK update metadata mismatch')
+          call('zipalign', '-c', '-P', '16', '4', apk)
+          import zipfile
+          with zipfile.ZipFile(apk) as z:
+              build = json.loads(z.read('assets/public/build-info.json'))
+              if build.get('dirty') or not build.get('androidNative') or build.get('bundledModel') != False or build.get('distribution') != 'model-free':
+                  raise SystemExit('Unexpected APK variant')
+              if 'lib/arm64-v8a/libcalendar_llama.so' not in z.namelist(): raise SystemExit('Missing ARM64 engine')
+          Path('release').mkdir(exist_ok=True)
+          shutil.copyfile(apk, 'release/KALENDARZ-1.4.1-ANDROID.apk')
+          print('Verified APK: existing update ID/certificate, version 1.4.1, code 10406, ARM64 and 16 KiB alignment.')
+          PYTHON
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/calendar-release.p12"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: KALENDARZ-1.4.1-Android
+          path: release/KALENDARZ-1.4.1-ANDROID.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  checksums:
+    needs: [web, desktop, android]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: KALENDARZ-1.4.1-*
+          path: packages
+          merge-multiple: true
+      - name: Calculate fresh SHA-256 for exactly four packages
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, os
+          from pathlib import Path
+          root = Path('packages')
+          names = ['KALENDARZ-1.4.1-ANDROID.apk', 'KALENDARZ-1.4.1-linux-x86_64.AppImage', 'KALENDARZ-1.4.1-WINDOWS-x86_64.exe', 'KALENDARZ-1.4.1-WEB.zip']
+          if sorted(p.name for p in root.iterdir()) != sorted(names): raise SystemExit('Expected exactly four packages')
+          lines = []
+          for name in sorted(names):
+              with (root / name).open('rb') as f: digest = hashlib.file_digest(f, 'sha256').hexdigest()
+              lines.append(f'{digest}  {name}\n')
+          manifest = ''.join(lines)
+          Path('KALENDARZ-1.4.1-SHA256SUMS.txt').write_text(manifest)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('All four packages verified. Download the four platform artifacts and the SHA256 artifact below.\n\n```text\n' + manifest + '```\n')
+          PYTHON
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: KALENDARZ-1.4.1-SHA256
+          path: KALENDARZ-1.4.1-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30

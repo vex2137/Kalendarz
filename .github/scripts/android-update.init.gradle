@@ -1,0 +1,12 @@
+// CI-only signing selection. Application sources, version and ID remain unchanged.
+gradle.afterProject { project, state ->
+    if (project.path == ':app' && state.failure == null) {
+        def android = project.extensions.getByName('android')
+        def signing = android.signingConfigs.findByName('stableRelease')
+        if (signing == null) throw new GradleException('Validated update signing key is required')
+        android.buildTypes.getByName('diagnostics').signingConfig = signing
+        if (android.defaultConfig.versionCode != 10406 || android.defaultConfig.versionName != '1.4.1') {
+            throw new GradleException('Expected unchanged 1.4.1 update code 10406')
+        }
+    }
+}
