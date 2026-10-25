@@ -5,6 +5,10 @@ def calendarBuildFile = rootProject.file('../dist/build-info.json')
 def calendarWebBuild = calendarBuildFile.isFile() ? new groovy.json.JsonSlurper().parse(calendarBuildFile) : [commit: 'unknown']
 def calendarVersion = calendarPackage.version.tokenize('.').collect { it as int }
 def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
+def calendarBeta = providers.gradleProperty('calendarBeta').orElse('false').get().toBoolean()
+if (calendarBeta && !gradle.startParameter.taskNames.every { it.tokenize(':').last() == 'assembleDiagnostics' }) {
+    throw new GradleException('Beta without bundled weights is allowed only for assembleDiagnostics')
+}
 def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
 if (System.getenv('CALENDAR_REQUIRE_RELEASE_SIGNING') == 'true' && !calendarKeystore) {
     throw new GradleException('Stable Android signing is required; configure the CALENDAR_ANDROID_* GitHub secrets.')
@@ -43,7 +47,7 @@ android {
         diagnostics {
             initWith debug
             applicationIdSuffix '.diagnostics'
-            versionNameSuffix '-diagnostics'
+            versionNameSuffix calendarBeta ? ' beta' : '-diagnostics'
             matchingFallbacks = ['debug']
             signingConfig signingConfigs.debug
         }
@@ -59,6 +63,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             testProguardFiles 'proguard-test-rules.pro'
         }
+    }
+    if (calendarBeta) {
+        sourceSets.diagnostics.res.setSrcDirs([rootProject.file('../build/beta-res')])
     }
 }
 
@@ -96,6 +103,14 @@ try {
 // cap sync must have copied the verified weights before any APK can be assembled.
 tasks.register('verifyBundledModel') {
     doLast {
+        if (calendarBeta) {
+            def packagedBuild = new groovy.json.JsonSlurper().parse(file('src/main/assets/public/build-info.json'))
+            if (packagedBuild.version != calendarPackage.version + ' beta' || packagedBuild.bundledModel != false || file('src/main/assets/public/models/manifest.json').exists()) {
+                throw new GradleException('Rebuild the explicit beta frontend before assembling the beta APK')
+            }
+            logger.lifecycle('Beta test APK: model download/import is required; production model verification is unchanged')
+            return
+        }
         def model = new groovy.json.JsonSlurper().parse(rootProject.file('../src/utils/localModelManifest.json'))
         def weights = file("src/main/assets/public/models/${model.file}")
         if (!weights.isFile() || weights.length() != model.bytes) throw new GradleException('Bundled model missing: run npm run build and npx cap sync android')

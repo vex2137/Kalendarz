@@ -1,12 +1,13 @@
 import fallback from './localModelManifest.json';
 import optionalModels from './optionalModels.json';
+import { BUILD_INFO } from './buildInfo';
 
 export interface ModelDescriptor {
   id: string; name: string; file: string; bytes: number; sha256: string; revision: string;
   url: string; license: string; licenseName: string; architecture: string; quantization: string;
   estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean;
 }
-export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, bundled: true };
+export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, bundled: BUILD_INFO.bundledModel !== false };
 export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, ...optionalModels];
 export const OPTIONAL_FALLBACK = AI_MODELS.find(model => model.id === 'lfm2.5-350m-q4-k-m')!;
 const externalKey='calendar_external_ai_models_v1';

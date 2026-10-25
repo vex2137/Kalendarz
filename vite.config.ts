@@ -7,15 +7,17 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 export default defineConfig(() => {
+  const betaApk = process.env.CALENDAR_BETA_APK === 'true';
   const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
   const buildInfo = { commit: git('rev-parse', 'HEAD'), branch: process.env.GITHUB_REF_NAME || git('branch', '--show-current'),
-    version: JSON.parse(readFileSync('package.json', 'utf8')).version, dirty: Boolean(git('status', '--porcelain', '--untracked-files=no')), builtAt: new Date().toISOString() };
+    version: JSON.parse(readFileSync('package.json', 'utf8')).version + (betaApk ? ' beta' : ''), ...(betaApk ? {bundledModel:false} : {}), dirty: Boolean(git('status', '--porcelain', '--untracked-files=no')), builtAt: new Date().toISOString() };
   const modelHeaders = {
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Cross-Origin-Embedder-Policy': 'require-corp',
   };
   return {
     base: './',
+    publicDir: betaApk ? 'build/beta-public' : 'public',
     define: { __CALENDAR_BUILD__: JSON.stringify(buildInfo) },
     plugins: [
       { name: 'calendar-build-provenance', generateBundle() { this.emitFile({ type: 'asset', fileName: 'build-info.json', source: JSON.stringify(buildInfo) }); } },
