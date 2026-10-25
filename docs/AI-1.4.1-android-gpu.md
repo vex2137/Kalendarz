@@ -10,7 +10,8 @@ Implementation commits:
 
 - `c1c4673`: content-addressed GGUF imports, Android native bridge/runtime build and bounded conversational output.
 - `0a9099d`: CUDA/Vulkan/Metal selection, optional pinned CUDA staging, source diagnostics and actual inference benchmark runner.
-- Subsequent validation commits cover the device packaging test, browser imports/restart, readable metrics, compatibility guards and this report. The final APK provenance is in its sidecar build metadata.
+- `6d4f09d`: device packaging and browser import tests, readable metrics, compatibility guards and validation evidence.
+- Subsequent UI copy corrections remove the obsolete exact-catalogue import requirement and clarify that the preferred model may need download/import. Validation commits cover the device packaging test, browser imports/restart, readable metrics, compatibility guards and this report. The final APK provenance is in its sidecar build metadata.
 
 ## Import failure: confirmed code defects versus device evidence
 
