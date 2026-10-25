@@ -2,8 +2,9 @@ name: Release packages
 
 on:
   push:
-    branches: [main, fix/ai-140-diagnostics, feat/ai-141-qwen-native-gpu]
-    tags: ['v*']
+    # The recovered 1.4.1 release uses publish-recovered-141.yml without rebuilding.
+    branches: [fix/ai-140-diagnostics, feat/ai-141-qwen-native-gpu]
+    tags: ['v*', '!v1.4.1']
     paths:
       - '.github/workflows/release.yml'
       - '.github/release-notes/**'

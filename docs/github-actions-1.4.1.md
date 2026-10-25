@@ -1,3 +1,5 @@
+> Official 1.4.1 publication uses [publish-recovered-141.yml](../.github/workflows/publish-recovered-141.yml) to publish the original verified packages without rebuilding or Android signing secrets. The manual build/preflight route documented below is retained for future approved builds; it is not required to publish the recovered assets.
+
 # KALENDARZ 1.4.1 manual artifact builds
 
 The manual workflow reuses `.github/workflows/build-apk.yml`, which is already

@@ -33,6 +33,11 @@ jobs:
             const { version } = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
             const tag = `v${version}`;
             core.setOutput('tag', tag);
+            if (version === '1.4.1') {
+              core.setOutput('needed', 'false');
+              core.info('Recovered 1.4.1 packages are published exclusively by publish-recovered-141.yml.');
+              return;
+            }
             try {
               await github.rest.repos.getReleaseByTag({ ...context.repo, tag });
               core.setOutput('needed', 'false');

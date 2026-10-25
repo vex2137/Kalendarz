@@ -1,109 +1,83 @@
-# 📅 Calendar 1.3.1 (Offline Calendar)
+# KALENDARZ 1.4.1 — Latest Stable
 
-A modern, private, and 100% local calendar application inspired by Google Calendar. Built for **Android (APK)**, **Linux (Flatpak & AppImage)**, **Windows (.exe)**, and the **Web**.
+A local calendar for **Android ARM64, Linux x86_64, Windows x86_64 and Web**.
+Calendar data and local AI inference stay on your device. No cloud AI account is required.
 
-Works entirely offline with zero cloud dependency, no telemetry, no tracking, and no user registration required.
+[Polska dokumentacja](README.pl.md) · [Release v1.4.1](https://github.com/vex2137/Kalendarz/releases/tag/v1.4.1) · [Changelog](CHANGELOG.md)
 
----
+## Downloads
 
-## 📥 Downloads & Supported Platforms
+| Platform | Download | Package |
+| --- | --- | --- |
+| Android ARM64 | [KALENDARZ-1.4.1-ANDROID.apk](https://github.com/vex2137/Kalendarz/releases/download/v1.4.1/KALENDARZ-1.4.1-ANDROID.apk) | Signed APK, version code **10406** |
+| Linux x86_64 | [KALENDARZ-1.4.1-linux-x86_64.AppImage](https://github.com/vex2137/Kalendarz/releases/download/v1.4.1/KALENDARZ-1.4.1-linux-x86_64.AppImage) | AppImage |
+| Windows x86_64 | [KALENDARZ-1.4.1-WINDOWS-x86_64.exe](https://github.com/vex2137/Kalendarz/releases/download/v1.4.1/KALENDARZ-1.4.1-WINDOWS-x86_64.exe) | Portable EXE |
+| Web | [KALENDARZ-1.4.1-WEB.zip](https://github.com/vex2137/Kalendarz/releases/download/v1.4.1/KALENDARZ-1.4.1-WEB.zip) | Production deployment files |
 
-Official standalone binaries and packages:
+Download [SHA256SUMS.txt](https://github.com/vex2137/Kalendarz/releases/download/v1.4.1/SHA256SUMS.txt) to verify the packages. Release assets are the original verified 1.4.1 binaries; they are not rebuilt during publication. The Web archive is ready for self-hosting; publishing the archive does not deploy a website.
 
-- 🤖 **Android:** `.apk`
-- 🐧 **Linux:** `Flatpak` & `AppImage`
-- 🪟 **Windows:** `.exe` installer / portable
-- 🌐 **Web:** Progressive Web App (PWA) / Self-hosted
+### Installation and updates
 
-Check the [Releases](https://github.com/vex2137/Kalendarz/releases) section to download the latest version for your platform.
+- **Android:** install the signed APK over the existing Beta 3 / diagnostic / 1.4.1 diagnostic installation. It retains application ID `com.kalendarz.offline.diagnostics` and the original update certificate. Do not uninstall the existing app or clear its data. The separately signed production 1.4.0 installation has a different identity; this APK does not replace it. See the [Android guide](README_ANDROID_APK.md).
+- **Linux:** make the downloaded file executable with `chmod +x KALENDARZ-1.4.1-linux-x86_64.AppImage`, then run it. Existing user data stays in its application profile.
+- **Windows:** run the portable EXE. The package is unsigned; it was checked for package and native-runtime integrity, but not launched on a physical Windows machine in the release environment.
+- **Web:** extract the ZIP and serve its contents over HTTPS or localhost. Keep the same browser origin/profile to retain local data. Opening `index.html` directly is not the supported deployment method.
 
----
+## Calendar features
 
-## ✨ Key Features
+- Month, week, day, year and agenda views, with touch and keyboard navigation.
+- Events, recurrence, reminders, Polish public holidays and custom holidays.
+- ICS import/export and JSON backups, preserving supported event fields.
+- Local assistant conversation history and persisted preferences.
+- Seven built-in themes, editable custom palettes and an optional PIN screen.
+- Encrypted, compressed multipart QR synchronization between devices, without a synchronization server. See the [sync guide](docs/NAVIGATION_THEMES_SYNC.md).
+- English, Polish, Russian and German interfaces. English is the existing default for new installations; this release publication does not change application language settings.
 
-- 🔒 **100% Offline & Private:** All events, reminders, and settings are stored locally on your device storage (IndexedDB / native sandbox; settings in localStorage).
-- 🤖 **Bundled Local AI Model:** LFM2.5 350M Q4_K_M runs locally through bundled WASM with verified weights included in every platform package; no separate model download is needed. English/Polish offline browser and Android WebView scenarios passed, as did English inference in packaged Linux Electron. Review proposals before confirming calendar changes. See [model verification](docs/local-model-verification.md).
-- 🤖 **Offline Smart Assistant (NLP):** Natural language engine in Polish, English, Russian & German. Ask for your schedule (_"What do I have today?"_), detect schedule collisions (_"Check conflicts"_), find available free time slots (_"When am I free?"_), or create events with natural sentences (_"Meeting with team tomorrow at 2pm for 1h"_).
-- 📲 **P2P QR Code Sync (PC ⇄ Mobile):** Seamless offline sync between PC and phone by scanning an AES-256-GCM encrypted, gzip-compressed multipart QR code directly from screen to screen. No servers, accounts, or internet needed.
-- 📆 **Comprehensive Calendar Views:** Month, Week, Day, Year, and Agenda views with fluid navigation and responsive mobile-first UI.
-- 🇵🇱 **Polish Holidays & Custom Holidays:** Built-in calculation of Polish statutory holidays (including movable holidays like Easter and Corpus Christi) with one-click addition/removal.
-- 🔁 **Recurring Events & Reminders:** Daily, weekly, monthly, and yearly recurring schedules with local notifications and alarms.
-- 🔐 **PIN Lock Screen:** Optional 4-digit PIN security lock with auto-lock options.
-- 🎨 **Adaptive Themes:** All seven built-in themes plus editable, locally saved custom palettes with 13 color options.
-- 👆 **Calendar Navigation:** Swipe between periods, or use Left/Right arrows and A/D on desktop. Editing and dialogs do not trigger navigation.
-- 📦 **Standard .ICS Import & Export:** Full interoperability with Google Calendar, Microsoft Outlook, Apple Calendar, and Mozilla Thunderbird.
-- 🌐 **Four Interface Languages:** Switch between English, Polish, Russian, and German. English is the default for new installations.
+Events are stored locally in IndexedDB; preferences and existing migration mechanisms are retained. The PIN screen does not encrypt the event database. Plain JSON exports are unencrypted. Browser reminders require the app to remain open; Android notification behavior also depends on system permissions and battery settings.
 
----
+## Local AI and models
 
-## 💻 Development & Local Setup
+These 1.4.1 packages **do not bundle model weights**. Previously installed models are retained. On a new installation, download a supported model in the app or import a compatible GGUF file. Model downloads require network access; once installed, local inference can run offline.
 
-### Prerequisites
+- Android and desktop provide native llama.cpp inference. Web uses the browser WebAssembly CPU runtime.
+- Manual GGUF import is not restricted to catalog names or pre-known checksums. Import validation and successful engine loading are separate stages: architecture and quantization support depend on the packaged engine.
+- Desktop can scan user-selected external GGUF folders without moving or deleting other applications' model files.
+- Auto, CPU-only and GPU-only modes report the actual active backend. Auto keeps CPU fallback; GPU-only reports an error when acceleration cannot start.
+- AI diagnostics, JSON export and confirmed memory release are available. Review proposed calendar changes before confirming them.
 
-- Node.js 24 (pinned in `.nvmrc` / `.node-version`; minimum 22.12)
-- Bun 1.4.3 (the maintained package manager and lockfile)
+### Known limitations
 
-```bash
+- Android Vulkan remains experimental. The maintainer accepted core functionality on a physical POCO X7 Pro, but successful Mali-G720 GPU inference is **not confirmed**. GPU detection alone does not prove acceleration.
+- The Linux AppImage includes CPU and Vulkan runtimes. CUDA is not bundled in this AppImage; RTX 4060, AMD and Intel GPU compatibility is not certified by this release's testing.
+- GGUF compatibility, download availability, performance and memory usage vary by model, runtime and driver. No universal model or GPU support is claimed.
+- No newly fine-tuned model is included. Further GPU compatibility work is tracked for 1.4.2.
+
+See [known limitations and 1.4.2 follow-up](docs/known-limitations-1.4.1.md) and [release verification](docs/release-1.4.1-publication.md).
+
+## Source and development
+
+The `v1.4.1` tag identifies the integrated release source and retains the original Git history, including source commit `1ea6f9ed19ce08964b72a1723a6a8855d9150757`. Only documentation and CI publication changes are added to the verified application source.
+
+Development requires Node.js 24 and Bun 1.4.3:
+
+```sh
 bun install --frozen-lockfile
 npm run dev
 ```
 
-Validation:
+Relevant checks:
 
-```bash
-npm run check                  # TypeScript, regression tests, production PWA build
-npx playwright install chromium # once, unless Chromium is already installed
-npm run test:e2e                # browser, offline, responsive layout, and 10k-event checks
+```sh
+npm run check
+npm run test:native
+npx playwright install chromium
+npm run test:e2e
 ```
 
-The browser runner starts and stops its own production preview on port 4174. Set
-`BROWSER_EXECUTABLE` to use an existing Chromium executable. `npm run build` is
-required before running the browser suite. Packaged Electron can be checked with
-`npm run test:desktop` after a Linux directory build (use `xvfb-run -a` on headless
-Linux).
+The [one-time publication workflow](.github/workflows/publish-recovered-141.yml) restores packages from immutable recovery commits, verifies all four SHA-256 values, uploads a draft, downloads and hashes all five assets, then publishes and confirms Latest. It does not use Android signing keys or rebuild applications.
 
-Events are stored transactionally in IndexedDB. Existing localStorage calendars
-are migrated once; the old value is retained as a recovery backup. Imports merge
-with the calendar. JSON backups preserve every event field; ICS supports stable
-UIDs, common recurrence rules, exclusions, timezone-tagged times and alarms.
-Unsupported ICS constructs are rejected instead of being silently discarded.
+See [development notes](docs/DEVELOPMENT.md) and [assistant documentation](docs/ASSISTANT.md).
 
-QR synchronization uses AES-256-GCM encrypted, gzip-compressed multipart packets,
-including removal records. Keys use PBKDF2-SHA-256 with a random salt and 600,000
-iterations; every packet has a random IV. Passwords are never saved. Plain JSON
-file exports remain unencrypted. The screen PIN is salted and
-hashed but does not encrypt the event database. Browser reminders require an open
-app; Android schedules the next seven days (up to 64 pending reminders) using
-native notifications and refreshes the schedule when the app is opened.
+## License
 
-For Android release builds install JDK 21 and Android SDK 36, then run
-`npm run build:android`. Release APKs use R8/resource shrinking and remain unsigned
-until you sign them with your own key. Web checks also run before Android CI builds.
-
-See the [offline assistant guide](docs/ASSISTANT.md) for bilingual commands, planning
-preferences, rescheduling, and undo.
-
-See [development notes](docs/DEVELOPMENT.md) for data recovery, sync compatibility,
-verification coverage and native packaging details.
-
----
-
-## 🔄 Peer-to-Peer Sync (PC ⇄ Phone)
-
-Calendar allows data synchronization without passing through external servers or cloud accounts:
-
-1. On your PC, click the **Sync** button in the navigation bar.
-2. Set a password of at least 12 characters and choose **Generate encrypted code**.
-3. On your mobile app, open **Sync ➔ Scan** and scan all QR frames, or upload their images.
-4. Enter the sender’s password and choose **Decrypt and merge**. Wrong passwords leave the calendar unchanged.
-
-The same encrypted packet is available as a text code. Both devices need a version
-that supports KAL3. Older unencrypted codes remain importable with explicit confirmation.
-See [navigation, themes and encrypted sync](docs/NAVIGATION_THEMES_SYNC.md) for details.
-
----
-
-## 📄 License & Privacy
-
-- **Privacy First:** Zero trackers, zero analytics, zero external network calls.
-- **License:** MIT License. Free for personal and commercial use.
+The project is distributed under the MIT license declared by the project documentation. Dependencies, inference runtimes and model weights retain their respective licenses; verify a model's license before use.

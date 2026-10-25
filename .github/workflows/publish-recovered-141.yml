@@ -1,0 +1,41 @@
+name: Publish recovered KALENDARZ 1.4.1
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-recovered-141.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-calendar-release
+  cancel-in-progress: false
+
+jobs:
+  publish-recovered:
+    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Select isolated runner temporary directory
+        run: echo "RELEASE_DIRECTORY=$RUNNER_TEMP/kalendarz-141-recovered" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 200
+          persist-credentials: false
+      - name: Restore exact pinned packages and verify source, parts and full SHA-256
+        run: python3 .github/scripts/publish-recovered-141.py prepare --source-commit "$GITHUB_SHA" --directory "$RELEASE_DIRECTORY"
+      - name: Verify tag, upload draft, download every asset, then publish Latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/publish-recovered-141.py publish --source-commit "$GITHUB_SHA" --directory "$RELEASE_DIRECTORY"
+      - name: Retain publication diagnostics without keys or package duplicates
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: KALENDARZ-1.4.1-publication-verification
+          path: ${{ env.RELEASE_DIRECTORY }}/release-evidence.json
+          if-no-files-found: warn
+          retention-days: 30

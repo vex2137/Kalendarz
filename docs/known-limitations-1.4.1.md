@@ -11,7 +11,7 @@ Known limitations in 1.4.1:
 - These distributions do not bundle model weights. Previously installed models are retained; new installations download or import one. Native architecture/quantization support depends on pinned llama.cpp. This environment cannot check live Hugging Face CDN behavior; local real-file transfer tests and the user's physical download acceptance are separate evidence.
 - The Android file continues the existing Beta/diagnostic install identity and certificate to preserve update compatibility. It does not replace the separately signed official 1.4.0 production package. Install over Beta 3/10404/10405 without uninstalling or clearing data.
 - Linux ships CPU and Vulkan. CUDA remains an optional separately staged backend, not part of this AppImage. Physical CachyOS/RTX 4060 inference remains unverified.
-- Direct binary attachment/export is unavailable in this session. The user has authorized an unpublished GitHub draft with the four target artifacts; working release-upload authentication is still required. No remote download link exists yet.
+- Official downloads are distributed through [Release v1.4.1](https://github.com/vex2137/Kalendarz/releases/tag/v1.4.1). The recovered-package workflow verifies the complete draft before publication. Earlier delivery/authentication reports are historical; recovery branches are retained.
 
 Deferred to 1.4.2, without blocking 1.4.1:
 
