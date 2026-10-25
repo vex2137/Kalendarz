@@ -1,0 +1,139 @@
+{
+  "recordedAt": "2026-10-25T01:43:43.958785+00:00",
+  "branch": "feat/ai-141-ultimate",
+  "validatedImplementationHead": "67989a0aa0853ae074e82252c5863731b2ddaf81",
+  "localImplementationCommits": [
+    "67989a0 fix(ai): guard model edits and verify 1.4.1 upgrade preservation",
+    "f105444 feat(ai): add validated calendar reminders and reproducible LoRA pipeline",
+    "e227a52 feat(models): support read-only external GGUF directories",
+    "dd9787a fix(ai): enforce backend modes and repair native lifecycle checks"
+  ],
+  "startingPoint": {
+    "localBranch": "work",
+    "localHead": "fa20810",
+    "dirty": false,
+    "unpublishedAfterFetch": 0,
+    "continuedPr10Head": "592e998886b81b22379484dff64a9832b84c2b38",
+    "pr9": "https://github.com/vex2137/Kalendarz/pull/9",
+    "pr10": "https://github.com/vex2137/Kalendarz/pull/10"
+  },
+  "gitHub": {
+    "connectorRead": true,
+    "gitFetch": true,
+    "authentication401Observed": false,
+    "pushed": false,
+    "published": false
+  },
+  "remoteCi": {
+    "sourceHead": "592e998886b81b22379484dff64a9832b84c2b38",
+    "passed": 7,
+    "failed": 6,
+    "skipped": 2,
+    "inProgress": 3,
+    "newBranchCiRun": false,
+    "greenClaimed": false,
+    "unresolved": "Flatpak launcher; 2.6B change not rerun with those weights; packaged checks need remote rerun"
+  },
+  "formalTests": [
+    {
+      "command": "npm test",
+      "passed": 128,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:native",
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "python training/test_pipeline.py",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "Tiny random Qwen3.5 architecture; not production-model fine-tuning"
+    }
+  ],
+  "additionalPassedSuites": [
+    {
+      "script": "tests/browser.cjs",
+      "scope": "Web CRUD, validation, imports, PIN, cross-tab writes, camera cleanup, lock, responsive controls, 10k agenda and offline reload"
+    },
+    {
+      "script": "tests/model-storage-browser.cjs",
+      "scope": "Both OPFS writable and sync-worker paths: real storage transactions with synthetic bytes, errors and cancellation"
+    },
+    {
+      "script": "tests/model-folders-electron.cjs",
+      "scope": "Real external 350M GGUF; picker, scan, selection, cold/warm CPU inference, IPC isolation, restart and non-destructive removal"
+    },
+    {
+      "script": "tests/upgrade-141-browser.cjs",
+      "scope": "Official 1.4.0 Web source 228f339 -> current build at the same origin; event/recurrence/reminders/settings/theme/language/history/model/OPFS preservation"
+    },
+    {
+      "script": "tests/native-model-smoke.cjs",
+      "scope": "Verified real 350M GGUF: CPU generation, cache, cancellation, unload/reload; final quick pass after schema changes"
+    },
+    {
+      "script": "tests/native-process-fallback.cjs",
+      "scope": "Injected GPU memory-failure process must exit before actual CPU inference; invalid GGUF rejection and cleanup"
+    }
+  ],
+  "hardware": {
+    "os": "Debian GNU/Linux 13",
+    "arch": "x64",
+    "cpu": "Intel Xeon Platinum 8573C",
+    "availableCpuThreads": 2,
+    "physicalGpuAvailable": false,
+    "physicalGpuInferenceTested": false
+  },
+  "model": {
+    "default": "qwen3.5-0.8b-q4-k-m",
+    "defaultReplacedByTraining": false,
+    "actualLocalInference": "lfm2.5-350m-q4-k-m",
+    "modelSource": "Official 1.4.0 Web artifact; original SHA-256 verified"
+  },
+  "training": {
+    "validatedRecords": 432,
+    "families": 42,
+    "templates": 72,
+    "train": 264,
+    "validation": 78,
+    "test": 90,
+    "productionQwenTraining": false,
+    "newProductionModel": false,
+    "baseAdapterComparison": false,
+    "tinyRandomArchitectureSmoke": true,
+    "remaining": "Expand/review corpus and run actual pinned-checkpoint LoRA/evaluation on authorized hardware"
+  },
+  "builds": {
+    "typescript": "passed",
+    "viteFrontend": "passed",
+    "viteBundleCompleteWithQwenWeights": false,
+    "completeNewInstallersBuilt": false,
+    "macRuntimeStaging": [
+      "mac-arm64",
+      "mac-x64"
+    ],
+    "macExecutionTested": false,
+    "windowsExecutionThisBranchTested": false,
+    "androidCompileThisBranchTested": false
+  },
+  "blockingEnvironmentLimits": [
+    "Hugging Face denied by network policy",
+    "No physical GPU",
+    "Flatpak user namespace UID map read-only",
+    "Android SDK absent"
+  ],
+  "releaseReady": false,
+  "nextActions": [
+    "Review local commits, then push only with separate authorization and run candidate CI",
+    "Resolve Flatpak launch with the added subprocess logs",
+    "Rerun optional 2.6B and packaged Windows/Linux/macOS checks",
+    "Validate real Vulkan offload and fallback on physical Linux/Windows GPUs",
+    "Build complete Qwen installers and rerun Android signed upgrade gates without changing the signing key",
+    "Expand/review SFT data; train/evaluate original pinned Qwen checkpoint before considering a default change"
+  ]
+}

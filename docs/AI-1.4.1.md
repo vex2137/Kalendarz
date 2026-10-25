@@ -179,3 +179,23 @@ requires a compatible complete file. On headless Linux, provide an X display.
 then run the candidate CI and physical GPU acceptance gates before considering a
 release. No source history was rewritten, no user data removed, and no push,
 release publication or signing changes occurred during this session.
+
+## Final local result
+
+Implementation commits: `dd9787a`, `e227a52`, `f105444`, `67989a0` on
+`feat/ai-141-ultimate`. All four are local descendants of the exact PR #10 head.
+The report itself is recorded in a final documentation commit. The working tree
+is clean after those commits; no push or publication was performed.
+
+Final formal tests: **128 application + 18 native/directory + 3 Python pipeline =
+149 passed, zero failed, zero skipped**. Six additional script-based integration
+suites passed; their assertions are not counted as extra unit tests. These final
+counts describe the corrected source, not intermediate failures during debugging.
+TypeScript and the frontend-only Vite build passed. Full installer/Android/GPU
+hardware checks remain unexecuted or blocked as listed above.
+
+At the last remote read of PR #10 head: 7 checks passed, 6 failed, 2 skipped and
+3 remained in progress. Those checks have not run on this local branch. The local
+results do not replace CI or establish release readiness.
+
+Machine-readable evidence, scope and remaining work: [`validation-141.json`](validation-141.json).
