@@ -8,7 +8,7 @@ const {chromium}=require('playwright');
 (async()=>{
   assert.ok(process.env.CALENDAR_140_WEB_DIR,'Set CALENDAR_140_WEB_DIR to the extracted official 1.4.0 Web ZIP');
   let root=path.resolve(process.env.CALENDAR_140_WEB_DIR),browser;
-  const oldBuild=JSON.parse(await fs.readFile(path.join(root,'build-info.json'),'utf8'));assert.equal(oldBuild.version,'1.4.0');
+  const oldBuild=JSON.parse(await fs.readFile(path.join(root,'build-info.json'),'utf8'));assert.equal(oldBuild.version,process.env.CALENDAR_UPGRADE_SOURCE_VERSION||'1.4.0');
   const server=http.createServer(async(request,response)=>{
     try{
       const pathname=decodeURIComponent(new URL(request.url,'http://localhost').pathname);const file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
@@ -59,6 +59,6 @@ const {chromium}=require('playwright');
     assert.deepEqual(await snapshot(),before,'The same browser/origin must retain events, history, settings, model selection and OPFS bytes');
     assert.equal(await page.locator('html').getAttribute('data-theme'),'custom:upgrade-fixture');
     await page.reload();await page.locator('#btn-open-ai-assistant').click();await page.getByText('Synthetic upgrade history',{exact:true}).waitFor();assert.deepEqual(await snapshot(),before);
-    console.log('PASS official 1.4.0 → 1.4.1 same-origin upgrade and restart preserve recurring event, reminders, custom theme, language, settings, AI history, model identity and OPFS bytes');
+    console.log(`PASS ${oldBuild.version} → ${newBuild.version} same-origin upgrade and restart preserve recurring event, reminders, custom theme, language, settings, AI history, model identity and OPFS bytes`);
   }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);process.exitCode=1;});
