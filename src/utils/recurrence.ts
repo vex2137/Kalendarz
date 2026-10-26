@@ -203,6 +203,9 @@ export interface CalendarOccurrence {
   occurrenceDate: string;
   startMinutes: number;
   endMinutes: number;
+  /** Derived display instants for zoned events; never persisted in CalendarEvent. */
+  startInstant?: number;
+  endInstant?: number;
 }
 export function occurrenceDates(
   event: CalendarEvent,
@@ -229,7 +232,8 @@ export function buildEventIndex(
   from: string,
   to: string,
 ): Map<string, CalendarOccurrence[]> {
-  const key = `${from}:${to}`;
+  // A running app can change system zones; never reuse occurrences in the old zone.
+  const key = `${from}:${to}:${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
   const previous = indexCache.get(events)?.get(key);
   if (previous) return previous;
   const result = new Map<string, CalendarOccurrence[]>();
@@ -252,9 +256,12 @@ export function buildEventIndex(
         end = addDays(start, span),
         startTime = event.startTime,
         endTime = event.endTime;
+      let actualStart: number | undefined, actualEnd: number | undefined;
       if (event.timeZone && !event.allDay) {
         const startInstant = zonedDateTime(start, startTime!, event.timeZone),
           endInstant = zonedDateTime(end, endTime!, event.timeZone);
+        actualStart = startInstant.getTime();
+        actualEnd = endInstant.getTime();
         start = localDate(startInstant);
         end = localDate(endInstant);
         startTime = `${String(startInstant.getHours()).padStart(2, '0')}:${String(startInstant.getMinutes()).padStart(2, '0')}`;
@@ -267,15 +274,24 @@ export function buildEventIndex(
       ) {
         const startMinutes =
           event.allDay || date !== start ? 0 : minutes(startTime);
-        const endMinutes =
+        let endMinutes =
           event.allDay || date !== end ? 1440 : minutes(endTime);
-        if (!event.allDay && endMinutes <= startMinutes) continue;
+        const instants = actualStart !== undefined && actualEnd !== undefined ? {
+          startInstant: Math.max(actualStart, new Date(`${date}T00:00:00`).getTime()),
+          endInstant: Math.min(actualEnd, new Date(`${addDays(date, 1)}T00:00:00`).getTime()),
+        } : undefined;
+        if (!event.allDay && endMinutes <= startMinutes) {
+          // During the repeated hour, a later instant can have an earlier wall time.
+          if (!instants || instants.endInstant <= instants.startInstant) continue;
+          endMinutes = Math.min(1440, startMinutes + (instants.endInstant - instants.startInstant) / 60000);
+        }
         const occurrence = {
           event,
           date,
           occurrenceDate,
           startMinutes,
           endMinutes,
+          ...instants,
         };
         const bucket = result.get(date);
         if (bucket) bucket.push(occurrence);

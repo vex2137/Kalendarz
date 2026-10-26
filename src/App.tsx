@@ -74,6 +74,9 @@ const CalendarPanel = memo(function CalendarPanel({
   onSelectEvent,
   onCreateAtTime,
   onSelectMonth,
+  onFocusDate,
+  monthDay,
+  startOfWeek,
   language,
   now,
 }: {
@@ -84,13 +87,17 @@ const CalendarPanel = memo(function CalendarPanel({
   onSelectEvent: (event: CalendarEvent) => void;
   onCreateAtTime: (date: string, hour: number) => void;
   onSelectMonth: (month: number) => void;
+  onFocusDate: (date: string | null) => void;
+  monthDay: string | null;
+  startOfWeek: number;
   language: import('./utils/i18n').AppLanguage;
   now: Date;
 }) {
   return (
-    <main className="flex-1 min-h-0 flex flex-col max-w-7xl w-full mx-auto p-1 sm:p-4 pb-20 sm:pb-4 overflow-hidden min-w-0">
+    <main className="calendar-workspace">
       {viewMode === 'year' && (
         <YearView
+          startOfWeek={startOfWeek}
           {...{
             currentDate,
             events,
@@ -103,6 +110,10 @@ const CalendarPanel = memo(function CalendarPanel({
       )}
       {viewMode === 'month' && (
         <MonthView
+          key={localDate(currentDate).slice(0, 7)}
+          onFocusDate={onFocusDate}
+          selectedDate={monthDay}
+          startOfWeek={startOfWeek}
           {...{
             currentDate,
             events,
@@ -115,11 +126,13 @@ const CalendarPanel = memo(function CalendarPanel({
       )}
       {(viewMode === 'week' || viewMode === 'day') && (
         <DayWeekView
+          startOfWeek={startOfWeek}
           {...{
             currentDate,
             viewMode,
             events,
             onSelectEvent,
+            onSelectDay,
             onCreateAtTime,
             language,
             now,
@@ -150,6 +163,7 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(loadStoredSettings);
   const [settingsError, setSettingsError] = useState('');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [monthDay, setMonthDay] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<CalendarViewMode>(
     settings.defaultView || 'month',
   );
@@ -322,7 +336,8 @@ export default function App() {
     isPinLocked,
   ]);
   const navigate = useCallback(
-    (direction: number) =>
+    (direction: number) => {
+      setMonthDay(null);
       setCurrentDate((prev) => {
         if (
           viewMode === 'month' ||
@@ -335,10 +350,16 @@ export default function App() {
           prev.getDate() + direction * (viewMode === 'week' ? 7 : 1),
         );
         return next;
-      }),
+      });
+    },
     [viewMode],
   );
-  const today = useCallback(() => setCurrentDate(new Date()), []);
+  const today = useCallback(() => { setMonthDay(null); setCurrentDate(new Date()); }, []);
+  const changeView = useCallback((mode: CalendarViewMode) => {
+    if (viewMode === 'month' && monthDay && mode !== 'month') setCurrentDate(new Date(`${monthDay}T12:00:00`));
+    if (mode !== viewMode) setMonthDay(null);
+    setViewMode(mode);
+  }, [viewMode, monthDay]);
   const create = useCallback((date?: string, time?: string) => {
     setSelectedEvent(null);
     setInitialDate(date || localDate());
@@ -352,10 +373,12 @@ export default function App() {
     setModal('event');
   }, []);
   const selectDay = useCallback((date: string) => {
+    setMonthDay(null);
     setCurrentDate(new Date(`${date}T12:00:00`));
     setViewMode('day');
   }, []);
   const selectMonth = useCallback((month: number) => {
+    setMonthDay(null);
     setCurrentDate((prev) => shiftMonth(prev, month - prev.getMonth()));
     setViewMode('month');
   }, []);
@@ -419,9 +442,10 @@ export default function App() {
       ) : (
         <>
           <TopNavBar
+            startOfWeek={settings.startOfWeek}
             currentDate={currentDate}
             viewMode={viewMode}
-            onViewModeChange={setViewMode}
+            onViewModeChange={changeView}
             onNavigatePrev={() => navigate(-1)}
             onNavigateNext={() => navigate(1)}
             onNavigateToday={today}
@@ -440,7 +464,7 @@ export default function App() {
             onDismiss={() => setActiveNotification(null)}
             onOpenEvent={select}
           />
-          <CalendarNavigation enabled={ready && !isPinLocked && !modal} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
+          <CalendarNavigation enabled={ready && !isPinLocked && !modal} allowHorizontalScroll={viewMode === 'week'} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
           <CalendarPanel
             {...{
               currentDate,
@@ -450,6 +474,9 @@ export default function App() {
               onSelectEvent: select,
               onCreateAtTime: createAt,
               onSelectMonth: selectMonth,
+              onFocusDate: setMonthDay,
+              monthDay,
+              startOfWeek: settings.startOfWeek,
               language,
               now,
             }}
@@ -457,7 +484,7 @@ export default function App() {
           </CalendarNavigation>
           <BottomNavMobile
             viewMode={viewMode}
-            onViewModeChange={setViewMode}
+            onViewModeChange={changeView}
             todayDayNumber={now.getDate()}
             onNavigateToday={today}
             language={language}

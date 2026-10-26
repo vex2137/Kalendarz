@@ -1,119 +1,54 @@
-import React, { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { CalendarEvent } from '../types';
-import { buildEventIndex, type CalendarOccurrence } from '../utils/recurrence';
-import { addDays, localDate, locale, timeString } from '../utils/dates';
-import { GOOGLE_CALENDAR_COLORS } from '../utils/constants';
+import { buildEventIndex } from '../utils/recurrence';
+import { addDays, localDate, locale } from '../utils/dates';
+import { agendaRows } from '../utils/calendarLayout';
+import { calendarText } from '../utils/calendarText';
 import { getTranslation, type AppLanguage } from '../utils/i18n';
+import { CalendarEventCard } from './CalendarEventCard';
 interface Props {
-  events: CalendarEvent[];
-  onSelectEvent: (e: CalendarEvent) => void;
-  onSelectDay: (date: string) => void;
-  language?: AppLanguage;
-  now?: Date;
-  startDate?: string;
+  events: CalendarEvent[]; onSelectEvent: (event: CalendarEvent) => void;
+  onSelectDay: (date: string) => void; language?: AppLanguage; now?: Date;
+  startDate?: string; endDate?: string; emptyMessage?: string; embedded?: boolean;
 }
-export function AgendaView({
-  events,
-  onSelectEvent,
-  onSelectDay,
-  language = 'pl',
-  now = new Date(),
-  startDate = localDate(now),
-}: Props) {
-  const today = localDate(now),
-    t = getTranslation(language);
-  const rows = useMemo(() => {
-    const index = buildEventIndex(events, startDate, addDays(startDate, 59));
-    const result: { date: string; occurrence?: CalendarOccurrence }[] = [];
-    for (const [date, bucket] of [...index].sort(([a], [b]) =>
-      a.localeCompare(b),
-    )) {
-      result.push({ date });
-      for (const occurrence of bucket) result.push({ date, occurrence });
-    }
-    return result;
-  }, [events, startDate]);
+export function AgendaView({ events, onSelectEvent, onSelectDay, language = 'en', now = new Date(),
+  startDate = localDate(now), endDate, emptyMessage, embedded = false }: Props) {
+  const today = localDate(now), t = getTranslation(language), text = calendarText(language);
+  const [range, setRange] = useState({ start: startDate, length: 60 });
+  const length = range.start === startDate ? range.length : 60;
+  const until = endDate || addDays(startDate, length - 1);
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const rows = useMemo(() => agendaRows(buildEventIndex(events, startDate, until)), [events, startDate, until, zone]);
   const parent = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (parent.current) parent.current.scrollTop = 0; }, [startDate, endDate]);
   const virtual = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parent.current,
-    estimateSize: (i) => (rows[i].occurrence ? 78 : 44),
-    overscan: 6,
-    getItemKey: (i) =>
-      rows[i].occurrence
-        ? `${rows[i].date}-${rows[i].occurrence!.occurrenceDate}-${rows[i].occurrence!.event.id}`
-        : rows[i].date,
+    count: rows.length, getScrollElement: () => parent.current,
+    useAnimationFrameWithResizeObserver: true,
+    estimateSize: i => rows[i].occurrence ? 100 : 52, overscan: 6,
+    getItemKey: i => rows[i].occurrence ? `${rows[i].date}:${rows[i].occurrence!.occurrenceDate}:${rows[i].occurrence!.event.id}` : rows[i].date,
   });
-  return (
-    <div
-      ref={parent}
-      className="flex-1 min-h-0 overflow-auto p-2 sm:p-4"
-      aria-label={t.agenda}
-    >
-      {!rows.length && (
-        <p className="p-8 text-center theme-muted">{t.noEvents}</p>
-      )}
-      <div
-        className="relative max-w-3xl mx-auto"
-        style={{ height: virtual.getTotalSize() }}
-      >
-        {virtual.getVirtualItems().map((item) => {
-          const row = rows[item.index],
-            occurrence = row.occurrence,
-            event = occurrence?.event;
-          return (
-            <div
-              key={item.key}
-              data-index={item.index}
-              ref={virtual.measureElement}
-              className="absolute left-0 w-full pb-2"
-              style={{ transform: `translateY(${item.start}px)` }}
-            >
-              {event ? (
-                <button
-                  onClick={() => onSelectEvent(event)}
-                  className="w-full text-left theme-surface theme-border border rounded-xl p-3 flex gap-3 items-center"
-                >
-                  <span
-                    className="w-1 h-10 rounded shrink-0"
-                    style={{
-                      background: GOOGLE_CALENDAR_COLORS[event.color].dot,
-                    }}
-                  />
-                  <span className="min-w-0">
-                    <span className="block font-semibold truncate">
-                      {event.title}
-                    </span>
-                    <span className="block text-xs theme-muted">
-                      {event.allDay
-                        ? t.allDay
-                        : `${timeString(occurrence!.startMinutes)} – ${occurrence!.endMinutes === 1440 ? '24:00' : timeString(occurrence!.endMinutes)}`}
-                      {event.location ? ` · ${event.location}` : ''}
-                    </span>
-                  </span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => onSelectDay(row.date)}
-                  className="font-semibold text-sm py-2 text-left"
-                >
-                  {row.date === today ? `${t.today} · ` : ''}
-                  {new Date(`${row.date}T12:00:00`).toLocaleDateString(
-                    locale(language),
-                    {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    },
-                  )}
-                </button>
-              )}
-            </div>
-          );
+  return <div ref={parent} className={`calendar-agenda ${embedded ? 'calendar-agenda-embedded' : 'calendar-panel'}`}
+    aria-label={t.agenda} data-testid="agenda-list" data-start={startDate} data-end={until}>
+    <div className="calendar-agenda-content">
+      {!endDate && <p className="calendar-range-label">{startDate} — {until}</p>}
+      {!rows.length && <p className="calendar-empty" role="status">{emptyMessage || text.rangeEmpty}</p>}
+      <div className="relative" style={{ height: virtual.getTotalSize() }}>
+        {virtual.getVirtualItems().map(item => {
+          const row = rows[item.index];
+          return <div key={item.key} data-index={item.index} ref={virtual.measureElement}
+            className="absolute left-0 w-full pb-2" style={{ transform: `translateY(${item.start}px)` }}>
+            {row.occurrence ? <CalendarEventCard occurrence={row.occurrence} language={language} onSelectEvent={onSelectEvent} /> :
+              <button type="button" onClick={() => onSelectDay(row.date)} className="calendar-agenda-date"
+                aria-current={row.date === today ? 'date' : undefined}>
+                {row.date === today ? `${t.today} · ` : ''}
+                {new Date(`${row.date}T12:00:00`).toLocaleDateString(locale(language), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </button>}
+          </div>;
         })}
       </div>
+      {!endDate && <button type="button" className="calendar-button agenda-load-more"
+        onClick={() => setRange({ start: startDate, length: length + 60 })}>{text.nextEvents}</button>}
     </div>
-  );
+  </div>;
 }

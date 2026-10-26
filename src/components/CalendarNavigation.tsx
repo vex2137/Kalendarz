@@ -4,8 +4,8 @@ const editing = (target: EventTarget | null) => target instanceof Element && Boo
   'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="slider"], [role="spinbutton"], [role="combobox"], [data-no-swipe]',
 ));
 
-export function CalendarNavigation({ enabled, dateKey, onNavigate, children }: {
-  enabled: boolean; dateKey: string; onNavigate: (direction: number) => void; children: React.ReactNode;
+export function CalendarNavigation({ enabled, dateKey, onNavigate, children, allowHorizontalScroll = false }: {
+  enabled: boolean; dateKey: string; onNavigate: (direction: number) => void; children: React.ReactNode; allowHorizontalScroll?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const gesture = useRef<{ id: number; x: number; y: number; vertical: boolean } | null>(null);
@@ -39,7 +39,7 @@ export function CalendarNavigation({ enabled, dateKey, onNavigate, children }: {
   }, [dateKey]);
   useEffect(() => () => animation.current?.cancel(), []);
   return <div ref={root} data-testid="calendar-navigation" data-date-key={dateKey} className="calendar-gesture-area flex flex-1 min-h-0 min-w-0 overflow-hidden"
-    style={{ touchAction: 'pan-y pinch-zoom' }}
+    style={{ touchAction: allowHorizontalScroll ? 'pan-x pan-y pinch-zoom' : 'pan-y pinch-zoom' }}
     onPointerDownCapture={event => {
       if (!enabled || event.pointerType !== 'touch' || !event.isPrimary || editing(event.target)) { gesture.current = null; return; }
       gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, vertical: false };

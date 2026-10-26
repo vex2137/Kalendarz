@@ -89,10 +89,18 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
     for (const view of Object.keys(expected)) {
       await touch.page.getByRole('navigation', { name: 'Calendar views', exact: true }).getByRole('button', { name: new RegExp(`${labels[view]}$`) }).click();
       await touch.page.locator('#btn-nav-today').click();
+      const weekBefore = view === 'week' ? await dateKey(touch.page) : null;
+      const scrollBefore = view === 'week' ? await touch.page.locator('.calendar-week-scroller').evaluate(n => n.scrollLeft) : 0;
       await swipe(330, 330, 65, 333);
+      if (view === 'week') {
+        assert.equal(await dateKey(touch.page), weekBefore, 'panning the week must retain its dates');
+        await touch.page.waitForFunction(before => document.querySelector('.calendar-week-scroller').scrollLeft !== before, scrollBefore);
+        await touch.page.locator('#btn-nav-next').click();
+      }
       await touch.page.waitForFunction(value => document.querySelector('[data-testid="calendar-navigation"]').dataset.dateKey.startsWith(value), expected[view]);
       assert.equal(await touch.page.getByRole('dialog').count(), 0, 'swipe must not click the event underneath');
-      await swipe(65, 330, 330, 332);
+      if (view === 'week') await touch.page.locator('#btn-nav-prev').click();
+      else await swipe(65, 330, 330, 332);
       assert.ok((await dateKey(touch.page)).startsWith('2026-10-21'));
       const before = await dateKey(touch.page); await swipe(180, 620, 184, 320); assert.equal(await dateKey(touch.page), before);
     }
@@ -101,7 +109,7 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
     await swipe(330, 330, 65, 333, 1600);
     assert.ok((await dateKey(touch.page)).startsWith(expected.month), 'slow gestures remain valid');
     await touch.ctx.close();
-    console.log('PASS real touch swipes in all five views, reverse swipes, vertical-scroll exclusion and no accidental click.');
+    console.log('PASS touch period swipes, internal week panning with period buttons, reverse navigation, vertical-scroll exclusion and no accidental click.');
 
     }
     if (!section || section === 'sync') {

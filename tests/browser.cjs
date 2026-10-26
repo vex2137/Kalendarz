@@ -304,6 +304,7 @@ async function until(fn) {
     );
     await a.evaluate(() => window.restoreWrite());
     await a.keyboard.press('Escape');
+    await a.getByRole('button', { name: 'Odrzuć zmiany', exact: true }).click();
     await a.evaluate(() => {
       navigator.mediaDevices.getUserMedia = () =>
         new Promise((resolve) => {
@@ -457,6 +458,12 @@ async function until(fn) {
     await offline.close();
   } catch (error) {
     console.error(serverLog);
+    if (browser) {
+      for (const [index, ctx] of browser.contexts().entries()) for (const [tab, page] of ctx.pages().entries()) {
+        console.error('Failure context', index, tab, await page.getByRole('dialog').evaluateAll(nodes => nodes.map(n => ({ label: n.getAttribute('aria-label'), buttons: [...n.querySelectorAll('button')].map(b => b.textContent?.trim()).slice(0, 8) }))));
+        await page.screenshot({ path: `/tmp/kalendarz-regression-${index}-${tab}.png` }).catch(() => {});
+      }
+    }
     throw error;
   } finally {
     await browser?.close();

@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import type { CalendarViewMode } from '../types';
 import { MONTH_NAMES, getTranslation, type AppLanguage } from '../utils/i18n';
+import { localDate, locale } from '../utils/dates';
+import { weekDates } from '../utils/calendarLayout';
 interface Props {
   currentDate: Date;
   viewMode: CalendarViewMode;
@@ -21,10 +23,17 @@ interface Props {
   onOpenDownload?: () => void;
   isAiEnabled: boolean;
   language?: AppLanguage;
+  startOfWeek?: number;
 }
 export function TopNavBar(p: Props) {
   const language = p.language || 'en';
   const t = getTranslation(language);
+  const formatter = new Intl.DateTimeFormat(locale(language), { day: 'numeric', month: 'short', year: 'numeric' });
+  const week = weekDates(localDate(p.currentDate), p.startOfWeek ?? 1);
+  const heading = p.viewMode === 'year' ? String(p.currentDate.getFullYear()) : p.viewMode === 'day'
+    ? formatter.format(p.currentDate) : p.viewMode === 'week'
+      ? formatter.formatRange(new Date(`${week[0]}T12:00:00`), new Date(`${week[6]}T12:00:00`))
+      : `${MONTH_NAMES[language][p.currentDate.getMonth()]} ${p.currentDate.getFullYear()}`;
   const modes = [
     ['year', t.year], ['month', t.month], ['week', t.week],
     ['day', t.day], ['agenda', t.agenda],
@@ -42,14 +51,13 @@ export function TopNavBar(p: Props) {
       color: 'text-sky-500 bg-sky-500/10 border-sky-500/25 hover:bg-sky-500/20' }] : []),
   ];
   return (
-    <header className="shrink-0 sticky top-0 z-30 theme-header theme-border border-b px-3 sm:px-4 safe-top pb-2">
-      <div className="max-w-7xl mx-auto flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex items-center justify-between gap-3 sm:gap-5 min-w-0">
+    <header className="calendar-topbar shrink-0 sticky top-0 z-30 theme-header theme-border border-b px-3 sm:px-4 safe-top pb-2">
+      <div className="calendar-topbar-shell mx-auto flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="calendar-date-controls flex items-center justify-between gap-3 sm:gap-5 min-w-0">
           <div className="min-w-0">
             <p className="text-[11px] font-medium theme-muted leading-4">{t.appName}</p>
-            <h2 className="text-sm sm:text-lg font-semibold whitespace-nowrap">
-              {MONTH_NAMES[language][p.currentDate.getMonth()]}{' '}
-              <span className="theme-muted font-normal">{p.currentDate.getFullYear()}</span>
+            <h2 className="text-sm sm:text-lg font-semibold" aria-live="polite" data-testid="calendar-heading">
+              {heading}
             </h2>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -58,16 +66,16 @@ export function TopNavBar(p: Props) {
               {t.today}
             </button>
             <button id="btn-nav-prev" aria-label={tr(language, 'Poprzedni', 'Previous')}
-              onClick={p.onNavigatePrev} className="w-9 h-11 sm:h-10 rounded-lg theme-hover flex items-center justify-center">
+              onClick={p.onNavigatePrev} className="w-11 h-11 rounded-lg theme-hover flex items-center justify-center">
               <ChevronLeft size={18} />
             </button>
             <button id="btn-nav-next" aria-label={tr(language, 'Następny', 'Next')}
-              onClick={p.onNavigateNext} className="w-9 h-11 sm:h-10 rounded-lg theme-hover flex items-center justify-center">
+              onClick={p.onNavigateNext} className="w-11 h-11 rounded-lg theme-hover flex items-center justify-center">
               <ChevronRight size={18} />
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-2 sm:gap-1">
+        <div className="calendar-global-actions flex items-center gap-2 sm:gap-1">
           {actions.map(({ id, label, click, Icon, color }) => (
             <button key={id} id={id} aria-label={label} title={label} onClick={click}
               className={`flex-1 sm:flex-none sm:w-10 h-11 sm:h-10 min-w-0 rounded-xl border flex items-center justify-center transition-colors ${color}`}>
@@ -75,17 +83,17 @@ export function TopNavBar(p: Props) {
             </button>
           ))}
           <button id="btn-create-event-top" onClick={p.onOpenCreateModal}
-            className="hidden sm:flex items-center gap-1 min-h-10 px-3 theme-primary bg-blue-600 text-white rounded-lg text-xs">
+            className="calendar-button calendar-primary hidden sm:flex items-center gap-1 theme-primary">
             <Plus size={18} />{t.create}
           </button>
         </div>
       </div>
-      <nav className="hidden sm:grid grid-cols-5 gap-1 max-w-2xl mx-auto mt-2 theme-subtle p-1 rounded-xl"
+      <nav className="calendar-view-nav hidden sm:grid grid-cols-5 gap-1 max-w-2xl mx-auto mt-2 theme-subtle p-1 rounded-xl"
         aria-label={tr(language, 'Widoki kalendarza', 'Calendar views')}>
         {modes.map(([id, label]) => (
           <button key={id} id={`btn-view-${id}`} aria-pressed={id === p.viewMode}
             onClick={() => p.onViewModeChange(id)}
-            className={`min-w-0 min-h-9 rounded-lg text-xs font-medium ${id === p.viewMode ? 'theme-surface shadow-sm' : 'theme-hover theme-muted'}`}>
+            className={`calendar-view-button min-w-0 min-h-11 rounded-lg text-xs font-medium ${id === p.viewMode ? 'theme-surface shadow-sm' : 'theme-hover theme-muted'}`}>
             {label}
           </button>
         ))}

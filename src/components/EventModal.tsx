@@ -4,7 +4,8 @@ import { Dialog } from './Dialog';
 import { localDate, addDays, minutes } from '../utils/dates';
 import { validateEvent } from '../utils/validation';
 import { getTranslation, type AppLanguage } from '../utils/i18n';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
+import { calendarText } from '../utils/calendarText';
 import {
   CalendarEvent,
   GoogleCalendarColor,
@@ -79,10 +80,23 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [reminders, setReminders] = useState<number[]>([defaultReminder]);
   const [customReminderVal, setCustomReminderVal] = useState<string>('');
   const [showCustomReminderInput, setShowCustomReminderInput] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const baseline = useRef<string | null>(null);
+  const [, initialized] = useState(0);
+  const snapshot = JSON.stringify([title, startDate, startTime, endDate, endTime, allDay,
+    location, description, color, recurrence, customRecurrence, reminders, preserveRule]);
+  useLayoutEffect(() => {
+    if (baseline.current === null) baseline.current = snapshot;
+  });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setShowDeleteConfirm(false);
     if (!isOpen) return;
+    baseline.current = null;
+    initialized(value => value + 1);
+    setShowDiscardConfirm(false);
+    setFormError('');
+    setPreserveRule(true);
 
     if (eventToEdit) {
       setTitle(eventToEdit.title);
@@ -149,6 +163,13 @@ export const EventModal: React.FC<EventModalProps> = ({
   ]);
 
   if (!isOpen) return null;
+  const text = calendarText(language);
+  const requestClose = () => {
+    if (saving) return;
+    if (showDeleteConfirm) { setShowDeleteConfirm(false); return; }
+    if (baseline.current !== null && baseline.current !== snapshot) setShowDiscardConfirm(true);
+    else onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     if (saving) return;
@@ -206,7 +227,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
   return (
     <Dialog
-      onClose={onClose}
+      onClose={requestClose}
       label={eventToEdit ? t.editEvent : t.newEvent}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
     >
@@ -216,7 +237,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       >
         {/* Custom In-App Delete Confirmation Modal (Replaces native browser popup) */}
         {showDeleteConfirm && (
-          <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-150">
+          <Dialog label={t.deleteEvent} onClose={() => { if (!saving) setShowDeleteConfirm(false); }} className="absolute inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="theme-surface theme-text rounded-2xl max-w-sm w-full p-5 shadow-2xl theme-border border text-center space-y-4">
               <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 mx-auto flex items-center justify-center">
                 <Trash2 className="w-6 h-6" />
@@ -241,6 +262,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 <button
                   type="button"
                   id="btn-confirm-delete-no"
+                  disabled={saving}
                   onClick={() => setShowDeleteConfirm(false)}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-bold shadow-xs transition-colors"
                 >
@@ -270,7 +292,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 </button>
               </div>
             </div>
-          </div>
+          </Dialog>
         )}
 
         {/* Top Header */}
@@ -300,7 +322,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               type="button"
               id="btn-close-event-modal"
               aria-label={t.close}
-              onClick={onClose}
+              onClick={requestClose}
               className="p-1.5 rounded-xl theme-muted hover:theme-text theme-hover transition-colors"
             >
               <X className="w-5 h-5" />
@@ -832,12 +854,12 @@ export const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Actions Bottom Bar */}
-          <div className="pt-3 theme-border border-t flex items-center justify-end gap-2">
+          <div className="event-form-actions pt-3 theme-border border-t flex items-center justify-end gap-2">
             <button
               type="button"
               id="btn-cancel-event-form"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-medium theme-muted hover:theme-text rounded-xl theme-hover transition-colors"
+              onClick={requestClose}
+              className="calendar-button"
             >
               {tr(language, 'Anuluj', 'Cancel')}
             </button>
@@ -845,13 +867,23 @@ export const EventModal: React.FC<EventModalProps> = ({
               type="submit"
               id="btn-save-event-form"
               disabled={saving}
-              className="px-5 py-2 text-xs font-bold text-white theme-primary bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+              className="calendar-button calendar-primary"
             >
               {tr(language, 'Zapisz', 'Save')}
             </button>
           </div>
         </form>
       </div>
+      {showDiscardConfirm && <Dialog label={text.unsaved} onClose={() => setShowDiscardConfirm(false)}
+        className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
+        <div className="calendar-panel p-5 max-w-sm w-full">
+          <h4 className="font-semibold mb-4">{text.unsaved}</h4>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="calendar-button" onClick={onClose}>{text.discard}</button>
+            <button type="button" className="calendar-button calendar-primary" onClick={() => setShowDiscardConfirm(false)}>{text.keepEditing}</button>
+          </div>
+        </div>
+      </Dialog>}
     </Dialog>
   );
 };

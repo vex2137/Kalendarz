@@ -26,6 +26,8 @@ const base = process.env.CALENDAR_TEST_URL || 'http://127.0.0.1:4176';
         for (const button of await nav.getByRole('button').all()) {
           await button.click();
           assert.equal(await button.getAttribute('aria-pressed'), 'true');
+          const heading = await page.getByTestId('calendar-heading').boundingBox();
+          assert.ok(heading.x >= 0 && heading.x + heading.width <= width, `clipped date heading at ${width}px (${language})`);
         }
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `horizontal overflow at ${width}px`);
         if (width < 640) assert.ok((await page.locator('header').boundingBox()).height <= 130, 'mobile header is unnecessarily tall');

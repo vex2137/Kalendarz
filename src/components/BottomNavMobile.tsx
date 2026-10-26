@@ -33,9 +33,9 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
         <button
           aria-pressed={viewMode === 'year'}
           onClick={() => onViewModeChange('year')}
-          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+          className={`calendar-view-button min-h-11 flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-colors ${
             viewMode === 'year'
-              ? 'text-blue-500 font-bold scale-105'
+              ? 'font-bold'
               : 'theme-muted hover:theme-text'
           }`}
         >
@@ -47,9 +47,9 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
         <button
           aria-pressed={viewMode === 'month'}
           onClick={() => onViewModeChange('month')}
-          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+          className={`calendar-view-button min-h-11 flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-colors ${
             viewMode === 'month'
-              ? 'text-blue-500 font-bold scale-105'
+              ? 'font-bold'
               : 'theme-muted hover:theme-text'
           }`}
         >
@@ -61,9 +61,9 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
         <button
           aria-pressed={viewMode === 'week'}
           onClick={() => onViewModeChange('week')}
-          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+          className={`calendar-view-button min-h-11 flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-colors ${
             viewMode === 'week'
-              ? 'text-blue-500 font-bold scale-105'
+              ? 'font-bold'
               : 'theme-muted hover:theme-text'
           }`}
         >
@@ -75,9 +75,9 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
         <button
           aria-pressed={viewMode === 'day'}
           onClick={() => onViewModeChange('day')}
-          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+          className={`calendar-view-button min-h-11 flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-colors ${
             viewMode === 'day'
-              ? 'text-blue-500 font-bold scale-105'
+              ? 'font-bold'
               : 'theme-muted hover:theme-text'
           }`}
         >
@@ -92,9 +92,9 @@ export const BottomNavMobile: React.FC<BottomNavMobileProps> = ({
         <button
           aria-pressed={viewMode === 'agenda'}
           onClick={() => onViewModeChange('agenda')}
-          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+          className={`calendar-view-button min-h-11 flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-colors ${
             viewMode === 'agenda'
-              ? 'text-blue-500 font-bold scale-105'
+              ? 'font-bold'
               : 'theme-muted hover:theme-text'
           }`}
         >

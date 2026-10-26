@@ -1,236 +1,81 @@
-import { tr } from '../utils/i18n';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
+import type { CalendarEvent } from '../types';
 import { buildEventIndex } from '../utils/recurrence';
-import {
-  MONTH_NAMES,
-  DAY_NAMES_SHORT,
-  getTranslation,
-  type AppLanguage,
-} from '../utils/i18n';
-import {
-  MONTH_NAMES_PL,
-  DAY_NAMES_SHORT_PL,
-  GOOGLE_CALENDAR_COLORS,
-} from '../utils/constants';
-import { CalendarEvent } from '../types';
+import { addDays, localDate, locale, timeString } from '../utils/dates';
+import { monthDates, monthWeekSegments } from '../utils/calendarLayout';
+import { calendarText } from '../utils/calendarText';
+import { DAY_NAMES_SHORT, getTranslation, type AppLanguage } from '../utils/i18n';
+import { GOOGLE_CALENDAR_COLORS } from '../utils/constants';
+import { AgendaView } from './AgendaView';
 
-interface MonthViewProps {
-  currentDate: Date;
-  language?: AppLanguage;
-  now?: Date;
-  events: CalendarEvent[];
-  onSelectDay: (dateStr: string) => void;
-  onSelectEvent: (event: CalendarEvent) => void;
+interface Props {
+  currentDate: Date; language?: AppLanguage; now?: Date; events: CalendarEvent[];
+  onSelectDay: (date: string) => void; onSelectEvent: (event: CalendarEvent) => void;
+  startOfWeek?: number;
+  onFocusDate: (date: string | null) => void;
+  selectedDate?: string | null;
 }
-
-export const MonthView: React.FC<MonthViewProps> = ({
-  currentDate,
-  events,
-  onSelectDay,
-  onSelectEvent,
-  language = 'pl',
-  now = new Date(),
-}) => {
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth();
-
-  // Determine current day string
-  const t = getTranslation(language);
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-  // First day of current month
-  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
-  // Total days in current month
-  const daysInCurrentMonth = new Date(
-    currentYear,
-    currentMonth + 1,
-    0,
-  ).getDate();
-
-  // Day of week for 1st of month: 0 (Sun) to 6 (Sat)
-  let startDayOfWeek = firstDayOfMonth.getDay() - 1; // Convert to Mon=0 ... Sun=6
-  if (startDayOfWeek === -1) startDayOfWeek = 6;
-
-  // Days in previous month
-  const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
-
-  // Build grid cells (6 rows x 7 cols = 42 cells)
-  const calendarCells: {
-    dayNumber: number;
-    dateStr: string;
-    isCurrentMonth: boolean;
-    isToday: boolean;
-  }[] = [];
-
-  // Previous month trailing days
-  for (let i = startDayOfWeek - 1; i >= 0; i--) {
-    const day = daysInPrevMonth - i;
-    const prevMonthDate = new Date(currentYear, currentMonth - 1, day);
-    const dateStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    calendarCells.push({
-      dayNumber: day,
-      dateStr,
-      isCurrentMonth: false,
-      isToday: dateStr === todayStr,
-    });
-  }
-
-  // Current month days
-  for (let d = 1; d <= daysInCurrentMonth; d++) {
-    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    calendarCells.push({
-      dayNumber: d,
-      dateStr,
-      isCurrentMonth: true,
-      isToday: dateStr === todayStr,
-    });
-  }
-
-  // Next month leading days (fill up to 42 cells)
-  const remainingCells = 42 - calendarCells.length;
-  for (let d = 1; d <= remainingCells; d++) {
-    const nextMonthDate = new Date(currentYear, currentMonth + 1, d);
-    const dateStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    calendarCells.push({
-      dayNumber: d,
-      dateStr,
-      isCurrentMonth: false,
-      isToday: dateStr === todayStr,
-    });
-  }
-
-  const index = useMemo(
-    () =>
-      buildEventIndex(
-        events,
-        calendarCells[0].dateStr,
-        calendarCells[41].dateStr,
-      ),
-    [events, currentYear, currentMonth],
-  );
-  return (
-    <div className="flex flex-col flex-1 min-h-0 theme-surface rounded-2xl theme-border border overflow-hidden shadow-2xs transition-colors duration-200">
-      {/* Day of Week Headers */}
-      <div className="grid grid-cols-7 theme-border border-b bg-stone-500/5 text-center py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold theme-muted">
-        {DAY_NAMES_SHORT[language].map((day, idx) => (
-          <div key={day} className={idx >= 5 ? 'opacity-60' : ''}>
-            {day}
-          </div>
-        ))}
+export function MonthView({ currentDate, events, onSelectDay, onSelectEvent, onFocusDate, selectedDate: selected = null, language = 'en', now = new Date(), startOfWeek = 1 }: Props) {
+  const month = localDate(currentDate).slice(0, 7), today = localDate(now);
+  const dates = useMemo(() => monthDates(currentDate, startOfWeek), [month, startOfWeek]);
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const index = useMemo(() => buildEventIndex(events, addDays(dates[0], -1), addDays(dates.at(-1)!, 1)), [events, dates, zone]);
+  const weeks = useMemo(() => Array.from({ length: dates.length / 7 }, (_, i) => {
+    const days = dates.slice(i * 7, i * 7 + 7);
+    return { days, segments: monthWeekSegments(days, index) };
+  }), [dates, index]);
+  const text = calendarText(language), t = getTranslation(language);
+  const toggle = (date: string) => {
+    onFocusDate(selected === date ? null : date);
+  };
+  const defaultStart = month === today.slice(0, 7) ? today : `${month}-01`;
+  const dayNames = Array.from({ length: 7 }, (_, i) => DAY_NAMES_SHORT[language][(startOfWeek - 1 + i + 7) % 7]);
+  return <div className="month-view" data-testid="month-view" data-month={month}>
+    <section className="calendar-panel month-grid" aria-label={t.month}>
+      <div className="month-weekdays">{dayNames.map(day => <span key={day}>{day}</span>)}</div>
+      {weeks.map(({ days, segments }) => <div className="month-week" data-testid="month-week" key={days[0]}>
+        <div className="month-dates">
+          {days.map((date, day) => {
+            const bucket = index.get(date) || [], outside = date.slice(0, 7) !== month;
+            const hidden = (limit: number) => segments.filter(s => s.start <= day && s.end >= day && s.lane >= limit).length;
+            return <button type="button" key={date} id={`calendar-cell-${date}`}
+              data-date={date} aria-pressed={date === selected} aria-current={date === today ? 'date' : undefined}
+              aria-label={`${new Date(`${date}T12:00:00`).toLocaleDateString(locale(language), { dateStyle: 'full' })}, ${bucket.length} ${text.events}`}
+              onClick={() => toggle(date)}
+              className={`month-date ${outside ? 'month-date-outside' : ''} ${date === today ? 'calendar-today' : ''} ${date === selected ? 'calendar-selected' : ''}`}>
+              <span className="month-number">{Number(date.slice(-2))}</span>
+              {bucket.length > 0 && <span className="month-count" aria-hidden="true">{bucket.length}</span>}
+              {hidden(2) > 0 && <span className="month-overflow month-overflow-mobile">+{hidden(2)} {text.more}</span>}
+              {hidden(3) > 0 && <span className="month-overflow month-overflow-desktop">+{hidden(3)} {text.more}</span>}
+            </button>;
+          })}
+        </div>
+        <div className="month-segments">
+          {segments.filter(s => s.lane < 3).map(s => {
+            const event = s.occurrence.event;
+            return <button type="button" key={s.key} data-event-id={event.id} data-lane={s.lane}
+              data-start={s.start} data-end={s.end}
+              className={`month-segment ${s.continuesBefore ? 'segment-before' : ''} ${s.continuesAfter ? 'segment-after' : ''}`}
+              style={{ gridColumn: `${s.start + 1} / ${s.end + 2}`, gridRow: s.lane + 1,
+                '--event-color': GOOGLE_CALENDAR_COLORS[event.color].dot } as React.CSSProperties}
+              title={`${event.title} · ${event.allDay ? t.allDay : timeString(s.occurrence.startMinutes)}${s.continuesBefore || s.continuesAfter ? ` · ${text.continues}` : ''}`}
+              onClick={() => onSelectEvent(event)}>
+              {s.continuesBefore && <span aria-hidden="true">‹ </span>}
+              {!event.allDay && <span className="month-event-time">{timeString(s.occurrence.startMinutes)} </span>}
+              {event.title}{s.continuesAfter && <span aria-hidden="true"> ›</span>}
+            </button>;
+          })}
+        </div>
+      </div>)}
+    </section>
+    <section className="calendar-panel month-agenda" aria-labelledby="month-events-heading">
+      <div className="calendar-section-heading">
+        <h3 id="month-events-heading" aria-live="polite">{selected ? new Date(`${selected}T12:00:00`).toLocaleDateString(locale(language), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : text.upcoming}</h3>
+        {selected && <button type="button" className="calendar-button" onClick={() => onSelectDay(selected)}>{text.openDay} →</button>}
       </div>
-
-      {/* Days Grid */}
-      <div className="grid grid-cols-7 grid-rows-6 flex-1 theme-border divide-x divide-stone-500/15">
-        {calendarCells.map((cell, cellIndex) => {
-          // Filter events matching this date (including recurring rules)
-          const dayEvents = [
-            ...new Map(
-              (index.get(cell.dateStr) || []).map((o) => [o.event.id, o.event]),
-            ).values(),
-          ];
-
-          // Sort events: allDay first, then by startTime
-          const sortedEvents = [...dayEvents].sort((a, b) => {
-            if (a.allDay && !b.allDay) return -1;
-            if (!a.allDay && b.allDay) return 1;
-            return (a.startTime || '').localeCompare(b.startTime || '');
-          });
-
-          return (
-            <div
-              key={`${cell.dateStr}-${cellIndex}`}
-              id={`calendar-cell-${cell.dateStr}`}
-              onClick={() => onSelectDay(cell.dateStr)}
-              className={`flex flex-col p-1 sm:p-1.5 transition-colors cursor-pointer group border-b border-stone-500/15 overflow-hidden min-h-0 ${
-                cell.isCurrentMonth
-                  ? 'theme-surface hover:bg-stone-500/5'
-                  : 'bg-stone-500/5 hover:bg-stone-500/10'
-              }`}
-            >
-              {/* Day Header */}
-              <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                <button
-                  type="button"
-                  aria-label={`${cell.dateStr}, ${dayEvents.length}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectDay(cell.dateStr);
-                  }}
-                  className={`inline-flex items-center justify-center text-[11px] sm:text-xs font-medium rounded-full w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-105 ${
-                    cell.isToday
-                      ? 'theme-accent-fill bg-blue-600 text-white font-bold shadow-xs'
-                      : cell.isCurrentMonth
-                        ? 'theme-text'
-                        : 'theme-muted opacity-50'
-                  }`}
-                >
-                  {cell.dayNumber}
-                </button>
-
-                {/* Event Count Dot on Mobile */}
-                {sortedEvents.length > 0 && (
-                  <span className="sm:hidden flex items-center justify-center text-[9px] font-bold px-1 rounded-full bg-blue-500/20 text-blue-400">
-                    {sortedEvents.length}
-                  </span>
-                )}
-              </div>
-
-              {/* Event Chips (Desktop & Tablets) */}
-              <div className="hidden sm:flex flex-col gap-1 overflow-hidden">
-                {sortedEvents.slice(0, 3).map((ev) => {
-                  const colorDef =
-                    GOOGLE_CALENDAR_COLORS[ev.color] ||
-                    GOOGLE_CALENDAR_COLORS.peacock;
-
-                  return (
-                    <button
-                      key={ev.id}
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectEvent(ev);
-                      }}
-                      className={`w-full text-left px-1.5 py-0.5 rounded-md text-[11px] font-medium truncate transition-opacity hover:opacity-85 cursor-pointer flex items-center gap-1 shadow-2xs ${colorDef.bg} ${colorDef.text}`}
-                      title={`${ev.title} (${ev.allDay ? t.allDay : ev.startTime || ''})`}
-                    >
-                      {!ev.allDay && ev.startTime && (
-                        <span className="opacity-75 font-mono text-[9px] shrink-0">
-                          {ev.startTime}
-                        </span>
-                      )}
-                      <span className="truncate">{ev.title}</span>
-                    </button>
-                  );
-                })}
-
-                {/* More events overflow indicator */}
-                {sortedEvents.length > 3 && (
-                  <span className="text-[10px] font-medium theme-muted pl-1">
-                    +{sortedEvents.length - 3}{' '}
-                    {tr(language, 'więcej', 'more')}
-                  </span>
-                )}
-              </div>
-
-              {/* Mobile Event Dots indicator (Colored circles) */}
-              <div className="sm:hidden flex flex-wrap gap-1 mt-auto pb-0.5 max-h-3 overflow-hidden">
-                {sortedEvents.slice(0, 4).map((ev) => {
-                  const colorDef =
-                    GOOGLE_CALENDAR_COLORS[ev.color] ||
-                    GOOGLE_CALENDAR_COLORS.peacock;
-                  return (
-                    <span
-                      key={ev.id}
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ backgroundColor: colorDef.dot }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+      <AgendaView key={selected || defaultStart} events={events} language={language} now={now}
+        startDate={selected || defaultStart} endDate={selected || undefined} emptyMessage={selected ? text.noDayEvents : undefined}
+        onSelectEvent={onSelectEvent} onSelectDay={onSelectDay} embedded />
+    </section>
+  </div>;
+}
