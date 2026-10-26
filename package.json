@@ -31,6 +31,8 @@
     "test:models:folders": "node tests/model-folders-electron.cjs",
     "ai:data": "node --import tsx training/generate.ts",
     "ai:data:validate": "python3 training/validate_dataset.py",
+    "ai:142:data": "node --import tsx training/v142/generate.ts",
+    "ai:142:validate": "python3 training/conversation_dataset.py",
     "test:upgrade:141": "node tests/upgrade-141-browser.cjs",
     "test:native:fallback": "node tests/native-process-fallback.cjs"
   },

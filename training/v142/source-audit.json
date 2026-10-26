@@ -1,0 +1,9 @@
+{
+  "tag": "v1.4.1",
+  "commit": "ded3bdc5de00205987a0918b67145a96dc1c140f",
+  "archive_sha256": "2485cefb6bfddafb80ff77a383ffa51932a62c6ab7e109a8114d53df3c7d3946",
+  "tracked_files": 388,
+  "archive_files": 388,
+  "mismatches": [],
+  "weights_in_archive": false
+}

@@ -1,5 +1,9 @@
 # Calendar command SFT / LoRA
 
+For the active 1.4.2 mixed-dialogue experiment, RTX 4060 instructions and truthful
+artifact status, see [v142/README.md](v142/README.md). The original seed pipeline
+and historical evidence below are retained.
+
 This is a reproducible preparation pipeline, not a tuned production model.
 No application weights or defaults are changed by any script here.
 

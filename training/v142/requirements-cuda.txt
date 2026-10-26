@@ -1,0 +1,5 @@
+# Install the CUDA wheel from the official index; the CPU plumbing test is separate.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0+cu128
+-r ../requirements.txt
+-c requirements-lock.txt

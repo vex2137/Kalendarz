@@ -48,6 +48,7 @@ native/
 __pycache__/
 *.pyc
 training/data/
+training/v142/data/
 training/runs/
 training/exports/
 .venv-training/

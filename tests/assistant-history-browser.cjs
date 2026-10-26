@@ -41,6 +41,10 @@ const base='http://127.0.0.1:4184';
     assert.match(await page.locator('#drawer-ai-assistant').innerText(),/HistoryProbe/u);
     await settings();
     await page.waitForFunction(()=>!['checking','loading','running','downloading','verifying'].includes(document.querySelector('[data-testid=local-model-setup]').dataset.modelPhase));
+    // Qwen is already the 1.4.1 default. Switch away first so this actually
+    // exercises a model change, including model-free distributions.
+    await page.locator('[data-model-id="lfm2.5-350m-q4-k-m"]').getByRole('button',{name:'Use model'}).click();
+    await page.locator('[data-testid=local-model-setup][aria-label="LFM2.5 350M Q4_K_M"]').waitFor();
     await page.locator('[data-model-id="qwen3.5-0.8b-q4-k-m"]').getByRole('button',{name:'Use model'}).click();
     await page.locator('[data-testid=local-model-setup][aria-label="Qwen3.5 0.8B Q4_K_M"]').waitFor();
     await closeSettings();await send('Hello');assert.match(await page.locator('#drawer-ai-assistant').innerText(),/HistoryProbe/u);

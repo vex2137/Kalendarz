@@ -39,7 +39,7 @@ async function valid(file) {
     writeFileSync(join(directory, 'NOTICE.txt'), `Qwen3.5-0.8B by Qwen, distributed under Apache-2.0.\nGGUF quantization: mradermacher/Qwen3.5-0.8B-GGUF.\nWeights: ${model.url}\nSHA-256: ${model.sha256}\nOriginal license: ${model.license}\n`);
     // Staged assets contain exactly one model. Do not package a previous default.
     for (const name of readdirSync(directory)) if (name.endsWith('.gguf') && name !== model.file) rmSync(join(directory,name));
-    writeFileSync(join(directory,'catalogue.json'),JSON.stringify([model,...require('../src/utils/optionalModels.json')]));
+    writeFileSync(join(directory,'catalogue.json'),JSON.stringify([model,...require('../src/utils/optionalModels.json'),...require('../src/utils/fineTunedModels.json')]));
     writeFileSync(join(directory, 'manifest.json'), JSON.stringify({ file: model.file, bytes: model.bytes, sha256: model.sha256 }));
     console.log(`Bundled ${model.file}: ${model.bytes} bytes, SHA-256 verified.`);
   } finally { rmSync(temporary, { force: true }); }

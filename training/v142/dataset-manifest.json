@@ -1,0 +1,57 @@
+{
+  "version": "1.4.2-seed-1",
+  "records": 388,
+  "synthetic": true,
+  "privateData": false,
+  "review": "Source review and automated checks; independent linguistic review and model validation pending.",
+  "splits": {
+    "train": {
+      "records": 246,
+      "sha256": "12c4a1a7d13c35a11cae952f80af54a3ee63e19cf8fa49c960adbd732da3b750"
+    },
+    "validation": {
+      "records": 66,
+      "sha256": "33eb115b7f7eafbcf758ec1e04c91326f587806a622f5aa893bdcfaefd77ad42"
+    },
+    "test": {
+      "records": 76,
+      "sha256": "dd384a98b67288ac4833f73d26cabf99d7ce258f590d265f1f756c5064ff28dc"
+    }
+  },
+  "languages": {
+    "pl": 266,
+    "en": 122
+  },
+  "categories": {
+    "absolute": 24,
+    "relative": 30,
+    "times": 24,
+    "update": 24,
+    "delete": 24,
+    "search": 24,
+    "recurrence": 24,
+    "reminders": 26,
+    "clarification": 26,
+    "invalid": 24,
+    "tools": 24,
+    "typos": 30,
+    "conversation": 12,
+    "language": 6,
+    "no_hallucination": 20,
+    "safety": 22,
+    "multiturn": 24
+  },
+  "output_modes": {
+    "command": 308,
+    "text": 80
+  },
+  "families": 84,
+  "multiturn": 24,
+  "sources": {
+    "training/scenarios.ts": "54c3fd6339ec180bab103704812a48e197b45aadbc8e4ce953d5ff829bd88524",
+    "training/v142/curated.ts": "6107065404c75c4626f7d0f53f8795ad7d0de6af99bf5b1123f99637ea64401f",
+    "training/v142/generate.ts": "1ed1399d4a427477d8c0798324ef878da4ea0fc37bcb83b5f0bff00d7be4d752",
+    "src/utils/modelCommand.ts": "7a306bd5d4d8017476e9f1a4d5fb60c0a6f2d481685b701bc7744e1ac1146f48",
+    "src/utils/assistantPrompts.ts": "505214d6a220a8a5462811df25bc09d484c303bf2c03835049fc00e2cade90bf"
+  }
+}

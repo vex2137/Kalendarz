@@ -1,0 +1,19 @@
+{
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+  "ram_bytes": 10452471808,
+  "cuda": false,
+  "versions": {
+    "torch": "2.11.0+cpu",
+    "transformers": "5.20.2",
+    "peft": "0.21.2",
+    "accelerate": "1.15.0",
+    "datasets": "5.1.0"
+  },
+  "cgroup_memory_limit": "8589934592",
+  "records": {
+    "train": 246,
+    "validation": 66,
+    "test": 76
+  },
+  "tokenizer_checked": false
+}

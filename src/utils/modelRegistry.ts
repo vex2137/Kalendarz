@@ -1,5 +1,6 @@
 import fallback from './localModelManifest.json';
 import optionalModels from './optionalModels.json';
+import fineTunedModels from './fineTunedModels.json';
 import { BUILD_INFO } from './buildInfo';
 
 export interface ModelDescriptor {
@@ -8,7 +9,8 @@ export interface ModelDescriptor {
   estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean; imported?: boolean;
 }
 export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, bundled: BUILD_INFO.bundledModel !== false };
-export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, ...optionalModels];
+// Only measured, published artifacts belong here; local experiments use GGUF import.
+export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, ...optionalModels, ...fineTunedModels];
 export const OPTIONAL_FALLBACK = AI_MODELS.find(model => model.id === 'lfm2.5-350m-q4-k-m')!;
 const externalKey='calendar_external_ai_models_v1';
 let externalModels:ModelDescriptor[]=[];

@@ -7,7 +7,7 @@ const fs=require('node:fs/promises'),path=require('node:path');
  for(const entry of await fs.readdir(path.join(root,'public'))){if(entry!=='models')await fs.cp(path.join(root,'public',entry),path.join(target,entry),{recursive:true});}
  const model=require('../src/utils/localModelManifest.json');
  await fs.mkdir(path.join(target,'models'));
- await fs.writeFile(path.join(target,'models/catalogue.json'),JSON.stringify([model,...require('../src/utils/optionalModels.json')]));
+ await fs.writeFile(path.join(target,'models/catalogue.json'),JSON.stringify([model,...require('../src/utils/optionalModels.json'),...require('../src/utils/fineTunedModels.json')]));
  await fs.writeFile(path.join(target,'models/manifest.json'),JSON.stringify({file:model.file,bytes:model.bytes,sha256:model.sha256}));
  const label='KALENDARZ 1.4.1',names=['app_name','title_activity_main','launcher_name_en','launcher_name_pl','launcher_name_ru','launcher_name_de'];
  for(const qualifier of ['values','values-en','values-pl','values-de','values-ru']){
