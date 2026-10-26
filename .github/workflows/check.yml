@@ -5,6 +5,9 @@ on:
 jobs:
   web:
     runs-on: ubuntu-24.04
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,7 +17,11 @@ jobs:
         with:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
-      - run: npm run check
+      # Public PR checks cannot access the private bundled release weights.
+      - run: npm run lint && npm test
+      - run: python3 -m unittest discover -s tests -p test_release_v142.py
+      - run: node scripts/prepare-model-free.cjs
+      - run: node node_modules/vite/bin/vite.js build --mode production
       - run: npm run test:native
       - run: npm run ai:data && npm run ai:data:validate
       - run: npx playwright install --with-deps chromium
@@ -24,6 +31,9 @@ jobs:
       - run: node tests/model-actions-browser.cjs
   desktop:
     runs-on: ubuntu-24.04
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,7 +43,13 @@ jobs:
         with:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
-      - run: npm run build
+      - run: node scripts/prepare-model-free.cjs
+      - run: node node_modules/vite/bin/vite.js build --mode production
+      - name: Use the pinned public base model for desktop inference regression
+        run: |
+          export CALENDAR_EXTERNAL_MODEL="$RUNNER_TEMP/ci-models/Qwen3.5-0.8B.Q4_K_M.gguf"
+          npx --no-install tsx scripts/fetch-candidate-model.ts qwen3.5-0.8b-q4-k-m "$CALENDAR_EXTERNAL_MODEL"
+          echo "CALENDAR_EXTERNAL_MODEL=$CALENDAR_EXTERNAL_MODEL" >> "$GITHUB_ENV"
       - run: npx playwright install-deps chromium
       - run: npx electron-builder --linux dir --publish never
       - run: xvfb-run -a npm run test:desktop

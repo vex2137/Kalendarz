@@ -9,7 +9,7 @@ export function modelsForHuggingFaceLink(value: string): readonly ModelDescripto
   const parts = decodeURIComponent(url.pathname).split('/').filter(Boolean);
   if (parts.length < 2) throw new Error('model-link');
   const repo = `/${parts[0]}/${parts[1]}`.toLowerCase();
-  let matches = AI_MODELS.filter(model => new URL(model.url).pathname.toLowerCase().startsWith(repo + '/resolve/'));
+  let matches = AI_MODELS.filter(model => model.url && new URL(model.url).pathname.toLowerCase().startsWith(repo + '/resolve/'));
   if (parts.length > 2) {
     if (!['blob', 'resolve', 'tree'].includes(parts[2]) || !parts[3]) throw new Error('model-link');
     matches = matches.filter(model => parts[3] === 'main' || parts[3] === model.revision);

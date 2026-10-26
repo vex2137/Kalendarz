@@ -7,6 +7,7 @@ def calendarVersion = calendarPackage.version.tokenize('.').collect { it as int 
 def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
 def calendarVulkanDiagnostics = providers.gradleProperty('calendarVulkanDiagnostics').orElse('false').get().toBoolean()
 def calendarStableUpdate = providers.gradleProperty('calendarStableUpdate').orElse('false').get().toBoolean()
+def calendarQwenV2Update = providers.gradleProperty('calendarQwenV2Update').orElse('false').get().toBoolean()
 if (calendarVulkanDiagnostics && !calendarStableUpdate) throw new GradleException('Vulkan diagnostic APK requires calendarStableUpdate and the existing diagnostics identity')
 if (calendarStableUpdate && !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['assembleDiagnostics','assembleDiagnosticsAndroidTest','testDiagnosticsUnitTest'] }) {
     throw new GradleException('The model-free update preserves the diagnostics application ID and signing; use assembleDiagnostics')
@@ -17,6 +18,26 @@ if (calendarBeta && !gradle.startParameter.taskNames.every { it.tokenize(':').la
     throw new GradleException('Beta without bundled weights is allowed only for assembleDiagnostics')
 }
 def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
+if (calendarQwenV2Update) {
+    if (calendarPackage.version != '1.4.2' || calendarStableUpdate || calendarBeta || calendarVulkanDiagnostics || calendarTestSigning ||
+        !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['assembleDiagnostics','assembleDiagnosticsAndroidTest','testDiagnosticsUnitTest'] }) {
+        throw new GradleException('Qwen v2 update requires 1.4.2, assembleDiagnostics and no other distribution/signing flags')
+    }
+    if (!calendarKeystore || System.getenv('CALENDAR_REQUIRE_RELEASE_SIGNING') != 'true') {
+        throw new GradleException('Qwen v2 update requires the existing verified signing key; debug signing is forbidden')
+    }
+    try {
+        def store = java.security.KeyStore.getInstance(file(calendarKeystore), System.getenv('CALENDAR_KEYSTORE_PASSWORD').toCharArray())
+        def alias = System.getenv('CALENDAR_KEY_ALIAS')
+        def key = store.getKey(alias, System.getenv('CALENDAR_KEY_PASSWORD').toCharArray())
+        def cert = store.getCertificate(alias)
+        cert.checkValidity()
+        def digest = java.security.MessageDigest.getInstance('SHA-256').digest(cert.encoded).encodeHex().toString()
+        if (!(key instanceof java.security.PrivateKey) || digest != 'ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143') throw new Exception()
+    } catch (Exception ignored) {
+        throw new GradleException('Qwen v2 update signing identity/private key verification failed')
+    }
+}
 if (System.getenv('CALENDAR_REQUIRE_RELEASE_SIGNING') == 'true' && !calendarKeystore) {
     throw new GradleException('Stable Android signing is required; configure the CALENDAR_ANDROID_* GitHub secrets.')
 }
@@ -31,10 +52,11 @@ android {
         resValue 'string', 'calendar_build_commit', calendarWebBuild.commit
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarVulkanDiagnostics ? 4 : calendarStableUpdate ? 5 : calendarBeta ? 2 : 0)
+        versionCode (calendarQwenV2Update ? 10407 : calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarVulkanDiagnostics ? 4 : calendarStableUpdate ? 5 : calendarBeta ? 2 : 0))
         versionName calendarPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
+             if (calendarQwenV2Update) { noCompress 'gguf' }
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
@@ -54,9 +76,10 @@ android {
         diagnostics {
             initWith debug
             applicationIdSuffix '.diagnostics'
-            versionNameSuffix calendarStableUpdate ? '' : calendarBeta ? ' beta 3' : '-diagnostics'
+            versionNameSuffix ((calendarStableUpdate || calendarQwenV2Update) ? '' : calendarBeta ? ' beta 3' : '-diagnostics')
             matchingFallbacks = ['debug']
             signingConfig signingConfigs.debug
+            if (calendarQwenV2Update) signingConfig signingConfigs.stableRelease
         }
         // Opt in only for downloadable test APKs; production signing stays external.
         release {
@@ -79,6 +102,9 @@ android {
     }
     if (calendarStableUpdate) {
         sourceSets.diagnostics.res.setSrcDirs([rootProject.file('../build/model-free-res')])
+    }
+    if (calendarQwenV2Update) {
+        sourceSets.diagnostics.res.setSrcDirs([])
     }
     if (calendarBeta) {
         sourceSets.diagnostics.res.setSrcDirs([rootProject.file('../build/beta-res')])
@@ -139,6 +165,17 @@ tasks.register('verifyBundledModel') {
             return
         }
         def model = new groovy.json.JsonSlurper().parse(rootProject.file('../src/utils/localModelManifest.json'))
+        if (calendarQwenV2Update) {
+            def packagedBuild = new groovy.json.JsonSlurper().parse(file('src/main/assets/public/build-info.json'))
+            def packagedModel = new groovy.json.JsonSlurper().parse(file('src/main/assets/public/models/manifest.json'))
+            if (packagedBuild.version != '1.4.2' || packagedBuild.androidNative != true || packagedBuild.bundledModel == false || packagedBuild.distribution == 'model-free' ||
+                packagedBuild.commit != calendarWebBuild.commit || model.id != 'kalendarz-qwen35-v2-q4-k-m' || model.bytes != 529297056 ||
+                model.sha256 != 'fecd8b646db036ca27801f8a4c2d84c5f8baf981ba9a635ea0d2553b652eb1b5' ||
+                packagedModel.file != model.file || packagedModel.bytes != model.bytes || packagedModel.sha256 != model.sha256 ||
+                !rootProject.file('../build/android-jni/arm64-v8a/libcalendar_llama.so').isFile()) {
+                throw new GradleException('Qwen v2 update requires the matching bundled frontend, manifest and native ARM64 engine')
+            }
+        }
         def weights = file("src/main/assets/public/models/${model.file}")
         if (!weights.isFile() || weights.length() != model.bytes) throw new GradleException('Bundled model missing: run npm run build and npx cap sync android')
         def hash = java.security.MessageDigest.getInstance('SHA-256')

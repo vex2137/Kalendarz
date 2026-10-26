@@ -9,7 +9,7 @@ export interface ModelDescriptor {
   estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean; imported?: boolean;
 }
 export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, bundled: BUILD_INFO.bundledModel !== false };
-// Only measured, published artifacts belong here; local experiments use GGUF import.
+// The private bundled model has no download URL; optional catalogue entries remain available.
 export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, ...optionalModels, ...fineTunedModels];
 export const OPTIONAL_FALLBACK = AI_MODELS.find(model => model.id === 'lfm2.5-350m-q4-k-m')!;
 const externalKey='calendar_external_ai_models_v1';
@@ -38,5 +38,27 @@ export const PREFERRED_MODEL = DEFAULT_MODEL;
 export const shortModelName = (model: ModelDescriptor) => model.name.replace(` ${model.quantization}`, '');
 const selectionKey = 'calendar_active_ai_model_v1';
 export function hasModelSelection() { try { return Boolean(localStorage.getItem(selectionKey)); } catch { return false; } }
-export function activeModel() { try { return findModel(localStorage.getItem(selectionKey) || undefined); } catch { return DEFAULT_MODEL; } }
-export function persistModelSelection(model: ModelDescriptor) { localStorage.setItem(selectionKey, model.id); }
+const migrationKey = 'calendar_default_model_migration_v142';
+// Migrate only the previous bundled default, once. Keep its descriptor for old
+// message labels and for users who explicitly select the base model afterwards.
+export function activeModel() {
+  let id: string | null;
+  let migrated: boolean;
+  try {
+    id = localStorage.getItem(selectionKey);
+    migrated = localStorage.getItem(migrationKey) === DEFAULT_MODEL.id;
+  } catch { return DEFAULT_MODEL; }
+  if (!migrated) {
+    const wasDefault = id === 'qwen3.5-0.8b-q4-k-m';
+    if (wasDefault) id = DEFAULT_MODEL.id;
+    try {
+      if (wasDefault) localStorage.setItem(selectionKey, id!);
+      localStorage.setItem(migrationKey, DEFAULT_MODEL.id);
+    } catch { /* A read-only store must still retain an explicit optional choice. */ }
+  }
+  return findModel(id || undefined);
+}
+export function persistModelSelection(model: ModelDescriptor) {
+  localStorage.setItem(selectionKey, model.id);
+  localStorage.setItem(migrationKey, DEFAULT_MODEL.id);
+}

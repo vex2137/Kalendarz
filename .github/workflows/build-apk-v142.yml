@@ -1,0 +1,141 @@
+name: KALENDARZ 1.4.2 private Qwen v2 update
+
+on:
+  workflow_dispatch:
+    inputs:
+      preflight_only:
+        description: Verify the existing signing identity without building
+        type: boolean
+        default: true
+      model_repository:
+        description: Private model depot in owner/repository form (never public)
+        type: string
+        required: true
+      model_release_id:
+        description: Numeric ID of an existing draft release holding the verified GGUF
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kalendarz-142-private-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  EXPECTED_ANDROID_CERTIFICATE: ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143
+
+jobs:
+  signing-preflight:
+    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/dev/1.4.2-qwen35-finetune'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check release version and pinned private model
+        run: python3 -c "import runpy; runpy.run_path('scripts/verify-android-v142.py')['release_model']()"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify access to the existing update private key and certificate
+        run: bash .github/scripts/check-signing.sh
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+      - name: Verify the private draft depot
+        env:
+          GH_TOKEN: ${{ secrets.CALENDAR_MODEL_DEPOT_TOKEN }}
+          MODEL_REPOSITORY: ${{ inputs.model_repository }}
+          MODEL_RELEASE_ID: ${{ inputs.model_release_id }}
+        run: python3 scripts/private-model-depot.py check --repository "$MODEL_REPOSITORY" --release-id "$MODEL_RELEASE_ID"
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/calendar-release.p12"
+
+  android:
+    needs: signing-preflight
+    if: inputs.preflight_only != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CALENDAR_MODEL_FREE: 'false'
+      CALENDAR_BETA_APK: 'false'
+      CALENDAR_ANDROID_NATIVE: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - run: npm run lint && npm test && npm run test:native
+      - run: python3 -m unittest discover -s tests -p test_release_v142.py
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Download private weights and verify exact size and SHA-256
+        env:
+          GH_TOKEN: ${{ secrets.CALENDAR_MODEL_DEPOT_TOKEN }}
+          MODEL_REPOSITORY: ${{ inputs.model_repository }}
+          MODEL_RELEASE_ID: ${{ inputs.model_release_id }}
+        run: |
+          export CALENDAR_MODEL_FILE="$RUNNER_TEMP/private-model/kalendarz-qwen35-v2-q4_k_m.gguf"
+          python3 scripts/private-model-depot.py fetch "$CALENDAR_MODEL_FILE" --repository "$MODEL_REPOSITORY" --release-id "$MODEL_RELEASE_ID"
+          echo "CALENDAR_MODEL_FILE=$CALENDAR_MODEL_FILE" >> "$GITHUB_ENV"
+      - name: Install pinned Android SDK and native toolchains
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865" "cmake;3.31.6"'
+      - run: python3 scripts/build-android-native.py --sdk "$ANDROID_HOME" --jobs 2
+      - run: npm run build
+      - run: npx --no-install cap sync android
+      - name: Recheck the existing signing identity immediately before assembly
+        run: bash .github/scripts/check-signing.sh
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+      - name: Build and test the bundled 10407 update with the existing key
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+          CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
+        run: |
+          set +x
+          trap 'rm -f "$RUNNER_TEMP/calendar-release.p12"' EXIT
+          node scripts/restore-android-signing.cjs
+          export CALENDAR_KEYSTORE_PATH="$RUNNER_TEMP/calendar-release.p12"
+          bash android/gradlew -p android :app:testDiagnosticsUnitTest :app:assembleDiagnostics -PcalendarQwenV2Update=true --no-daemon --max-workers=2
+      - name: Verify the signed APK, actual bundled bytes and ARM64 engine
+        env:
+          OUTPUT_NAME: KALENDARZ-1.4.2-ANDROID-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}.apk
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk "release/$OUTPUT_NAME"
+          python3 scripts/verify-android-v142.py "release/$OUTPUT_NAME" --build-tools "$ANDROID_HOME/build-tools/35.0.0" --commit "$GITHUB_SHA"
+      - name: Store verified APK and checksum only in the private draft depot
+        env:
+          GH_TOKEN: ${{ secrets.CALENDAR_MODEL_DEPOT_TOKEN }}
+          MODEL_REPOSITORY: ${{ inputs.model_repository }}
+          MODEL_RELEASE_ID: ${{ inputs.model_release_id }}
+        run: python3 scripts/private-model-depot.py upload release/*.apk release/*.apk.sha256 --repository "$MODEL_REPOSITORY" --release-id "$MODEL_RELEASE_ID"
+      - name: Remove signing material and private staged bytes
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/calendar-release.p12"
+          rm -rf "$RUNNER_TEMP/private-model" public/models dist release android/app/src/main/assets/public
