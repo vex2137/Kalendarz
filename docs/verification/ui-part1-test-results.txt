@@ -1,0 +1,81 @@
+Calendar UI part 1 — retained test results
+Reviewed implementation: cb1f24363b3f8685d4e45ada9d91a45543702e85
+Recorded for authorized branch publication on 2026-10-26.
+These checks ran during implementation in this environment. No application or test code was changed for publication; passing checks were not rerun for documentation-only changes.
+The SHA-256 entries identify the complete local source logs; only result excerpts are included below.
+
+COMMAND: npm test
+SOURCE LOG: kalendarz-ui-unit-isolated.log
+FULL LOCAL LOG SHA-256: 60db5ac95b7494f48fc00a7922255cd844d76287bb9154c14b9d8435c4ff28d3
+✔ equal timestamps converge and deletion wins a tie (0.309868ms)
+✔ default holidays fit into decodable multipart QR; empty reminders survive (285.238884ms)
+✔ corrupted, oversized and invalid sync data are rejected (0.959888ms)
+✔ PIN is salted and verified without persisting plaintext (125.490466ms)
+ℹ tests 148
+ℹ suites 0
+ℹ pass 148
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8189.615519
+
+COMMAND: node tests/ui-overhaul-browser.cjs
+SOURCE LOG: kalendarz-ui-browser.log
+FULL LOCAL LOG SHA-256: d18141736d864b8a34d319283842d240769bdcfbc89a6c75d6f1a4003467a5dd
+PASS month 4/5/6 rows, select/deselect, empty day, month reset, continuous segments and original record identity
+PASS day/week time geometry, current-time line, overlaps, all-day events and date context
+PASS year 12 months, month/day navigation, year-boundary header, recurring agenda and range extension
+PASS dirty dialog confirmation, keep editing, discard and no unintended writes
+PASS eight responsive sizes (320–2560px), landscape, five views, keyboard selection/focus and zero browser errors
+PASS 10,000-event virtual agenda, bounded DOM, last item reachable, records preserved
+PASS actual 23/25-hour day geometry, repeated-hour event visibility/duration and live timezone change
+PASS real touch: week pans its timeline, month changes period, neither opens an accidental dialog
+PASS exact Polish empty-day message and zero browser errors across all scenarios
+
+COMMAND: node tests/mobile-navigation.cjs
+SOURCE LOG: kalendarz-ui-mobile.log
+FULL LOCAL LOG SHA-256: 5cd91c64182d936c171709fa192a36e4d328aa27e0f1103ace1cd72227a6117d
+PASS: one visible view selector at 320/390/430/768/1280px, all views work, colored actions open correctly, PL/EN/RU/DE, no horizontal overflow or browser errors.
+
+COMMAND: FEATURE_TEST_SECTION=desktop node tests/navigation-themes-sync.cjs
+SOURCE LOG: kalendarz-ui-themes.log
+FULL LOCAL LOG SHA-256: 97b132b24ca6dc93b21cbd6953ca1f9130a69c9bf5ce2f8f1e07a2fa0d4331c5
+PASS desktop keys, modifier/editing/modal exclusions, custom theme CRUD/persistence/all views and built-in fallback.
+
+COMMAND: FEATURE_TEST_SECTION=touch node tests/navigation-themes-sync.cjs
+SOURCE LOG: kalendarz-ui-touch.log
+FULL LOCAL LOG SHA-256: 173530ed4080ef5717be7a41afbce187908fcb7de623e2b3c1777a8f7813af3a
+PASS touch period swipes, internal week panning with period buttons, reverse navigation, vertical-scroll exclusion and no accidental click.
+
+COMMAND: npm run test:e2e
+SOURCE LOG: kalendarz-ui-regression.log
+FULL LOCAL LOG SHA-256: ca32fe8da12ea95f1dfda68d94bfd6efaa480bfb39d8cf98a6746dbdee7e8fef
+
+> kalendarz-offline@1.4.1 test:e2e
+> node tests/browser.cjs
+
+PASS create/edit/persist, local default date, validation and zero-minute reminder
+PASS non-destructive imports/holidays, virtual search, Escape and focus restoration
+PASS PIN hashing, explicit lock and lock after reload
+PASS cross-tab concurrent edits, deletion sync, failed-write recovery and delayed camera cleanup
+PASS inactivity auto-lock
+PASS responsive controls at 320/390/768px
+PASS 10k-event agenda: 55 ms, 131 DOM elements
+PASS offline reload, lazy-loaded event form/sync and IndexedDB persistence
+
+COMMAND: CALENDAR_MODEL_FREE=true node_modules/.bin/vite build
+SOURCE LOG: kalendarz-ui-build.log
+FULL LOCAL LOG SHA-256: 69a677f0bdab62f72b8f74b29862c8b547cae4a743553ab8e10290158ad8d718
+✓ built in 1.40s
+
+PWA v1.3.0
+mode      generateSW
+precache  39 entries (25765.40 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-2fbc6a65.js
+
+npm run lint: passed during implementation; no retained standalone stdout log.
+git diff --check cb1f243^ cb1f243: passed again during publication preflight.
+Not executed: native Android/Windows/Linux package validation, physical device acceptance, Firefox/Safari, screen-reader sessions and full contrast audit.
