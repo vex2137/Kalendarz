@@ -74,3 +74,32 @@ check private visibility explicitly. They run from the home directory and only
 read the original GGUF, leaving the training worktree unchanged. Signing and
 model-selection logic did not need further changes after review. Real signing,
 private transfer and device inference still require the release inputs.
+
+## Recovered key and actual native build
+
+The matching original diagnostics key was found in the retained Android cache.
+A private-key challenge matched certificate
+`ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`.
+An independent PKCS12 backup was rewrapped with a strong new container password,
+and its identity/proof were verified again without changing the original file.
+No key/password value was printed or committed. The production key
+`b6b7bc0499ab59af54404a90aaa785e3d40f2738e83fdf9e6306f8e210c79a01`
+was preserved. Future CI uses four separate `CALENDAR_ANDROID_UPDATE_*` secrets.
+The setup helper passed an actual-key dry run and mocked checks that only those
+four names can be written; a wrong identity made no writes. No real signing
+secrets were changed by the agent.
+
+The real private GGUF was downloaded from the private depot and its full size
+and SHA-256 verified. The existing real-model CPU smoke test passed loading,
+structured Polish extraction, warm cache, unload/reload and cancellation.
+An additional English extraction and English greeting were correct. A narrow
+Polish greeting assertion failed: the reply was Polish but did not contain the
+expected greeting. These samples do not establish complete model quality or
+Android device behavior; raw model errors remain possible.
+
+The actual Android ARM64 CPU/Vulkan engine was compiled with the pinned
+NDK 29.0.14206865 and CMake 3.31.6. The resulting 30199952-byte ARM64 ELF has
+SHA-256 `e71d0e57a398c5dc0f158f04162388847e5cba82112a89de2c9cfb375dc0bd5b`
+and the pinned llama.cpp commit. No phone installation/execution occurred.
+At this checkpoint, final APK assembly still awaits the exact pinned model
+license file in the remote workspace; the license checksum was not relaxed.

@@ -57,8 +57,11 @@ The workflow's normal `GITHUB_TOKEN` has only `contents: read`. Add a separate
 fine-grained token as `CALENDAR_MODEL_DEPOT_TOKEN` in `vex2137/Kalendarz`, scoped
 only to the private depot with **Contents: read and write**. Write access uploads
 the verified APK; it does not need access to account administration, workflows
-or signing secrets. The four existing `CALENDAR_ANDROID_*` signing secrets are
-reused unchanged. Tokens and keys are passed only to the steps that need them.
+or signing secrets. The four existing production signing secrets are left unchanged. The update uses
+`CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64`, `CALENDAR_ANDROID_UPDATE_STORE_PASSWORD`,
+`CALENDAR_ANDROID_UPDATE_KEY_ALIAS` and `CALENDAR_ANDROID_UPDATE_KEY_PASSWORD`.
+They must contain the original diagnostics key, not the production release key.
+Tokens and keys are passed only to the steps that need them.
 
 One-time local preparation, using **fish** and authenticated GitHub CLI:
 
@@ -108,18 +111,12 @@ review session; these commands are for the user to execute.
 
 ## Run the build
 
-Integrate the reviewed code into `dev/1.4.2-qwen35-finetune`. Also register the new
-workflow file on the repository's default branch: GitHub requires a
-`workflow_dispatch` workflow to exist there before it can be run. Dispatch it
-with the **development branch ref**, not the default branch. No changes to the
-old 1.4.1 workflow are needed. Review overlapping local edits before integrating;
-do not reset/stash away or replace local command, evaluation or training work.
-For the two prepared pull requests, approve merging #12 into the development
-branch first, then #13 into `main`. Both merges require the user's confirmation;
-marking a PR ready for review does not merge it. The release can run entirely
-from GitHub without changing the training worktree. If the separate PR worktree
-was fetched before the final review commit, it still contains the earlier
-snapshot until explicitly updated.
+PRs #12 and #13 have been merged after successful CI. The workflow is registered
+on `main`, and the application source is integrated into
+`dev/1.4.2-qwen35-finetune`. Configure the update-specific signing secrets above,
+then dispatch using the **development branch ref**, not `main`. No changes to
+the training worktree are needed. The old 1.4.1 workflow and production signing
+identity remain separate.
 
 ```fish
 gh workflow run build-apk-v142.yml --repo vex2137/Kalendarz --ref dev/1.4.2-qwen35-finetune -f preflight_only=true -f model_repository="$depot" -f model_release_id="$release_id"
@@ -198,3 +195,37 @@ Enable airplane mode, open the assistant and check a Polish request (for example
 the displayed model is Qwen v2 and the backend uses the native ARM64 engine.
 Calendar changes should still require the existing confirmation flow. Record
 actual device results before considering this release tested on the phone.
+
+## Recovered diagnostics signing identity
+
+The original diagnostics key was located in the retained Android build cache.
+Its certificate is the required `ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`,
+and a signing challenge verified access to the matching private key. The
+production secrets instead contain certificate
+`b6b7bc0499ab59af54404a90aaa785e3d40f2738e83fdf9e6306f8e210c79a01`.
+The two identities serve different packages and must not replace one another.
+
+A private backup can contain `calendar-update-142.p12` and `signing.json` outside
+the checkout. Protect both files and retain an offline copy; never commit them
+or upload them as release/Actions artifacts. Rewrapping the original key into
+PKCS12 with a new strong container password preserves its signing identity.
+
+After reviewing the helper, verify a backup without changing secrets:
+
+```fish
+node scripts/configure-android-update-signing.cjs --dry-run /private/update-signing-backup
+```
+
+Only with the owner's approval, configure the four update-specific secrets:
+
+```fish
+node scripts/configure-android-update-signing.cjs --apply /private/update-signing-backup
+```
+
+The helper verifies the certificate and private-key proof before any write,
+passes secret values to GitHub CLI through stdin, and preserves the existing
+production secrets. The caller needs GitHub permission to manage Actions secrets.
+The current integration can dispatch/build but cannot manage those secrets;
+an owner-authorized local GitHub CLI can run the helper. No secret values are
+printed. A standalone private backup may include the helper and validator so
+it can be configured outside the training project.

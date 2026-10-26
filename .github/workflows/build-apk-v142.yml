@@ -45,10 +45,10 @@ jobs:
       - name: Verify access to the existing update private key and certificate
         run: bash .github/scripts/check-signing.sh
         env:
-          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
-          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
-          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
-          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
       - name: Verify the private draft depot
         env:
           GH_TOKEN: ${{ secrets.CALENDAR_MODEL_DEPOT_TOKEN }}
@@ -104,16 +104,16 @@ jobs:
       - name: Recheck the existing signing identity immediately before assembly
         run: bash .github/scripts/check-signing.sh
         env:
-          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
-          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
-          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
-          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
       - name: Build and test the bundled 10407 update with the existing key
         env:
-          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_KEYSTORE_BASE64 }}
-          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_STORE_PASSWORD }}
-          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_KEY_ALIAS }}
-          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_KEY_PASSWORD }}
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
           CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
         run: |
           set +x
