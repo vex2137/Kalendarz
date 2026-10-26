@@ -13,7 +13,8 @@ export function timelineAxis(date: string) {
   const minutes = (end - start) / 60000;
   const ticks = Array.from({ length: Math.ceil(minutes / 60) }, (_, hour) => {
     const instant = new Date(start + hour * 3600000);
-    return { elapsed: hour * 60, hour: instant.getHours(), label: timeString(instant.getHours() * 60 + instant.getMinutes()), offset: utcOffset(instant) };
+    const time = timeString(instant.getHours() * 60 + instant.getMinutes());
+    return { elapsed: hour * 60, hour: instant.getHours(), time, label: time, offset: utcOffset(instant) };
   });
   return { start, end, minutes, ticks: ticks.map(tick => ({ ...tick,
     label: ticks.filter(t => t.label === tick.label).length > 1 ? `${tick.label} ${tick.offset}` : tick.label })) };

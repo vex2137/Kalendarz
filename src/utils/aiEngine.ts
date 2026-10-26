@@ -2,7 +2,7 @@ import { normalizeRussianInput } from './russianQuery';
 import { translateRussian, translateGerman } from './i18n';
 import { normalizeGermanInput } from './germanQuery';
 import { tr } from './i18n';
-import { buildEventIndex } from './recurrence';
+import { buildEventIndex, occurrenceInterval, occurrencesOverlap } from './recurrence';
 import { localDate, addDays, timeString } from './dates';
 import { CalendarEvent, GoogleCalendarColor } from '../types';
 import { AppLanguage } from './i18n';
@@ -623,12 +623,11 @@ export const runLocalAiAssistant = async (
     }
     const plan = moveDraft(original, parsed.dateStr, time);
     const draft = plan.events[0];
-    const overlap = buildEventIndex(events.filter(e => e.id !== original.id), draft.startDate!, draft.endDate!);
-    const collides = [...overlap.values()].flat().some(o => {
-      const from = o.date === draft.startDate ? minutes(draft.startTime || '00:00') : 0;
-      const to = o.date === draft.endDate ? minutes(draft.endTime || '24:00') : 1440;
-      return original.allDay || o.event.allDay || (o.startMinutes < to && o.endMinutes > from);
-    });
+    const from = addDays(draft.startDate!, -1), to = addDays(draft.endDate!, 1);
+    const overlap = buildEventIndex(events.filter(e => e.id !== original.id), from, to);
+    const proposed = buildEventIndex([{ ...original, ...draft }], from, to);
+    const collides = [...proposed].some(([date, bucket]) =>
+      bucket.some(candidate => (overlap.get(date) || []).some(o => occurrencesOverlap(candidate, o))));
     return { text: (tr(lang, 'Sprawdź zmianę przed zatwierdzeniem.', 'Review the change before confirming.')) + (collides ? (tr(lang, ' Uwaga: nowy termin koliduje z innym wydarzeniem.', ' Warning: the new time conflicts with another event.')) : ''), suggestedPlan: plan };
   }
 
@@ -743,7 +742,7 @@ export const runLocalAiAssistant = async (
       for (let i = 0; i < timed.length; i++) {
         for (
           let j = i + 1;
-          j < timed.length && timed[j].startMinutes < timed[i].endMinutes;
+          j < timed.length && occurrenceInterval(timed[j]).start < occurrenceInterval(timed[i]).end;
           j++
         ) {
           const a = timed[i],

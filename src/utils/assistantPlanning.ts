@@ -2,7 +2,7 @@ import { tr } from './i18n';
 import type { CalendarEvent, PlanningPreferences } from '../types';
 import type { AppLanguage } from './i18n';
 import { addDays, localDate, timeString, isValidTime } from './dates';
-import { buildEventIndex } from './recurrence';
+import { buildEventIndex, occurrenceInterval } from './recurrence';
 
 export interface AssistantPlan {
   kind: 'create' | 'move' | 'delete';
@@ -38,16 +38,31 @@ export function availableSlots(events: CalendarEvent[], start: string, end: stri
   const slots: { date: string; start: number; end: number }[] = [];
   for (let date = start; date <= end; date = addDays(date, 1)) {
     if (!prefs.workingDays.includes(new Date(`${date}T12:00:00`).getDay())) continue;
-    let cursor = Math.max(minutes(prefs.dayStart), date === localDate(now) ? now.getHours() * 60 + now.getMinutes() + (now.getSeconds() ? 1 : 0) : 0);
-    const limit = minutes(prefs.dayEnd);
     if (date < localDate(now)) continue;
+    const instant = (minute: number) => minute === 1440 ? new Date(`${addDays(date, 1)}T00:00:00`).getTime() : new Date(`${date}T${timeString(minute)}:00`).getTime();
+    const wallMinute = (value: number) => localDate(new Date(value)) > date ? 1440 : new Date(value).getHours() * 60 + new Date(value).getMinutes();
+    let cursor = Math.max(instant(minutes(prefs.dayStart)), date === localDate(now) ? Math.ceil(now.getTime() / 60000) * 60000 : -Infinity);
+    const limit = instant(minutes(prefs.dayEnd));
+    const addSlot = (from: number, to: number) => {
+      // Drafts use floating wall times; do not offer an unrepresentable second fold.
+      if (instant(wallMinute(from)) !== from) {
+        const next = new Date(from);
+        next.setHours(next.getHours() + 1, 0, 0, 0);
+        from = next.getTime();
+      }
+      const start = wallMinute(from), end = wallMinute(to);
+      const draftEnd = instant(start + duration);
+      if (end - start >= duration && to - from >= duration * 60000 && draftEnd > from && draftEnd <= to)
+        slots.push({ date, start, end });
+    };
     for (const o of index.get(date) || []) {
-      const from = o.event.allDay ? 0 : o.startMinutes - prefs.bufferMinutes;
-      const to = o.event.allDay ? 1440 : o.endMinutes + prefs.bufferMinutes;
-      if (Math.min(from, limit) - cursor >= duration) slots.push({ date, start: cursor, end: Math.min(from, limit) });
+      const busy = occurrenceInterval(o);
+      const from = busy.start - prefs.bufferMinutes * 60000;
+      const to = busy.end + prefs.bufferMinutes * 60000;
+      if (from > cursor) addSlot(cursor, Math.min(from, limit));
       cursor = Math.max(cursor, to);
     }
-    if (limit - cursor >= duration) slots.push({ date, start: cursor, end: limit });
+    if (cursor < limit) addSlot(cursor, limit);
   }
   return slots;
 }

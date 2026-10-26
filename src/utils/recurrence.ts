@@ -203,9 +203,20 @@ export interface CalendarOccurrence {
   occurrenceDate: string;
   startMinutes: number;
   endMinutes: number;
-  /** Derived display instants for zoned events; never persisted in CalendarEvent. */
+  /** Actual clipped instants for timed events; never persisted in CalendarEvent. */
   startInstant?: number;
   endInstant?: number;
+}
+/** Half-open real intervals, independent of wall-clock and timeline coordinates. */
+export function occurrenceInterval(o: CalendarOccurrence) {
+  return {
+    start: o.startInstant ?? new Date(`${o.date}T00:00:00`).getTime(),
+    end: o.endInstant ?? new Date(`${addDays(o.date, 1)}T00:00:00`).getTime(),
+  };
+}
+export function occurrencesOverlap(a: CalendarOccurrence, b: CalendarOccurrence) {
+  const first = occurrenceInterval(a), second = occurrenceInterval(b);
+  return first.start < second.end && second.start < first.end;
 }
 export function occurrenceDates(
   event: CalendarEvent,
@@ -257,15 +268,17 @@ export function buildEventIndex(
         startTime = event.startTime,
         endTime = event.endTime;
       let actualStart: number | undefined, actualEnd: number | undefined;
-      if (event.timeZone && !event.allDay) {
+      if (!event.allDay) {
         const startInstant = zonedDateTime(start, startTime!, event.timeZone),
           endInstant = zonedDateTime(end, endTime!, event.timeZone);
         actualStart = startInstant.getTime();
         actualEnd = endInstant.getTime();
-        start = localDate(startInstant);
-        end = localDate(endInstant);
-        startTime = `${String(startInstant.getHours()).padStart(2, '0')}:${String(startInstant.getMinutes()).padStart(2, '0')}`;
-        endTime = `${String(endInstant.getHours()).padStart(2, '0')}:${String(endInstant.getMinutes()).padStart(2, '0')}`;
+        if (event.timeZone) {
+          start = localDate(startInstant);
+          end = localDate(endInstant);
+          startTime = `${String(startInstant.getHours()).padStart(2, '0')}:${String(startInstant.getMinutes()).padStart(2, '0')}`;
+          endTime = `${String(endInstant.getHours()).padStart(2, '0')}:${String(endInstant.getMinutes()).padStart(2, '0')}`;
+        }
       }
       for (
         let date = start < from ? from : start;
@@ -274,17 +287,13 @@ export function buildEventIndex(
       ) {
         const startMinutes =
           event.allDay || date !== start ? 0 : minutes(startTime);
-        let endMinutes =
+        const endMinutes =
           event.allDay || date !== end ? 1440 : minutes(endTime);
         const instants = actualStart !== undefined && actualEnd !== undefined ? {
           startInstant: Math.max(actualStart, new Date(`${date}T00:00:00`).getTime()),
           endInstant: Math.min(actualEnd, new Date(`${addDays(date, 1)}T00:00:00`).getTime()),
         } : undefined;
-        if (!event.allDay && endMinutes <= startMinutes) {
-          // During the repeated hour, a later instant can have an earlier wall time.
-          if (!instants || instants.endInstant <= instants.startInstant) continue;
-          endMinutes = Math.min(1440, startMinutes + (instants.endInstant - instants.startInstant) / 60000);
-        }
+        if (instants && instants.endInstant <= instants.startInstant) continue;
         const occurrence = {
           event,
           date,
@@ -303,7 +312,7 @@ export function buildEventIndex(
     bucket.sort(
       (a, b) =>
         Number(b.event.allDay) - Number(a.event.allDay) ||
-        a.startMinutes - b.startMinutes ||
+        occurrenceInterval(a).start - occurrenceInterval(b).start ||
         a.event.title.localeCompare(b.event.title),
     );
   const cache = indexCache.get(events) || new Map();

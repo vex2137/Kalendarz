@@ -26,7 +26,7 @@ import {
   triggerVibration,
   scheduleNativeReminders,
 } from './utils/notifications';
-import { localDate, shiftMonth, pad2 } from './utils/dates';
+import { localDate, shiftMonth } from './utils/dates';
 import { hashPin } from './utils/security';
 import { useCalendar } from './hooks/useCalendar';
 import { useNow } from './hooks/useNow';
@@ -85,7 +85,7 @@ const CalendarPanel = memo(function CalendarPanel({
   events: CalendarEvent[];
   onSelectDay: (date: string) => void;
   onSelectEvent: (event: CalendarEvent) => void;
-  onCreateAtTime: (date: string, hour: number) => void;
+  onCreateAtTime: (date: string, time: string) => void;
   onSelectMonth: (month: number) => void;
   onFocusDate: (date: string | null) => void;
   monthDay: string | null;
@@ -383,7 +383,7 @@ export default function App() {
     setViewMode('month');
   }, []);
   const createAt = useCallback(
-    (date: string, hour: number) => create(date, `${pad2(hour)}:00`),
+    (date: string, time: string) => create(date, time),
     [create],
   );
   const close = useCallback(() => setModal(null), []);

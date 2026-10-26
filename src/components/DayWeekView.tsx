@@ -12,7 +12,7 @@ import { timelineAxis, timelineOccurrence } from '../utils/timeline';
 interface Props {
   currentDate: Date; viewMode: CalendarViewMode; events: CalendarEvent[];
   onSelectEvent: (event: CalendarEvent) => void;
-  onCreateAtTime: (date: string, hour: number) => void;
+  onCreateAtTime: (date: string, time: string) => void;
   onSelectDay?: (date: string) => void;
   language?: AppLanguage; now?: Date; startOfWeek?: number;
 }
@@ -49,7 +49,7 @@ export function DayWeekView({ currentDate, viewMode, events, onSelectEvent, onCr
           <span className="timeline-zone" title={zone}>{zone.split('/').at(-1)?.replaceAll('_', ' ')}</span>
           {days.map(date => <button type="button" key={date} className={`timeline-date ${date === today ? 'calendar-today' : ''}`}
             aria-current={date === today ? 'date' : undefined} data-date={date}
-            onClick={() => onSelectDay ? onSelectDay(date) : onCreateAtTime(date, 10)}>
+            onClick={() => onSelectDay ? onSelectDay(date) : onCreateAtTime(date, '10:00')}>
             <span>{new Date(`${date}T12:00:00`).toLocaleDateString(locale(language), { weekday: 'short' })}</span>
             <strong>{new Date(`${date}T12:00:00`).toLocaleDateString(locale(language), { day: 'numeric', month: 'short' })}</strong>
           </button>)}
@@ -72,7 +72,7 @@ export function DayWeekView({ currentDate, viewMode, events, onSelectEvent, onCr
         </div>
         {days.map((date, i) => <div key={date} role="group" aria-label={date} className={`timeline-day ${date === today ? 'timeline-today-column' : ''}`} style={{ height: axes[i].minutes * scale }}>
           {axes[i].ticks.map(tick => <button type="button" key={tick.elapsed}
-            aria-label={`${t.create}: ${date} ${tick.label}`} onClick={() => onCreateAtTime(date, tick.hour)}
+            aria-label={`${t.create}: ${date} ${tick.label}`} onClick={() => onCreateAtTime(date, tick.time)}
             className="timeline-hour" style={{ top: tick.elapsed * scale, height: Math.min(60, axes[i].minutes - tick.elapsed) * scale }}>
             {mixedAxes && <span className="timeline-column-hour" aria-hidden="true">{tick.label}</span>}
           </button>)}
