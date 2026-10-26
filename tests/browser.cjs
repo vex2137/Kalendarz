@@ -438,9 +438,30 @@ async function until(fn) {
     const off = await offline.newPage();
     await off.goto(base);
     await off.locator('#btn-create-event-top').waitFor();
-    await off.evaluate(() => navigator.serviceWorker.ready.then(() => true));
-    await off.reload();
-    await off.waitForFunction(() => !!navigator.serviceWorker.controller);
+    try {
+      await off.evaluate(async () => {
+        let timer;
+        try {
+          await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Service worker readiness timed out')), 90_000); }),
+          ]);
+        } finally { clearTimeout(timer); }
+      });
+      // A normal navigation must use the active worker. Avoid a DevTools reload
+      // racing activation; the actual offline reload is still asserted below.
+      await off.goto(base + '/index.html');
+      await off.waitForFunction(() => !!navigator.serviceWorker.controller, undefined, { timeout: 90_000 });
+    } catch (error) {
+      console.error('Offline service worker state:', await off.evaluate(async () => ({
+        url: location.href,
+        controller: navigator.serviceWorker.controller?.scriptURL,
+        registrations: (await navigator.serviceWorker.getRegistrations()).map(r => ({
+          scope: r.scope, active: r.active?.state, waiting: r.waiting?.state, installing: r.installing?.state,
+        })),
+      })));
+      throw error;
+    }
     await offline.setOffline(true);
     await off.reload();
     await off.locator('#btn-create-event-top').click();

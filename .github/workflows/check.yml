@@ -5,6 +5,9 @@ on:
 jobs:
   web:
     runs-on: ubuntu-24.04
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,9 +17,18 @@ jobs:
         with:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
-      - run: npm run check
+      # Browser regressions use a lightweight frontend; desktop below retains real bundled inference.
+      - run: npm run lint && npm test
+      - run: node scripts/prepare-model-free.cjs
+      - run: node node_modules/vite/bin/vite.js build --mode production
       - run: npm run test:native
       - run: npm run ai:data && npm run ai:data:validate
+      - name: Use HTTPS Ubuntu archives and bounded APT waits
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          echo 'Acquire::Retries "2"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99-calendar-ci-network >/dev/null
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - run: node tests/gguf-import-browser.cjs
@@ -34,6 +46,12 @@ jobs:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
       - run: npm run build
+      - name: Use HTTPS Ubuntu archives and bounded APT waits
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          echo 'Acquire::Retries "2"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99-calendar-ci-network >/dev/null
       - run: npx playwright install-deps chromium
       - run: npx electron-builder --linux dir --publish never
       - run: xvfb-run -a npm run test:desktop
