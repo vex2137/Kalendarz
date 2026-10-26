@@ -438,7 +438,11 @@ async function until(fn) {
     const off = await offline.newPage();
     await off.goto(base);
     await off.locator('#btn-create-event-top').waitFor();
-    await off.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+    await off.waitForFunction(
+      async () => (await navigator.serviceWorker.getRegistration())?.active?.state === 'activated',
+      undefined,
+      { timeout: 90_000 },
+    );
     await off.reload();
     await off.waitForFunction(() => !!navigator.serviceWorker.controller);
     await offline.setOffline(true);

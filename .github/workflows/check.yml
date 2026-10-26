@@ -5,6 +5,9 @@ on:
 jobs:
   web:
     runs-on: ubuntu-24.04
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,7 +17,10 @@ jobs:
         with:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
-      - run: npm run check
+      # Browser regressions use a lightweight frontend; desktop below retains real bundled inference.
+      - run: npm run lint && npm test
+      - run: node scripts/prepare-model-free.cjs
+      - run: node node_modules/vite/bin/vite.js build --mode production
       - run: npm run test:native
       - run: npm run ai:data && npm run ai:data:validate
       - name: Use HTTPS Ubuntu archives and bounded APT waits
