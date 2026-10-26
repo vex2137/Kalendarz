@@ -103,3 +103,31 @@ SHA-256 `e71d0e57a398c5dc0f158f04162388847e5cba82112a89de2c9cfb375dc0bd5b`
 and the pinned llama.cpp commit. No phone installation/execution occurred.
 At this checkpoint, final APK assembly still awaits the exact pinned model
 license file in the remote workspace; the license checksum was not relaxed.
+
+## Completed signed APK build
+
+The exact pinned license was supplied and verified. The guarded local build in
+the managed remote environment completed successfully from source commit
+`a9b8479db8d9e857d66c072153cab4e1340016d5`. It used the recovered diagnostics key, without changing
+GitHub signing secrets and without installing on a phone.
+
+- Package: `com.kalendarz.offline.diagnostics`; version `1.4.2`; code `10407`.
+- APK size: `553308518` bytes.
+- APK SHA-256: `cb872003e95078c489579070164cb732fb9c802ed8737e64389dfcf284f71c02`.
+- Certificate SHA-256: `ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`.
+- The actual APK passed `apksigner`, metadata/provenance checks, GGUF/license
+  byte verification, exactly-one-GGUF checks, native engine provenance and
+  16 KiB ZIP alignment.
+- The ARM64 ELF LOAD segments have 16 KiB alignment (`0x4000`).
+- The diagnostics JVM test task passed with 12 tests, zero failures/errors/skips;
+  Gradle reused the cached test results. The build completed 99 tasks, with
+  60 executed and 39 from cache.
+
+This was a local build in the managed environment, not a completed Actions
+release run. The attempted private GitHub release upload was rejected with
+HTTP 401; the verified APK and checksum remain available in the task's private
+workspace for the owner to download. No APK or weights were published publicly.
+Future Actions signing needs the separate update-specific secrets configured
+by the owner; the existing production signing secrets were preserved.
+Phone installation, retained device data and actual POCO inference still need
+explicitly authorized device testing.
