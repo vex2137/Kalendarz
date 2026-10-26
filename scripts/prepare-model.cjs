@@ -20,6 +20,7 @@ async function valid(file) {
         if (!await valid(process.env.CALENDAR_MODEL_FILE)) throw new Error('CALENDAR_MODEL_FILE has an invalid size/checksum');
         copyFileSync(process.env.CALENDAR_MODEL_FILE, temporary);
       } else {
+        if (!model.url) throw new Error('Private bundled weights are required: set CALENDAR_MODEL_FILE to the local GGUF; no public download exists');
         console.log('Fetching pinned Qwen3.5 0.8B Q4_K_M weights for the application bundle…');
         const result = spawnSync('curl', ['--fail', '--location', '--retry', '3', '--connect-timeout', '30', '--max-time', '600', '--output', temporary, model.url], { stdio: 'inherit' });
         if (result.error || result.status !== 0) throw new Error('Cannot fetch bundled model; set CALENDAR_MODEL_FILE to verified local weights');
@@ -36,7 +37,7 @@ async function valid(file) {
       if (createHash('sha256').update(readFileSync(`${license}.tmp`)).digest('hex') !== model.licenseSha256) throw new Error('Model license checksum mismatch');
       renameSync(`${license}.tmp`, license);
     }
-    writeFileSync(join(directory, 'NOTICE.txt'), `Qwen3.5-0.8B by Qwen, distributed under Apache-2.0.\nGGUF quantization: mradermacher/Qwen3.5-0.8B-GGUF.\nWeights: ${model.url}\nSHA-256: ${model.sha256}\nOriginal license: ${model.license}\n`);
+    writeFileSync(join(directory, 'NOTICE.txt'), `Qwen3.5-0.8B by Qwen, distributed under Apache-2.0.\nModified weights: Kalendarz LoRA v2, merged and quantized as Q4_K_M.\nModel: ${model.name}\nRevision: ${model.revision}\nWeights source: ${model.url || "private local file (not published)"}\nSHA-256: ${model.sha256}\nOriginal license: ${model.license}\n`);
     // Staged assets contain exactly one model. Do not package a previous default.
     for (const name of readdirSync(directory)) if (name.endsWith('.gguf') && name !== model.file) rmSync(join(directory,name));
     writeFileSync(join(directory,'catalogue.json'),JSON.stringify([model,...require('../src/utils/optionalModels.json'),...require('../src/utils/fineTunedModels.json')]));

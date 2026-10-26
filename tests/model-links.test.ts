@@ -6,16 +6,16 @@ test('HF links resolve only audited exact catalogue artifacts', () => {
   const repo = 'https://huggingface.co/mradermacher/Qwen3.5-0.8B-GGUF';
   assert.equal(modelsForHuggingFaceLink(repo).length, 2);
   assert.equal(modelsForHuggingFaceLink(repo+'/tree/main').length, 2);
-  for (const model of AI_MODELS) {
+  for (const model of AI_MODELS.filter(model => model.url)) {
     assert.equal(modelsForHuggingFaceLink(model.url)[0].id,model.id);
     assert.equal(modelsForHuggingFaceLink(model.url.replace('/resolve/', '/blob/').replace(model.revision,'main')+'?download=true')[0].id,model.id);
   }
   for (const link of ['https://huggingface.co.evil.test/a/b', 'http://huggingface.co/a/b', 'https://user@huggingface.co/a/b', repo+'/resolve/main/unverified.gguf', repo+'/tree/unverified', 'https://example.com/model.gguf']) assert.throws(()=>modelsForHuggingFaceLink(link),link);
 });
 test('Q4_K_M is preferred while explicit model and fallback choices retain their true quantization',()=>{
-  assert.equal(PREFERRED_MODEL.id,'qwen3.5-0.8b-q4-k-m');assert.equal(PREFERRED_MODEL.quantization,'Q4_K_M');
+  assert.equal(PREFERRED_MODEL.id,'kalendarz-qwen35-v2-q4-k-m');assert.equal(PREFERRED_MODEL.quantization,'Q4_K_M');
   const original=Object.getOwnPropertyDescriptor(globalThis,'localStorage');const selected=new Map();
-  Object.defineProperty(globalThis,'localStorage',{value:{getItem:(key:string)=>selected.get(key)||null},configurable:true});
+  Object.defineProperty(globalThis,'localStorage',{value:{getItem:(key:string)=>selected.get(key)||null,setItem:(key:string,value:string)=>selected.set(key,value)},configurable:true});
   try{
     assert.equal(activeModel().id,DEFAULT_MODEL.id,'Bundled fallback remains available before optional installation');
     for(const model of AI_MODELS){selected.set('calendar_active_ai_model_v1',model.id);assert.equal(activeModel().id,model.id);assert.equal(activeModel().quantization,model.quantization);assert.ok(!shortModelName(model).includes(model.quantization));}
