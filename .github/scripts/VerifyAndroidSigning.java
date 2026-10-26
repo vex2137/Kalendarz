@@ -23,7 +23,11 @@ class VerifyAndroidSigning {
             cert.checkValidity();
             stage = "CERTIFICATE_SHA256";
             var digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(cert.getEncoded()));
-            if (!digest.equals(env.get("EXPECTED_ANDROID_CERTIFICATE"))) throw new Exception();
+            if (!digest.equals(env.get("EXPECTED_ANDROID_CERTIFICATE"))) {
+                // A certificate fingerprint is public metadata, never key/password material.
+                System.err.println("Android signing certificate SHA-256 digest: " + digest);
+                throw new Exception();
+            }
             stage = "PRIVATE_KEY_PROOF";
             var algorithm = switch (key.getAlgorithm()) {
                 case "RSA" -> "SHA256withRSA";
