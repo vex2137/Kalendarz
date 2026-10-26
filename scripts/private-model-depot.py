@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from urllib.parse import quote
 
 spec = importlib.util.spec_from_file_location('verify_v142', Path(__file__).with_name('verify-android-v142.py'))
 release = importlib.util.module_from_spec(spec)
@@ -73,10 +74,21 @@ def upload(repository, release_id, files):
     existing = {asset['name'] for asset in draft['assets']}
     if any(path.name in existing or not path.is_file() for path in files):
         raise ValueError('Output asset already exists or is missing')
-    result = subprocess.run(['gh', 'release', 'upload', '--repo', repository, '--', draft['tag_name'],
-                             *[str(path.resolve()) for path in files]], capture_output=True, check=False)
-    if result.returncode:
-        raise ValueError('Private output upload failed; no assets were overwritten')
+    for path in files:
+        private_draft(repository, release_id)
+        # Address the validated numeric release ID, never resolve a mutable tag.
+        endpoint = f'https://uploads.github.com/repos/{repository}/releases/{release_id}/assets?name={quote(path.name, safe="")}'
+        result = subprocess.run(['gh', 'api', '--hostname', 'github.com', '--method', 'POST',
+                                 '-H', 'Content-Type: application/octet-stream', '--input', str(path.resolve()), endpoint],
+                                capture_output=True, check=False)
+        if result.returncode:
+            raise ValueError('Private output upload failed; no assets were overwritten')
+        asset = json.loads(result.stdout)
+        with path.open('rb') as stream:
+            digest = 'sha256:' + hashlib.file_digest(stream, 'sha256').hexdigest()
+        if (asset.get('name') != path.name or asset.get('size') != path.stat().st_size or
+                asset.get('state') != 'uploaded' or asset.get('digest') not in (None, digest)):
+            raise ValueError('Private output asset verification failed')
     private_draft(repository, release_id)
     summary = os.environ.get('GITHUB_STEP_SUMMARY')
     if summary:

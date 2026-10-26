@@ -122,6 +122,30 @@ class ReleaseTests(unittest.TestCase):
             depot.upload('owner/depot', '123', [Path('already.apk')])
         run.assert_not_called()
 
+    def test_depot_upload_targets_validated_release_id_and_checks_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'output #1.apk'; path.write_bytes(b'fixture-apk')
+            asset = {'name': path.name, 'size': path.stat().st_size, 'state': 'uploaded',
+                     'digest': 'sha256:' + hashlib.sha256(path.read_bytes()).hexdigest()}
+            draft = {'assets': [], 'tag_name': 'a-tag-that-must-not-be-resolved'}
+            result = subprocess.CompletedProcess([], 0, stdout=json.dumps(asset).encode())
+            with patch.object(depot, 'private_draft', return_value=draft), patch.object(depot.subprocess, 'run', return_value=result) as run, patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': ''}):
+                depot.upload('owner/depot', '123', [path])
+            command = run.call_args.args[0]
+            self.assertIn('https://uploads.github.com/repos/owner/depot/releases/123/assets?name=output%20%231.apk', command)
+            self.assertNotIn(draft['tag_name'], command)
+            for field, value in [('size', 0), ('digest', 'sha256:' + '0' * 64), ('name', 'other.apk'), ('state', 'starter')]:
+                wrong = subprocess.CompletedProcess([], 0, stdout=json.dumps({**asset, field: value}).encode())
+                with patch.object(depot, 'private_draft', return_value=draft), patch.object(depot.subprocess, 'run', return_value=wrong), self.subTest(field=field), self.assertRaises(ValueError):
+                    depot.upload('owner/depot', '123', [path])
+
+    def test_depot_rechecks_private_draft_before_sending_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'output.apk'; path.write_bytes(b'fixture')
+            with patch.object(depot, 'private_draft', side_effect=[{'assets': []}, ValueError('visibility changed')]), patch.object(depot.subprocess, 'run') as run, self.assertRaises(ValueError):
+                depot.upload('owner/depot', '123', [path])
+            run.assert_not_called()
+
     def test_prepare_model_requires_private_input_and_verifies_local_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

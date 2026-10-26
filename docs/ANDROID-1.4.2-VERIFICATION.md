@@ -59,3 +59,18 @@ See [the release instructions](ANDROID-1.4.2-QWEN-V2.md) for private model
 delivery, default-branch workflow registration, signed CI assembly and verified
 `adb install -r`. The old 1.4.1 signing workflow, certificate checks and init
 script are unchanged.
+
+## Final integration review
+
+The private depot upload was tightened to use the validated numeric release ID
+for the upload itself, with a fresh privacy/draft check before each file and
+checks on the returned asset receipt. This avoids resolving a tag to a different
+release. Two additional offline tests cover the exact upload destination,
+receipt tampering and a privacy change before sending; the release suite now
+passes **12 tests**. No real private transfer was performed.
+
+The fish setup instructions now stop before upload on any preceding error and
+check private visibility explicitly. They run from the home directory and only
+read the original GGUF, leaving the training worktree unchanged. Signing and
+model-selection logic did not need further changes after review. Real signing,
+private transfer and device inference still require the release inputs.
