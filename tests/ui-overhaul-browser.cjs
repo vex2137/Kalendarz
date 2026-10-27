@@ -156,10 +156,16 @@ async function records(page) { return page.evaluate(async () => { const { loadCa
         await button.click();
         assert.equal(await button.getAttribute('aria-pressed'), 'true');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `page overflow ${size.width}`);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1), `outer vertical overflow ${size.width}`);
         if ((await button.innerText()).trim() === 'Day') assert.ok(await page.locator('.calendar-timeline').evaluate(n => n.scrollWidth <= n.clientWidth + 1), `day overflow ${size.width}`);
       }
       // One image per phone/tablet/desktop size, all from the month view.
       await nav.getByRole('button').nth(1).click();
+      for (let step = 0; step < 3; step++) {
+        await page.locator('#btn-nav-next').click();
+        assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1), `outer month overflow ${size.width} / ${step}`);
+      }
+      await page.locator('#btn-nav-today').click();
       await page.screenshot({ animations: 'disabled', path: `/tmp/kalendarz-ui-screenshots/month-${size.width}.png` });
     }
     // Keyboard day selection must not navigate away from the month.
