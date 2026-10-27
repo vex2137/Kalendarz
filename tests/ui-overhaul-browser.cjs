@@ -71,6 +71,25 @@ async function records(page) { return page.evaluate(async () => { const { loadCa
     assert.equal((await records(page)).length, events.length);
     console.log('PASS month 4/5/6 rows, select/deselect, empty day, month reset, continuous segments and original record identity');
 
+    assert.equal(await page.locator('.month-date[tabindex="0"]').count(), 1);
+    await page.locator('#calendar-cell-2027-02-03').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'calendar-cell-2027-02-04');
+    assert.equal(await page.locator('[data-testid=month-view]').getAttribute('data-month'), '2027-02');
+    await page.keyboard.press('Enter');
+    await page.getByText('No events on this day', { exact: true }).waitFor();
+    await page.keyboard.press('PageDown');
+    assert.equal(await page.locator('[data-testid=month-view]').getAttribute('data-month'), '2027-03');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'calendar-cell-2027-03-04');
+    assert.equal(await page.locator('.month-date[aria-pressed=true]').count(), 0);
+    await page.locator('#btn-nav-today').click();
+    await page.locator('#calendar-cell-2027-02-28').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.locator('[data-testid=month-view]').getAttribute('data-month'), '2027-03');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'calendar-cell-2027-03-01');
+    await page.locator('#btn-nav-today').click();
+    console.log('PASS month roving focus, local arrow keys, selection, cross-month focus and Page Down selection reset');
+
     await page.locator('#calendar-cell-2027-02-15 .month-number').click();
     await page.locator('#btn-view-day').click();
     assert.equal(await page.locator('.timeline-date').getAttribute('data-date'), '2027-02-15');

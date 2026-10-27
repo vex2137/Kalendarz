@@ -75,6 +75,7 @@ const CalendarPanel = memo(function CalendarPanel({
   onCreateAtTime,
   onSelectMonth,
   onFocusDate,
+  onBrowseDate,
   monthDay,
   startOfWeek,
   language,
@@ -88,6 +89,7 @@ const CalendarPanel = memo(function CalendarPanel({
   onCreateAtTime: (date: string, time: string) => void;
   onSelectMonth: (month: number) => void;
   onFocusDate: (date: string | null) => void;
+  onBrowseDate: (date: string) => void;
   monthDay: string | null;
   startOfWeek: number;
   language: import('./utils/i18n').AppLanguage;
@@ -110,7 +112,7 @@ const CalendarPanel = memo(function CalendarPanel({
       )}
       {viewMode === 'month' && (
         <MonthView
-          key={localDate(currentDate).slice(0, 7)}
+          onBrowseDate={onBrowseDate}
           onFocusDate={onFocusDate}
           selectedDate={monthDay}
           startOfWeek={startOfWeek}
@@ -377,6 +379,10 @@ export default function App() {
     setCurrentDate(new Date(`${date}T12:00:00`));
     setViewMode('day');
   }, []);
+  const browseDate = useCallback((date: string) => {
+    setMonthDay(null);
+    setCurrentDate(new Date(`${date}T12:00:00`));
+  }, []);
   const selectMonth = useCallback((month: number) => {
     setMonthDay(null);
     setCurrentDate((prev) => shiftMonth(prev, month - prev.getMonth()));
@@ -474,6 +480,7 @@ export default function App() {
               onSelectEvent: select,
               onCreateAtTime: createAt,
               onSelectMonth: selectMonth,
+              onBrowseDate: browseDate,
               onFocusDate: setMonthDay,
               monthDay,
               startOfWeek: settings.startOfWeek,

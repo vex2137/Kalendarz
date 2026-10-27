@@ -16,6 +16,20 @@ export function monthDates(date: Date, startOfWeek = 1) {
   return Array.from({ length }, (_, i) => addDays(start, i));
 }
 
+/** Keyboard date arithmetic uses UTC calendar fields, including month-end clamping. */
+export function calendarDateTarget(date: string, key: string, startOfWeek = 1): string | null {
+  const delta = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 })[key];
+  if (delta) return addDays(date, delta);
+  if (key === 'Home' || key === 'End') return weekDates(date, startOfWeek)[key === 'Home' ? 0 : 6];
+  if (key !== 'PageUp' && key !== 'PageDown') return null;
+  const value = parseDate(date), day = value.getUTCDate();
+  value.setUTCDate(1);
+  value.setUTCMonth(value.getUTCMonth() + (key === 'PageUp' ? -1 : 1));
+  const last = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + 1, 0)).getUTCDate();
+  value.setUTCDate(Math.min(day, last));
+  return value.toISOString().slice(0, 10);
+}
+
 export const occurrenceKey = (o: CalendarOccurrence) => `${o.event.id}:${o.occurrenceDate}`;
 export interface WeekSegment {
   key: string;

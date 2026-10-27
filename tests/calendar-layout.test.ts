@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { event } from './fixtures';
-import { monthDates, monthWeekSegments, weekDates, agendaRows } from '../src/utils/calendarLayout';
+import { monthDates, monthWeekSegments, weekDates, agendaRows, calendarDateTarget } from '../src/utils/calendarLayout';
 import { buildEventIndex } from '../src/utils/recurrence';
 import { layoutOverlaps } from '../src/utils/layout';
 import { addDays } from '../src/utils/dates';
@@ -14,6 +14,18 @@ test('month grids have exactly four, five or six full weeks, including configure
   assert.equal(sunday.length, 35);
   assert.equal(sunday[0], '2027-01-31');
   assert.equal(monthDates(new Date(2024, 1, 1)).filter(d => d.startsWith('2024-02')).length, 29);
+});
+
+test('date keyboard navigation clamps month ends and respects week starts across leap years and DST', () => {
+  assert.equal(calendarDateTarget('2027-01-31', 'PageDown'), '2027-02-28');
+  assert.equal(calendarDateTarget('2024-01-31', 'PageDown'), '2024-02-29');
+  assert.equal(calendarDateTarget('2027-01-01', 'PageUp'), '2026-12-01');
+  assert.equal(calendarDateTarget('2027-02-03', 'Home', 0), '2027-01-31');
+  assert.equal(calendarDateTarget('2027-02-03', 'End', 1), '2027-02-07');
+  assert.equal(calendarDateTarget('2026-03-29', 'ArrowDown'), '2026-04-05');
+  assert.equal(calendarDateTarget('2026-10-25', 'ArrowLeft'), '2026-10-24');
+  assert.equal(calendarDateTarget('2026-12-31', 'ArrowRight'), '2027-01-01');
+  assert.equal(calendarDateTarget('2027-02-03', 'Enter'), null);
 });
 
 test('weeks cross month/year and both DST boundaries using floating dates', () => {

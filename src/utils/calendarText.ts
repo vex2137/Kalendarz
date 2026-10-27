@@ -5,20 +5,24 @@ const en = {
   more: 'more', nextEvents: 'Show next 60 days', rangeEmpty: 'No events in this period',
   unsaved: 'Discard unsaved changes?', discard: 'Discard changes', keepEditing: 'Keep editing',
   continues: 'Continues', events: 'events', currentTime: 'Current time', hasEvents: 'Events on this day',
+  dateKeys: 'Arrow keys move between dates. Home and End move to the week boundaries. Page Up and Page Down change month. Enter selects a date.',
 };
 const translations: Record<AppLanguage, typeof en> = {
   en,
   pl: { upcoming: 'Nadchodzące wydarzenia', noDayEvents: 'Brak wydarzeń w tym dniu', openDay: 'Otwórz dzień',
     more: 'więcej', nextEvents: 'Pokaż kolejne 60 dni', rangeEmpty: 'Brak wydarzeń w tym okresie',
     unsaved: 'Odrzucić niezapisane zmiany?', discard: 'Odrzuć zmiany', keepEditing: 'Kontynuuj edycję',
-    continues: 'Kontynuacja', events: 'wydarzenia', currentTime: 'Aktualna godzina', hasEvents: 'Wydarzenia w tym dniu' },
+    continues: 'Kontynuacja', events: 'wydarzenia', currentTime: 'Aktualna godzina', hasEvents: 'Wydarzenia w tym dniu',
+    dateKeys: 'Strzałki przenoszą fokus między datami. Home i End przechodzą do granic tygodnia. Page Up i Page Down zmieniają miesiąc. Enter wybiera datę.' },
   de: { upcoming: 'Bevorstehende Termine', noDayEvents: 'Keine Termine an diesem Tag', openDay: 'Tag öffnen',
     more: 'weitere', nextEvents: 'Nächste 60 Tage anzeigen', rangeEmpty: 'Keine Termine in diesem Zeitraum',
     unsaved: 'Ungespeicherte Änderungen verwerfen?', discard: 'Änderungen verwerfen', keepEditing: 'Weiter bearbeiten',
-    continues: 'Fortsetzung', events: 'Termine', currentTime: 'Aktuelle Uhrzeit', hasEvents: 'Termine an diesem Tag' },
+    continues: 'Fortsetzung', events: 'Termine', currentTime: 'Aktuelle Uhrzeit', hasEvents: 'Termine an diesem Tag',
+    dateKeys: 'Pfeiltasten bewegen den Fokus zwischen Daten. Pos1 und Ende springen zu den Wochengrenzen. Bild auf und Bild ab wechseln den Monat. Eingabe wählt ein Datum.' },
   ru: { upcoming: 'Предстоящие события', noDayEvents: 'В этот день нет событий', openDay: 'Открыть день',
     more: 'ещё', nextEvents: 'Показать следующие 60 дней', rangeEmpty: 'Нет событий за этот период',
     unsaved: 'Отменить несохранённые изменения?', discard: 'Отменить изменения', keepEditing: 'Продолжить редактирование',
-    continues: 'Продолжение', events: 'события', currentTime: 'Текущее время', hasEvents: 'События в этот день' },
+    continues: 'Продолжение', events: 'события', currentTime: 'Текущее время', hasEvents: 'События в этот день',
+    dateKeys: 'Стрелки перемещают фокус между датами. Home и End переходят к границам недели. Page Up и Page Down меняют месяц. Enter выбирает дату.' },
 };
 export const calendarText = (language: AppLanguage) => translations[language];

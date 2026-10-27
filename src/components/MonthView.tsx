@@ -7,6 +7,8 @@ import { calendarText } from '../utils/calendarText';
 import { DAY_NAMES_SHORT, getTranslation, type AppLanguage } from '../utils/i18n';
 import { GOOGLE_CALENDAR_COLORS } from '../utils/constants';
 import { AgendaView } from './AgendaView';
+import { useCalendarDateFocus } from '../hooks/useCalendarDateFocus';
+import { occurrenceLabel } from './CalendarEventCard';
 
 interface Props {
   currentDate: Date; language?: AppLanguage; now?: Date; events: CalendarEvent[];
@@ -14,8 +16,9 @@ interface Props {
   startOfWeek?: number;
   onFocusDate: (date: string | null) => void;
   selectedDate?: string | null;
+  onBrowseDate: (date: string) => void;
 }
-export function MonthView({ currentDate, events, onSelectDay, onSelectEvent, onFocusDate, selectedDate: selected = null, language = 'en', now = new Date(), startOfWeek = 1 }: Props) {
+export function MonthView({ currentDate, events, onSelectDay, onSelectEvent, onFocusDate, onBrowseDate, selectedDate: selected = null, language = 'en', now = new Date(), startOfWeek = 1 }: Props) {
   const month = localDate(currentDate).slice(0, 7), today = localDate(now);
   const dates = useMemo(() => monthDates(currentDate, startOfWeek), [month, startOfWeek]);
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -25,12 +28,14 @@ export function MonthView({ currentDate, events, onSelectDay, onSelectEvent, onF
     return { days, segments: monthWeekSegments(days, index) };
   }), [dates, index]);
   const text = calendarText(language), t = getTranslation(language);
+  const focus = useCalendarDateFocus(dates, selected || localDate(currentDate), startOfWeek, onBrowseDate);
   const toggle = (date: string) => {
     onFocusDate(selected === date ? null : date);
   };
   const defaultStart = month === today.slice(0, 7) ? today : `${month}-01`;
   const dayNames = Array.from({ length: 7 }, (_, i) => DAY_NAMES_SHORT[language][(startOfWeek - 1 + i + 7) % 7]);
-  return <div className="month-view" data-testid="month-view" data-month={month}>
+  return <div ref={focus.root} className="month-view" data-testid="month-view" data-month={month}>
+    <p id="month-keyboard-help" className="sr-only">{text.dateKeys}</p>
     <section className="calendar-panel month-grid" aria-label={t.month}>
       <div className="month-weekdays">{dayNames.map(day => <span key={day}>{day}</span>)}</div>
       {weeks.map(({ days, segments }) => <div className="month-week" data-testid="month-week" key={days[0]}>
@@ -39,6 +44,7 @@ export function MonthView({ currentDate, events, onSelectDay, onSelectEvent, onF
             const bucket = index.get(date) || [], outside = date.slice(0, 7) !== month;
             const hidden = (limit: number) => segments.filter(s => s.start <= day && s.end >= day && s.lane >= limit).length;
             return <button type="button" key={date} id={`calendar-cell-${date}`}
+              {...focus.dateProps(date)} aria-describedby="month-keyboard-help"
               data-date={date} aria-pressed={date === selected} aria-current={date === today ? 'date' : undefined}
               aria-label={`${new Date(`${date}T12:00:00`).toLocaleDateString(locale(language), { dateStyle: 'full' })}, ${bucket.length} ${text.events}`}
               onClick={() => toggle(date)}
@@ -59,6 +65,7 @@ export function MonthView({ currentDate, events, onSelectDay, onSelectEvent, onF
               style={{ gridColumn: `${s.start + 1} / ${s.end + 2}`, gridRow: s.lane + 1,
                 '--event-color': GOOGLE_CALENDAR_COLORS[event.color].dot } as React.CSSProperties}
               title={`${event.title} · ${event.allDay ? t.allDay : timeString(s.occurrence.startMinutes)}${s.continuesBefore || s.continuesAfter ? ` · ${text.continues}` : ''}`}
+              aria-label={`${occurrenceLabel(s.occurrence, language)}${s.continuesBefore || s.continuesAfter ? ` · ${text.continues}` : ''}`}
               onClick={() => onSelectEvent(event)}>
               {s.continuesBefore && <span aria-hidden="true">‹ </span>}
               {!event.allDay && <span className="month-event-time">{timeString(s.occurrence.startMinutes)} </span>}

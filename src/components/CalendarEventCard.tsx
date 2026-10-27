@@ -17,6 +17,9 @@ export function occurrenceTime(o: CalendarOccurrence, language: AppLanguage) {
     `${timeString(o.startMinutes)} – ${o.endMinutes === 1440 ? '24:00' : timeString(o.endMinutes)}`;
 }
 
+export const occurrenceLabel = (o: CalendarOccurrence, language: AppLanguage) =>
+  `${o.event.title} · ${o.date} · ${occurrenceTime(o, language)}`;
+
 /** Text uses theme contrast; event color remains an identifying stripe. */
 export function CalendarEventCard({ occurrence: o, language, onSelectEvent }: {
   occurrence: CalendarOccurrence; language: AppLanguage; onSelectEvent: (event: CalendarEvent) => void;
