@@ -112,6 +112,15 @@ async function records(page) { return page.evaluate(async () => { const { loadCa
 
     await page.locator('#btn-view-year').click();
     assert.equal(await page.locator('[data-testid=year-month]').count(), 12);
+    assert.equal(await page.locator('.year-dates button[tabindex="0"]').count(), 1);
+    await page.locator('.year-dates [data-date="2027-02-28"]').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.date), '2027-03-01');
+    await page.locator('.year-dates [data-date="2027-12-31"]').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.date), '2028-01-01');
+    assert.match(await page.getByTestId('calendar-heading').innerText(), /2028/);
+    await page.locator('#btn-nav-today').click();
     await page.locator('.year-month-heading').first().click();
     assert.equal(await page.locator('[data-testid=month-view]').getAttribute('data-month'), '2027-01');
     await page.locator('#calendar-cell-2027-01-01').click();
@@ -178,6 +187,17 @@ async function records(page) { return page.evaluate(async () => { const { loadCa
     assert.ok(await bigPage.locator('.calendar-event-card').count() < 50);
     await bigPage.locator('[data-testid=agenda-list]').evaluate(n => { n.scrollTop = n.scrollHeight; });
     await bigPage.getByText('Large event 9999', { exact: true }).waitFor();
+    await bigPage.locator('[data-agenda-row="0"] button').focus();
+    await bigPage.keyboard.press('End');
+    assert.match(await bigPage.evaluate(() => document.activeElement.textContent), /Large event 9999/);
+    assert.ok(await bigPage.locator('.calendar-event-card').count() < 50, 'focused item does not defeat virtualization');
+    await bigPage.keyboard.press('Home');
+    assert.equal(await bigPage.evaluate(() => document.activeElement.closest('[data-agenda-row]').dataset.agendaRow), '0');
+    await bigPage.keyboard.press('ArrowDown');
+    await bigPage.keyboard.press('Enter');
+    assert.equal(await bigPage.locator('#input-event-title').inputValue(), 'Large event 0');
+    await bigPage.keyboard.press('Escape');
+    assert.equal(await bigPage.evaluate(() => document.activeElement.closest('[data-agenda-row]').dataset.agendaRow), '1');
     assert.equal((await records(bigPage)).length, 10000);
     await large.close();
     console.log('PASS 10,000-event virtual agenda, bounded DOM, last item reachable, records preserved');
@@ -204,6 +224,12 @@ async function records(page) { return page.evaluate(async () => { const { loadCa
       assert.equal(await block.evaluate(n => parseFloat(n.style.height)), spec.height);
       if (spec.hours === 25) {
         assert.match(await block.getAttribute('title'), /02:30.*02:15.*UTC\+2.*UTC\+1/);
+        assert.equal(await dstPage.locator('.timeline-hour[tabindex="0"]').count(), 1);
+        await dstPage.getByRole('button', { name: `Create: ${spec.date} 02:00 UTC+2`, exact: true }).focus();
+        await dstPage.keyboard.press('ArrowDown');
+        assert.match(await dstPage.evaluate(() => document.activeElement.getAttribute('aria-label')), /02:00 UTC\+1/);
+        await dstPage.keyboard.press('ArrowDown');
+        assert.match(await dstPage.evaluate(() => document.activeElement.getAttribute('aria-label')), /03:00/);
         await cdp.send('Emulation.setTimezoneOverride', { timezoneId: 'UTC' });
         await dstPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         await until(async () => (await dstPage.locator('.timeline-hour').count()) === 24);

@@ -99,6 +99,7 @@ const CalendarPanel = memo(function CalendarPanel({
     <main className="calendar-workspace">
       {viewMode === 'year' && (
         <YearView
+          onBrowseDate={onBrowseDate}
           startOfWeek={startOfWeek}
           {...{
             currentDate,

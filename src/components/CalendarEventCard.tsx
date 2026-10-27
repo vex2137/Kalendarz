@@ -21,11 +21,13 @@ export const occurrenceLabel = (o: CalendarOccurrence, language: AppLanguage) =>
   `${o.event.title} · ${o.date} · ${occurrenceTime(o, language)}`;
 
 /** Text uses theme contrast; event color remains an identifying stripe. */
-export function CalendarEventCard({ occurrence: o, language, onSelectEvent }: {
+export function CalendarEventCard({ occurrence: o, language, onSelectEvent, tabIndex }: {
   occurrence: CalendarOccurrence; language: AppLanguage; onSelectEvent: (event: CalendarEvent) => void;
+  tabIndex?: number;
 }) {
   const event = o.event;
   return <button type="button" onClick={() => onSelectEvent(event)}
+    tabIndex={tabIndex}
     className="calendar-event-card" data-event-id={event.id}
     style={{ '--event-color': GOOGLE_CALENDAR_COLORS[event.color].dot } as React.CSSProperties}>
     <span className="calendar-event-time">{occurrenceTime(o, language)}</span>

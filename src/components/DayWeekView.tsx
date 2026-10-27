@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { CalendarEvent, CalendarViewMode } from '../types';
 import { buildEventIndex } from '../utils/recurrence';
 import { addDays, localDate, locale } from '../utils/dates';
@@ -7,7 +7,7 @@ import { layoutOverlaps } from '../utils/layout';
 import { GOOGLE_CALENDAR_COLORS } from '../utils/constants';
 import { getTranslation, type AppLanguage } from '../utils/i18n';
 import { calendarText } from '../utils/calendarText';
-import { occurrenceTime } from './CalendarEventCard';
+import { occurrenceTime, occurrenceLabel } from './CalendarEventCard';
 import { timelineAxis, timelineOccurrence } from '../utils/timeline';
 interface Props {
   currentDate: Date; viewMode: CalendarViewMode; events: CalendarEvent[];
@@ -33,6 +33,34 @@ export function DayWeekView({ currentDate, viewMode, events, onSelectEvent, onCr
     new Map([...index].map(([date, bucket]) => [date, bucket.filter(o => o.event.allDay)]))), [index, days]);
   const allDayLanes = allDaySegments.reduce((count, segment) => Math.max(count, segment.lane + 1), 0);
   const parent = useRef<HTMLDivElement>(null);
+  const [focusedSlot, setFocusedSlot] = useState('');
+  const pendingFocus = useRef<string | null>(null);
+  const initialDay = Math.max(0, days.indexOf(selected));
+  const activeSlot = days.some((date, i) => axes[i].ticks.some(t => `${date}:${t.elapsed}` === focusedSlot))
+    ? focusedSlot : `${days[initialDay]}:${axes[initialDay].ticks.find(t => t.hour === 8)?.elapsed ?? 0}`;
+  useLayoutEffect(() => {
+    if (!pendingFocus.current) return;
+    parent.current?.querySelector<HTMLElement>(`[data-slot="${pendingFocus.current}"]`)?.focus();
+    pendingFocus.current = null;
+  });
+  const moveSlot = (event: KeyboardEvent<HTMLButtonElement>, day: number, tick: number) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) return;
+    let nextDay = day, nextTick = tick;
+    if (event.key === 'ArrowUp') nextTick--;
+    else if (event.key === 'ArrowDown') nextTick++;
+    else if (event.key === 'Home') nextTick = 0;
+    else if (event.key === 'End') nextTick = axes[day].ticks.length - 1;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      nextDay = Math.max(0, Math.min(days.length - 1, day + (event.key === 'ArrowLeft' ? -1 : 1)));
+      const sameTime = axes[nextDay].ticks.findIndex(t => t.time === axes[day].ticks[tick].time);
+      nextTick = sameTime >= 0 ? sameTime : tick;
+    } else return;
+    event.preventDefault();
+    nextTick = Math.max(0, Math.min(axes[nextDay].ticks.length - 1, nextTick));
+    const key = `${days[nextDay]}:${axes[nextDay].ticks[nextTick].elapsed}`;
+    pendingFocus.current = key;
+    setFocusedSlot(key);
+  };
   useEffect(() => {
     const root = parent.current;
     if (!root) return;
@@ -43,6 +71,7 @@ export function DayWeekView({ currentDate, viewMode, events, onSelectEvent, onCr
   }, [from, isDay, zone]);
   return <div ref={parent} className={`calendar-panel calendar-timeline ${!isDay ? 'calendar-week-scroller' : ''}`}
     data-no-swipe={!isDay ? '' : undefined} data-testid="time-view" aria-label={isDay ? t.day : t.week}>
+    <p id="timeline-keyboard-help" className="sr-only">{text.timeKeys}</p>
     <div className={`timeline-content ${!isDay ? 'timeline-week' : ''}`} style={{ '--day-count': days.length } as React.CSSProperties}>
       <div className="timeline-sticky-header">
         <div className="timeline-headings">
@@ -71,7 +100,10 @@ export function DayWeekView({ currentDate, viewMode, events, onSelectEvent, onCr
           {!mixedAxes && axes[0].ticks.map(tick => <span key={tick.elapsed} style={{ top: tick.elapsed * scale }}>{tick.label}</span>)}
         </div>
         {days.map((date, i) => <div key={date} role="group" aria-label={date} className={`timeline-day ${date === today ? 'timeline-today-column' : ''}`} style={{ height: axes[i].minutes * scale }}>
-          {axes[i].ticks.map(tick => <button type="button" key={tick.elapsed}
+          {axes[i].ticks.map((tick, tickIndex) => <button type="button" key={tick.elapsed}
+            data-slot={`${date}:${tick.elapsed}`} tabIndex={activeSlot === `${date}:${tick.elapsed}` ? 0 : -1}
+            aria-describedby="timeline-keyboard-help" onFocus={() => setFocusedSlot(`${date}:${tick.elapsed}`)}
+            onKeyDown={event => moveSlot(event, i, tickIndex)}
             aria-label={`${t.create}: ${date} ${tick.label}`} onClick={() => onCreateAtTime(date, tick.time)}
             className="timeline-hour" style={{ top: tick.elapsed * scale, height: Math.min(60, axes[i].minutes - tick.elapsed) * scale }}>
             {mixedAxes && <span className="timeline-column-hour" aria-hidden="true">{tick.label}</span>}
@@ -81,6 +113,7 @@ export function DayWeekView({ currentDate, viewMode, events, onSelectEvent, onCr
           {positions[i].map(o => <button type="button" key={`${o.event.id}:${o.occurrenceDate}`}
             data-event-id={o.event.id} data-start-minutes={o.startMinutes} data-end-minutes={o.endMinutes}
             className="timeline-event" onClick={() => onSelectEvent(o.event)}
+            aria-label={occurrenceLabel(o.source, language)}
             style={{ top: o.startMinutes * scale, height: Math.max(18, (o.endMinutes - o.startMinutes) * scale),
               left: `calc(${o.column / o.columns * 100}% + 2px)`, width: `calc(${100 / o.columns}% - 4px)`,
               '--event-color': GOOGLE_CALENDAR_COLORS[o.event.color].dot } as React.CSSProperties}
