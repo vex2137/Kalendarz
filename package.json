@@ -1,8 +1,8 @@
 {
   "name": "kalendarz-offline",
-  "productName": "Calendar",
+  "productName": "Calendar 1.5.0 — Cz. 1 — Beta 1",
   "private": true,
-  "version": "1.4.1",
+  "version": "1.5.0-part1-beta1",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -36,7 +36,7 @@
   },
   "build": {
     "appId": "com.vex2137.kalendarz",
-    "productName": "Calendar",
+    "productName": "Calendar 1.5.0 — Cz. 1 — Beta 1",
     "directories": {
       "output": "release"
     },

@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 def calendarPackage = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
 def calendarBuildFile = rootProject.file('../dist/build-info.json')
 def calendarWebBuild = calendarBuildFile.isFile() ? new groovy.json.JsonSlurper().parse(calendarBuildFile) : [commit: 'unknown']
-def calendarVersion = calendarPackage.version.tokenize('.').collect { it as int }
+def calendarVersion = calendarPackage.version.split('-')[0].tokenize('.').collect { it as int }
 def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
 def calendarVulkanDiagnostics = providers.gradleProperty('calendarVulkanDiagnostics').orElse('false').get().toBoolean()
 def calendarStableUpdate = providers.gradleProperty('calendarStableUpdate').orElse('false').get().toBoolean()
@@ -54,7 +54,7 @@ android {
         diagnostics {
             initWith debug
             applicationIdSuffix '.diagnostics'
-            versionNameSuffix calendarStableUpdate ? '' : calendarBeta ? ' beta 3' : '-diagnostics'
+            versionNameSuffix calendarStableUpdate || calendarPackage.version == '1.5.0-part1-beta1' ? '' : calendarBeta ? ' beta 3' : '-diagnostics'
             matchingFallbacks = ['debug']
             signingConfig signingConfigs.debug
         }
