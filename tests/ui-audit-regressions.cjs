@@ -64,6 +64,38 @@ const base = 'http://127.0.0.1:4192';
     assert.deepEqual(errors, []);
     await context.close();
     console.log('PASS text editing and dialog exclusions remain active; no browser errors');
+
+    const spring = await browser.newContext({ viewport: { width: 900, height: 800 }, timezoneId: 'Europe/Warsaw', serviceWorkers: 'block' });
+    await spring.addInitScript(() => {
+      localStorage.setItem('offline_calendar_events_v2', '[]');
+      localStorage.setItem('offline_calendar_settings_v2', JSON.stringify({ language: 'en', defaultView: 'day' }));
+    });
+    const springPage = await spring.newPage(); springPage.on('pageerror', error => errors.push(error.message));
+    await springPage.clock.setFixedTime(new Date('2026-03-29T01:15:00Z'));
+    await springPage.goto(base);
+    await springPage.locator('.timeline-hour[aria-label$=" 03:00"]').click();
+    await springPage.locator('#input-event-title').waitFor();
+    assert.equal(await springPage.evaluate(() => !window.dispatchEvent(new Event('beforeunload', { cancelable: true }))), false, 'clean forms do not block unload');
+    await springPage.locator('#input-event-title').fill('Spring gap draft');
+    await springPage.locator('#input-start-time').fill('02:30');
+    await springPage.locator('#input-end-time').fill('04:00');
+    await springPage.locator('#btn-save-event-form').click();
+    await springPage.getByText('This time does not exist because the clock moves forward. Choose another time in the displayed time zone.', { exact: true }).waitFor();
+    assert.match(await springPage.getByTestId('event-timezone').innerText(), /Europe\/Warsaw/);
+    const promptPromise = springPage.waitForEvent('dialog');
+    const reload = springPage.reload().catch(error => error);
+    const prompt = await promptPromise;
+    assert.equal(prompt.type(), 'beforeunload');
+    await prompt.dismiss(); await reload;
+    assert.equal(await springPage.locator('#input-event-title').inputValue(), 'Spring gap draft');
+    await springPage.locator('#input-start-time').fill('03:30');
+    await springPage.locator('#btn-save-event-form').click();
+    await springPage.locator('#modal-event-form').waitFor({ state: 'detached' });
+    const records = await springPage.evaluate(async () => (await (await import('/src/utils/calendarStore.ts')).loadCalendar()).events);
+    assert.equal(records.length, 1); assert.equal(records[0].startTime, '03:30');
+    assert.deepEqual(errors, []);
+    await spring.close();
+    console.log('PASS spring-gap input guard, visible timezone, real reload cancellation with draft retention and corrected save');
   } catch (error) { console.error(output.slice(-1500)); throw error; }
   finally { await browser?.close(); server.kill('SIGTERM'); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

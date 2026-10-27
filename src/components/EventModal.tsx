@@ -4,8 +4,9 @@ import { Dialog } from './Dialog';
 import { localDate, addDays, minutes } from '../utils/dates';
 import { validateEvent } from '../utils/validation';
 import { getTranslation, type AppLanguage } from '../utils/i18n';
-import React, { useState, useLayoutEffect, useRef } from 'react';
+import React, { useState, useLayoutEffect, useEffect, useRef } from 'react';
 import { calendarText } from '../utils/calendarText';
+import { hasNewNonexistentTime } from '../utils/eventFormTime';
 import {
   CalendarEvent,
   GoogleCalendarColor,
@@ -87,6 +88,17 @@ export const EventModal: React.FC<EventModalProps> = ({
   useLayoutEffect(() => { if (formError) errorRef.current?.focus(); }, [formError]);
   const snapshot = JSON.stringify([title, startDate, startTime, endDate, endTime, allDay,
     location, description, color, recurrence, customRecurrence, reminders, preserveRule]);
+  useEffect(() => {
+    if (!isOpen) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (saving || (baseline.current !== null && baseline.current !== snapshot)) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [isOpen, snapshot, saving]);
   useLayoutEffect(() => {
     if (baseline.current === null) baseline.current = snapshot;
   });
@@ -204,6 +216,10 @@ export const EventModal: React.FC<EventModalProps> = ({
 
     try {
       validateEvent(eventPayload);
+      if (hasNewNonexistentTime(eventPayload, eventToEdit)) {
+        setFormError(text.nonexistentTime);
+        return;
+      }
       setSaving(true);
       await onSave(eventPayload);
       onClose();
@@ -377,6 +393,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Date & Time Row */}
           <div className="space-y-2.5 pt-1">
+            {!allDay && <p className="text-xs theme-muted" data-testid="event-timezone">{text.timeZone}: {eventToEdit?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone}</p>}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-semibold theme-text">
                 <Clock className="w-4 h-4 theme-muted" />

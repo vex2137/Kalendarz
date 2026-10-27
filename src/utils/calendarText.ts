@@ -12,6 +12,7 @@ const en = {
   recurrence: 'Recurrence', reminder: 'Reminder', minutes: 'Minutes',
   invalidDuration: 'The end must be later than the start. Check the dates and times.',
   invalidDates: 'Check the event title and dates.', saveFailed: 'Could not save. Your changes remain in the form.',
+  timeZone: 'Time zone', nonexistentTime: 'This time does not exist because the clock moves forward. Choose another time in the displayed time zone.',
 };
 const translations: Record<AppLanguage, typeof en> = {
   en,
@@ -25,7 +26,8 @@ const translations: Record<AppLanguage, typeof en> = {
     startDate: 'Data początku', startTime: 'Godzina początku', endDate: 'Data końca', endTime: 'Godzina końca',
     recurrence: 'Powtarzanie', reminder: 'Przypomnienie', minutes: 'Minuty',
     invalidDuration: 'Koniec musi następować po początku. Sprawdź daty i godziny.',
-    invalidDates: 'Sprawdź tytuł i daty wydarzenia.', saveFailed: 'Nie udało się zapisać. Zmiany pozostały w formularzu.' },
+    invalidDates: 'Sprawdź tytuł i daty wydarzenia.', saveFailed: 'Nie udało się zapisać. Zmiany pozostały w formularzu.',
+    timeZone: 'Strefa czasowa', nonexistentTime: 'Ta godzina nie istnieje z powodu przestawienia zegara do przodu. Wybierz inną godzinę w podanej strefie czasowej.' },
   de: { upcoming: 'Bevorstehende Termine', noDayEvents: 'Keine Termine an diesem Tag', openDay: 'Tag öffnen',
     more: 'weitere', nextEvents: 'Nächste 60 Tage anzeigen', rangeEmpty: 'Keine Termine in diesem Zeitraum',
     unsaved: 'Ungespeicherte Änderungen verwerfen?', discard: 'Änderungen verwerfen', keepEditing: 'Weiter bearbeiten',
@@ -36,7 +38,8 @@ const translations: Record<AppLanguage, typeof en> = {
     startDate: 'Startdatum', startTime: 'Startzeit', endDate: 'Enddatum', endTime: 'Endzeit',
     recurrence: 'Wiederholung', reminder: 'Erinnerung', minutes: 'Minuten',
     invalidDuration: 'Das Ende muss nach dem Beginn liegen. Prüfe Datum und Uhrzeit.',
-    invalidDates: 'Prüfe den Titel und die Daten des Termins.', saveFailed: 'Speichern fehlgeschlagen. Deine Änderungen bleiben im Formular.' },
+    invalidDates: 'Prüfe den Titel und die Daten des Termins.', saveFailed: 'Speichern fehlgeschlagen. Deine Änderungen bleiben im Formular.',
+    timeZone: 'Zeitzone', nonexistentTime: 'Diese Uhrzeit existiert wegen der Zeitumstellung nicht. Wähle eine andere Uhrzeit in der angezeigten Zeitzone.' },
   ru: { upcoming: 'Предстоящие события', noDayEvents: 'В этот день нет событий', openDay: 'Открыть день',
     more: 'ещё', nextEvents: 'Показать следующие 60 дней', rangeEmpty: 'Нет событий за этот период',
     unsaved: 'Отменить несохранённые изменения?', discard: 'Отменить изменения', keepEditing: 'Продолжить редактирование',
@@ -47,6 +50,7 @@ const translations: Record<AppLanguage, typeof en> = {
     startDate: 'Дата начала', startTime: 'Время начала', endDate: 'Дата окончания', endTime: 'Время окончания',
     recurrence: 'Повторение', reminder: 'Напоминание', minutes: 'Минуты',
     invalidDuration: 'Окончание должно быть позже начала. Проверьте даты и время.',
-    invalidDates: 'Проверьте название и даты события.', saveFailed: 'Не удалось сохранить. Изменения остались в форме.' },
+    invalidDates: 'Проверьте название и даты события.', saveFailed: 'Не удалось сохранить. Изменения остались в форме.',
+    timeZone: 'Часовой пояс', nonexistentTime: 'Это время не существует из-за перевода часов вперёд. Выберите другое время в указанном часовом поясе.' },
 };
 export const calendarText = (language: AppLanguage) => translations[language];
