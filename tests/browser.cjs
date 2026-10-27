@@ -117,7 +117,7 @@ async function until(fn) {
     await page.locator('#btn-save-event-form').click();
     await page
       .getByRole('alert')
-      .filter({ hasText: 'End must follow start' })
+      .filter({ hasText: 'Koniec musi następować po początku' })
       .waitFor();
     await page.locator('#input-end-time').fill('11:00');
     await page.locator('#btn-save-event-form').click();

@@ -83,6 +83,8 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const baseline = useRef<string | null>(null);
   const [, initialized] = useState(0);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => { if (formError) errorRef.current?.focus(); }, [formError]);
   const snapshot = JSON.stringify([title, startDate, startTime, endDate, endTime, allDay,
     location, description, color, recurrence, customRecurrence, reminders, preserveRule]);
   useLayoutEffect(() => {
@@ -172,9 +174,9 @@ export const EventModal: React.FC<EventModalProps> = ({
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (saving) return;
     setFormError('');
-    e.preventDefault();
     if (!title.trim() || !startDate) return;
 
     const eventPayload: CalendarEvent = {
@@ -206,7 +208,9 @@ export const EventModal: React.FC<EventModalProps> = ({
       await onSave(eventPayload);
       onClose();
     } catch (error) {
-      setFormError(String(error));
+      const detail = String(error);
+      setFormError(detail.includes('End must follow start') ? text.invalidDuration :
+        detail.includes('Invalid event dates or title') ? text.invalidDates : `${text.saveFailed} ${detail}`);
     } finally {
       setSaving(false);
     }
@@ -311,6 +315,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <button
                 type="button"
                 id="btn-delete-event"
+                disabled={saving}
                 onClick={() => setShowDeleteConfirm(true)}
                 className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors"
                 title={t.deleteEvent}
@@ -321,6 +326,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             <button
               type="button"
               id="btn-close-event-modal"
+              disabled={saving}
               aria-label={t.close}
               onClick={requestClose}
               className="p-1.5 rounded-xl theme-muted hover:theme-text theme-hover transition-colors"
@@ -332,14 +338,16 @@ export const EventModal: React.FC<EventModalProps> = ({
 
         {/* Modal Form */}
         <form
+          aria-busy={saving}
           onSubmit={handleSubmit}
           className="p-5 space-y-4 overflow-y-auto max-h-[80vh]"
         >
           {formError && (
-            <p role="alert" className="text-red-500 text-sm">
+            <p ref={errorRef} tabIndex={-1} role="alert" className="calendar-form-error">
               {formError}
             </p>
           )}
+          <fieldset disabled={saving} className="event-form-fields space-y-4 min-w-0">
           {eventToEdit?.rrule && (
             <label className="block text-xs">
               <input
@@ -395,7 +403,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 </label>
                 <input
                   id="input-start-date"
-                  aria-label="Start date"
+                  aria-label={text.startDate}
                   type="date"
                   value={startDate}
                   onChange={(e) => {
@@ -407,7 +415,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 {!allDay && (
                   <input
                     id="input-start-time"
-                    aria-label="Start time"
+                    aria-label={text.startTime}
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
@@ -422,7 +430,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 </label>
                 <input
                   id="input-end-date"
-                  aria-label="End date"
+                  aria-label={text.endDate}
                   type="date"
                   value={endDate}
                   min={startDate}
@@ -432,7 +440,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 {!allDay && (
                   <input
                     id="input-end-time"
-                    aria-label="End time"
+                    aria-label={text.endTime}
                     type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
@@ -450,7 +458,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <div className="flex-1">
                 <select
                   id="select-recurrence"
-                  aria-label="Recurrence"
+                  aria-label={text.recurrence}
                   value={recurrence}
                   onChange={(e) => {
                     setPreserveRule(false);
@@ -561,6 +569,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                           <button
                             key={dow}
                             type="button"
+                            aria-pressed={isSelected}
                             onClick={() => {
                               const current = customRecurrence.daysOfWeek || [];
                               const next = isSelected
@@ -571,7 +580,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                                 daysOfWeek: next.length > 0 ? next : [dow],
                               });
                             }}
-                            className={`w-7 h-7 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            className={`event-weekday-choice rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                               isSelected
                                 ? 'theme-primary bg-blue-600 text-white shadow-xs'
                                 : 'theme-surface theme-text theme-border border hover:opacity-80'
@@ -713,18 +722,17 @@ export const EventModal: React.FC<EventModalProps> = ({
                   key={c.id}
                   type="button"
                   id={`color-choice-${c.id}`}
+                  aria-label={colorLabel(c.id, language, c.name)}
+                  aria-pressed={color === c.id}
                   onClick={() => setColor(c.id)}
-                  className={`w-6 h-6 rounded-full transition-transform hover:scale-110 flex items-center justify-center ${
-                    color === c.id
-                      ? 'ring-2 ring-white scale-115 shadow-xs'
-                      : 'opacity-80 hover:opacity-100'
-                  }`}
-                  style={{ backgroundColor: c.dot }}
+                  className="event-color-choice"
                   title={colorLabel(c.id, language, c.name)}
                 >
+                  <span className="event-color-dot" style={{ backgroundColor: c.dot }} aria-hidden="true">
                   {color === c.id && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                    <span className="event-color-selected">✓</span>
                   )}
+                  </span>
                 </button>
               ))}
             </div>
@@ -740,6 +748,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <button
                 type="button"
                 id="btn-add-reminder"
+                aria-expanded={showCustomReminderInput}
                 onClick={() => setShowCustomReminderInput(true)}
                 className="text-blue-500 hover:text-blue-400 text-xs font-bold flex items-center gap-1"
               >
@@ -763,7 +772,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                       type="button"
                       onClick={() => handleRemoveReminder(min)}
                       aria-label={`${tr(language, 'Usuń przypomnienie', 'Remove reminder')}: ${label}`}
-                      className="theme-muted hover:theme-text ml-1"
+                      className="event-remove-reminder theme-muted hover:theme-text ml-1"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -774,10 +783,10 @@ export const EventModal: React.FC<EventModalProps> = ({
 
             {/* Custom reminder input popover */}
             {showCustomReminderInput && (
-              <div className="flex items-center gap-2 p-2 theme-subtle rounded-xl theme-border border mt-2">
+              <div className="event-reminder-editor flex flex-wrap items-center gap-2 p-2 theme-subtle rounded-xl theme-border border mt-2">
                 <select
                   id="select-standard-reminder"
-                  aria-label="Reminder"
+                  aria-label={text.reminder}
                   onChange={(e) => {
                     const v = parseInt(e.target.value, 10);
                     if (!reminders.includes(v)) {
@@ -805,10 +814,10 @@ export const EventModal: React.FC<EventModalProps> = ({
                 <div className="flex items-center gap-1">
                   <input
                     id="input-custom-minutes"
-                    aria-label="Minutes"
+                    aria-label={text.minutes}
                     type="number"
                     min="1"
-                    placeholder="Minuty"
+                    placeholder={text.minutes}
                     value={customReminderVal}
                     onChange={(e) => setCustomReminderVal(e.target.value)}
                     className="w-20 px-2 py-1 text-xs rounded-lg theme-input"
@@ -830,7 +839,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             <MapPin className="w-4 h-4 theme-muted shrink-0" />
             <input
               id="input-event-location"
-              aria-label="Location"
+              aria-label={t.locationPlaceholder}
               type="text"
               placeholder={t.locationPlaceholder}
               value={location}
@@ -844,7 +853,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             <AlignLeft className="w-4 h-4 theme-muted shrink-0 mt-2" />
             <textarea
               id="input-event-description"
-              aria-label="Description"
+              aria-label={t.descPlaceholder}
               rows={3}
               placeholder={t.descPlaceholder}
               value={description}
@@ -872,6 +881,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               {tr(language, 'Zapisz', 'Save')}
             </button>
           </div>
+          </fieldset>
         </form>
       </div>
       {showDiscardConfirm && <Dialog label={text.unsaved} onClose={() => setShowDiscardConfirm(false)}

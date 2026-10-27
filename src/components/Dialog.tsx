@@ -27,7 +27,7 @@ export function Dialog({ onClose, label, children, ...props }: Props) {
           'button, a[href], input, select, textarea, [tabindex="0"]',
         ),
       ].filter(
-        (e) => !e.hasAttribute('disabled') && !e.closest('[inert]') && e.getClientRects().length > 0,
+        (e) => e.tabIndex >= 0 && !e.matches(':disabled') && !e.closest('[inert]') && e.getClientRects().length > 0,
       );
     (
       root.querySelector<HTMLElement>('[data-autofocus]') ||
