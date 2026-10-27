@@ -1,5 +1,7 @@
 # Calendar UI overhaul — part 1 of 4
 
+Historical report. See [the current compliance review and continuation](UI-1.5.0-part1-compliance.md) for additional local implementation and updated remaining work.
+
 Implementation report; this is not a release announcement. The application version remains **1.4.1**. No tag, release, deployment, signing configuration or application identifier was changed.
 
 ## Isolation and baseline

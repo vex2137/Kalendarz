@@ -1,5 +1,7 @@
 # UI part 1 — publication preflight and remaining work
 
+Historical publication record. See [the current compliance review and continuation](UI-1.5.0-part1-compliance.md) for additional local work; that continuation has not been pushed.
+
 Date: 2026-10-26. This records the user's authorization to publish the completed first part **as a development branch only**. It does not authorize a release, deployment, merge to `main`, version bump or implementation of the next part.
 
 ## Reviewed implementation and isolation

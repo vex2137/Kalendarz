@@ -1,0 +1,87 @@
+UI part 1 continuation — retained verification excerpts
+Source implementation tip: a8fd8fc16045bb33c30f59acf9d9fe5887d6639a
+Full logs are local /tmp artifacts; hashes identify their captured contents.
+TypeScript: npm run lint (tsc --noEmit) exited 0 after final TypeScript changes.
+Later changes before this report were CSS containment and tests only.
+
+Unit suite
+/tmp/kalendarz-part1-final-unit.log
+SHA256 f9628df371ff310803985ed24c25d8f7127638d6114e786578419b5f2dc4e665
+ℹ tests 157
+ℹ suites 0
+ℹ pass 157
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12423.73657
+
+Views/responsive
+/tmp/kalendarz-part1-final-views.log
+SHA256 a93bc3b2911e74f63dcbc1790ab13086b83e74074b90e465232c4dd913a1858e
+PASS month 4/5/6 rows, select/deselect, empty day, month reset, continuous segments and original record identity
+PASS month roving focus, local arrow keys, selection, cross-month focus and Page Down selection reset
+PASS day/week time geometry, current-time line, overlaps, all-day events and date context
+PASS year 12 months, month/day navigation, year-boundary header, recurring agenda and range extension
+PASS dirty dialog confirmation, keep editing, discard and no unintended writes
+PASS eight responsive sizes (320–2560px), landscape, five views, keyboard selection/focus and zero browser errors
+PASS 10,000-event virtual agenda, bounded DOM, last item reachable, records preserved
+PASS actual 23/25-hour day geometry, repeated-hour event visibility/duration and live timezone change
+PASS real touch: week pans its timeline, month changes period, neither opens an accidental dialog
+PASS exact Polish empty-day message and zero browser errors across all scenarios
+
+Time editor/audit regressions
+/tmp/kalendarz-part1-time-editor-browser.log
+SHA256 6a0f28cdaca9988105a50f6ec9b75f971249417332cdb6b34f926244851334a2
+PASS Lord Howe 03:30 time slot opens the actual event form at 03:30
+PASS ArrowRight and A navigate periods with focus inside data-no-swipe week
+PASS week touch still pans internally without changing period or opening a dialog
+PASS text editing and dialog exclusions remain active; no browser errors
+PASS spring-gap input guard, visible timezone, real reload cancellation with draft retention and corrected save
+
+Accessibility/forms/contrast
+/tmp/kalendarz-part1-final-accessibility.log
+SHA256 b1289ec3e9b810601570d196a2092898ca3a73a0a38b9a321220ddcd8e1bd585
+PASS 4 languages, localized focused errors, 44px color/day controls, nested focus and 320x450 high-DPI dialog reflow
+PASS sampled calendar text contrast >=4.5:1 for seven built-in themes and eleven event colors, including card hover
+PASS failed-write draft retention, disabled fields during delayed commit, duplicate submit protection and zero browser errors
+
+Mobile/languages
+/tmp/kalendarz-part1-final-mobile.log
+SHA256 5cd91c64182d936c171709fa192a36e4d328aa27e0f1103ace1cd72227a6117d
+PASS: one visible view selector at 320/390/430/768/1280px, all views work, colored actions open correctly, PL/EN/RU/DE, no horizontal overflow or browser errors.
+
+Custom themes/keyboard
+/tmp/kalendarz-part1-final-themes.log
+SHA256 97b132b24ca6dc93b21cbd6953ca1f9130a69c9bf5ce2f8f1e07a2fa0d4331c5
+PASS desktop keys, modifier/editing/modal exclusions, custom theme CRUD/persistence/all views and built-in fallback.
+
+Touch
+/tmp/kalendarz-part1-final-touch.log
+SHA256 173530ed4080ef5717be7a41afbce187908fcb7de623e2b3c1777a8f7813af3a
+PASS touch period swipes, internal week panning with period buttons, reverse navigation, vertical-scroll exclusion and no accidental click.
+
+Stable browser regressions
+/tmp/kalendarz-part1-final-regression.log
+SHA256 788c8d16273bff901a5666cf37b907a5bfc191b1014b810545db301db17c18de
+PASS create/edit/persist, local default date, validation and zero-minute reminder
+PASS non-destructive imports/holidays, virtual search, Escape and focus restoration
+PASS PIN hashing, explicit lock and lock after reload
+PASS cross-tab concurrent edits, deletion sync, failed-write recovery and delayed camera cleanup
+PASS inactivity auto-lock
+PASS responsive controls at 320/390/768px
+PASS 10k-event agenda: 42 ms, 132 DOM elements
+PASS offline reload, lazy-loaded event form/sync and IndexedDB persistence
+
+Explicit model-free Web/PWA build
+/tmp/kalendarz-part1-final-build.log
+SHA256 bb57690d22d63944859f63aa1cc581c80fecc6f9be512435a8c3619e27df5391
+
+✓ built in 888ms
+
+PWA v1.3.0
+mode      generateSW
+precache  39 entries (25776.88 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-2fbc6a65.js
