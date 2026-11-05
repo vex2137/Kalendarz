@@ -1,3 +1,4 @@
+import { downloadMeter, type DownloadProgress } from './downloadProgress';
 import { androidAIReady } from './nativeAndroidAI';
 import { completionTokenLimit } from './inferencePolicy';
 import { ggufMetadata, ggufLoadError } from './ggufMetadata';
@@ -10,7 +11,7 @@ import { recordModelMetric, recordModelState, recordDiagnosticAction, type Diagn
 import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection, AI_MODELS, registerImportedModel, type ModelDescriptor } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
-export interface ModelStatus { phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; importing?: boolean; error?: string; errorDetail?: string; modelId: string }
+export interface ModelStatus { transfer?: DownloadProgress; phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; importing?: boolean; error?: string; errorDetail?: string; modelId: string }
 const operationMarker = 'calendar_model_operation_v1';
 const initialModelId = activeModel().id;
 let recoveryRequired = false;
@@ -161,7 +162,7 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
   step(stage);
   const previouslyInstalled = status.installed;
   let blob: Blob | undefined;
-  update({ phase: file instanceof Blob ? 'verifying' : 'downloading', importing: Boolean(file), progress: 0, error: undefined, errorDetail:undefined });
+  update({ phase: file instanceof Blob ? 'verifying' : 'downloading', importing: Boolean(file), progress: 0, transfer: undefined, error: undefined, errorDetail:undefined });
   try {
     // Importing the bundled model must never create another full weight copy.
     if (descriptor.bundled && await bundledModelAvailable(descriptor)) {
@@ -180,7 +181,9 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
     await cleanPartialModels(descriptor);
     if(file && !(file instanceof Blob) && file.bytes !== descriptor.bytes) throw new Error('model-size');
     step(file?'copy':'stream-open');
-    blob = file instanceof Blob ? file : await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), file ? {...descriptor,url:file.url} : descriptor);
+    const meter = downloadMeter(descriptor.bytes);
+    update({transfer: undefined});
+    blob = file instanceof Blob ? file : await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100, transfer: meter(n) }), file ? {...descriptor,url:file.url} : descriptor);
     update({ phase: 'verifying', progress: 0 });
     step('verify');await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     step('commit');await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}),action);

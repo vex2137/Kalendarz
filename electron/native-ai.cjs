@@ -1,3 +1,4 @@
+const {nativeProcessEnvironment}=require('./native-environment.cjs');
 const {spawn,execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const run=promisify(execFile);
@@ -32,7 +33,7 @@ class NativeAI {
   constructor({runtimeRoot,store,platform=process.platform}){this.root=runtimeRoot;this.store=store;this.platform=platform;this.mode='auto';this.gpuLayers=999;this.packaged=[];try{const m=JSON.parse(readFileSync(path.join(runtimeRoot,'runtime-manifest.json'),'utf8'));this.packaged=[...new Set(Object.keys(m.files).map(file=>file.split('/')[0]==='cpu'?'cpu-native':file.split('/')[0]))];if(platform==='darwin'&&this.packaged.includes('cpu-native'))this.packaged.push('metal');}catch{}this.state={backend:'cpu-native',gpuActive:false,loaded:false,available:false};this.checked=new Set();}
   snapshot(){return {...this.state,mode:this.mode,gpuLayers:this.gpuLayers,system:this.platform,cpuArchitecture:process.arch,packagedBackends:this.packaged,availableBackends:[...new Set((this.devices||[]).map(d=>d.backend))],gpuDevices:this.devices||[]};}
   binary(backend){return path.join(this.root,backend==='metal'?'cpu':backend,this.platform==='win32'?'llama-server.exe':'llama-server');}
-  env(backend){const directory=path.join(this.root,backend==='metal'?'cpu':backend);return {...process.env,...(this.platform==='darwin'?{DYLD_LIBRARY_PATH:directory+(process.env.DYLD_LIBRARY_PATH?':'+process.env.DYLD_LIBRARY_PATH:'')}:{}),PATH:directory+path.delimiter+(process.env.PATH||''),...(this.platform==='linux'?{LD_LIBRARY_PATH:directory+(process.env.LD_LIBRARY_PATH?':'+process.env.LD_LIBRARY_PATH:'')}:{})};}
+  env(backend){const directory=path.join(this.root,backend==='metal'?'cpu':backend);const base=this.platform==='linux'?nativeProcessEnvironment():process.env;return {...base,...(this.platform==='darwin'?{DYLD_LIBRARY_PATH:directory+(base.DYLD_LIBRARY_PATH?':'+base.DYLD_LIBRARY_PATH:'')}:{}),PATH:directory+path.delimiter+(base.PATH||''),...(this.platform==='linux'?{LD_LIBRARY_PATH:directory+(base.LD_LIBRARY_PATH?':'+base.LD_LIBRARY_PATH:'')}:{})};}
   async verifyRuntime(backend){
     if(backend==='metal')backend='cpu';
     if(this.checked.has(backend))return;
@@ -66,7 +67,7 @@ class NativeAI {
       else if(this.platform==='darwin'){const r=await run('ps',['-o','rss=','-p',String(pid)],{timeout:2000});if(/^\s*\d+\s*$/.test(r.stdout))this.state.ramBytes=Number(r.stdout.trim())*1024;}
       this.state.memoryScope='native-server resident memory';
       if(['vulkan','cuda'].includes(this.backend)){
-        const r=await run('nvidia-smi',['--query-compute-apps=pid,used_memory','--format=csv,noheader,nounits'],{timeout:2000,windowsHide:true});
+        const r=await run('nvidia-smi',['--query-compute-apps=pid,used_memory','--format=csv,noheader,nounits'],{timeout:2000,windowsHide:true,env:this.platform==='linux'?nativeProcessEnvironment():process.env});
         const row=r.stdout.split('\n').map(l=>l.split(',').map(s=>s.trim())).find(r=>Number(r[0])===pid&&/^\d+$/.test(r[1]));
         if(row)this.state.vramBytes=Number(row[1])*1048576;
       }

@@ -1,0 +1,11 @@
+# Part 2 Beta 2 — incomplete
+
+- Desktop toolbar uses a single wide row at >=1280px, labels beside icons, 44px actions and compact narrow layouts. Existing app-download action stays labelled App rather than falsely implying model management.
+- Existing download progress now includes actual written bytes, smoothed MB/s and ETA. HTTP Range/persistent pause-resume and a fully verified public recommended-model URL remain unfinished.
+- Compared OmniCore b69b318c18ac222f260eb5ce2b64eb10f97e8ecc native.py, nvidia.py and build_llama.py. Reused its subprocess library-isolation principle without changing Kalendarz's pinned llama.cpp version or importing OmniCore's backend.
+- Staged and SHA-256-verified upstream CUDA runtime locally; native probing returned no physical devices and gpuActive=false, as expected. Added optional CALENDAR_INCLUDE_CUDA=true packaging using the existing pinned/checksummed CUDA staging script; CPU/Vulkan remain. Actual NVIDIA inference is not verified in this environment. Auto fallback remains tested; explicit GPU mode still fails visibly rather than silently switching to CPU.
+- Hugging Face metadata verification is blocked by Cloud network policy: huggingface.co is absent from allowed hosts, requests return HTTP 403. The public GGUF filename, bytes and checksum have NOT been independently verified. The model manifest URL remains unchanged; no guessed checksum or URL was installed.
+- Required environment configuration: add huggingface.co to network_policy.allowed_hosts through the supported Cloud environment configuration UI. The agent has read-only environment tools and cannot confirm the client's exact menu labels. Further CDN hosts can only be determined after access is granted; do not bypass the policy.
+- Tests: TypeScript; two download-meter tests; 28 native tests; three CUDA-staging state tests; toolbar at 1920/1366/1024/768/390 in EN/PL/DE/RU; existing mobile navigation across five views. Full release regression/builds are deferred until missing model/transfer work is complete.
+
+No Beta 2 APK/AppImage/tag/release has been created. PR #20 must remain Draft and unmerged; stable 1.4.2 and Part 1 Beta 3 are unchanged. Continue with verified HF metadata and real transfer tests, persistent Range resume, complete CUDA packaging validation and real GPU testing on CachyOS before claiming the Beta 2 scope is complete.

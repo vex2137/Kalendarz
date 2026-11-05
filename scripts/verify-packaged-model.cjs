@@ -6,6 +6,10 @@ const model = require('../src/utils/localModelManifest.json');
 // electron-builder hook: direct packaging must not silently omit the bundled model.
 module.exports = async function(context) {
   execFileSync(process.platform === 'win32' ? 'python' : 'python3', ['scripts/prepare-native.py','--platform',context.electronPlatformName,'--arch',({1:'x64',3:'arm64'})[context.arch]||String(context.arch)], {cwd:context.packager.info.appDir,stdio:'inherit'});
+  if (process.env.CALENDAR_INCLUDE_CUDA === 'true') {
+    if (context.electronPlatformName !== 'linux' || context.arch !== 1) throw Error('CUDA packaging currently requires Linux x64');
+    execFileSync('python3', ['scripts/stage-cuda-runtime.py', '--target', 'linux-x64'], {cwd:context.packager.info.appDir,stdio:'inherit'});
+  }
   const root=context.packager.info.appDir;
   const info=require('node:fs').readFileSync(join(root,'dist/build-info.json'),'utf8');
   const build=JSON.parse(info);

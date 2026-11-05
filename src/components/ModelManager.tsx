@@ -1,3 +1,4 @@
+import { downloadSummary } from '../utils/downloadProgress';
 import { diagnosticActionText } from '../utils/diagnosticActionText';
 import { diagnosticActions, recordDiagnosticAction, diagnosticErrorCode, type DiagnosticAction } from '../utils/modelDiagnostics';
 import { BackendSettings } from './BackendSettings';
@@ -101,6 +102,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
     </div>
     <input ref={fileInput} type="file" className="sr-only" accept=".gguf,application/octet-stream" aria-label={text.import} disabled={busy || !enabled} onChange={event => {const file=event.currentTarget.files?.[0];event.currentTarget.value='';if(file)importFile(file);}}/>
     <p className="text-[11px] theme-muted flex gap-2"><Info className="w-4 h-4 shrink-0"/>{view.importHint}</p>
+    {status.phase === 'downloading' && status.transfer && <p className="text-xs theme-muted tabular-nums">{downloadSummary(status.transfer, language)}</p>}
     {['downloading','verifying'].includes(status.phase) && <div role="status"><progress className="w-full" value={status.progress>=0?status.progress:undefined} max={100}/><span>{status.progress>=0?`${Math.floor(status.progress)}%`:view.importing}</span></div>}
     {operationMessage && !error && status.phase!=='error' && <p role="status" aria-live="polite" data-testid="model-operation-result">{operationMessage}</p>}
     {(error || status.phase === 'error') && <p role="alert" className="text-xs">{modelErrorText(error || status.error,language)} {status.installed && lifecycle.retry}{lastFailure && <span className="block mt-1">{failureLabels[0]}: {lastFailure.failedStage} · {failureLabels[1]}: {lastFailure.cause||'Error'} · {lastFailure.code}</span>}</p>}
