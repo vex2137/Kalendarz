@@ -2,8 +2,10 @@ import { calendarFields } from './calendarCommandParser';
 import type { ModelConversation } from './modelAssistant';
 import type { AppLanguage } from './i18n';
 import { parseDateFromNaturalLanguage } from './aiEngine';
+import { isReminderEventRequest } from './calendarReminder';
 
 export function needsCalendarExtraction(query: string, now: Date, context: ModelConversation, language: AppLanguage = 'en') {
+  if (isReminderEventRequest(query)) return true;
   // A date or a pronoun alone is not an instruction to operate on the calendar.
   const explicit = /(?<![\p{L}])(?:dod\p{L}*|utw[oó]rz\p{L}*|wpisz|zapisz|zaplanuj|przenie\p{L}*|prze[lł]o[zż]\p{L}*|przesu\p{L}*|zmie\p{L}*|usu\p{L}*|skas\p{L}*|odwo\p{L}*|znajd\p{L}*|szuk\p{L}*|wyszuk\p{L}*|kolizj\p{L}*|konflikt\p{L}*|propozycj\p{L}*|add|create|schedule|move|reschedule|rename|change|delete|remove|cancel|find|search|conflicts|appointment|events?|wydarzeni\p{L}*|termin|termine|verschiebe|lösche|добавь|удали|перенеси|событие)(?![\p{L}])/iu.test(query);
   if (explicit) return true;
