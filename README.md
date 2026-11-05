@@ -18,7 +18,7 @@ Download [SHA256SUMS.txt](https://github.com/vex2137/Kalendarz/releases/download
 
 ### Installation and updates
 
-- **Android:** install the signed APK over the existing Beta 3 / diagnostic / 1.4.2 diagnostic installation. It retains application ID `com.kalendarz.offline.diagnostics` and the original update certificate. Do not uninstall the existing app or clear its data. The separately signed production 1.4.0 installation has a different identity; this APK does not replace it. See the [Android guide](README_ANDROID_APK.md).
+- **Android:** install the signed APK over the existing Beta 3 / diagnostic / 1.4.1 / Android Test 1 or Test 2 installation. It retains application ID `com.kalendarz.offline.diagnostics` and the original update certificate. Do not uninstall the existing app or clear its data. The separately signed production 1.4.0 installation has a different identity; this APK does not replace it. See the [Android guide](README_ANDROID_APK.md).
 - **Linux:** make the downloaded file executable with `chmod +x KALENDARZ-1.4.2-linux-x86_64.AppImage`, then run it. Existing user data stays in its application profile.
 - **Windows:** run the portable EXE. The package is unsigned; it was checked for package and native-runtime integrity, but not launched on a physical Windows machine in the release environment.
 - **Web:** extract the ZIP and serve its contents over HTTPS or localhost. Keep the same browser origin/profile to retain local data. Opening `index.html` directly is not the supported deployment method.

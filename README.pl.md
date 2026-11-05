@@ -12,7 +12,7 @@ Lokalny kalendarz na Android ARM64, Linux x86_64, Windows x86_64 oraz Web. Dane 
 - [Web — produkcyjny ZIP do wdrożenia](https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WEB.zip)
 - [Sumy SHA-256](https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/SHA256SUMS.txt)
 
-Publikowane są oryginalne, zweryfikowane paczki 1.4.2, bez ponownej kompilacji.
+Publikacja sprawdza gotowe, zweryfikowane paczki 1.4.2 bez ponownego budowania. APK zachowuje bajty zaakceptowanego Android Test 2.
 
 ## Instalacja i aktualizacja
 
@@ -30,9 +30,9 @@ Paczki nie zawierają wag modeli. Zachowują wcześniej zainstalowane modele; no
 
 - Vulkan na Androidzie jest eksperymentalny. Użytkownik potwierdził podstawowe funkcje na POCO X7 Pro, ale udana inferencja GPU Mali-G720 nie została potwierdzona. Auto zachowuje fallback CPU, a diagnostyka pokazuje rzeczywisty backend.
 - Linux AppImage zawiera CPU i Vulkan, bez CUDA. Nie potwierdzono fizycznej zgodności RTX 4060, AMD ani Intel w testach tego wydania.
-- Nie dołączono nowego dostrojonego modelu. Dalsze prace nad GPU należą do 1.4.2.
+- Prywatny Qwen v2 jest obsługiwany przez import, bez publikacji wag. Mały model 0.8B może podawać błędne odpowiedzi ogólne.
 - PIN nie szyfruje bazy wydarzeń, eksport JSON jest nieszyfrowany, a przypomnienia przeglądarkowe wymagają otwartej aplikacji.
 
-[Szczegółowe ograniczenia](docs/known-limitations-1.4.2.md) · [Weryfikacja wydania](docs/release-1.4.2-publication.md)
+[Szczegółowe ograniczenia](docs/known-limitations-1.4.1.md) · [Weryfikacja wydania](docs/RELEASE-1.4.2.md)
 
 Kod i oryginalna historia Git są zachowane w tagu `v1.4.2`. Dokumentacja główna i opis wydania są po angielsku. Projekt zachowuje deklarowaną licencję MIT; zależności i modele mają własne licencje.
