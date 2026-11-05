@@ -12,14 +12,23 @@ const { chromium } = require('playwright');
       const pages = await Promise.all(['http://127.0.0.1:4177', 'http://127.0.0.1:4178'].map(async url => { const p = await context.newPage(); await p.goto(url); return p; }));
       const navName = language === 'pl' ? 'Widoki kalendarza' : 'Calendar views';
       for (const mode of [2, 3]) {
-        for (const page of pages) await page.getByRole('navigation', {name: navName, exact: true}).getByRole('button').nth(mode).click();
+        for (const page of pages) {
+          await page.getByRole('navigation', {name: navName, exact: true}).getByRole('button').nth(mode).click();
+          await page.waitForTimeout(400);
+          await page.locator('.calendar-timeline').evaluate(element => {
+            element.style.scrollBehavior = 'auto';
+            element.scrollLeft = 0;
+            element.scrollTop = 0;
+          });
+        }
         const dimensions = [];
         for (const page of pages) dimensions.push(await page.evaluate(() => {
           const label = document.querySelector('.timeline-all-day-label');
           const r = document.createRange(); r.selectNodeContents(label);
           const el = label.getBoundingClientRect(), text = r.getBoundingClientRect();
-          const box = s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; };
-          return {label: [el.x, el.y, el.width, el.height], center: (text.left + text.right) / 2 - (el.left + el.right) / 2, row: box('.timeline-all-day-row'), axis: box('.timeline-hours'), column: box('.timeline-day'), content: label.textContent, overflow: document.documentElement.scrollWidth > innerWidth};
+          const row = document.querySelector('.timeline-all-day-row').getBoundingClientRect();
+          const box = s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.x - row.x, r.y - row.y, r.width, r.height]; };
+          return {label: [el.x - row.x, el.y - row.y, el.width, el.height], center: (text.left + text.right) / 2 - (el.left + el.right) / 2, row: [row.width, row.height], axis: box('.timeline-hours'), column: box('.timeline-day'), content: label.textContent, overflow: document.documentElement.scrollWidth > innerWidth};
         }));
         assert.equal(dimensions[1].content, language === 'pl' ? 'Cały dzień' : 'All day');
         assert.ok(Math.abs(dimensions[1].center) < 1, `${language}/${mode}/${size.width}: label is not centered`);

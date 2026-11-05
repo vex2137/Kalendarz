@@ -1,4 +1,4 @@
-name: Publish verified Kalendarz 1.5.0 Part 1 Beta 2
+name: Publish verified Kalendarz 1.5.0 Part 1 Beta 3
 on:
   workflow_dispatch:
 permissions:
@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/release/1.5.0-part1-beta2'
+    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/release/1.5.0-part1-beta3'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -18,4 +18,4 @@ jobs:
       - name: Verify, upload and verify the existing signed beta APK
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/publish-part1-beta2.py
+        run: python3 scripts/publish-part1-beta3.py
