@@ -433,6 +433,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     controller.signal.throwIfAborted();
     // A length-limited conversation remains useful text. A partial calendar
     // command must never reach parsing/confirmation as a successful completion.
+    metric.finishReason = finish === 'stop' || finish === 'length' ? finish : finish ? 'other' : 'missing';
     if (finish !== 'stop' && !(schema === undefined && finish === 'length' && text)) throw new Error('model-incomplete');
     if (finish === 'length') metric.outputTruncated = true;
     if (!text) throw new Error('model-response');

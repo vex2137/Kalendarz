@@ -1,6 +1,20 @@
 # Changelog
 
-## 1.4.1 — Latest Stable
+## 1.4.2 — Latest Stable
+
+- Fix Android JSON-null stream prefixes and Polish calendar time/duration validation (PR #14/#15).
+- Correct single-event/reminder routing; preserve free-form model extraction and explicit save confirmation.
+- Add field-presence and finish-reason diagnostics without conversation text.
+- Preserve data profiles, GGUF imports and the existing Android update identity; distribute no private weights.
+- Verify documented Android, Linux AppImage, Windows portable and Web packages before stable publication.
+
+### Polski
+
+Naprawiono prefiks `null`, rozpoznawanie godzin i czasu trwania oraz routing wydarzeń i przypomnień. Zachowano dane, historię, ustawienia, import GGUF i zatwierdzanie zmian. Wagi Qwena v2 pozostają prywatne. Diagnostyka rozróżnia błędy modelu i walidacji bez treści rozmów.
+
+[Release notes / opis wydania](.github/release-notes/v1.4.2.md) · [Verification](docs/RELEASE-1.4.2.md)
+
+## 1.4.1 — Previous Stable
 
 - Fix Android GGUF download/import regressions and distinguish successful import from engine compatibility.
 - Preserve native CPU inference, experimental GPU backends, explicit processing modes and safe Auto fallback.

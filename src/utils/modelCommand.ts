@@ -59,7 +59,8 @@ export function commandSchemaForRequest(request: string, conversational = false)
   return { ...schema, properties: { ...schema.properties, action: { type: 'string', enum: allowed } } };
 }
 
-export function parseModelCommand(json: string): ModelCommand {
+export function parseModelCommand(json: string, diagnostic?: {modelJsonValid?:boolean;modelResponseCharacters?:number}): ModelCommand {
+  if (diagnostic) { diagnostic.modelJsonValid = false; diagnostic.modelResponseCharacters = json.length; }
   if (json.length > 12000) throw new Error('Invalid model response');
   const parsed = JSON.parse(json);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
@@ -80,6 +81,7 @@ export function parseModelCommand(json: string): ModelCommand {
   for (const key of ['date', 'endDate', 'sourceDate']) if (value[key] !== null && !isValidDate(value[key])) throw new Error('Invalid model date');
   for (const key of ['time', 'endTime']) if (value[key] !== null && !isValidTime(value[key])) throw new Error('Invalid model time');
   if (value.recurrence !== null && !['NONE', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(value.recurrence)) throw new Error('Invalid model recurrence');
+  if (diagnostic) diagnostic.modelJsonValid = true;
   return value;
 }
 
@@ -100,7 +102,8 @@ Now: ${localDate(now)}, ${Intl.DateTimeFormat().resolvedOptions().timeZone}. Dat
 Relative dates: dzisiaj/today = ${localDate(now)}; jutro/tomorrow = ${addDays(localDate(now), 1)}; pojutrze/day after tomorrow = ${addDays(localDate(now), 2)}.
 Prefer the current request's computed calendar date over example dates. Copy ISO dates exactly.
 Understand Polish, English, Russian, German. Questions in ${language}; event names in the user's language.
-Actions: create=add, update=edit, delete=remove, search=find, assistant=free slots/conflicts/agenda/batch planning, clarify=unclear/unrelated.
+Actions: create=add or schedule ONE named event, update=edit, delete=remove, search=find, assistant=free slots/conflicts/agenda/MULTIPLE-event planning, clarify=unclear/unrelated.
+Single-event scheduling is create. A request to remind about a named event at a date/time is create with reminderMinutes=0 unless an explicit earlier offset is given. Copy only the actual name from the request into title, without command words.
 Add/Dodaj always means create a NEW event, never update a saved one. Keep names unchanged; Dentist and Dentysta are different names.
 Omit unspecified fields. No invented data. Dates YYYY-MM-DD; times HH:mm (24h). title=name only, no action/date/time words. allDay:true ONLY if explicitly all day. recurrence/location/description ONLY if requested. Omit unspecified end time; the calendar defaults to one hour or preserves duration.
 reminderMinutes=explicit whole minutes before the event (0=at start), only if requested. Missing/ambiguous reminder offset requires clarification. Missing date/time/title requires clarification, never guess.

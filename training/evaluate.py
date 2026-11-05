@@ -36,7 +36,7 @@ def score_predictions(records, predictions, schema):
             if key in expected:
                 fields[key]['total'] += 1
                 fields[key]['correct'] += valid and parsed.get(key) == expected[key]
-        rows.append({'id': record['id'], 'valid_json': valid, 'intent': intent, 'exact': exact, 'prediction': prediction, 'expected': expected})
+        rows.append({'id': record['id'], 'valid_json': syntactic, 'intent': intent, 'exact': exact, 'prediction': prediction, 'expected': expected})
     return {'scores': dict(scores), 'fields': dict(fields), 'results': rows, 'calendar_writes': 0}
 
 def generate_predictions(config, records, adapter=None):

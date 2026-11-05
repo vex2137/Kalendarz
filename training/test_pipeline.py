@@ -60,7 +60,13 @@ class PipelineTests(unittest.TestCase):
             dataset = root / 'data'; dataset.mkdir(); manifest = {'records': 0, 'splits': {}}
             (dataset / 'command-schema.json').write_text(json.dumps(self.schema))
             for split, rows in self.data.items():
-                selected = rows[:2]; raw_data = '\n'.join(json.dumps(r) for r in selected) + '\n'
+                selected = copy.deepcopy(rows[:2])
+                for row in selected:
+                    row['output_mode'] = 'command'
+                # Exercise natural conversation and masked history in the same run.
+                selected[1]['output_mode'] = 'text'
+                selected[1]['messages'] += [{'role':'user','content':'Explain briefly.'}, {'role':'assistant','content':'Review the proposal before confirming.'}]
+                raw_data = '\n'.join(json.dumps(r) for r in selected) + '\n'
                 (dataset / (split + '.jsonl')).write_text(raw_data)
                 manifest['records'] += len(selected); manifest['splits'][split] = {'records': len(selected), 'sha256': hashlib.sha256(raw_data.encode()).hexdigest()}
             (dataset / 'manifest.json').write_text(json.dumps(manifest))
@@ -69,8 +75,8 @@ class PipelineTests(unittest.TestCase):
             self.assertTrue(any(label != -100 for label in encoded['labels']))
             with self.assertRaisesRegex(ValueError, 'exceeds context'):
                 encode_record(tokenizer, self.data['train'][0]['messages'], 4)
-            settings = json.loads(Path('training/lora-config.json').read_text())
-            settings.update(model=str(checkpoint), revision=None, dataset=str(dataset), output_dir=str(root / 'run'), dtype='float32', max_steps=1, save_steps=1, eval_steps=1, gradient_accumulation_steps=1, gradient_checkpointing=False)
+            settings = json.loads(Path('training/v142/rtx4060.json').read_text())
+            settings.update(model=str(checkpoint), revision=None, dataset=str(dataset), dataset_format='conversation-v142', output_dir=str(root / 'run'), dtype='float32', require_cuda=False, max_steps=1, save_steps=1, eval_steps=1, gradient_accumulation_steps=1, gradient_checkpointing=False)
             trainer = train(settings)
             self.assertEqual(trainer.state.global_step, 1)
             first_metrics = json.loads((root / 'run' / 'metrics.json').read_text())
@@ -79,13 +85,25 @@ class PipelineTests(unittest.TestCase):
             settings['max_steps'] = 2
             trainer = train(settings, resume=str(root / 'run' / 'checkpoint-1'))
             self.assertEqual(trainer.state.global_step, 2)
-            changed=copy.deepcopy(settings);changed['seed']=142
+            changed=copy.deepcopy(settings);changed['seed']=143
             with self.assertRaisesRegex(ValueError,'differs'):
                 train(changed,resume=str(root/'run'/'checkpoint-2'))
             output = export_adapter(root / 'run', root / 'export')
             self.assertTrue((output / 'adapter_model.safetensors').is_file())
+            from safetensors.torch import load_file
+            weights = load_file(output / 'adapter_model.safetensors')
+            self.assertTrue(any(tensor.abs().sum() > 0 for name,tensor in weights.items() if 'lora_B' in name))
             provenance = json.loads((output / 'training-provenance.json').read_text())
             self.assertFalse(any('visual' in name for name in provenance['targets']))
+            self.assertTrue(any('linear_attn' in name for name in provenance['targets']))
+            self.assertTrue(any('.mlp.' in name for name in provenance['targets']))
+            trainer.model.eval()
+            tokens = torch.tensor([encoded['input_ids'][:12]])
+            with torch.inference_mode():
+                before = trainer.model(input_ids=tokens).logits
+                merged = trainer.model.merge_and_unload(safe_merge=True)
+                after = merged(input_ids=tokens).logits
+            torch.testing.assert_close(before, after, rtol=1e-4, atol=1e-5)
             with self.assertRaisesRegex(ValueError, 'already exists'):
                 export_adapter(root / 'run', root / 'export')
 
