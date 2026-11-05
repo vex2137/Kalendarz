@@ -68,7 +68,10 @@ npm run dev
 Relevant checks:
 
 ```sh
-npm run check
+npm run lint
+npm test
+node scripts/prepare-model-free.cjs
+env CALENDAR_MODEL_FREE=true CALENDAR_ANDROID_NATIVE=false node node_modules/vite/bin/vite.js build
 npm run test:native
 npx playwright install chromium
 npm run test:e2e
