@@ -15,7 +15,8 @@ export function PasswordLockScreen({security, animations, onUnlock, language}: {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; if (timer.current) clearTimeout(timer.current); }; }, []);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
@@ -23,7 +24,9 @@ export function PasswordLockScreen({security, animations, onUnlock, language}: {
     if (Date.now() < blockedUntil) { setError(tr(language, 'Zbyt wiele prób. Odczekaj chwilę.', 'Too many attempts. Please wait.')); return; }
     setBusy(true);
     try {
-      if (await verifyPassword(password, security)) {
+      const verified = await verifyPassword(password, security);
+      if (!active.current) return;
+      if (verified) {
         localStorage.removeItem('pin-failures'); localStorage.removeItem('pin-blocked-until');
         if (animations.level !== 'off' && !reducedMotion()) {
           setSuccess(true); timer.current = setTimeout(onUnlock, 160 * 100 / animations.speed); return;

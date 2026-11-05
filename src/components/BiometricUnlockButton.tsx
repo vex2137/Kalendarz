@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { CalendarDevice } from '../utils/nativeDevice';
 import { tr, type AppLanguage } from '../utils/i18n';
@@ -8,12 +8,15 @@ export function BiometricUnlockButton({enabled, disabled, language, onUnlock}: {
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   if (!enabled || Capacitor.getPlatform() !== 'android') return null;
   const authenticate = async () => {
     if (pending || disabled) return;
     setPending(true); setError(false);
     try {
       const result = await CalendarDevice.authenticateBiometric({title: tr(language, 'Odblokuj Kalendarz', 'Unlock Calendar'), cancel: tr(language, 'Anuluj', 'Cancel')});
+      if (!active.current) return;
       if (result.authenticated === true) onUnlock(); else setError(true);
     } catch { setError(true); } finally { setPending(false); }
   };

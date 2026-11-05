@@ -36,6 +36,7 @@ public class CalendarDevicePlugin extends Plugin {
     private final ExecutorService diagnosticIo = Executors.newSingleThreadExecutor();
     private boolean exportingDiagnostics;
     private boolean biometricPending;
+    private android.os.CancellationSignal biometricCancellation;
 
     @PluginMethod
     public void setSystemBarColors(PluginCall call) {
@@ -93,7 +94,8 @@ public class CalendarDevicePlugin extends Plugin {
                         }
                     });
                 if (Build.VERSION.SDK_INT >= 30) builder.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG);
-                builder.build().authenticate(new android.os.CancellationSignal(), getContext().getMainExecutor(),
+                biometricCancellation = new android.os.CancellationSignal();
+                builder.build().authenticate(biometricCancellation, getContext().getMainExecutor(),
                     new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
                         @Override public void onAuthenticationSucceeded(android.hardware.biometrics.BiometricPrompt.AuthenticationResult result) {
                             if (!finished.compareAndSet(false, true)) return;
@@ -157,7 +159,10 @@ public class CalendarDevicePlugin extends Plugin {
         });
     }
     private synchronized void finishDiagnosticExport() { exportingDiagnostics=false; }
-    @Override protected void handleOnDestroy() { diagnosticIo.shutdown(); }
+    @Override protected void handleOnDestroy() {
+        if (biometricCancellation != null) biometricCancellation.cancel();
+        diagnosticIo.shutdown();
+    }
 
     // Keep the existing notification channel: never bypass a user's mute choice.
     private static final String REMINDER_CHANNEL = "default";

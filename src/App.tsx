@@ -1,3 +1,4 @@
+import { useAnimatedClose } from './hooks/useAnimatedClose';
 import { CalendarNavigation } from './components/CalendarNavigation';
 import { animationPreferences } from './utils/animations';
 import { applyTheme } from './utils/themes';
@@ -398,20 +399,20 @@ export default function App() {
     (date: string, hour: number) => create(date, `${pad2(hour)}:00`),
     [create],
   );
-  const close = useCallback(() => setModal(null), []);
+  const close = useAnimatedClose(`${modal}:${isPinLocked}`, () => setModal(null), animations);
   const save = useCallback(
     async (event: CalendarEvent) => {
       await saveRecords([event]);
-      setModal(null);
+      close();
     },
-    [saveRecords],
+    [saveRecords, close],
   );
   const deleteEvent = useCallback(
     async (id: string) => {
       await remove([id]);
-      setModal(null);
+      close();
     },
-    [remove],
+    [remove, close],
   );
   const applyAiPlan = useCallback(async (plan: AssistantPlan) => {
     const inverse = await applyAssistantChanges(changesForPlan(plan));
@@ -565,6 +566,7 @@ export default function App() {
                 onUndo={undoAiPlan}
                 canUndo={Boolean(assistantUndo)}
                 aiSettings={settings.ai}
+                animations={animations}
                 language={language}
               />
             )}

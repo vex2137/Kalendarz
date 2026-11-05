@@ -27,7 +27,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (unlockTimer.current) clearTimeout(unlockTimer.current); }, []);
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; if (unlockTimer.current) clearTimeout(unlockTimer.current); }; }, []);
   const [blockedUntil, setBlockedUntil] = useState(() =>
     Number(localStorage.getItem('pin-blocked-until') || 0),
   );
@@ -39,7 +40,9 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
       setPin(next);
       if (next.length === pinLength) {
         setBusy(true);
-        if (await verifyPin(next, security)) {
+        const verified = await verifyPin(next, security);
+        if (!active.current) return;
+        if (verified) {
           localStorage.removeItem('pin-failures');
           localStorage.removeItem('pin-blocked-until');
           if (animations.level !== 'off' && animations.pinUnlock && !reducedMotion()) {

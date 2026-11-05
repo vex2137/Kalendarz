@@ -1,3 +1,5 @@
+import { useAnimatedClose } from '../hooks/useAnimatedClose';
+import type { AnimationSettings } from '../types';
 import { tr } from '../utils/i18n';
 import type { AssistantPlan } from '../utils/assistantPlanning';
 import { planningPreferences } from '../utils/assistantPlanning';
@@ -36,6 +38,7 @@ import {
 } from 'lucide-react';
 
 interface AiAssistantDrawerProps {
+  animations: AnimationSettings;
   isOpen: boolean;
   onClose: () => void;
   events: CalendarEvent[];
@@ -54,6 +57,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   onUndo,
   canUndo,
   aiSettings,
+  animations,
   language = 'en',
 }) => {
   const t = getTranslation(language);
@@ -171,6 +175,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   }, [isOpen, aiSettings.enabled, background, isProcessing]);
   useEffect(() => () => { cancelModelOperation(); setAssistantActive(false); }, []);
 
+  const closeHistory = useAnimatedClose(`${isOpen}:${historyOpen}`, () => { returnFocus.current = 'btn-ai-chat-history'; setHistoryOpen(false); }, animations, '#ai-history-overlay');
+  const closeSettings = useAnimatedClose(`${isOpen}:${settingsOpen}`, () => { returnFocus.current = 'btn-ai-settings'; setSettingsOpen(false); }, animations, '#ai-settings-panel');
   if (!isOpen) return null;
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -282,8 +288,6 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
-  const closeHistory = () => { returnFocus.current = 'btn-ai-chat-history'; setHistoryOpen(false); };
-  const closeSettings = () => { returnFocus.current = 'btn-ai-settings'; setSettingsOpen(false); };
   const handleUndo = async () => {
     if (operationRef.current || !canUndo) return;
     operationRef.current = true;
@@ -551,7 +555,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </button>
         </div>
       </div>
-      {historyOpen && <div className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
+      {historyOpen && <div id="ai-history-overlay" className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
       {settingsOpen && <AiSettingsPanel language={language} enabled={aiSettings.enabled} onClose={closeSettings}/>}
     </Dialog>
   );

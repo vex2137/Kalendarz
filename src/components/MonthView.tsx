@@ -22,7 +22,8 @@ export function MonthView({ currentDate, events, onSelectDay, onSelectEvent, onF
   const index = useMemo(() => buildEventIndex(events, addDays(dates[0], -1), addDays(dates.at(-1)!, 1)), [events, dates, zone]);
   const weeks = useMemo(() => Array.from({ length: dates.length / 7 }, (_, i) => {
     const days = dates.slice(i * 7, i * 7 + 7);
-    return { days, segments: monthWeekSegments(days, index) };
+    const segments = monthWeekSegments(days, index);
+    return { days, segments, lanes: segments.reduce((max, segment) => Math.max(max, segment.lane + 1), 0) };
   }), [dates, index]);
   const text = calendarText(language), t = getTranslation(language);
   const toggle = (date: string) => {
@@ -33,7 +34,9 @@ export function MonthView({ currentDate, events, onSelectDay, onSelectEvent, onF
   return <div className="month-view" data-testid="month-view" data-month={month}>
     <section className="calendar-panel month-grid" aria-label={t.month}>
       <div className="month-weekdays">{dayNames.map(day => <span key={day}>{day}</span>)}</div>
-      {weeks.map(({ days, segments }) => <div className="month-week" data-testid="month-week" key={days[0]}>
+      {weeks.map(({ days, segments, lanes }) => <div className="month-week" data-testid="month-week" key={days[0]}
+        style={{ '--week-lanes': lanes, '--week-overflow': lanes > 3 ? '1.125rem' : '0rem',
+          '--week-overflow-mobile': lanes > 2 ? '1.125rem' : '0rem' } as React.CSSProperties}>
         <div className="month-dates">
           {days.map((date, day) => {
             const bucket = index.get(date) || [], outside = date.slice(0, 7) !== month;

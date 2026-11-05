@@ -254,22 +254,23 @@ body {
 .calendar-range-label { font-size: 11px; color: var(--text-muted); padding: 0 4px 8px; font-variant-numeric: tabular-nums; }
 .agenda-load-more { display: flex; margin: 12px auto; }
 .month-view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--calendar-space); overflow: auto; }
-.month-grid { flex-shrink: 0; overflow: hidden; }
+.month-grid { flex-shrink: 0; overflow: hidden; padding: 6px; }
 .month-weekdays, .month-dates { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .month-weekdays { padding-block: 10px; background: var(--bg-subtle); color: var(--text-muted); text-align: center; font-size: 11px; font-weight: 650; }
-.month-week { position: relative; height: clamp(126px, 11.5vh, 150px); border-top: 1px solid var(--border-color); }
+.month-week { position: relative; height: calc(2.75rem + min(3, var(--week-lanes)) * 1.75rem + var(--week-overflow)); min-height: 3.5rem; max-height: 9.125rem; border-top: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent); margin-top: 3px; }
+[data-motion-transitions="on"]:not([data-motion="off"]) .month-week { transition: height calc(180ms * var(--motion-speed, 1)) ease-out; }
 .month-dates { height: 100%; }
-.month-date { position: relative; min-width: 0; padding: 3px 6px; display: flex; gap: 3px; align-items: flex-start; text-align: left; border-right: 1px solid var(--border-color); cursor: pointer; }
+.month-date { position: relative; min-width: 0; padding: 3px 6px; display: flex; gap: 3px; align-items: flex-start; text-align: left; border-radius: 10px; cursor: pointer; }
 .month-date:last-child { border-right: 0; }
 .month-date:hover { background: var(--bg-hover); }
 .month-date:focus-visible { outline-offset: -3px; z-index: 3; }
-.month-date-outside { background: var(--bg-subtle); }
+.month-date-outside .month-number { opacity: .65; }
 .month-date-outside .month-number { color: var(--text-muted); }
 .month-number { display: inline-flex; justify-content: center; align-items: center; width: 30px; height: 30px; border-radius: 50%; font-size: 12px; }
 .month-date.calendar-today .month-number { border: 2px solid var(--accent-color); color: var(--accent-color); }
 .month-date.calendar-selected .month-number { background: var(--accent-color); color: var(--accent-text, #fff); }
 .month-count { margin-top: 7px; margin-left: auto; font-size: 10px; color: var(--text-muted); }
-.month-segments { position: absolute; inset: 37px 0 auto; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: 24px; row-gap: 2px; pointer-events: none; }
+.month-segments { position: absolute; inset: 2.5rem 0 auto; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: 1.625rem; row-gap: .125rem; pointer-events: none; }
 .month-segment { display: block; margin-inline: 2px; padding: 3px 6px; min-width: 0; border-radius: 5px; border-inline-start: 3px solid var(--event-color); background: color-mix(in srgb, var(--event-color) 19%, var(--bg-surface)); color: var(--text-main); font-size: 11px; font-weight: 600; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; cursor: pointer; pointer-events: auto; }
 .month-segment:hover { background: color-mix(in srgb, var(--event-color) 32%, var(--bg-surface)); }
 .month-segment.segment-before { border-start-start-radius: 0; border-end-start-radius: 0; }
@@ -331,12 +332,12 @@ body {
 @media (max-width: 639px) {
   .calendar-workspace { padding: 6px 6px calc(82px + env(safe-area-inset-bottom, 0px)); }
   .month-view { gap: 8px; }
-  .month-week { height: 104px; }
+  .month-week { height: calc(2.75rem + min(2, var(--week-lanes)) * 1.75rem + var(--week-overflow-mobile)); max-height: 7.375rem; }
   .month-weekdays { padding-block: 6px; }
   .month-date { padding-inline: 2px; }
   .month-number { width: 30px; height: 32px; }
   .month-count { font-size: 9px; margin-right: 2px; }
-  .month-segments { top: 36px; grid-auto-rows: 24px; gap: 2px 0; }
+  .month-segments { top: 2.5rem; grid-auto-rows: 1.625rem; gap: .125rem 0; }
   .month-segment { padding-inline: 3px; font-size: 10px; }
   .month-segments [data-lane='2'] { display: none; }
   .month-event-time { display: none; }
@@ -405,3 +406,16 @@ body {
 [data-motion='subtle'] .motion-preview, [data-motion='full'] .motion-preview { animation: motion-dialog calc(250ms * var(--motion-speed, 1)) ease-out; }
 .password-success { animation: password-success calc(160ms * var(--motion-speed, 1)) ease-out both; }
 @keyframes password-success { to { opacity: 0.65; } }
+/* Native details keep keyboard semantics; older engines fall back to an immediate toggle. */
+@supports (interpolate-size: allow-keywords) {
+  [data-motion-transitions='on']:not([data-motion='off']) details::details-content {
+    interpolate-size: allow-keywords; content-visibility: hidden; block-size: 0; overflow: clip;
+    transition: block-size calc(180ms * var(--motion-speed, 1)), content-visibility calc(180ms * var(--motion-speed, 1)) allow-discrete;
+  }
+  [data-motion-transitions='on']:not([data-motion='off']) details[open]::details-content { block-size: auto; content-visibility: visible; }
+}
+[data-motion='off'] .month-week { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .month-week { transition: none !important; } }
+[data-motion-transitions='on']:not([data-motion='off']) :is(#ai-history-overlay, #ai-settings-panel) { animation: motion-dialog calc(160ms * var(--motion-speed, 1)) ease-out; }
+[data-motion-buttons='on']:not([data-motion='off']) button { transition-duration: calc(150ms * var(--motion-speed, 1)); }
+[data-motion='full'][data-motion-transitions='on'] .month-segment { animation: motion-dialog calc(160ms * var(--motion-speed, 1)) ease-out; }
