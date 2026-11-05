@@ -5,7 +5,7 @@ import { assistantSystemPrompt, commandSchemaForRequest, parseModelCommand, reso
 import { assistantQuickReply } from './assistantQuickReply';
 import { timeString } from './dates';
 import { parseDateFromNaturalLanguage, type AiResponseResult } from './aiEngine';
-import { parseCalendarCommand, type PendingCalendarCommand } from './calendarCommandParser';
+import { calendarFields, parseCalendarCommand, type PendingCalendarCommand } from './calendarCommandParser';
 import type { ModelCommand } from './modelCommand';
 import { modelMetrics, recordModelMetric, recordAssistantTurn, type AssistantTurnMetric } from './modelDiagnostics';
 import { detectAssistantLanguage, normalizeAssistantInput } from './assistantLanguage';
@@ -35,6 +35,12 @@ async function resolveInConversation(command: ModelCommand, request: string, eve
   return resolveModelCommand(command,request,events,language,now,preferences,referenced?context.reference:undefined);
 }
 let requestSequence = 0;
+function noteCommandFields(trace: AssistantTurnMetric, command: ModelCommand, request: string, now: Date) {
+  const fields = calendarFields(request, now);
+  // Presence only: never retain names, dates, prompts or generated JSON in diagnostics.
+  trace.commandFields = {title:Boolean(command.title),date:Boolean(command.date),time:Boolean(command.time),endTime:Boolean(command.endTime),reminder:command.reminderMinutes!=null};
+  trace.requestFields = {date:Boolean(fields.date),time:Boolean(fields.time),duration:fields.duration!==undefined,invalid:fields.invalid};
+}
 export async function runModelAssistant(query: string, events: CalendarEvent[], uiLanguage: AppLanguage, now: Date, context: ModelConversation, preferences: PlanningPreferences) {
   const started = performance.now();
   const normalized = normalizeAssistantInput(query);
@@ -64,7 +70,9 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   trace.rulesMs = performance.now() - rulesStarted;
   if (parsed) {
     trace.rulesMatched = true; trace.route = 'rules'; trace.commandAction = parsed.command.action;
+    noteCommandFields(trace, parsed.command, parsed.request, now);
     const result: AiResponseResult = parsed.unresolvedTime ? {text:({en:`I kept the title “${parsed.command.title}” and date ${parsed.command.date || '—'}. Which time did you mean by “${parsed.unresolvedTime.text}”? Specify AM/PM or a 24-hour range.`,pl:`Zachowano tytuł „${parsed.command.title}” i datę ${parsed.command.date || '—'}. Jakie godziny oznacza „${parsed.unresolvedTime.text}”? Podaj AM/PM lub zakres 24-godzinny.`,de:`Titel „${parsed.command.title}” und Datum ${parsed.command.date || '—'} bleiben erhalten. Welche Uhrzeit bedeutet „${parsed.unresolvedTime.text}”? Bitte AM/PM oder 24-Stunden-Zeit angeben.`,ru:`Название «${parsed.command.title}» и дата ${parsed.command.date || '—'} сохранены в черновике. Какое время означает «${parsed.unresolvedTime.text}»? Укажите AM/PM или 24-часовой диапазон.`})[language]} : await resolveInConversation(parsed.command, parsed.request, events, language, now, preferences, context);
+    trace.proposalPrepared = Boolean(result.suggestedPlan);
     recordModelMetric({ route: 'rules', totalMs: performance.now() - started });
     return { ...result, context: { reference: context.reference, lastConfirmedAction: context.lastConfirmedAction, turns: [{ role: 'user' as const, content: parsed.request }, { role: 'assistant' as const, content: JSON.stringify(parsed.command) }], ...(parsed.incomplete ? { pending: { command: parsed.command, request: parsed.request,unresolvedTime:parsed.unresolvedTime } } : {}), ...(result.suggestedPlan?.kind === 'create' ? { proposal: { command: parsed.command, request: parsed.request, event: result.suggestedPlan.events[0] } } : {}) }, route: 'rules' as const };
   }
@@ -86,8 +94,10 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   trace.route = 'model';
   const target = context.proposal?.event ? `\nCurrent unconfirmed proposal: ${JSON.stringify(context.proposal.event)}. For a requested revision use update with query=its title. It has not been saved.` : context.reference ? `\nLast explicitly confirmed event: ${JSON.stringify(context.reference)}. Pronouns may refer to this event; never invent a different event.` : '';
   const raw = await inferCalendarJson(assistantSystemPrompt(language, now), `Current request:\n${query}${reference}${clock}${target}`, commandSchemaForRequest(query, true), turns);
-  const command = parseModelCommand(raw);
+  const command = parseModelCommand(raw, trace);
+  noteCommandFields(trace, command, query, now);
   trace.commandAction = command.action;
   const result = await resolveInConversation(command, query, events, language, now, preferences, context);
+  trace.proposalPrepared = Boolean(result.suggestedPlan);
   return { ...result, context: { reference: context.reference, lastConfirmedAction: context.lastConfirmedAction, turns: [...turns, { role: 'user' as const, content: query }, { role: 'assistant' as const, content: raw }].slice(-4), ...(result.suggestedPlan?.kind === 'create' ? { proposal: { command, request: query, event: result.suggestedPlan.events[0] } } : {}) }, route: 'model' as const };
 }
