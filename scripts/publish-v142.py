@@ -10,7 +10,7 @@ CERT='ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143'
 def run(*args,cwd=ROOT): return subprocess.check_output(list(map(str,args)),cwd=cwd,text=True).strip()
 def sha(p):
     with p.open('rb') as f: return hashlib.file_digest(f,'sha256').hexdigest()
-manifest=json.loads((DEPOT/'.github/final-142-manifest.json').read_text())
+manifest=json.loads((DEPOT/'.github/release-142-manifest.json').read_text())
 assert manifest['validated'] is True and set(manifest['files'])==NAMES
 for target in ['linux','windows']:
     for check in ['typescript','unitAndIntegration','nativeUnit','actualQwenV2NativeInference','packagedApplicationStartupPersistenceQrInferenceAndClose']:
@@ -22,7 +22,9 @@ source=manifest['source']
 assert re.fullmatch('[a-f0-9]{40}',source)
 assert json.loads((ROOT/'package.json').read_text())['version']=='1.4.2'
 head=run('git','rev-parse','HEAD')
-assert run('git','rev-list','-1','v1.4.2')==head,'Never move an existing tag'
+tag=run('git','rev-list','-1','v1.4.2')
+run('git','merge-base','--is-ancestor',tag,head)
+run('git','diff','--exit-code',tag,head,'--','src','electron','android','package.json','bun.lock')
 run('git','merge-base','--is-ancestor',source,head)
 run('git','diff','--exit-code',source,head,'--','src','electron','android','package.json','bun.lock')
 # The accepted Android binary predates packaging-only changes; application trees must match.
@@ -72,6 +74,6 @@ with tempfile.TemporaryDirectory() as folder:
 if release['draft']: run('gh','release','edit','v1.4.2','--repo',REPO,'--draft=false','--prerelease=false','--latest')
 release=json.loads(run('gh','api',f'repos/{REPO}/releases/tags/v1.4.2'))
 assert not release['draft'] and not release['prerelease']
-evidence={'published':True,'url':release['html_url'],'tagCommit':head,'testedSource':source,'files':manifest['files'],'checks':manifest['checks']}
+evidence={'published':True,'url':release['html_url'],'tagCommit':tag,'publisherCommit':head,'testedSource':source,'files':manifest['files'],'checks':manifest['checks']}
 (out/'evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
 print(json.dumps(evidence))

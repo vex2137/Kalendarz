@@ -1,0 +1,51 @@
+{
+  "validated": true,
+  "source": "abb9f20157f333b9f2ee5a3a5a18c02a684dcb0c",
+  "files": {
+    "KALENDARZ-1.4.2-ANDROID.apk": {
+      "bytes": 24140529,
+      "sha256": "d38b3b78c5c888a9d403aa34f4c0b0fbfdb48b4bea4e179afce192dd5215f8bf"
+    },
+    "KALENDARZ-1.4.2-WEB.zip": {
+      "bytes": 6955172,
+      "sha256": "2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676"
+    },
+    "KALENDARZ-1.4.2-linux-x86_64.AppImage": {
+      "bytes": 164391802,
+      "sha256": "9df1fa0f66cb9004be7c9f02f30e1685cc6dec7c7ca35e28554aa1d8df6bda62"
+    },
+    "KALENDARZ-1.4.2-WINDOWS-x86_64.exe": {
+      "bytes": 124758456,
+      "sha256": "b147323b97c62b2ee390af3ee64dd0fa4b983282c2e38b1c3aa367dcb397a1f4"
+    }
+  },
+  "checks": {
+    "linux": {
+      "typescript": true,
+      "unitAndIntegration": true,
+      "nativeUnit": true,
+      "bundledWeights": false,
+      "browserImportExportOffline": true,
+      "ggufImport": true,
+      "upgrade141To142": true,
+      "actualQwenV2NativeInference": true,
+      "packagedApplicationStartupPersistenceQrInferenceAndClose": true
+    },
+    "windows": {
+      "typescript": true,
+      "unitAndIntegration": true,
+      "nativeUnit": true,
+      "bundledWeights": false,
+      "actualQwenV2NativeInference": true,
+      "portableLauncherStartAndExit": true,
+      "packagedApplicationStartupPersistenceQrInferenceAndClose": true
+    },
+    "android": {
+      "unitTests": 19,
+      "nullParserRegression": 7,
+      "physicalPocoTest2AcceptedByUser": true,
+      "reusedWithoutRebuilding": true
+    }
+  },
+  "run": "41997587447"
+}
