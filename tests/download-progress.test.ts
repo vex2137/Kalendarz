@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { downloadMeter, downloadSummary } from '../src/utils/downloadProgress';
 
+test('resuming does not count bytes saved during a previous application session as new traffic', () => {
+ let time = 0;
+ const sample = downloadMeter(10_000_000, () => time);
+ assert.equal(sample(8_000_000).bytesPerSecond, undefined);
+ time = 1000;
+ assert.equal(sample(8_100_000).bytesPerSecond, 100_000);
+});
+
 test('transfer metrics count actual bytes, smooth rate and calculate remaining time', () => {
  let time = 0;
  const sample = downloadMeter(10_000_000, () => time);

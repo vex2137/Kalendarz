@@ -35,6 +35,7 @@ jobs:
       - run: node tests/gguf-import-browser.cjs
       - run: node tests/diagnostics-actions-browser.cjs
       - run: node tests/model-actions-browser.cjs
+      - run: node tests/resumable-transfer-browser.cjs
   desktop:
     runs-on: ubuntu-24.04
     env:

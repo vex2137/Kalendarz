@@ -6,6 +6,7 @@ import { LOCAL_MODEL, bundledModelUrl } from './localModelManifest';
 import { DEFAULT_MODEL, type ModelDescriptor } from './modelRegistry';
 import { desktopAI, ensureNativeModel } from './nativeDesktopAI';
 import { modelFileWriter } from './modelFileWriter';
+import { resumableModelTransfer, removeModelTransfer } from './resumableModelTransfer';
 
 const database = () => openDB('calendar-local-model', 1, {
   upgrade(db) { db.createObjectStore('models'); },
@@ -111,15 +112,21 @@ export async function modelChecksum(blob: Blob, signal?: AbortSignal, progress?:
 }
 
 const streamed = new WeakMap<Blob, string>();
+const transfers = new WeakMap<Blob, ModelDescriptor>();
+async function finishTransfer(blob: Blob) {
+  const descriptor = transfers.get(blob);
+  if (descriptor) { await removeModelTransfer(descriptor); transfers.delete(blob); }
+}
 const copiedChecksums=new WeakMap<Blob,string>();
 export const copiedModelChecksum=(blob:Blob)=>copiedChecksums.get(blob);
-export async function discardDownloadedModel(blob?: Blob) {
+export async function discardDownloadedModel(blob?: Blob, invalid = false) {
+  if (blob && invalid) await finishTransfer(blob);
   const name = blob && streamed.get(blob);
   if (name) { const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models'); await dir.removeEntry(name).catch(() => {}); streamed.delete(blob!); }
 }
 export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: ModelDescriptor = DEFAULT_MODEL, progress?: (loaded:number)=>void, action:'import-gguf'|'download-model'='import-gguf') {
   signal.throwIfAborted();
-  if(desktopAI()&&desktopAI()?.platform!=='android'){if(descriptor.imported&&desktopAI()?.registerImported)await desktopAI()!.registerImported!(descriptor);await ensureNativeModel(descriptor.id,blob,signal,progress);signal.throwIfAborted();await removeLegacyModel(descriptor);return;}
+  if(desktopAI()&&desktopAI()?.platform!=='android'){if(descriptor.imported&&desktopAI()?.registerImported)await desktopAI()!.registerImported!(descriptor);await ensureNativeModel(descriptor.id,blob,signal,progress);signal.throwIfAborted();await removeLegacyModel(descriptor);await finishTransfer(blob);return;}
   // Large imports use the same disk-backed representation as streamed downloads.
   if (!streamed.has(blob) && navigator.storage?.getDirectory) {
     recordDiagnosticAction(action,'copy',undefined,{modelId:descriptor.id,bytes:blob.size});
@@ -157,12 +164,14 @@ export async function saveModel(blob: Blob, signal: AbortSignal, descriptor: Mod
     } finally { signal.removeEventListener('abort', abort); }
   } finally { db.close(); }
   // A denied persistence request does not prevent installation; the UI explains storage removal.
+  await finishTransfer(blob);
   try { await navigator.storage?.persist?.(); } catch { /* Not available on file origins. */ }
 }
 
 export async function removeSavedModel(descriptor: ModelDescriptor = DEFAULT_MODEL) {
   if(desktopAI())await desktopAI()!.remove(descriptor.id);
-  return removeLegacyModel(descriptor);
+  await removeLegacyModel(descriptor);
+  if (typeof navigator.storage?.getDirectory === 'function') await removeModelTransfer(descriptor);
 }
 export async function removeLegacyModel(descriptor: ModelDescriptor) {
   const db = await database();
@@ -188,10 +197,15 @@ async function openModelDownload(url:string,signal:AbortSignal) {
   return response;
 }
 
-export async function downloadModel(signal: AbortSignal, progress: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<Blob> {
+export async function downloadModel(signal: AbortSignal, progress: (loaded: number) => void, descriptor: ModelDescriptor = DEFAULT_MODEL, verifying?: () => void): Promise<Blob> {
   const expected=descriptor.bytes>0?descriptor.bytes:undefined;
   if(expected===undefined&&!new URL(descriptor.url,location.origin).pathname.startsWith('/_calendar_model_import/'))throw Error('model-input');
   const limit=expected??16*1024**3;
+  const remote = /^https?:$/.test(new URL(descriptor.url, location.origin).protocol) && !new URL(descriptor.url, location.origin).pathname.startsWith('/_calendar_model_import/');
+  if (remote && expected && typeof navigator.storage?.getDirectory === 'function') {
+    const file = await resumableModelTransfer(descriptor, signal, progress, async file => { verifying?.(); await verifyModel(file, signal, undefined, descriptor); }, ensureSpace);
+    transfers.set(file, descriptor); return file;
+  }
   await ensureSpace(expected??64*1024*1024);
   if (navigator.storage?.getDirectory) {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });

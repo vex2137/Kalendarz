@@ -7,9 +7,11 @@ export interface DownloadProgress {
 
 /** Count bytes actually written; smooth rate over roughly two seconds. */
 export function downloadMeter(totalBytes: number | undefined, now = () => performance.now()) {
+  let started = false;
   let previousTime = now(), previousBytes = 0, rate: number | undefined;
   return (receivedBytes: number): DownloadProgress => {
     const time = now(), bytes = Math.max(0, receivedBytes);
+    if (!started) { previousTime = time; previousBytes = bytes; started = true; }
     if (bytes < previousBytes || time < previousTime) { previousTime = time; previousBytes = bytes; rate = undefined; }
     const seconds = (time - previousTime) / 1000;
     if (seconds >= 0.1) {
