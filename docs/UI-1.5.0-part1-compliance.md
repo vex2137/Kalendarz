@@ -1,5 +1,7 @@
 # UI overhaul part 1 — compliance review and continuation
 
+For the subsequent Android naming fix, preserved 1.4.2 runtime, new test results and the verified signing/publication blocker, see [the Android continuation report](UI-1.5.0-part1-android-language.md).
+
 This is an implementation report, **not a release announcement**. It updates the earlier reports' remaining-work lists while retaining their historical verification records. Application version remains **1.4.1**. All continuation commits are local: no push, release, tag, merge, dependency installation or signing change.
 
 ## Baseline and review

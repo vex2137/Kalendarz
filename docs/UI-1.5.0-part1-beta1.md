@@ -1,5 +1,7 @@
 # Calendar 1.5.0 — Part 1 — Beta 1
 
+Historical preparation record. The [Android continuation](UI-1.5.0-part1-android-language.md) supersedes local-only publication instructions: the user now authorizes Pre-release publication, but only after proof of compatibility with the existing 1.4.2 signing key. That preflight is currently blocked; old test-key APKs must not be published as the compatible update.
+
 Draft-only test candidate based on `e6e85d37f1c95cfd29c39bf913db910efde1433e`.
 
 - Display name: **Calendar 1.5.0 — Cz. 1 — Beta 1**.

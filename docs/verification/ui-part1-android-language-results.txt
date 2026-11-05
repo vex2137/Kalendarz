@@ -1,0 +1,99 @@
+Part 1 Beta 1 Android correction — executed checks
+Application source: c2cd8a59ab1a841abbd1f00639662f4a522f8ac2
+Do not interpret JVM/browser tests as physical-device or private-model inference evidence.
+
+TypeScript
+typescript-final.log
+SHA256 8fe61745bf84e7ce6e70430712b559d6cd252132426992dee9d0c6112314b140
+> tsc --noEmit
+
+Unit suite
+unit.log
+SHA256 f071b452a054bd8620fdf1ed461d34aea61e66c89493986bd89a258766dcfc5c
+ℹ tests 171
+ℹ pass 171
+ℹ fail 0
+
+Native host unit/control tests
+native-unit.log
+SHA256 503d4ab342cb39d94920e227992314e5dfd9dbe13cf7d2ef571bfb22a6994324
+ℹ tests 26
+ℹ pass 26
+ℹ fail 0
+
+Android JVM/resources
+android-unit-final.log
+SHA256 776b158224961c19ea34f6f0e8139032d8d05e0739abafa93e629b52b198cc61
+BUILD SUCCESSFUL in 23s
+
+Web regression
+browser-regression.log
+SHA256 89b16991121e9b4b6dfa14f002149940bcf40e176daba3af7322f63b85940dc5
+PASS create/edit/persist, local default date, validation and zero-minute reminder
+PASS non-destructive imports/holidays, virtual search, Escape and focus restoration
+PASS PIN hashing, explicit lock and lock after reload
+PASS cross-tab concurrent edits, deletion sync, failed-write recovery and delayed camera cleanup
+PASS inactivity auto-lock
+PASS responsive controls at 320/390/768px
+PASS 10k-event agenda: 41 ms, 132 DOM elements
+PASS offline reload, lazy-loaded event form/sync and IndexedDB persistence
+
+Five calendar views
+views.log
+SHA256 a93bc3b2911e74f63dcbc1790ab13086b83e74074b90e465232c4dd913a1858e
+PASS month 4/5/6 rows, select/deselect, empty day, month reset, continuous segments and original record identity
+PASS month roving focus, local arrow keys, selection, cross-month focus and Page Down selection reset
+PASS day/week time geometry, current-time line, overlaps, all-day events and date context
+PASS year 12 months, month/day navigation, year-boundary header, recurring agenda and range extension
+PASS dirty dialog confirmation, keep editing, discard and no unintended writes
+PASS eight responsive sizes (320–2560px), landscape, five views, keyboard selection/focus and zero browser errors
+PASS 10,000-event virtual agenda, bounded DOM, last item reachable, records preserved
+PASS actual 23/25-hour day geometry, repeated-hour event visibility/duration and live timezone change
+PASS real touch: week pans its timeline, month changes period, neither opens an accidental dialog
+PASS exact Polish empty-day message and zero browser errors across all scenarios
+
+Time regressions
+time-regressions.log
+SHA256 6a0f28cdaca9988105a50f6ec9b75f971249417332cdb6b34f926244851334a2
+PASS Lord Howe 03:30 time slot opens the actual event form at 03:30
+PASS ArrowRight and A navigate periods with focus inside data-no-swipe week
+PASS week touch still pans internally without changing period or opening a dialog
+PASS text editing and dialog exclusions remain active; no browser errors
+PASS spring-gap input guard, visible timezone, real reload cancellation with draft retention and corrected save
+
+Accessibility
+accessibility.log
+SHA256 b1289ec3e9b810601570d196a2092898ca3a73a0a38b9a321220ddcd8e1bd585
+PASS 4 languages, localized focused errors, 44px color/day controls, nested focus and 320x450 high-DPI dialog reflow
+PASS sampled calendar text contrast >=4.5:1 for seven built-in themes and eleven event colors, including card hover
+PASS failed-write draft retention, disabled fields during delayed commit, duplicate submit protection and zero browser errors
+
+Language/settings/native bridge
+language-notifications.log
+SHA256 1ef65bee5670659d2d98131f5a420f8dda47bed519b6b0ffa90705e64e1673a0
+PASS: PL/EN/RU/DE flags, app names, persistence, 320/390px layout, German event saving; browser and Android bridge notification states refresh after permission/channel changes; native name follows selection.
+
+Responsive language/view controls
+mobile.log
+SHA256 5cd91c64182d936c171709fa192a36e4d328aa27e0f1103ace1cd72227a6117d
+PASS: one visible view selector at 320/390/430/768/1280px, all views work, colored actions open correctly, PL/EN/RU/DE, no horizontal overflow or browser errors.
+
+Official 1.4.2 Web storage upgrade
+upgrade142-web.log
+SHA256 91bdee63178c99f5fd6ca0ce64fd24b13b3c3d0436506679ed3c5c6d8015d8be
+PASS official 1.4.2 Web -> part 1: event fields/settings/language, Qwen v2 choice and AI history preserved; JSON export/import remains available. No APK-install or inference claim.
+
+Offline assistant/history
+assistant-history.log
+SHA256 09111161d7fe50773ae7dda5ffa6bd5049ce96c6b72c16282ac1cf371b75c2ec
+Local history reload, order, rename/search, expired proposals, model switch, settings navigation and deletion confirmation passed. No external requests.
+
+Negative signing guard
+signing-negative.log
+SHA256 dd3a886dbe9f2dae864ad9517c6e6e05ef013d6b6b7e0094810847f333c18ba2
+PASS: publication assembly refused missing 1.4.2 update key before creating a candidate APK.
+
+Final model-free Web/PWA build
+web-build-final-approved.log
+SHA256 927bf40a527007fa15ac7112cd32abbff82600a84d35ef954fc9576a7d9fcb7a
+✓ built in 1.08s
