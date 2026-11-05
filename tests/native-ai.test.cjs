@@ -7,6 +7,36 @@ const {createHash}=require('node:crypto');
 const {NativeModelStore}=require('../electron/native-model-store.cjs');
 const {NativeAI,parseDevices,validateRequest}=require('../electron/native-ai.cjs');
 
+test('desktop SSE keeps text verbatim while ignoring null role and finish frames',async t=>{
+  const messages=[{role:'system',content:'Reply briefly.'},{role:'user',content:'Explain null.'},{role:'assistant',content:'null is a valid value.'},{role:'user',content:'Continue.'}];
+  const request=validateRequest({messages,max_tokens:32});
+  let fragments;
+  t.mock.method(globalThis,'fetch',async(_url,options)=>{
+    assert.deepEqual(JSON.parse(options.body).messages,messages,'History must reach the server unchanged');
+    const chunks=[{choices:[{delta:{role:'assistant',content:null},finish_reason:null}]},
+      ...fragments.map(content=>({choices:[{delta:{content},finish_reason:null}]})),
+      {choices:[{delta:{},finish_reason:'stop'}]}];
+    const bytes=new TextEncoder().encode(chunks.map(chunk=>'data: '+JSON.stringify(chunk)+'\n\n').join('')+'data: [DONE]\n\n');
+    return new Response(new ReadableStream({start(controller){
+      // Split lines and multibyte Polish characters across transport chunks.
+      for(let i=0;i<bytes.length;i+=7)controller.enqueue(bytes.subarray(i,i+7));
+      controller.close();
+    }}));
+  });
+  for(const [parts,expected] of [
+    [['Cześć','! Jak',null,undefined,' mogę Ci pomóc?'],'Cześć! Jak mogę Ci pomóc?'],
+    [['n','ull',' jest poprawną wartością.'],'null jest poprawną wartością.'],
+    [['{"action":"create",','"title":"Yoga","date":null}'],'{"action":"create","title":"Yoga","date":null}'],
+    [[null,undefined,''],''],
+  ]){
+    fragments=parts;
+    const ai=new NativeAI({runtimeRoot:'',store:{}});ai.memory=async()=>{};
+    ai.endpoint='http://127.0.0.1:1';ai.backend='cpu';
+    if(expected){const result=await ai.stream(request,new AbortController().signal);assert.equal(result.text,expected);assert.equal(result.finish,'stop');assert.equal(typeof result.firstTokenMs,'number');}
+    else await assert.rejects(ai.stream(request,new AbortController().signal),/model-response/);
+  }
+});
+
 test('private model uploads verify bytes, reject paths and preserve files on failed replacement',async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'calendar-native-store-'));
   const data=Buffer.from('verified weights'),sha256=createHash('sha256').update(data).digest('hex');

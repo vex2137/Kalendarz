@@ -1,4 +1,5 @@
 // Extract explicit reminder offsets only; defaults remain owned by the calendar.
+export const isReminderEventRequest = (request:string) => /^(?:przypomnij\s+mi\s+o|remind\s+me\s+(?:about|to))\s+/iu.test(request.trim());
 export function requestedReminderMinutes(request:string):number|undefined {
   const text=request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu,'').toLocaleLowerCase();
   if(!/remind|notification|przypomn|powiadom|напом|уведом|erinner|benachrichtig/iu.test(text))return;
@@ -8,4 +9,7 @@ export function requestedReminderMinutes(request:string):number|undefined {
   if(matches.length)return;
   if(/\b(?:day before|dzie[ńn] wcze[śs]niej|dzien wcze[śs]niej|tag vorher|день раньше)\b/iu.test(text))return 1440;
   if(/\b(?:an? hour before|godzin[ęe] wcze[śs]niej|stunde vorher|час раньше)\b/iu.test(text))return 60;
+  // "Remind me about X tomorrow at 12" requests an alert at that event's start.
+  // An incomplete before/earlier clause still needs its offset clarified.
+  if(isReminderEventRequest(text)&&!/\b(?:przed|wcze[śs]niej|before|earlier)\b/iu.test(text))return 0;
 }

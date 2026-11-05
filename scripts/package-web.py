@@ -7,7 +7,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--dist', type=Path, default=ROOT / 'dist')
-parser.add_argument('--output', type=Path, default=ROOT / 'release/KALENDARZ-1.4.1-WEB.zip')
+parser.add_argument('--output', type=Path, default=ROOT / ('release/KALENDARZ-' + json.loads((ROOT / 'package.json').read_text())['version'] + '-WEB.zip'))
 args = parser.parse_args()
 build = json.loads((args.dist / 'build-info.json').read_text())
 version = json.loads((ROOT / 'package.json').read_text())['version']
@@ -16,7 +16,7 @@ if build['version'] != version or build.get('androidNative') or build.get('dirty
 files = sorted(p for p in args.dist.rglob('*') if p.is_file())
 if any(p.is_symlink() or p.suffix.lower() == '.gguf' for p in files):
     raise SystemExit('Web deployment archive must not contain symlinks or model weights')
-readme = '''# KALENDARZ 1.4.1 Web deployment
+readme = '''# KALENDARZ {version} Web deployment
 
 Extract this archive into the document root of an HTTPS static host. No site has
 been published by creating this artifact. Keep the existing origin and URL scope
@@ -57,6 +57,7 @@ nginx = '''server {
 }
 '''
 args.output.parent.mkdir(parents=True, exist_ok=True)
+readme = readme.replace('{version}', version)
 project_readme = (ROOT / 'README.md').read_bytes()
 temporary = args.output.with_suffix(args.output.suffix + '.partial')
 with zipfile.ZipFile(temporary, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:

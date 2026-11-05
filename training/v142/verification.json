@@ -1,0 +1,59 @@
+{
+  "status": "prepared-not-production-trained",
+  "source_release": "v1.4.1",
+  "source_commit": "ded3bdc5de00205987a0918b67145a96dc1c140f",
+  "branch": "dev/1.4.2-qwen35-finetune",
+  "real_qwen_training": false,
+  "real_qwen_adapter": null,
+  "fine_tuned_gguf": null,
+  "fine_tuned_gguf_sha256": null,
+  "base_qwen_quality": null,
+  "fine_tuned_quality": null,
+  "real_tokens_per_second": null,
+  "production_training_loss": null,
+  "production_validation_loss": null,
+  "android_device_tested": false,
+  "published_release": false,
+  "blockers": [
+    "No CUDA GPU; 3 CPU threads and 8 GiB cgroup limit",
+    "Hugging Face source request denied by proxy HTTP 403",
+    "Physical POCO X7 Pro unavailable"
+  ],
+  "checks": {
+    "typescript_unit_tests": {
+      "passed": 140,
+      "failed": 0,
+      "execution": "Each tests/*.test.ts executed as a separate node --import tsx process; avoids Node 24 internal test-worker loader issue"
+    },
+    "native_api_tests": {
+      "passed": 25,
+      "failed": 0
+    },
+    "python_pipeline_tests": {
+      "passed": 3,
+      "random_weights_only": true,
+      "optimizer_steps": 2,
+      "resume": true,
+      "adapter_export": true,
+      "language_hybrid_and_mlp_targets": true,
+      "merge_logits_equivalent": true,
+      "temporary_adapter_retained": false
+    },
+    "python_data_evaluation_guards": {
+      "passed": 4
+    },
+    "typescript_typecheck": "passed after restoring declared missing wllama dependencies",
+    "model_free_web_build": "passed",
+    "gguf_import_browser": "passed; synthetic metadata only; both OPFS writer paths, source preservation and restart",
+    "history_browser": "passed; model switches, expiry, persistence and confirmation; initial obsolete-default selector fixed",
+    "real_production_smoke": "blocked before model load by require_cuda guard"
+  },
+  "remaining": [
+    "Download pinned source and verify actual tokenizer lengths/template on local machine",
+    "Run baseline, real 0.8B smoke and LoRA on RTX 4060",
+    "Review PL/EN outputs and compare independent holdouts",
+    "Merge, convert, hash and test real Q4_K_M in app engine",
+    "Import and benchmark on POCO X7 Pro offline",
+    "Publish verified model artifact separately and populate fineTunedModels catalogue only after acceptance"
+  ]
+}
