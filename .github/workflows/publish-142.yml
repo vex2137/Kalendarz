@@ -1,11 +1,6 @@
-name: Publish verified Kalendarz 1.4.2
+name: Publish verified Kalendarz 1.5.0 Part 1 Beta 1
 on:
   workflow_dispatch:
-    inputs:
-      depot_commit:
-        description: Exact private depot commit containing the successful final manifest
-        required: true
-        type: string
 permissions:
   contents: write
 concurrency:
@@ -13,34 +8,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/main'
+    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/release/1.5.0-part1-beta1'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          path: source
           fetch-depth: 0
-          persist-credentials: false
-      - name: Validate immutable depot selector
-        env:
-          DEPOT_COMMIT: ${{ inputs.depot_commit }}
-        run: python3 -c 'import os,re; assert re.fullmatch("[0-9a-f]{40}",os.environ["DEPOT_COMMIT"])'
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          repository: vex2137/Kalendarz-private-builds
-          ref: ${{ inputs.depot_commit }}
-          path: depot
-          token: ${{ secrets.CALENDAR_MODEL_DEPOT_TOKEN }}
-      - name: Verify tested source, transport bytes, signature and every draft asset before stable publication
-        working-directory: source
+      - name: Verify, upload and verify the existing signed beta APK
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/publish-v142.py ../depot
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: Kalendarz-1.4.2-publication-evidence
-          path: source/release/evidence.json
-          if-no-files-found: warn
-          retention-days: 30
+        run: python3 scripts/publish-part1-beta1.py
