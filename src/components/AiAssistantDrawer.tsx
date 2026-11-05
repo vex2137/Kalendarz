@@ -541,14 +541,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             placeholder={
               tr(language, 'Napisz np. Trening jutro o 18 na 1h...', 'Type e.g. Workout tomorrow at 6pm for 1h...')
             }
-            disabled={isProcessing || !aiSettings.enabled || !historyReady}
+            disabled={isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyOpen}
             maxLength={1000}
             className="flex-1 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
           <button
             id="btn-send-ai-message"
             onClick={() => handleSendMessage()}
-            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady}
+            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyOpen}
             className="p-2.5 ai-primary disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             <Send className="w-4 h-4" />
