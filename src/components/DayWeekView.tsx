@@ -45,7 +45,7 @@ export function DayWeekView({ currentDate, viewMode, events, onSelectEvent, onCr
     data-no-swipe={!isDay ? '' : undefined} data-testid="time-view" aria-label={isDay ? t.day : t.week}>
     <div className={`timeline-content ${!isDay ? 'timeline-week' : ''}`} style={{ '--day-count': days.length } as React.CSSProperties}>
       <div className="timeline-sticky-header">
-        <div className="timeline-headings">
+        {!isDay && <div className="timeline-headings">
           <span className="timeline-zone" title={zone}>{zone.split('/').at(-1)?.replaceAll('_', ' ')}</span>
           {days.map(date => <button type="button" key={date} className={`timeline-date ${date === today ? 'calendar-today' : ''}`}
             aria-current={date === today ? 'date' : undefined} data-date={date}
@@ -53,7 +53,7 @@ export function DayWeekView({ currentDate, viewMode, events, onSelectEvent, onCr
             <span>{new Date(`${date}T12:00:00`).toLocaleDateString(locale(language), { weekday: 'short' })}</span>
             <strong>{new Date(`${date}T12:00:00`).toLocaleDateString(locale(language), { day: 'numeric', month: 'short' })}</strong>
           </button>)}
-        </div>
+        </div>}
         <div className="timeline-all-day-row">
           <span className="timeline-all-day-label">{t.allDay}</span>
           <div className="timeline-all-day" aria-label={t.allDay} style={{ minHeight: Math.max(32, Math.min(4, allDayLanes) * 28) }}>

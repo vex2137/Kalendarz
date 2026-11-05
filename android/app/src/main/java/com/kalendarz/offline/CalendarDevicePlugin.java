@@ -167,8 +167,6 @@ public class CalendarDevicePlugin extends Plugin {
 
     @Override
     protected void handleOnStop() {
-        // Keep the side-by-side diagnostic installation visibly distinct.
-        if (getContext().getPackageName().endsWith(".diagnostics")) return;
         if (getActivity().isChangingConfigurations()) return;
         String selected = getContext().getSharedPreferences("launcher", 0)
             .getString("desiredLanguage", null);
