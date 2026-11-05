@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
+import type { AnimationSettings } from '../types';
+import { reducedMotion } from '../utils/animations';
 
 const editing = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest(
   'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="slider"], [role="spinbutton"], [role="combobox"], [data-no-swipe]',
 ));
 
-export function CalendarNavigation({ enabled, dateKey, onNavigate, children, allowHorizontalScroll = false }: {
-  enabled: boolean; dateKey: string; onNavigate: (direction: number) => void; children: React.ReactNode; allowHorizontalScroll?: boolean;
+export function CalendarNavigation({ enabled, dateKey, onNavigate, children, animations, allowHorizontalScroll = false }: {
+  enabled: boolean; dateKey: string; onNavigate: (direction: number) => void; children: React.ReactNode; animations: AnimationSettings; allowHorizontalScroll?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const gesture = useRef<{ id: number; x: number; y: number; vertical: boolean } | null>(null);
@@ -31,12 +33,12 @@ export function CalendarNavigation({ enabled, dateKey, onNavigate, children, all
     const forward = dateKey > previous.current;
     previous.current = dateKey;
     animation.current?.cancel();
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (reducedMotion() || animations.level === 'off' || !animations.transitions) return;
     animation.current = root.current?.animate([
       { transform: `translateX(${forward ? 12 : -12}px)`, opacity: 0.7 },
       { transform: 'translateX(0)', opacity: 1 },
-    ], { duration: 160, easing: 'ease-out' }) || null;
-  }, [dateKey]);
+    ], { duration: (animations.level === 'full' ? 220 : 160) * 100 / animations.speed, easing: 'ease-out' }) || null;
+  }, [dateKey, animations.level, animations.speed, animations.transitions]);
   useEffect(() => () => animation.current?.cancel(), []);
   return <div ref={root} data-testid="calendar-navigation" data-date-key={dateKey} className="calendar-gesture-area flex flex-1 min-h-0 min-w-0 overflow-hidden"
     style={{ touchAction: allowHorizontalScroll ? 'pan-x pan-y pinch-zoom' : 'pan-y pinch-zoom' }}

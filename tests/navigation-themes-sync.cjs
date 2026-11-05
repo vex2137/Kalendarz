@@ -63,7 +63,7 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
     await page.getByRole('button', { name: 'Delete theme: Personal theme', exact: true }).click();
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
-    assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg-main')), '');
+    assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg-main')), '#0B0D12');
     await page.keyboard.press('Escape');
     // Editing outside a modal must also block calendar shortcuts.
     await page.evaluate(() => { const input = document.createElement('div'); input.contentEditable = 'true'; input.id = 'editing-test'; input.textContent = 'Editing'; document.body.append(input); input.focus(); });

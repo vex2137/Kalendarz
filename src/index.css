@@ -169,39 +169,39 @@ body {
 }
 
 /* Custom palettes override semantic controls, while event colors keep their meaning. */
-[data-theme^='custom:'] .theme-primary {
+[data-palette='semantic'] .theme-primary {
   background-color: var(--button-bg) !important;
   color: var(--button-text) !important;
 }
-[data-theme^='custom:'] .theme-primary:hover {
+[data-palette='semantic'] .theme-primary:hover {
   background-color: var(--button-hover) !important;
 }
-[data-theme^='custom:'] .theme-accent-fill {
+[data-palette='semantic'] .theme-accent-fill {
   background-color: var(--accent-color) !important;
   color: var(--accent-text) !important;
 }
-[data-theme^='custom:'] :is(.text-blue-400, .text-blue-500, .text-blue-600) {
+[data-palette='semantic'] :is(.text-blue-400, .text-blue-500, .text-blue-600) {
   color: var(--accent-color) !important;
 }
-[data-theme^='custom:'] :is(.border-blue-500, .border-blue-600) {
+[data-palette='semantic'] :is(.border-blue-500, .border-blue-600) {
   border-color: var(--accent-color) !important;
 }
-[data-theme^='custom:'] :is(input[type='checkbox'], input[type='radio'], input[type='range']) {
+[data-palette='semantic'] :is(input[type='checkbox'], input[type='radio'], input[type='range']) {
   accent-color: var(--accent-color);
 }
-[data-theme^='custom:'] :is(.bg-neutral-950, .bg-neutral-900) {
+[data-palette='semantic'] :is(.bg-neutral-950, .bg-neutral-900) {
   background-color: var(--bg-surface) !important;
   color: var(--text-main) !important;
 }
-[data-theme^='custom:'] :is(.bg-neutral-800, .bg-neutral-700) {
+[data-palette='semantic'] :is(.bg-neutral-800, .bg-neutral-700) {
   background-color: var(--bg-subtle) !important;
 }
-[data-theme^='custom:'] :is(.text-neutral-300, .text-neutral-400) {
+[data-palette='semantic'] :is(.text-neutral-300, .text-neutral-400) {
   color: var(--text-muted) !important;
 }
-[data-theme^='custom:'] [class~='bg-stone-500/5'] { background-color: var(--bg-subtle) !important; }
-[data-theme^='custom:'] :is([class~='hover:bg-stone-500/5'], [class~='hover:bg-stone-500/10']):hover { background-color: var(--bg-hover) !important; }
-[data-theme^='custom:'] :is(.bg-neutral-900, .bg-neutral-950) h4 { color: var(--text-main) !important; }
+[data-palette='semantic'] [class~='bg-stone-500/5'] { background-color: var(--bg-subtle) !important; }
+[data-palette='semantic'] :is([class~='hover:bg-stone-500/5'], [class~='hover:bg-stone-500/10']):hover { background-color: var(--bg-hover) !important; }
+[data-palette='semantic'] :is(.bg-neutral-900, .bg-neutral-950) h4 { color: var(--text-main) !important; }
 /* Touch negotiation stops at the first scroll container, including nested agendas. */
 .calendar-gesture-area,
 .calendar-gesture-area * { touch-action: pan-y pinch-zoom; }
@@ -378,3 +378,30 @@ body {
   .calendar-date-controls { justify-content: flex-start; }
   .calendar-global-actions { justify-content: flex-end; }
 }
+
+/* Motion preferences do not delay calendar operations or authentication. */
+[data-motion='off'] *, [data-motion='off'] *::before, [data-motion='off'] *::after {
+  animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+}
+[data-motion-buttons='off'] button { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+[data-motion-transitions='on'][data-motion='subtle'] [role='dialog'],
+[data-motion-transitions='on'][data-motion='full'] [role='dialog'] { animation: motion-dialog calc(160ms * var(--motion-speed, 1)) ease-out; }
+[data-motion-buttons='on'][data-motion='full'] button:active { transform: scale(.98); }
+@keyframes motion-dialog { from { opacity: 0; } to { opacity: 1; } }
+.pin-dots-success { animation: pin-scatter calc(180ms * var(--motion-speed, 1)) ease-in both; }
+.pin-success { position: relative; width: 64px; height: 64px; color: #22c55e; }
+.pin-success svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.pin-success circle { fill: none; stroke-width: 3; }
+.pin-success-track { stroke: color-mix(in srgb, #22c55e 25%, transparent); }
+.pin-success-ring { stroke: #22c55e; stroke-dasharray: 100; stroke-dashoffset: 100; animation: pin-ring calc(440ms * var(--motion-speed, 1)) linear forwards; }
+.pin-success-check { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; opacity: 0; animation: pin-check calc(60ms * var(--motion-speed, 1)) calc(440ms * var(--motion-speed, 1)) forwards; }
+.pin-confetti { position: absolute; left: -35px; right: -35px; top: -10px; text-align: center; animation: pin-check calc(100ms * var(--motion-speed, 1)) calc(300ms * var(--motion-speed, 1)) both; }
+@keyframes pin-ring { to { stroke-dashoffset: 0; } }
+@keyframes pin-check { to { opacity: 1; } }
+@keyframes pin-scatter { to { transform: scaleX(1.3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .pin-dots-success, .pin-success-ring, .pin-success-check, .pin-confetti { animation: none !important; }
+}
+[data-motion='subtle'] .motion-preview, [data-motion='full'] .motion-preview { animation: motion-dialog calc(250ms * var(--motion-speed, 1)) ease-out; }
+.password-success { animation: password-success calc(160ms * var(--motion-speed, 1)) ease-out both; }
+@keyframes password-success { to { opacity: 0.65; } }

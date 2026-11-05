@@ -1,16 +1,19 @@
 import type { AppSettings, AppTheme, CustomTheme, ThemeColorKey } from '../types';
+import themeSpec from './builtinThemes.json';
 
-export const BUILTIN_THEMES = ['light', 'dark', 'nord', 'emerald', 'sunset', 'lavender', 'moka'] as const;
+export const BUILTIN_THEMES = ['dark', 'light', 'contrast', 'ocean', 'nature', 'scifi', 'sunset', 'inferno', 'nord', 'emerald', 'lavender', 'moka'] as const;
+export const OFFICIAL_THEMES = themeSpec.themes;
 export const THEME_VARIABLES: Record<ThemeColorKey, string> = {
   background: '--bg-main', surface: '--bg-surface', header: '--bg-header', subtle: '--bg-subtle',
   hover: '--bg-hover', border: '--border-color', text: '--text-main', muted: '--text-muted',
   accent: '--accent-color', accentText: '--accent-text', button: '--button-bg', buttonHover: '--button-hover', buttonText: '--button-text',
 };
-export const DEFAULT_THEME_COLORS: CustomTheme['colors'] = {
-  background: '#09090b', surface: '#141416', header: '#141416', subtle: '#1f1f23', hover: '#27272d',
-  border: '#2c2c34', text: '#fafafa', muted: '#a1a1aa', accent: '#3b82f6', accentText: '#ffffff',
-  button: '#2563eb', buttonHover: '#1d4ed8', buttonText: '#ffffff',
-};
+export const DEFAULT_THEME_COLORS: CustomTheme['colors'] = builtinThemeColors('dark')!;
+export function builtinThemeColors(id: string): CustomTheme['colors'] | undefined {
+  const theme = OFFICIAL_THEMES.find(value => value.id === id);
+  if (!theme) return undefined;
+  return Object.fromEntries(themeSpec.fields.map((key, index) => [key, theme.colors[index]])) as CustomTheme['colors'];
+}
 export function isCustomTheme(value: unknown): value is CustomTheme {
   if (!value || typeof value !== 'object') return false;
   const theme = value as CustomTheme;
@@ -35,8 +38,10 @@ export function applyTheme(root: HTMLElement, settings: Pick<AppSettings, 'theme
   root.style.removeProperty('color-scheme');
   const custom = settings.customThemes?.find(theme => theme.id === settings.theme && isCustomTheme(theme));
   root.dataset.theme = custom?.id || ((BUILTIN_THEMES as readonly string[]).includes(settings.theme) ? settings.theme : 'dark');
-  if (!custom) return;
-  for (const [key, variable] of Object.entries(THEME_VARIABLES)) root.style.setProperty(variable, custom.colors[key as ThemeColorKey]);
-  const rgb = custom.colors.background.slice(1).match(/../g)!.map(hex => parseInt(hex, 16));
+  const colors = custom?.colors || builtinThemeColors(settings.theme);
+  if (!colors) { delete root.dataset.palette; return; }
+  root.dataset.palette = 'semantic';
+  for (const [key, variable] of Object.entries(THEME_VARIABLES)) root.style.setProperty(variable, colors[key as ThemeColorKey]);
+  const rgb = colors.background.slice(1).match(/../g)!.map(hex => parseInt(hex, 16));
   root.style.colorScheme = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722 > 140 ? 'light' : 'dark';
 }

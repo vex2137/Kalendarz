@@ -1,13 +1,17 @@
 import { CustomThemeEditor } from './CustomThemeEditor';
+import { AnimationSettingsPanel } from './AnimationSettingsPanel';
+import { OFFICIAL_THEMES } from '../utils/themes';
 import { tr } from '../utils/i18n';
 import { SystemNotificationSettings } from './SystemNotificationSettings';
 import { planningPreferences } from '../utils/assistantPlanning';
 import { reminderLabel, colorLabel } from '../utils/i18n';
-import { hashPin, verifyPin } from '../utils/security';
+import { hashPassword, hashPin, verifyCurrentCredential } from '../utils/security';
+import { CalendarDevice } from '../utils/nativeDevice';
+import { Capacitor } from '@capacitor/core';
 import { MAX_IMPORT_BYTES, validateEvents } from '../utils/validation';
 import { downloadFile } from '../utils/storage';
 import { Dialog } from './Dialog';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   AppSettings,
   CalendarEvent,
@@ -16,7 +20,6 @@ import {
 } from '../types';
 import { exportEventsToICS, parseICSToEvents } from '../utils/storage';
 import {
-  AVAILABLE_THEMES,
   GOOGLE_CALENDAR_COLORS,
   STANDARD_REMINDER_OPTIONS,
 } from '../utils/constants';
@@ -78,12 +81,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [pinInput, setPinInput] = useState('');
   const [pinConfirmation, setPinConfirmation] = useState('');
   const [currentPin, setCurrentPin] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinSuccess, setPinSuccess] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [holidaysToast, setHolidaysToast] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (isOpen && Capacitor.getPlatform() === 'android') {
+      void CalendarDevice.biometricStatus().then(result => { if (active) setBiometricAvailable(result.available); }).catch(() => { if (active) setBiometricAvailable(false); });
+    }
+    return () => { active = false; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -101,17 +117,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setPinError(tr(lang, 'Potwierdzenie PIN-u nie jest zgodne.', 'PIN confirmation does not match.'));
       return;
     }
-    if (settings.security.pinEnabled && !(await verifyPin(currentPin, settings.security))) {
-      setPinError(tr(lang, 'Obecny PIN jest nieprawidłowy.', 'Current PIN is incorrect.'));
+    if (settings.security.pinEnabled && !(await verifyCurrentCredential(currentPin, settings.security))) {
+      setPinError(tr(lang, 'Obecne dane są nieprawidłowe.', 'Current credential is incorrect.'));
       return;
     }
     setPinError(null);
     try {
       const hash = await hashPin(pinInput);
-      onUpdateSettings({
+      if (onUpdateSettings({
         ...settings,
-        security: { ...settings.security, ...hash },
-      });
+        security: { ...settings.security, ...hash, authenticationMethod: 'pin' },
+      }) === false) { setPinError(tr(lang, 'Nie zapisano ustawień.', 'Settings were not saved.')); return; }
       setPinInput('');
       setPinConfirmation('');
       setCurrentPin('');
@@ -126,32 +142,79 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleTogglePin = async (enabled: boolean) => {
-    if (!enabled && !(await verifyPin(currentPin, settings.security))) {
-      setPinError(tr(lang, 'Wprowadź poprawny obecny PIN.', 'Enter the correct current PIN.'));
+    if (!enabled && !(await verifyCurrentCredential(currentPin, settings.security))) {
+      setPinError(tr(lang, 'Wprowadź poprawne obecne dane.', 'Enter the correct current credential.'));
       return;
     }
-    if (enabled && !settings.security.pinHash && !/^\d{4,16}$/.test(pinInput)) {
+    const passwordMode = settings.security.authenticationMethod === 'password';
+    if (enabled && passwordMode && !settings.security.passwordHash) {
+      setPinError(tr(lang, 'Najpierw ustaw hasło.', 'Set a password first.'));
+      return;
+    }
+    if (enabled && !passwordMode && !settings.security.pinHash && !/^\d{4,16}$/.test(pinInput)) {
       setPinError(
         tr(lang, 'Wprowadź PIN składający się z 4–16 cyfr.', 'Enter a PIN of 4–16 digits.'),
       );
       return;
     }
-    if (enabled && pinInput && pinInput !== pinConfirmation) {
+    if (enabled && !passwordMode && pinInput && pinInput !== pinConfirmation) {
       setPinError(tr(lang, 'Potwierdzenie PIN-u nie jest zgodne.', 'PIN confirmation does not match.'));
       return;
     }
     setPinError(null);
     try {
-      const hash = enabled && pinInput ? await hashPin(pinInput) : {};
-      onUpdateSettings({
+      const hash = enabled && !passwordMode && pinInput ? await hashPin(pinInput) : {};
+      if (onUpdateSettings({
         ...settings,
-        security: { ...settings.security, ...hash, pinEnabled: enabled },
-      });
+        security: { ...settings.security, ...hash, pinEnabled: enabled, biometricEnabled: enabled ? settings.security.biometricEnabled : false },
+      }) === false) { setPinError(tr(lang, 'Nie zapisano ustawień.', 'Settings were not saved.')); return; }
       setPinInput('');
       setPinConfirmation('');
       setCurrentPin('');
     } catch (error) {
       setPinError(String(error));
+    }
+  };
+
+  const toggleBiometric = async (enabled: boolean) => {
+    if (biometricBusy) return;
+    if (!settings.security.pinEnabled || !(await verifyCurrentCredential(currentPin, settings.security))) {
+      setPinError(tr(lang, 'Wprowadź poprawne obecne dane.', 'Enter the correct current credential.'));
+      return;
+    }
+    setBiometricBusy(true);
+    try {
+      if (enabled) {
+        const result = await CalendarDevice.authenticateBiometric({ title: tr(lang, 'Włącz biometrię', 'Enable biometrics'), cancel: tr(lang, 'Anuluj', 'Cancel') });
+        if (result.authenticated !== true) throw new Error('cancelled');
+      }
+      if (onUpdateSettings({ ...settings, security: { ...settings.security, biometricEnabled: enabled } }) === false) {
+        setPinError(tr(lang, 'Nie zapisano ustawień.', 'Settings were not saved.')); return;
+      }
+      setCurrentPin(''); setPinError(null);
+    } catch {
+      setPinError(tr(lang, 'Biometria jest niedostępna lub anulowano uwierzytelnianie.', 'Biometrics are unavailable or authentication was cancelled.'));
+    } finally { setBiometricBusy(false); }
+  };
+
+  const handleSavePassword = async () => {
+    if (passwordInput !== passwordConfirmation) {
+      setPinError(tr(lang, 'Potwierdzenie hasła nie jest zgodne.', 'Password confirmation does not match.'));
+      return;
+    }
+    if (settings.security.pinEnabled && !(await verifyCurrentCredential(currentPin, settings.security))) {
+      setPinError(tr(lang, 'Obecne dane są nieprawidłowe.', 'Current credential is incorrect.'));
+      return;
+    }
+    try {
+      const hash = await hashPassword(passwordInput);
+      if (onUpdateSettings({ ...settings, security: { ...settings.security, ...hash, authenticationMethod: 'password' } }) === false) {
+        setPinError(tr(lang, 'Nie zapisano ustawień.', 'Settings were not saved.')); return;
+      }
+      setPasswordInput(''); setPasswordConfirmation(''); setCurrentPin(''); setPinError(null);
+      setPinSuccess(tr(lang, 'Hasło zostało zapisane.', 'Password saved.'));
+    } catch {
+      setPinError(tr(lang, 'Hasło musi zawierać od 8 do 64 znaków.', 'Password must contain 8 to 64 characters.'));
     }
   };
 
@@ -287,58 +350,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-              {AVAILABLE_THEMES.map((th) => {
-                const isSelected = settings.theme === th.id;
-                return (
-                  <button
-                    key={th.id}
-                    type="button"
-                    onClick={() => {
-                      onUpdateSettings({
-                        ...settings,
-                        theme: th.id,
-                      });
-                    }}
-                    className={`relative p-3 rounded-2xl border text-left transition-all flex flex-col justify-between overflow-hidden ${
-                      isSelected
-                        ? 'border-indigo-500 ring-2 ring-indigo-500/40 shadow-xs theme-surface'
-                        : 'theme-border hover:opacity-90 theme-subtle'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span
-                        className="w-4 h-4 rounded-full flex items-center justify-center border border-black/20 shadow-xs"
-                        style={{ backgroundColor: th.dotColor }}
-                      >
-                        {isSelected && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                        )}
-                      </span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${th.chipClass}`}
-                      >
-                        {tr(lang, th.badge, ({ light: 'Classic', dark: 'Night', nord: 'Arctic', emerald: 'Calm', sunset: 'Amber', lavender: 'Pastel', moka: 'Cafe' })[th.id])}
-                      </span>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-bold theme-text leading-tight">
-                        {tr(lang, th.name, ({ light: 'Light', dark: 'Dark OLED', nord: 'Nordic Frost', emerald: 'Emerald Forest', sunset: 'Warm Sunset', lavender: 'Cyber Lavender', moka: 'Warm Mocha' })[th.id])}
-                      </p>
-                    </div>
-
-                    {isSelected && (
-                      <div className="absolute top-2 right-2 text-indigo-400">
-                        <Check className="w-3.5 h-3.5" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+              {OFFICIAL_THEMES.map(theme => <button key={theme.id} type="button" aria-pressed={settings.theme === theme.id}
+                onClick={() => onUpdateSettings({ ...settings, theme: theme.id as AppSettings['theme'] })}
+                className="p-3 rounded-2xl border text-left theme-border theme-hover"
+                style={{ backgroundColor: theme.colors[1], color: theme.colors[6], borderColor: theme.colors[5] }}>
+                <span className="inline-block w-3 h-3 rounded-full mr-2" style={{ backgroundColor: theme.colors[8] }} />
+                {tr(lang, theme.pl, theme.en)}{settings.theme === theme.id && ' ✓'}
+              </button>)}
             </div>
+            <label className="block text-xs theme-muted">{tr(lang, 'Wcześniejsze motywy', 'Previous themes')}
+              <select className="block w-full theme-input rounded-xl p-2" value={['nord', 'emerald', 'lavender', 'moka'].includes(settings.theme) ? settings.theme : ''}
+                onChange={e => { if (e.target.value) onUpdateSettings({ ...settings, theme: e.target.value as AppSettings['theme'] }); }}>
+                <option value="">{tr(lang, 'Wybierz wcześniejszy motyw', 'Choose a previous theme')}</option>
+                <option value="nord">Nordic Frost</option><option value="emerald">Emerald</option>
+                <option value="lavender">Lavender</option><option value="moka">Moka</option>
+              </select>
+            </label>
           </div>
 
           <CustomThemeEditor settings={settings} onUpdateSettings={onUpdateSettings} />
+          <AnimationSettingsPanel settings={settings} onUpdateSettings={onUpdateSettings} language={lang} />
 
           {/* Section 2: Domyślne parametry nowych wydarzeń */}
           <div className="space-y-3 pt-5">
@@ -692,11 +723,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   placeholder={tr(lang, 'Potwierdź nowy PIN', 'Confirm new PIN')}
                   value={pinConfirmation} onChange={e => setPinConfirmation(e.target.value.replace(/\D/g, ''))}
                   className="w-full px-3 py-1.5 rounded-xl theme-input" />
-                {settings.security.pinEnabled && <input type="password" inputMode="numeric" autoComplete="current-password" maxLength={16}
-                  aria-label={tr(lang, 'Obecny PIN', 'Current PIN')}
-                  placeholder={tr(lang, 'Obecny PIN (do zmiany lub wyłączenia)', 'Current PIN (to change or disable)')}
-                  value={currentPin} onChange={e => setCurrentPin(e.target.value.replace(/\D/g, ''))}
+                {settings.security.pinEnabled && <input type="password" inputMode={settings.security.authenticationMethod === 'password' ? 'text' : 'numeric'} autoComplete="current-password" maxLength={64}
+                  aria-label={settings.security.authenticationMethod === 'password' ? tr(lang, 'Obecne hasło', 'Current password') : tr(lang, 'Obecny PIN', 'Current PIN')}
+                  placeholder={settings.security.authenticationMethod === 'password' ? tr(lang, 'Obecne hasło', 'Current password') : tr(lang, 'Obecny PIN (do zmiany lub wyłączenia)', 'Current PIN (to change or disable)')}
+                  value={currentPin} onChange={e => setCurrentPin(settings.security.authenticationMethod === 'password' ? e.target.value : e.target.value.replace(/\D/g, ''))}
                   className="w-full px-3 py-1.5 rounded-xl theme-input" />}
+
+                <div className="space-y-2 pt-2">
+                  <p className="text-xs font-bold theme-text">{tr(lang, 'Hasło (8–64 znaków)', 'Password (8–64 characters)')}</p>
+                  <input type={showPassword ? 'text' : 'password'} autoComplete="new-password" maxLength={128} aria-label={tr(lang, 'Nowe hasło', 'New password')} value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className="w-full px-3 py-1.5 rounded-xl theme-input" />
+                  <input type={showPassword ? 'text' : 'password'} autoComplete="new-password" maxLength={128} aria-label={tr(lang, 'Potwierdź hasło', 'Confirm password')} value={passwordConfirmation} onChange={e => setPasswordConfirmation(e.target.value)} className="w-full px-3 py-1.5 rounded-xl theme-input" />
+                  <label className="flex items-center gap-2 text-xs theme-text"><input type="checkbox" checked={showPassword} onChange={e => setShowPassword(e.target.checked)} />{tr(lang, 'Pokaż hasło', 'Show password')}</label>
+                  <button type="button" onClick={handleSavePassword} className="px-3 py-1.5 theme-primary rounded-xl text-xs font-bold">{tr(lang, 'Zapisz hasło', 'Save password')}</button>
+                </div>
+                {Capacitor.getPlatform() === 'android' && <label className="flex items-center gap-2 text-xs theme-text">
+                  <input type="checkbox" checked={!!settings.security.biometricEnabled} disabled={!settings.security.pinEnabled || biometricBusy || (!biometricAvailable && !settings.security.biometricEnabled)} onChange={e => void toggleBiometric(e.target.checked)} />
+                  {tr(lang, 'Odblokowanie biometryczne', 'Biometric unlock')}
+                  {!biometricAvailable && <span>{tr(lang, '(niedostępne)', '(unavailable)')}</span>}
+                </label>}
 
                 {pinError && (
                   <p className="text-xs text-rose-400 font-medium">
