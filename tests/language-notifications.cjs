@@ -30,7 +30,7 @@ const base = process.env.CALENDAR_TEST_URL || 'http://127.0.0.1:4176';
     await page.evaluate(() => { window.notificationTestPermission = 'granted'; window.dispatchEvent(new Event('focus')); });
     await section.getByText('System notifications enabled', { exact: true }).waitFor();
     for (const [language, button, flag, name] of [
-      ['pl', 'Polski', '🇵🇱', 'Kalendarz'], ['ru', 'Русский', '🇷🇺', 'Календарь'],
+      ['pl', 'Polski', '🇵🇱', 'Kalendarz'], ['en', 'English', '🇬🇧', 'Calendar'], ['pl', 'Polski', '🇵🇱', 'Kalendarz'], ['ru', 'Русский', '🇷🇺', 'Календарь'],
       ['en', 'English', '🇬🇧', 'Calendar'], ['de', 'Deutsch', '🇩🇪', 'Kalender'],
     ]) {
       const select = page.getByRole('button', { name: button, exact: true });
@@ -104,6 +104,15 @@ const base = process.env.CALENDAR_TEST_URL || 'http://127.0.0.1:4176';
     await nativeSection.getByText('System notifications are blocked', { exact: true }).waitFor();
     await phone.getByRole('button', { name: 'Deutsch', exact: true }).click();
     await phone.waitForFunction(() => window.nativeAppLanguage === 'de' && document.title === 'Kalender');
+    for (const [language, label, title] of [['pl','Polski','Kalendarz'],['en','English','Calendar'],['pl','Polski','Kalendarz']]) {
+      await phone.getByRole('button', { name: label, exact: true }).click();
+      await phone.waitForFunction(([lang, name]) => window.nativeAppLanguage === lang && document.title === name, [language, title]);
+      await phone.keyboard.press('Escape');
+      await phone.reload();
+      await phone.waitForFunction(([lang, name]) => window.nativeAppLanguage === lang && document.title === name, [language, title]);
+      assert.equal(await phone.evaluate(() => JSON.parse(localStorage.getItem('offline_calendar_settings_v2')).language), language);
+      await phone.locator('#btn-open-settings').click();
+    }
     assert.deepEqual(errors, []);
     await native.close();
     console.log('PASS: PL/EN/RU/DE flags, app names, persistence, 320/390px layout, German event saving; browser and Android bridge notification states refresh after permission/channel changes; native name follows selection.');

@@ -1,0 +1,93 @@
+# This registered workflow path is reused ONLY on the independent beta branch.
+# The default/main and 1.4.2 copies are not changed by this branch.
+name: KALENDARZ Part 1 Beta 1 compatible Android update
+on:
+  workflow_dispatch:
+    inputs:
+      preflight_only:
+        description: Verify the existing 1.4.2 update signing key without building
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: calendar-part1-beta1-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  EXPECTED_ANDROID_CERTIFICATE: ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143
+jobs:
+  signing-preflight:
+    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/beta/1.5.0-part1-beta1-android-fix'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21'}
+      - name: Verify beta metadata and exact existing update identity
+        run: |
+          python3 - <<'PY'
+          import json
+          m=json.load(open('beta-release.json'))
+          assert m['version']=='1.5.0-part1-beta1' and m['androidVersionCode']==10506
+          assert m['androidCertificateSha256']=='ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143'
+          PY
+          bash .github/scripts/check-signing.sh
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
+  android:
+    needs: signing-preflight
+    if: inputs.preflight_only != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false, fetch-depth: 0}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '24'}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with: {bun-version: '1.4.3'}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21'}
+      - run: bun install --frozen-lockfile
+      - run: npm run lint && npm test && npm run test:native
+      - run: node scripts/prepare-part1-beta.cjs
+      - run: node_modules/.bin/vite build
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/browser.cjs && node tests/ui-overhaul-browser.cjs && node tests/ui-audit-regressions.cjs
+      - name: Prepare the unchanged pinned Android engine
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' 'cmake;3.31.6'
+          python3 scripts/build-android-native.py --sdk "$ANDROID_HOME" --jobs 2
+          npx --no-install cap sync android
+      - name: Build with verified existing 1.4.2 key only
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
+          CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
+        run: |
+          set +x
+          bash .github/scripts/check-signing.sh
+          trap 'rm -f "$RUNNER_TEMP/calendar-release.p12"' EXIT
+          node scripts/restore-android-signing.cjs
+          export CALENDAR_KEYSTORE_PATH="$RUNNER_TEMP/calendar-release.p12"
+          bash android/gradlew -p android :app:testDiagnosticsUnitTest :app:assembleDiagnostics -PcalendarPart1Update=true --no-daemon --max-workers=2
+          mkdir -p release/part1-beta1-final
+          cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk release/part1-beta1-final/KALENDARZ-1.5.0-PART1-BETA1-ANDROID.apk
+          python3 scripts/verify-part1-apk.py release/part1-beta1-final/KALENDARZ-1.5.0-PART1-BETA1-ANDROID.apk --tools "$ANDROID_HOME/build-tools/36.0.0" --commit "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: calendar-part1-beta1-compatible-apk
+          path: |
+            release/part1-beta1-final/KALENDARZ-1.5.0-PART1-BETA1-ANDROID.apk
+            release/part1-beta1-final/KALENDARZ-1.5.0-PART1-BETA1-ANDROID.apk.sha256
+          if-no-files-found: error

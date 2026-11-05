@@ -51,6 +51,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CalendarModelImportPlugin.class);
         if (android.os.Build.VERSION.SDK_INT >= 28) registerPlugin(CalendarNativeAIPlugin.class);
         super.onCreate(savedInstanceState);
+        LauncherLanguage.updateActivity(this, LauncherLanguage.desired(this));
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {

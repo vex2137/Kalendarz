@@ -11,7 +11,7 @@ function fixture(name='Local test'){
   const string=s=>Buffer.concat([u64(Buffer.byteLength(s)),Buffer.from(s)]);
   return Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(3),string('general.architecture'),u32(8),string('llama'),string('llama.context_length'),u32(4),u32(4096),string('general.name'),u32(8),string(name)]);
 }
-async function workspace(fn){const root=await fs.mkdtemp(path.join(os.tmpdir(),'calendar-folders-'));try{await fn(root);}finally{await fs.rm(root,{recursive:true,force:true});}}
+async function workspace(fn){const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'calendar-folders-')));try{await fn(root);}finally{await fs.rm(root,{recursive:true,force:true});}}
 const configFile=root=>path.join(root,'settings','model-folders-v1.json');
 test('folder scans recursively find valid GGUF and survive restart without copying model bytes',()=>workspace(async root=>{
   const directory=path.join(root,'LM Studio','publisher','model');await fs.mkdir(directory,{recursive:true});

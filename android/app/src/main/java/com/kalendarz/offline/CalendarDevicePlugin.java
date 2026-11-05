@@ -83,8 +83,6 @@ public class CalendarDevicePlugin extends Plugin {
 
     // Keep the existing notification channel: never bypass a user's mute choice.
     private static final String REMINDER_CHANNEL = "default";
-    private static final String[] LANGUAGES = { "en", "pl", "ru", "de" };
-    private static final String[] NAMES = { "Calendar", "Kalendarz", "Календарь", "Kalender" };
 
     @Override
     protected void handleOnResume() {
@@ -146,20 +144,14 @@ public class CalendarDevicePlugin extends Plugin {
     @PluginMethod
     public void setLanguage(PluginCall call) {
         String language = call.getString("language", "en");
-        int selected = -1;
-        for (int i = 0; i < LANGUAGES.length; i++) {
-            if (LANGUAGES[i].equals(language)) selected = i;
-        }
-        if (selected < 0) { call.reject("Unsupported language"); return; }
-        final int index = selected;
+        try { LauncherLanguage.index(language); }
+        catch (IllegalArgumentException error) { call.reject("Unsupported language"); return; }
         getActivity().runOnUiThread(() -> {
             try {
-                // Never disable the alias that launched a visible activity. Some launchers
-                // finish/restart the task even when DONT_KILL_APP is requested.
-                getContext().getSharedPreferences("launcher", 0).edit()
-                    .putString("desiredLanguage", LANGUAGES[index]).commit();
-                getActivity().setTitle(NAMES[index]);
-                getActivity().setTaskDescription(new ActivityManager.TaskDescription(NAMES[index]));
+                LauncherLanguage.saveChoice(getContext(), language);
+                LauncherLanguage.updateActivity(getActivity(), language);
+                // Apply aliases on background transition, keeping the visible
+                // WebView/draft intact while the user changes settings.
                 call.resolve();
             } catch (Exception error) { call.reject("Could not update launcher name", error); }
         });
@@ -167,42 +159,11 @@ public class CalendarDevicePlugin extends Plugin {
 
     @Override
     protected void handleOnStop() {
-        // Keep the side-by-side diagnostic installation visibly distinct.
-        if (getContext().getPackageName().endsWith(".diagnostics")) return;
         if (getActivity().isChangingConfigurations()) return;
-        String selected = getContext().getSharedPreferences("launcher", 0)
-            .getString("desiredLanguage", null);
-        if (selected == null) return;
-        try {
-            PackageManager manager = getContext().getPackageManager();
-            if (Build.VERSION.SDK_INT >= 33) {
-                java.util.List<PackageManager.ComponentEnabledSetting> changes = new java.util.ArrayList<>();
-                for (String language : LANGUAGES) {
-                    changes.add(new PackageManager.ComponentEnabledSetting(
-                        new ComponentName(getContext(), getContext().getPackageName() + ".Launcher_" + language),
-                        language.equals(selected) ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                        PackageManager.DONT_KILL_APP));
-                }
-                // Commit all aliases atomically; keep exactly one launcher entry enabled.
-                manager.setComponentEnabledSettings(changes);
-            } else {
-                setLauncher(manager, selected, true);
-                for (String language : LANGUAGES) if (!language.equals(selected)) setLauncher(manager, language, false);
-            }
-        } catch (Exception error) {
-            // Keep the desired value persisted and retry on the next background transition.
+        try { LauncherLanguage.applyPending(getContext()); }
+        catch (Exception error) {
             android.util.Log.e("CalendarDevice", "Could not update background launcher name", error);
         }
-    }
-
-    private void setLauncher(PackageManager manager, String language, boolean enabled) {
-        ComponentName component = new ComponentName(getContext(), getContext().getPackageName() + ".Launcher_" + language);
-        int state = enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
-        int current = manager.getComponentEnabledSetting(component);
-        // The English alias is enabled by default in the manifest.
-        boolean currentlyEnabled = current == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
-            (current == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && language.equals("en"));
-        if (currentlyEnabled != enabled) manager.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP);
     }
 
     @PluginMethod

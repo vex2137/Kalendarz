@@ -1,7 +1,9 @@
 {
   "name": "Calendar 1.5.0 — Cz. 1 — Beta 1",
   "version": "1.5.0-part1-beta1",
-  "tag": "v1.5.0-part1-beta1",
+  "tag": "v1.5.0-part1-beta1-android-r2",
+  "androidVersionCode": 10506,
+  "androidCertificateSha256": "ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143",
   "channel": "beta",
   "draft": true,
   "sourceCommit": "e6e85d37f1c95cfd29c39bf913db910efde1433e"

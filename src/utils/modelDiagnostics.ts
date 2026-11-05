@@ -6,6 +6,7 @@ export interface ModelMetric {
   backend?:string;gpuActive?:boolean;deviceName?:string;ramBytes?:number;vramBytes?:number;fallbackReason?:string;
   contextLength?:number; modelBytes?:number; historyMessages?:number; maxOutputTokens?:number; jsHeapBytes?:number;
   outputTruncated?: boolean;
+  finishReason?: 'stop' | 'length' | 'other' | 'missing';
   modelId?: string;
   quantization?: string;
   engineStateAtStart?: 'loaded' | 'loading' | 'unloaded';
@@ -28,6 +29,9 @@ export interface AssistantTurnMetric {
   startedAt: number; quickMs?: number; rulesMs?: number; totalMs: number; uiCommitMs?: number;
   modelPhaseAtSend?: string; commandAction?: string; error?: boolean;
   modelId?: string; quantization?: string; modelLoadedAtSend?: boolean;
+  modelJsonValid?: boolean; modelResponseCharacters?: number; proposalPrepared?: boolean;
+  commandFields?: { title:boolean; date:boolean; time:boolean; endTime:boolean; reminder:boolean };
+  requestFields?: { date:boolean; time:boolean; duration:boolean; invalid:boolean };
 }
 let turns: AssistantTurnMetric[] = [];
 let nativeBuild: { commit: string; applicationId: string; version: string } | undefined;

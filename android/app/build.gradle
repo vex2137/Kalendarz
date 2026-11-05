@@ -7,6 +7,8 @@ def calendarVersion = calendarPackage.version.split('-')[0].tokenize('.').collec
 def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
 def calendarVulkanDiagnostics = providers.gradleProperty('calendarVulkanDiagnostics').orElse('false').get().toBoolean()
 def calendarStableUpdate = providers.gradleProperty('calendarStableUpdate').orElse('false').get().toBoolean()
+def calendarPart1Update = providers.gradleProperty('calendarPart1Update').orElse('false').get().toBoolean()
+def calendarPart1Metadata = new groovy.json.JsonSlurper().parse(rootProject.file('../beta-release.json'))
 if (calendarVulkanDiagnostics && !calendarStableUpdate) throw new GradleException('Vulkan diagnostic APK requires calendarStableUpdate and the existing diagnostics identity')
 if (calendarStableUpdate && !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['assembleDiagnostics','assembleDiagnosticsAndroidTest','testDiagnosticsUnitTest'] }) {
     throw new GradleException('The model-free update preserves the diagnostics application ID and signing; use assembleDiagnostics')
@@ -17,12 +19,39 @@ if (calendarBeta && !gradle.startParameter.taskNames.every { it.tokenize(':').la
     throw new GradleException('Beta without bundled weights is allowed only for assembleDiagnostics')
 }
 def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
+if (calendarPart1Update) {
+    if (calendarPackage.version != calendarPart1Metadata.version || calendarStableUpdate || calendarBeta || calendarVulkanDiagnostics || calendarTestSigning ||
+        calendarPart1Metadata.androidVersionCode <= 10505 ||
+        !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['assembleDiagnostics','assembleDiagnosticsAndroidTest','testDiagnosticsUnitTest'] }) {
+        throw new GradleException('Part 1 update requires matching beta metadata, a higher versionCode and diagnostics tasks only')
+    }
+    if (!calendarKeystore || System.getenv('CALENDAR_REQUIRE_RELEASE_SIGNING') != 'true')
+        throw new GradleException('Part 1 update requires the existing 1.4.2 update private key; debug/new signing is forbidden')
+    try {
+        def store = java.security.KeyStore.getInstance(file(calendarKeystore), System.getenv('CALENDAR_KEYSTORE_PASSWORD').toCharArray())
+        def alias = System.getenv('CALENDAR_KEY_ALIAS')
+        def key = store.getKey(alias, System.getenv('CALENDAR_KEY_PASSWORD').toCharArray())
+        def cert = store.getCertificate(alias)
+        cert.checkValidity()
+        def digest = java.security.MessageDigest.getInstance('SHA-256').digest(cert.encoded).encodeHex().toString()
+        if (!(key instanceof java.security.PrivateKey) || digest != 'ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143') throw new Exception()
+    } catch (Exception ignored) { throw new GradleException('Existing 1.4.2 update key/certificate verification failed; no APK may be built') }
+}
 if (System.getenv('CALENDAR_REQUIRE_RELEASE_SIGNING') == 'true' && !calendarKeystore) {
     throw new GradleException('Stable Android signing is required; configure the CALENDAR_ANDROID_* GitHub secrets.')
 }
 
 
 android {
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.all {
+            systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+            ['https.proxyHost','https.proxyPort','http.proxyHost','http.proxyPort','javax.net.ssl.trustStore'].each { name ->
+                if (System.getProperty(name)) systemProperty name, System.getProperty(name)
+            }
+        }
+    }
     testBuildType providers.gradleProperty('calendarAndroidTestBuildType').orElse('debug').get()
     namespace = "com.kalendarz.offline"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -31,7 +60,7 @@ android {
         resValue 'string', 'calendar_build_commit', calendarWebBuild.commit
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarVulkanDiagnostics ? 4 : calendarStableUpdate ? 5 : calendarBeta ? 2 : 0)
+        versionCode calendarPart1Update ? calendarPart1Metadata.androidVersionCode : calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarVulkanDiagnostics ? 4 : calendarStableUpdate ? 5 : calendarBeta ? 2 : 0)
         versionName calendarPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -57,6 +86,7 @@ android {
             versionNameSuffix calendarStableUpdate || calendarPackage.version == '1.5.0-part1-beta1' ? '' : calendarBeta ? ' beta 3' : '-diagnostics'
             matchingFallbacks = ['debug']
             signingConfig signingConfigs.debug
+            if (calendarPart1Update) signingConfig signingConfigs.stableRelease
         }
         // Opt in only for downloadable test APKs; production signing stays external.
         release {
@@ -77,7 +107,7 @@ android {
         sourceSets.main.assets.srcDirs += [rootProject.file('../build/android-native-assets')]
         packagingOptions { jniLibs { useLegacyPackaging = true } }
     }
-    if (calendarStableUpdate) {
+    if (calendarStableUpdate || calendarPart1Update) {
         sourceSets.diagnostics.res.setSrcDirs([rootProject.file('../build/model-free-res')])
     }
     if (calendarBeta) {
@@ -98,6 +128,8 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
+    testImplementation 'com.vaadin.external.google:android-json:0.0.20131108.vaadin1'
+    testImplementation 'org.robolectric:robolectric:4.17'
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     androidTestImplementation "androidx.test.espresso:espresso-intents:$androidxEspressoCoreVersion"
@@ -122,11 +154,12 @@ tasks.register('verifyBundledModel') {
         if (calendarWebBuild.androidNative == true && !rootProject.file('../build/android-jni/arm64-v8a/libcalendar_llama.so').isFile()) {
             throw new GradleException('Native Android frontend requires scripts/build-android-native.py artifacts')
         }
-        if (calendarStableUpdate) {
+        if (calendarStableUpdate || calendarPart1Update) {
             def packagedBuild = new groovy.json.JsonSlurper().parse(file('src/main/assets/public/build-info.json'))
             if (packagedBuild.version != calendarPackage.version || packagedBuild.bundledModel != false || packagedBuild.distribution != 'model-free') {
                 throw new GradleException('Rebuild the explicit model-free frontend before assembling the update')
             }
+            if (calendarPart1Update && packagedBuild.androidNative != true) throw new GradleException('Part 1 update requires the existing native Android runtime')
             logger.lifecycle('Model-free 1.4.1 update: preserves Beta 3 application ID, signing and private data')
             return
         }

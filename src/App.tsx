@@ -244,8 +244,9 @@ export default function App() {
       );
   }, [language, settings.theme, settings.customThemes]);
   useEffect(() => {
+    if (!ready) return;
     void updateNativeAppName(language).catch(error => setSettingsError(String(error)));
-  }, [language]);
+  }, [language, ready]);
   const lock = useCallback(() => {
     setModal(null);
     setIsPinLocked(true);
