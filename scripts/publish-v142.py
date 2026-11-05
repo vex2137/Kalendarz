@@ -55,11 +55,16 @@ assert "name='com.kalendarz.offline.diagnostics' versionCode='10407' versionName
 run(tools/'zipalign','-c','-P','16','4',apk)
 (out/'SHA256SUMS.txt').write_text(''.join(f"{manifest['files'][n]['sha256']}  {n}\n" for n in sorted(NAMES)))
 files=sorted(NAMES|{'SHA256SUMS.txt'})
-result=subprocess.run(['gh','api',f'repos/{REPO}/releases/tags/v1.4.2'],capture_output=True,text=True)
-if result.returncode:
-    assert '404' in result.stderr,'Release lookup must fail only for a missing tag'
+def find_release():
+    pages=json.loads(run('gh','api','--paginate','--slurp',f'repos/{REPO}/releases?per_page=100'))
+    matches=[release for page in pages for release in page if release['tag_name']=='v1.4.2']
+    assert len(matches)<=1, 'Multiple releases for the same tag'
+    return matches[0] if matches else None
+release=find_release()
+if release is None:
     run('gh','release','create','v1.4.2','--repo',REPO,'--verify-tag','--draft','--title','Kalendarz 1.4.2','--notes-file','.github/release-notes/v1.4.2.md')
-release=json.loads(run('gh','api',f'repos/{REPO}/releases/tags/v1.4.2'))
+    release=find_release()
+assert release is not None
 assert not release['prerelease']
 existing={asset['name']:asset for asset in release['assets']}
 assert set(existing)<=set(files),'Unexpected release asset; preserve and stop'
@@ -72,7 +77,7 @@ with tempfile.TemporaryDirectory() as folder:
     assert set(p.name for p in Path(folder).iterdir())==set(files)
     for name in files: assert sha(Path(folder)/name)==sha(out/name),'Uploaded bytes differ'
 if release['draft']: run('gh','release','edit','v1.4.2','--repo',REPO,'--draft=false','--prerelease=false','--latest')
-release=json.loads(run('gh','api',f'repos/{REPO}/releases/tags/v1.4.2'))
+release=find_release()
 assert not release['draft'] and not release['prerelease']
 evidence={'published':True,'url':release['html_url'],'tagCommit':tag,'publisherCommit':head,'testedSource':source,'files':manifest['files'],'checks':manifest['checks']}
 (out/'evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
