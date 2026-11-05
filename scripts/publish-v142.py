@@ -12,6 +12,12 @@ def sha(p):
     with p.open('rb') as f: return hashlib.file_digest(f,'sha256').hexdigest()
 manifest=json.loads((DEPOT/'.github/final-142-manifest.json').read_text())
 assert manifest['validated'] is True and set(manifest['files'])==NAMES
+for target in ['linux','windows']:
+    for check in ['typescript','unitAndIntegration','nativeUnit','actualQwenV2NativeInference','packagedApplicationStartupPersistenceQrInferenceAndClose']:
+        assert manifest['checks'][target][check] is True
+assert manifest['checks']['linux']['upgrade141To142'] is True
+assert manifest['checks']['windows']['portableLauncherStartAndExit'] is True
+assert manifest['checks']['android']['physicalPocoTest2AcceptedByUser'] is True
 source=manifest['source']
 assert re.fullmatch('[a-f0-9]{40}',source)
 assert json.loads((ROOT/'package.json').read_text())['version']=='1.4.2'
