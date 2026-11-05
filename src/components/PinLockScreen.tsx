@@ -17,6 +17,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   language = 'pl',
 }) => {
   const t = getTranslation(language);
+  const pinLength = Number.isInteger(security.pinLength) && security.pinLength! >= 4 && security.pinLength! <= 16 ? security.pinLength! : 4;
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -26,10 +27,10 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
 
   const handleDigit = async (digit: string) => {
     if (busy || Date.now() < blockedUntil) return;
-    if (pin.length < 4) {
+    if (pin.length < pinLength) {
       const next = pin + digit;
       setPin(next);
-      if (next.length === 4) {
+      if (next.length === pinLength) {
         setBusy(true);
         if (await verifyPin(next, security)) {
           localStorage.removeItem('pin-failures');
@@ -71,8 +72,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
         </div>
 
         {/* Dots */}
-        <div className="flex items-center gap-4 py-2">
-          {[0, 1, 2, 3].map((i) => (
+        <div className="flex flex-wrap justify-center items-center gap-3 py-2">
+          {Array.from({ length: pinLength }, (_, i) => (
             <div
               key={i}
               className={`w-4 h-4 rounded-full transition-all duration-150 ${

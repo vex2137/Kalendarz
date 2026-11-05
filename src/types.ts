@@ -100,6 +100,7 @@ export interface SecuritySettings {
   pinCode: string; // legacy value, migrated to a salted hash
   pinHash?: string;
   pinSalt?: string;
+  pinLength?: number;
   autoLockMinutes: number;
   isLocked: boolean;
 }

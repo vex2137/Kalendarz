@@ -3,7 +3,7 @@ import { tr } from '../utils/i18n';
 import { SystemNotificationSettings } from './SystemNotificationSettings';
 import { planningPreferences } from '../utils/assistantPlanning';
 import { reminderLabel, colorLabel } from '../utils/i18n';
-import { hashPin } from '../utils/security';
+import { hashPin, verifyPin } from '../utils/security';
 import { MAX_IMPORT_BYTES, validateEvents } from '../utils/validation';
 import { downloadFile } from '../utils/storage';
 import { Dialog } from './Dialog';
@@ -75,7 +75,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const planning = planningPreferences(settings.ai.planning);
   const updatePlanning = (patch: Partial<typeof planning>) => onUpdateSettings({ ...settings, ai: { ...settings.ai, planning: { ...planning, ...patch } } });
 
-  const [pinInput, setPinInput] = useState(settings.security.pinCode);
+  const [pinInput, setPinInput] = useState('');
+  const [pinConfirmation, setPinConfirmation] = useState('');
+  const [currentPin, setCurrentPin] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinSuccess, setPinSuccess] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -91,13 +93,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   );
 
   const handleSavePin = async () => {
-    if (settings.security.pinEnabled) {
-      if (pinInput.length !== 4 || !/^\d{4}$/.test(pinInput)) {
-        setPinError(
-          tr(lang, 'PIN musi składać się z 4 cyfr!', 'PIN must be 4 digits!'),
-        );
-        return;
-      }
+    if (!/^\d{4,16}$/.test(pinInput)) {
+      setPinError(tr(lang, 'PIN musi zawierać od 4 do 16 cyfr.', 'PIN must contain 4 to 16 digits.'));
+      return;
+    }
+    if (pinInput !== pinConfirmation) {
+      setPinError(tr(lang, 'Potwierdzenie PIN-u nie jest zgodne.', 'PIN confirmation does not match.'));
+      return;
+    }
+    if (settings.security.pinEnabled && !(await verifyPin(currentPin, settings.security))) {
+      setPinError(tr(lang, 'Obecny PIN jest nieprawidłowy.', 'Current PIN is incorrect.'));
+      return;
     }
     setPinError(null);
     try {
@@ -107,6 +113,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         security: { ...settings.security, ...hash },
       });
       setPinInput('');
+      setPinConfirmation('');
+      setCurrentPin('');
     } catch (error) {
       setPinError(String(error));
       return;
@@ -118,20 +126,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleTogglePin = async (enabled: boolean) => {
-    if (enabled && !settings.security.pinHash && !/^\d{4}$/.test(pinInput)) {
+    if (!enabled && !(await verifyPin(currentPin, settings.security))) {
+      setPinError(tr(lang, 'Wprowadź poprawny obecny PIN.', 'Enter the correct current PIN.'));
+      return;
+    }
+    if (enabled && !settings.security.pinHash && !/^\d{4,16}$/.test(pinInput)) {
       setPinError(
-        tr(lang, 'Wprowadź 4 cyfry PIN!', 'Enter 4 digits PIN!'),
+        tr(lang, 'Wprowadź PIN składający się z 4–16 cyfr.', 'Enter a PIN of 4–16 digits.'),
       );
+      return;
+    }
+    if (enabled && pinInput && pinInput !== pinConfirmation) {
+      setPinError(tr(lang, 'Potwierdzenie PIN-u nie jest zgodne.', 'PIN confirmation does not match.'));
       return;
     }
     setPinError(null);
     try {
-      const hash = pinInput ? await hashPin(pinInput) : {};
+      const hash = enabled && pinInput ? await hashPin(pinInput) : {};
       onUpdateSettings({
         ...settings,
         security: { ...settings.security, ...hash, pinEnabled: enabled },
       });
       setPinInput('');
+      setPinConfirmation('');
+      setCurrentPin('');
     } catch (error) {
       setPinError(String(error));
     }
@@ -631,7 +649,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-emerald-400" />
                   <span className="text-xs font-bold text-emerald-300">
-                    {tr(lang, 'Ustaw kod PIN (4 cyfry):', 'Set a 4-digit PIN:')}
+                    {tr(lang, 'Ustaw kod PIN (4–16 cyfr):', 'Set a PIN (4–16 digits):')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -640,7 +658,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     aria-label="PIN"
                     autoComplete="new-password"
                     inputMode="numeric"
-                    maxLength={4}
+                    maxLength={16}
                     value={pinInput}
                     onChange={(e) =>
                       setPinInput(e.target.value.replace(/\D/g, ''))
@@ -668,6 +686,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                   )}
                 </div>
+
+                <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={16}
+                  aria-label={tr(lang, 'Potwierdź nowy PIN', 'Confirm new PIN')}
+                  placeholder={tr(lang, 'Potwierdź nowy PIN', 'Confirm new PIN')}
+                  value={pinConfirmation} onChange={e => setPinConfirmation(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-3 py-1.5 rounded-xl theme-input" />
+                {settings.security.pinEnabled && <input type="password" inputMode="numeric" autoComplete="current-password" maxLength={16}
+                  aria-label={tr(lang, 'Obecny PIN', 'Current PIN')}
+                  placeholder={tr(lang, 'Obecny PIN (do zmiany lub wyłączenia)', 'Current PIN (to change or disable)')}
+                  value={currentPin} onChange={e => setCurrentPin(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-3 py-1.5 rounded-xl theme-input" />}
 
                 {pinError && (
                   <p className="text-xs text-rose-400 font-medium">

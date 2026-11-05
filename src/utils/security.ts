@@ -25,12 +25,12 @@ async function derive(pin: string, salt: string) {
   );
 }
 export async function hashPin(pin: string) {
-  if (!/^\d{4}$/.test(pin)) throw new Error('PIN: 4 digits / 4 cyfry');
+  if (!/^\d{4,16}$/.test(pin)) throw new Error('PIN: 4–16 digits / cyfr');
   const pinSalt = encode(crypto.getRandomValues(new Uint8Array(16)).buffer);
-  return { pinCode: '', pinHash: await derive(pin, pinSalt), pinSalt };
+  return { pinCode: '', pinHash: await derive(pin, pinSalt), pinSalt, pinLength: pin.length };
 }
 export async function verifyPin(pin: string, security: SecuritySettings) {
   if (security.pinHash && security.pinSalt)
     return (await derive(pin, security.pinSalt)) === security.pinHash;
-  return security.pinCode === pin;
+  return /^\d{4,16}$/.test(security.pinCode) && security.pinCode === pin;
 }
