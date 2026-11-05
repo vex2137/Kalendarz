@@ -13,7 +13,7 @@ if (process.env.GITHUB_REF_TYPE === 'tag') {
 }
 const androidKind = process.argv.includes('--android-kind=test') ? 'test' : 'production';
 const prefix = `${productName}-${version}`;
-const files = [
+const files = version === '1.4.2' ? ['KALENDARZ-1.4.2-ANDROID.apk','KALENDARZ-1.4.2-WINDOWS-x86_64.exe','KALENDARZ-1.4.2-linux-x86_64.AppImage','KALENDARZ-1.4.2-WEB.zip'] : [
   `${prefix}-android${androidKind === 'test' ? '-test' : ''}.apk`,
   `${prefix}-windows-x64-setup.exe`,
   `${prefix}-windows-x64-portable.exe`,

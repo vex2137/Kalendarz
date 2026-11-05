@@ -1,6 +1,7 @@
 import type { AppLanguage } from './i18n';
 import { addDays, isValidDate, localDate, timeString } from './dates';
 import { parseModelCommand, type ModelCommand } from './modelCommand';
+import { isReminderEventRequest } from './calendarReminder';
 
 // Normalize matching only. Names and optional text always come from the original input.
 export const fold = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
@@ -56,7 +57,7 @@ export function calendarFields(input: string, now: Date): CalendarFields {
   const erase = (start: number, size: number) => { for (let i = start; i < start + size; i++) consumed.add(i); masked = masked.slice(0, start) + ' '.repeat(size) + masked.slice(start + size); };
   const result: CalendarFields = { rest: input, fragments: [], invalid: false };
   // A Polish dotted clock after an explicit time marker is not a DD.MM date.
-  const dates = [...masked.matchAll(datePattern)].filter(m => !/^\d{1,2}\.\d{1,2}$/.test(m[0]) || !/\b(?:o|at|od|from|do|to|until)\s*$/iu.test(masked.slice(0, m.index)));
+  const dates = [...masked.matchAll(datePattern)].filter(m => !/^\d{1,2}\.\d{1,2}$/.test(m[0]) || !/\b(?:o(?:\s+godzinie)?|at|od|from|do|to|until)\s*$/iu.test(masked.slice(0, m.index)));
   if (dates.length > 1) result.invalid = true;
   if (dates[0]) { result.date = calendarDate(dates[0][0], now); result.invalid ||= !result.date; erase(dates[0].index!, dates[0][0].length); }
   const relative = masked.match(/\b(?:za|in)\s+(\d+|jedna|jeden|one|dwie|dwa|two)\s+(godzine|godziny|godzin|hours?|minut\p{L}*|minutes?)\b/iu);
@@ -67,7 +68,7 @@ export function calendarFields(input: string, now: Date): CalendarFields {
     result.date = addDays(localDate(now), Math.floor(total / 1440)); result.time = timeString(total);
     erase(relative.index!, relative[0].length);
   }
-  const duration = masked.match(/\b(?:na|przez|for)\s+(poltorej godziny|pol godziny|half an hour|one and a half hours|(?:\d+(?:[.,]\d+)?|jedna|jeden|dwie|dwa|two|one|an)\s*(?:godzin\p{L}*|hours?|h|minut\p{L}*|minutes?|mins?)|godzine|an hour)\b/iu);
+  const duration = masked.match(/\b(?:na|przez|for|czas\s+trwania\s*:?)\s+(poltorej godziny|pol godziny|half an hour|one and a half hours|(?:\d+(?:[.,]\d+)?|jedna|jeden|dwie|dwa|two|one|an)\s*(?:godzin\p{L}*|hours?|h|minut\p{L}*|minutes?|mins?)|godzine|an hour)\b/iu);
   if (duration) {
     const value = duration[1];
     result.duration = /poltorej|one and a half/.test(value) ? 90 : /pol |half/.test(value) ? 30 : /^(godzine|an hour)$/.test(value) ? 60 : (() => { const m = value.match(/^(\d+(?:[.,]\d+)?|jedna|jeden|dwie|dwa|two|one|an)\s*(\p{L}+)$/u)!; return (m[1] === 'an' ? 1 : count(m[1])) * (/^min/.test(m[2]) ? 1 : 60); })();
@@ -79,7 +80,7 @@ export function calendarFields(input: string, now: Date): CalendarFields {
   const noon = masked.match(/\b(?:w poludnie|o polnocy|at noon|at midnight)\b/iu);
   if (noon) { result.time = /poludnie|noon/.test(noon[0]) ? '12:00' : '00:00'; erase(noon.index!, noon[0].length); }
   let end: number | undefined;
-  const ranges = [...masked.matchAll(/(?<![\p{L}\d:.–—-])(?:(?:o|at|od|from)\s+)?(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)\s*[-–—]\s*(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.–—-])(?:\s+(?:time|godziny|godzinach))?/giu)];
+  const ranges = [...masked.matchAll(/(?<![\p{L}\d:.–—-])(?:(?:o(?:\s+godzinie)?|at|od|from)\s+)?(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)\s*[-–—]\s*(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.–—-])(?:\s+(?:time|godziny|godzinach))?/giu)];
   for (const range of ranges) {
     const trailing = masked.slice(range.index! + range[0].length).match(/^\s*([a-z]{2})(?!\p{L})/iu);
     const uncertain = trailing && !/^(?:am|pm|do|to|od|at|on|in|na|we)$/iu.test(trailing[1]);
@@ -91,7 +92,7 @@ export function calendarFields(input: string, now: Date): CalendarFields {
     if (first !== undefined) result.time = timeString(first);
     erase(range.index!, range[0].length + (uncertain ? trailing[0].length : 0));
   }
-  const clocks = [...masked.matchAll(/\b(o|at|od|from|do|until|to)\s+(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.])/giu)];
+  const clocks = [...masked.matchAll(/\b(o(?:\s+godzinie)?|at|od|from|do|until|to)\s+(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.])/giu)];
   for (const m of clocks) {
     const trailing = masked.slice(m.index! + m[0].length).match(/^\s*([a-z]{2})(?!\p{L})/iu);
     const uncertain = trailing && !/^(?:am|pm|do|to|od|at|on|in|na|we)$/iu.test(trailing[1]);
@@ -131,7 +132,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
   if (pending) input = input.replace(/^(?:actually|i meant|i mean|jednak|chodzi mi o|chodziło mi o)\s+/iu,'');
   const text = clean(input), normalized = fold(text);
   // Unsupported scope, constraints and corrections go to the real extractor. Avoid partial parsing.
-  const outsideQuotes = normalized.replace(quoted, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '').replace(/\b(?:the )?day after tomorrow\b/giu, ' ');
+  const outsideQuotes = normalized.replace(quoted, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '').replace(/\b(?:the )?day after tomorrow\b/giu, ' ').replace(/^(?:przypomnij\s+mi\s+o|remind\s+me\s+(?:about|to))\s+/iu,'');
   if (/\b(?:nie|not|never|don't|zamiast|instead|jednak|actually|except|oprocz|before|after|przed|po|kazd\p{L}*|co tydzien|codzien\p{L}*|every|daily|weekly|remind\p{L}*|przypomn\p{L}*)\b/iu.test(outsideQuotes)) return;
   let body = text.replace(/^(?:prosz[eę][,\s]+|please\s+|(?:czy\s+)?mo[zż]esz\s+|(?:czy\s+)?m[oó]g[łl]by[sś]\s+|could you\s+)/iu, '');
   body = body.replace(/^(?:(?:o|oh|ok|okay|tak|yes|jak|how|super|great|dobrze|świetnie|swietnie|thanks|dzięki|dzieki)[,!\s]+)+(?=(?:dodaj|utw[oó]rz|add|create|wpisz|zapisz)\s)/iu, '');
@@ -151,7 +152,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
     const offset = n.indexOf(rename[2], n.indexOf(rename[1]) + rename[1].length);
     return make({ action: 'update', query: unquote(body.slice(n.indexOf(rename[1]), n.indexOf(rename[1]) + rename[1].length)), title: unquote(body.slice(offset)) });
   }
-  const prefix = n.match(/^(dodaj|dodac|utworz(?:yc)?(?: wydarzenie)?|wpisz(?: do kalendarza)?|wpisac(?: do kalendarza)?|wrzuc(?:ic)?|zapisz|zapisac|dopisz|dopisac|wstaw(?:ic)?|add|create(?: event)?|schedule|put|przenies(?:c)?|przesun(?:ac)?|zmien(?:ic)? godzine|move|reschedule|change the time of|usun(?:ac)?|skasuj|skasowac|wykresl(?:ic)?|odwolaj|odwolac|delete|remove|cancel|znajdz|znalezc|wyszukaj|wyszukac|szukaj|pokaz(?:ac)? wydarzenia|find|search(?: for)?|show events for)\s+/iu);
+  const prefix = n.match(/^(dodaj|dodac|utworz(?:yc)?(?: wydarzenie)?|wpisz(?: do kalendarza)?|wpisac(?: do kalendarza)?|wrzuc(?:ic)?|zapisz|zapisac|dopisz|dopisac|wstaw(?:ic)?|add|create(?: event)?|zaplanuj|przypomnij mi o|remind me about|remind me to|schedule|put|przenies(?:c)?|przesun(?:ac)?|zmien(?:ic)? godzine|move|reschedule|change the time of|usun(?:ac)?|skasuj|skasowac|wykresl(?:ic)?|odwolaj|odwolac|delete|remove|cancel|znajdz|znalezc|wyszukaj|wyszukac|szukaj|pokaz(?:ac)? wydarzenia|find|search(?: for)?|show events for)\s+/iu);
   if (!prefix) {
     if (!pending) return;
     const fields = calendarFields(body, now);
@@ -185,6 +186,11 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
   if (action === 'create' && fields.fragments.length > 1) return;
   let name = fields.rest.replace(/^(?:wydarzeni\p{L}*|event|mi)\s+/iu, '').replace(/\s+(?:z|na|to|on)$/iu, '').trim();
   if (explicitTitle) { if (name) return; name=explicitTitle; }
+  // A complete, single-event phrase uses the same parser as add/create.
+  // Counts, incomplete scheduling and broader plans still reach model extraction.
+  if (/^(?:zaplanuj|schedule)$/.test(prefix[1]) || isReminderEventRequest(text)) {
+    if (!name || !fields.date || (!fields.time && !fields.allDay) || /^(?:\d+|jeden|jedna|dwa|dwie|trzy|cztery|piec|one|two|three|four|five|multiple|kilka)\s/iu.test(fold(name))) return;
+  }
   if (action !== 'create') name = name.replace(/^(?:for|u)\s+/iu, '');
   if (!name && action !== 'create' && action !== 'search') return;
   // Leave unsupported trailing clauses to LFM rather than silently interpreting them as names.
