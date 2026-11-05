@@ -22,3 +22,14 @@ Before release, run final regression and upgrade checks, then build and verify u
 - A signed model-free APK (10508, 1.5.0-part2-beta.1) was generated from ed7f5ef; certificate matches the existing update identity. Candidate SHA-256: 27e63884516c389cc4b2da7dcb35779117ea5c700644a9ce2c18eba7e4840076 (24020322 bytes).
 - An x86_64 AppImage was generated from the same source using explicit model-free packaging and publish-never configuration. It was extracted and run under Xvfb: five views, eight themes, event creation/reload and shutdown passed. Its native bridge exists, but this local smoke test did not execute a model. Candidate SHA-256: babe58b38704975786546c26d1bfd8757a87bef92d57bea58c574472b2ad0cac (164961662 bytes).
 - Candidate files are in this worktree's ignored release/ directory. No release/tag or public candidate upload was created. Real biometric/device upgrade testing remains pending on POCO.
+
+## Composer fix and verified replacement candidates: 555d8b3
+
+The packaged-desktop failure was reproduced under Electron: the hidden/inert composer still exposed an enabled field during panel exit. Automated fill produced no input event, leaving both DOM and React draft empty. The composer and send button now remain explicitly disabled while settings/history own focus. The original desktop send test remains, with stronger disabled/value assertions. Reproduction passed four times after rebuilding; both source-commit GitHub Actions runs passed web and full desktop checks (including actual GGUF execution).
+
+Replacement candidates supersede the ed7f5ef files. Both were built from clean source 555d8b3649a32efa2ce9c0ac845a4b458ec9a00f. Android identity/signature/alignment and archive checks passed; AppImage provenance and absence of bundled weights were verified, then the extracted AppImage passed Xvfb UI/persistence/shutdown smoke checks. Unit tests: 167; release guards: 14; Android JVM: 19. TypeScript and the full browser suite passed. Real POCO biometric and update-install tests remain pending.
+
+- APK: 24313597 bytes; SHA-256 0a059435240e99b45b2aa48b3e89c097f3eff5699d8eea3ae57aa358d019bc5d
+- AppImage: 164961589 bytes; SHA-256 3f350fb4815fe39cf14988466bd792890006e12105af48733090a30ac9c4932c
+
+Release publication verifies the existing files again and downloads the draft attachments to check hashes before marking the Pre-release public. PR #20 stays unmerged; stable Latest must remain v1.4.2.
