@@ -1,21 +1,33 @@
-name: Publish verified Kalendarz 1.5.0 Part 2 Beta 1
+name: Prepare Part 2 Beta 2 manual test artifacts
 on:
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: publish-calendar-release
+  group: calendar-part2-manual-tests
   cancel-in-progress: false
 jobs:
-  publish:
+  verify-and-upload:
     if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/feat/1.5.0-part2'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
-      - name: Verify, upload and verify the existing signed beta APK
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/publish-part2-beta1.py
+      - name: Retrieve and verify existing signed artifacts
+        run: python3 scripts/verify-part2-beta2-artifacts.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Kalendarz-1.5.0-Part-2-Beta-2-Android-manual-test
+          path: manual-test-assets/android/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Kalendarz-1.5.0-Part-2-Beta-2-Linux-CUDA-manual-test
+          path: manual-test-assets/linux/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

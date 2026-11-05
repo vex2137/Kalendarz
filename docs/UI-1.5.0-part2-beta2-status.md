@@ -10,4 +10,12 @@
 - Verified transfers are copied to an independent installation file before registration, preserving previous installed data; installation may therefore require temporary extra disk space.
 - Tests: TypeScript; 170 unit tests including three download-meter tests; 28 native tests; three CUDA-staging state tests; toolbar at 1920/1366/1024/768/390 in EN/PL/DE/RU; existing mobile navigation across five views. Full release regression/builds are deferred until public-model verification is complete.
 
-No Beta 2 APK/AppImage/tag/release has been created. PR #20 must remain Draft and unmerged; stable 1.4.2 and Part 1 Beta 3 are unchanged. Continue with verified HF metadata and real public-model download/inference tests, final CUDA AppImage packaging validation and real GPU testing on CachyOS before claiming the Beta 2 scope is complete.
+Manual-test APK and CUDA AppImage were generated from b25d7e7 after source CI passed 4/4. No Beta 2 tag/release has been created. See PART2-BETA2-MANUAL-TESTS.md for device checks; public-model validation remains blocking. PR #20 must remain Draft and unmerged; stable 1.4.2 and Part 1 Beta 3 are unchanged. Continue with verified HF metadata and real public-model download/inference tests, final CUDA AppImage packaging validation and real GPU testing on CachyOS before claiming the Beta 2 scope is complete.
+
+## Manual candidate verification
+
+APK: versionCode 10509, matching existing package and update certificate; 24023506 bytes; SHA-256 9ce239d51d3703aad2d69cb5773bdef7e79f6f3dc32b1bb0eea97d2f75756605.
+
+CUDA AppImage: 935366111 bytes; SHA-256 3f4a4df2b87b0e389aa3648528ef57dda06b81ce9e60adc6e4004587880ada19. Extracted AppImage smoke passed under Xvfb; CPU/Vulkan/CUDA files were checksum-verified against the packaged manifest. No devices detected and gpuActive=false; no physical NVIDIA inference claim. Existing completed tests were not rerun for manual-artifact preparation.
+
+The branch's existing registered manual workflow entry publishes only logged-in Actions test artifacts with read-only repository permissions; it does not create tags or Releases. Both artifact source hashes are pinned and checked before upload.
