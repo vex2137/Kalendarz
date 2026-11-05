@@ -124,6 +124,8 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
+    // Exercise Android's org.json null coercion on the JVM, not desktop org.json.
+    testImplementation 'com.vaadin.external.google:android-json:0.0.20131108.vaadin1'
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     androidTestImplementation "androidx.test.espresso:espresso-intents:$androidxEspressoCoreVersion"
