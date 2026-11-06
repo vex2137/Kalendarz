@@ -1,10 +1,10 @@
 # Part 2 Beta 2 repair candidate — manual acceptance
 
-Source: 44005cacaeb2758b977d1ede3e70896a4f1b14f8. PR #20 remains Draft/unmerged. No Beta 2 tag or Release is created. These packages contain no GGUF.
+Source: 9c97887370a1be8d16602a6e6c4b7fe5ea437b0f. PR #20 remains Draft/unmerged. No Beta 2 tag or Release is created. These packages contain no GGUF.
 
-Android update identity: `com.kalendarz.offline.diagnostics`, versionCode **10513**, existing certificate SHA-256 `ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`. Install as an update without uninstalling or clearing data. Verify events, language/theme, PIN/password, history, model selection and installed models survive.
+Android update identity: `com.kalendarz.offline.diagnostics`, versionCode **10514**, existing certificate SHA-256 `ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`. Install as an update without uninstalling or clearing data. Verify events, language/theme, PIN/password, history, model selection and installed models survive.
 
-Latest Android-only candidate: Qwen-10513; see [default Qwen catalogue regression and source evidence](QWEN-CATALOGUE-10513.md). Test Download for the missing default Qwen, background progress/resume and verified installation. Import/GPU acceptance remains separate; the earlier AppImage is unchanged.
+Latest Android-only candidate: Downloads-10514; after a Downloads refusal, use [Internal storage → Download re-selection](DOWNLOADS-DOCUMENTS-10514.md). The working Documents path is preserved. Previous Qwen catalogue change remains; see [default Qwen catalogue regression and source evidence](QWEN-CATALOGUE-10513.md). Test Download for the missing default Qwen, background progress/resume and verified installation. Import/GPU acceptance remains separate; the earlier AppImage is unchanged.
 
 ## POCO / Android 16
 

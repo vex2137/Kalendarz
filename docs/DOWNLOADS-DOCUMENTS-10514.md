@@ -27,3 +27,7 @@ These tests model the observed asymmetry, not the physical POCO provider. This i
 ## POCO acceptance
 
 Update the existing diagnostics app without clearing data. First import from Documents exactly as before. Then choose the same file from Downloads; after refusal tap Choose Internal storage → Download and select it through Internal storage (not the Downloads shortcut). No file move is required. Confirm import and local generation. Export diagnostics if it fails: provider, documentFamily and selectionRoute distinguish whether the picker actually changed provider. Keep ordinary Documents behavior as the control case. PR #20 remains Draft; no official release/tag.
+
+## Built candidate
+
+Source `9c97887370a1be8d16602a6e6c4b7fe5ea437b0f`. Signed APK `Kalendarz-1.5.0-Part-2-Beta-2-Downloads-10514.apk`, 24053167 bytes, SHA-256 `cf4140820b1f50e8135014628315860affabefbb722b5fbb3372d85c43c67c3e`. Existing com.kalendarz.offline.diagnostics package and certificate retained; versionCode 10514, no GGUF. Signature/alignment/clean source/runtime provenance verified. Local TypeScript, 9 bridge/diagnostic tests, UI regression, 43 JVM tests and instrumentation compilation passed. Native test execution is tracked in CI; no physical POCO success for this new selection route is claimed.
