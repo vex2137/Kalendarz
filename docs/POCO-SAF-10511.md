@@ -23,3 +23,7 @@ adb logcat -d -s CalendarModelImport:I > poco-saf-10511.log
 ```
 
 These application log entries exclude document URIs and provider exception messages. Do not send unrestricted logcat or a private file path. Success on an emulator does not establish that the physical POCO issue is fixed.
+
+## Built candidate
+
+Source: `1f9da700792f4156bc57c297913096fd273eb632`. APK: `Kalendarz-1.5.0-Part-2-Beta-2-SAF-10511.apk`, 24050827 bytes, SHA-256 `38c0fe24de552413389641f228ce8c440f65890b3d633a6298296c9749cd555f`. Existing package/certificate preserved; versionCode 10511. Local TypeScript, 8 bridge/diagnostic tests, browser import regression, 43 Android JVM tests and instrumentation APK compilation passed. Native regression execution is tracked in source CI; no physical POCO reproduction is claimed. No AppImage rebuild or official release.

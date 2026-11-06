@@ -25,6 +25,7 @@ jobs:
           compression-level: 0
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: hashFiles('manual-test-assets/linux/**') != ''
         with:
           name: Kalendarz-1.5.0-Part-2-Beta-2-Linux-CUDA-manual-test
           path: manual-test-assets/linux/
