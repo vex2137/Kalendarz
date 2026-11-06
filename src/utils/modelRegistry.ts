@@ -9,7 +9,7 @@ export interface ModelDescriptor {
   estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean; imported?: boolean;
 }
 export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, bundled: BUILD_INFO.bundledModel !== false };
-// The private bundled model has no download URL; optional catalogue entries remain available.
+// The default has a checksum-pinned public source as well as optional bundled assets.
 export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, ...optionalModels, ...fineTunedModels];
 export const OPTIONAL_FALLBACK = AI_MODELS.find(model => model.id === 'lfm2.5-350m-q4-k-m')!;
 const externalKey='calendar_external_ai_models_v1';

@@ -134,3 +134,12 @@ jobs:
             android/app/build/outputs/androidTest-results/
           if-no-files-found: warn
           retention-days: 30
+  default-qwen-source:
+    # Only the newly configured default source; never a scan/download of all models.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/1.5.0-part2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify public default Qwen metadata and bounded GGUF header
+        run: python3 scripts/verify-default-qwen-source.py

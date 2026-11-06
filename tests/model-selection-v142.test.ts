@@ -13,10 +13,10 @@ Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
   setItem: (key: string, value: string) => { values.set(key, value); },
 } });
 
-test('new installations use private Qwen v2; the old default migrates once', () => {
+test('new installations use checksum-pinned Qwen v2; the old default migrates once', () => {
   values.clear();
   assert.equal(activeModel().id, 'kalendarz-qwen35-v2-q4-k-m');
-  assert.equal(DEFAULT_MODEL.url, '');
+  assert.equal(DEFAULT_MODEL.url, 'https://huggingface.co/Vex909/Qwen-3.5-v2-Q4_K_M/resolve/main/kalendarz-qwen35-v2-q4_k_m.gguf');
   values.clear(); values.set(selection, oldDefault);
   assert.equal(activeModel().id, DEFAULT_MODEL.id);
   assert.equal(values.get(selection), DEFAULT_MODEL.id);
@@ -28,7 +28,7 @@ test('new installations use private Qwen v2; the old default migrates once', () 
 
 test('migration preserves optional, imported and temporarily unavailable model selections', () => {
   const imported = { ...DEFAULT_MODEL, id: 'imported-' + 'a'.repeat(64), sha256: 'a'.repeat(64),
-    bytes: 128, bundled: false, imported: true };
+    url: '', bytes: 128, bundled: false, imported: true };
   registerImportedModel(imported);
   for (const id of [OPTIONAL_FALLBACK.id, imported.id, 'external-' + 'b'.repeat(32), 'future-model']) {
     values.clear(); values.set(selection, id);

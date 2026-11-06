@@ -5,7 +5,7 @@ const base='http://127.0.0.1:4197';
 const u32=n=>{const b=Buffer.alloc(4);b.writeUInt32LE(n);return b;},u64=n=>{const b=Buffer.alloc(8);b.writeBigUInt64LE(BigInt(n));return b;},str=s=>Buffer.concat([u64(Buffer.byteLength(s)),Buffer.from(s)]);
 function fixture(quant){const fields=[['general.architecture','qwen35'],['general.name','State regression fixture'],['general.file_type',quant],['qwen35.context_length',2048]];return Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(fields.length),...fields.flatMap(([k,v])=>[str(k),u32(typeof v==='string'?8:4),typeof v==='string'?str(v):u32(v)]),Buffer.alloc(1024)]);}
 (async()=>{
-  const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host=127.0.0.1','--port=4197','--strictPort'],{stdio:'ignore'});let browser;
+  const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host=127.0.0.1','--port=4197','--strictPort'],{stdio:'ignore',env:{...process.env,CALENDAR_MODEL_FREE:'true',CALENDAR_ANDROID_NATIVE:'false'}});let browser;
   try{
     for(let i=0;i<100;i++){try{if((await fetch(base)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
     browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});
@@ -17,8 +17,20 @@ function fixture(quant){const fields=[['general.architecture','qwen35'],['genera
     await row(preferred).getByTestId('catalogue-model-status').filter({hasText:'Available in catalogue'}).waitFor();
     assert.equal(await row(preferred).getAttribute('data-model-selected'),'true');
     assert.equal(await row(preferred).getAttribute('data-model-installation'),'missing');
+    await row(preferred).getByRole('button',{name:'Download',exact:true}).waitFor();
+    assert.equal(await row(preferred).getByRole('button',{name:'Download',exact:true}).isEnabled(),true,'Missing default Qwen must offer the existing download action');
     assert.equal(await page.getByTestId('model-in-use').count(),0,'A selected missing model cannot be in use');
     assert.ok((await page.getByTestId('active-model-card').innerText()).includes('Selected model'));
+    // A genuine catalogue URL must reach the standard downloader; an HTTP failure
+    // must not turn a saved preference into an installed/verified model.
+    const qwenUrl=await page.evaluate(()=>window.__registry.DEFAULT_MODEL.url);let qwenRequests=0;
+    await page.route(qwenUrl,route=>{qwenRequests++;return route.fulfill({status:503,body:'Synthetic catalogue download failure'});});
+    await row(preferred).getByRole('button',{name:'Download',exact:true}).click();
+    await page.waitForFunction(()=>window.__runtime.modelStatus().phase==='error'&&window.__runtime.modelStatus().error==='model-http-503');
+    assert.equal(qwenRequests,1,'Default Qwen uses its configured URL and existing downloader');
+    assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().installed),false);
+    assert.equal(await row(preferred).getByTestId('model-in-use').count(),0);
+
     const ids=[];
     for(const quant of [15,30]){
       await page.getByLabel('Import GGUF',{exact:true}).setInputFiles({name:`state-${quant}.gguf`,mimeType:'application/octet-stream',buffer:fixture(quant)});
