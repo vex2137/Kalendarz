@@ -31,3 +31,9 @@ Update the existing diagnostics app without clearing data. First import from Doc
 ## Built candidate
 
 Source `9c97887370a1be8d16602a6e6c4b7fe5ea437b0f`. Signed APK `Kalendarz-1.5.0-Part-2-Beta-2-Downloads-10514.apk`, 24053167 bytes, SHA-256 `cf4140820b1f50e8135014628315860affabefbb722b5fbb3372d85c43c67c3e`. Existing com.kalendarz.offline.diagnostics package and certificate retained; versionCode 10514, no GGUF. Signature/alignment/clean source/runtime provenance verified. Local TypeScript, 9 bridge/diagnostic tests, UI regression, 43 JVM tests and instrumentation compilation passed. Native test execution is tracked in CI; no physical POCO success for this new selection route is claimed.
+
+## Final validation / artifact
+
+All source CI jobs passed, including all nine required Android methods and the UI recovery regression: https://github.com/vex2137/Kalendarz/actions/runs/42224576628 . PR CI also passed: https://github.com/vex2137/Kalendarz/actions/runs/42224585764 . Tests preserve Downloads denial and working Documents rather than treating the fixture as proof of a physical provider repair.
+
+Signed APK: https://github.com/vex2137/Kalendarz/actions/runs/42225278488/artifacts/13505037750 (GitHub login, 30-day retention). Verified upload: https://github.com/vex2137/Kalendarz/actions/runs/42225278488 . Documents success on POCO is the user's physical control; the new Internal storage → Download selection still requires a POCO test. No release/tag/merge.
