@@ -29,3 +29,9 @@ Package remains com.kalendarz.offline.diagnostics, pinned update certificate ae0
 ## Built artifact
 
 Source `9c7ac0d7c940ccb851c2fd9d2db9d9ae0dd39f68`, file `Kalendarz-1.5.0-Part-2-Beta-2-SAF-10512.apk`, 24345246 bytes, SHA-256 `424a81f647702add5e3321b15847047acef29c1fa30c5995499a9ad2a28bc1bc`. Signature/alignment/package/version/clean provenance and absence of weights/test provider verified. TypeScript, 9 targeted bridge/diagnostic tests, 43 JVM tests and instrumentation compilation passed locally. Initial test compilation exposed a chained void Intent.setClipData setter; test-only commit 9c7ac0d corrects it. Actual provider-route regression execution is tracked by source CI; no physical POCO success is claimed.
+
+## Final verification
+
+Source CI passed web, desktop and Android 16, with the verifier requiring all seven native methods: https://github.com/vex2137/Kalendarz/actions/runs/42213420161 . PR CI also passed: https://github.com/vex2137/Kalendarz/actions/runs/42213426854 . The provider regression demonstrates the reported typed/raw API distinction on an emulator, not a confirmed POCO fix.
+
+Signed APK download: https://github.com/vex2137/Kalendarz/actions/runs/42213661650/artifacts/13499264430 (GitHub login, retained 30 days). Verification/upload: https://github.com/vex2137/Kalendarz/actions/runs/42213661650 . Source comparison against v1.4.1 also found no difference in android/variables.gradle or capacitor.config.ts; the diagnostics applicationId suffix already existed and the old manifest did not request broad storage access.
