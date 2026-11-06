@@ -135,13 +135,35 @@ public class CalendarModelImportPlugin extends Plugin {
     @PluginMethod
     public void close(PluginCall call) { closeStream(call.getString("token", "")); call.resolve(); }
 
-    @PluginMethod
-    public void pick(PluginCall call) {
+    static Intent pickerIntent(boolean internalDownloads) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if (internalDownloads && android.os.Build.VERSION.SDK_INT >= 26) {
+            // System-picker directory hint only. Never rewrite/open the rejected file URI.
+            intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI,
+                DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Download"));
+        }
+        return intent;
+    }
+
+    @PluginMethod
+    public void pick(PluginCall call) {
+        Intent intent = pickerIntent("internal-downloads".equals(call.getString("location", "")));
         try { startActivityForResult(call, intent, "modelPicked"); }
         catch (Exception error) { reject(call, "picker", error); }
+    }
+
+    static String documentFamily(Uri uri) {
+        try {
+            String id = DocumentsContract.getDocumentId(uri);
+            if (id.startsWith("raw:")) return "raw";
+            if (id.matches("[0-9]+")) return "numeric";
+            if (id.startsWith("msf:")) return "media-file";
+            if (id.startsWith("msd:")) return "media-directory";
+            if (id.startsWith("primary:")) return "primary-volume";
+            return "other";
+        } catch (Exception ignored) { return "not-document"; }
     }
 
     @ActivityCallback
@@ -158,6 +180,8 @@ public class CalendarModelImportPlugin extends Plugin {
         final int flags = result.getData().getFlags();
         final JSObject grant = new JSObject()
             .put("isDocument", DocumentsContract.isDocumentUri(getContext(), uri))
+            .put("documentFamily", documentFamily(uri))
+            .put("selectionRoute", "internal-downloads".equals(call.getString("location", "")) ? "internal-downloads" : "standard")
             .put("fromClipData", result.getData().getData() == null)
             .put("sameUid", getContext().getApplicationInfo().uid == android.os.Process.myUid())
             .put("package", getContext().getPackageName())

@@ -1,13 +1,13 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 export interface NativeModelFile { token: string; name: string; bytes: number; cancelled?: boolean }
 const importer = registerPlugin<{
-  pick: () => Promise<NativeModelFile>;
+  pick: (options?: {location:'internal-downloads'}) => Promise<NativeModelFile>;
   open: (options: { token: string; bytes: number }) => Promise<void>;
   read: (options: { token: string }) => Promise<{data:string;done:boolean;received:number}>;
   close: (options: { token: string }) => Promise<void>;
   release: (options: { token: string }) => Promise<void>;
 }>('CalendarModelImport');
-export const pickNativeModel = () => importer.pick();
+export const pickNativeModel = (location?:'internal-downloads') => location ? importer.pick({location}) : importer.pick();
 export const releaseNativeModel = (token: string) => importer.release({ token });
 export function nativeModelUrl(token: string) {
   if (!/^[a-f0-9-]{36}$/.test(token)) throw new Error('model-import-file');

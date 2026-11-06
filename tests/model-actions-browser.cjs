@@ -12,12 +12,15 @@ const bytes=Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(fields.length),
   const context=await browser.newContext({serviceWorkers:'block'});
   await context.addInitScript(bytes=>{
    window.__picker={mode:'file',releases:0};
-   window.Capacitor={PluginHeaders:[{name:'CalendarModelImport',methods:['pick','release','open','read','close'].map(name=>({name,rtype:'promise'}))}],nativePromise:async(plugin,method)=>{
+   window.Capacitor={PluginHeaders:[{name:'CalendarModelImport',methods:['pick','release','open','read','close'].map(name=>({name,rtype:'promise'}))}],nativePromise:async(plugin,method,options)=>{
     if(method==='open'){if(window.__picker.mode==='unavailable')throw Error('model-import-unavailable');if(window.__picker.mode==='permission')throw Error('model-import-permission');window.__picker.offset=0;return;}
     if(method==='read'){if(window.__picker.offset)return {done:true,data:'',received:bytes};window.__picker.offset=bytes;return {done:false,data:window.__safData,received:bytes};}
     if(method==='close')return;
     if(method==='release'){window.__picker.releases++;return;}
-    if(method==='pick')return window.__picker.mode==='cancel'?{cancelled:true}:{token:'11111111-1111-4111-8111-111111111111',bytes:window.__picker.mode==='unknown'?-1:bytes,name:'fixture-IQ4_XS.gguf'};
+    if(method==='pick'){
+     if(options?.location==='internal-downloads'){window.__picker.lastLocation=options.location;window.__picker.mode='file';}
+     if(['downloads-denied','documents-denied'].includes(window.__picker.mode))throw Object.assign(Error('model-import-permission'),{data:{saf:{stage:'provider-open-file',exceptionType:'java.lang.SecurityException',frames:[],grant:{provider:window.__picker.mode==='downloads-denied'?'downloads':'external-storage',readFlag:true,readGranted:true}}}});
+     return window.__picker.mode==='cancel'?{cancelled:true}:{token:'11111111-1111-4111-8111-111111111111',bytes:window.__picker.mode==='unknown'?-1:bytes,name:'fixture-IQ4_XS.gguf'};}
     throw Error('unexpected-native-call');
    }};
   },bytes.length);
@@ -45,6 +48,17 @@ const bytes=Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(fields.length),
   assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().installed),true);
   await page.evaluate(()=>window.__picker.mode='cancel');await page.locator('#ai-import-gguf').click();await page.getByTestId('model-operation-result').filter({hasText:'Operation cancelled'}).waitFor();
   assert.equal(await page.evaluate(()=>window.__picker.releases),4,'Cancelling a picker does not invent or release a file token');
+  await page.evaluate(()=>window.__picker.mode='downloads-denied');await page.locator('#ai-import-gguf').click();
+  await page.getByTestId('downloads-provider-recovery').waitFor();
+  assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().installed),true,'Downloads denial preserves working model');
+  await page.getByRole('button',{name:'Choose Internal storage → Download',exact:true}).click();
+  await page.getByTestId('model-operation-result').filter({hasText:'installed and verified'}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__picker.lastLocation),'internal-downloads');
+  assert.equal(await page.evaluate(()=>window.__picker.releases),5);
+  await page.evaluate(()=>window.__picker.mode='documents-denied');await page.locator('#ai-import-gguf').click();
+  await page.getByRole('alert').filter({hasText:'SecurityException'}).waitFor();
+  assert.equal(await page.getByTestId('downloads-provider-recovery').count(),0,'Documents is not rerouted');
+  assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().installed),true);
   assert.deepEqual(errors,[]);console.log('PASS model action UI: download HTTP 404 -> visible failure/no false success; Android bounded picker bridge + streamed GGUF storage with HTTP proxy forced 404; provider/permission failure -> readable error/old model retained; picker cancel -> visible outcome.');
   await context.close();
  }finally{await browser?.close();server.kill();}

@@ -12,11 +12,12 @@ import java.io.*;
 /** Models a provider accepting raw file opens but rejecting typed asset opens. */
 public class RawSafFixtureProvider extends ContentProvider {
     @Override public boolean onCreate() { return true; }
-    @Override public AssetFileDescriptor openTypedAssetFile(Uri uri, String mime, Bundle options) {
+    @Override public AssetFileDescriptor openTypedAssetFile(Uri uri, String mime, Bundle options) throws FileNotFoundException {
+        if ("documents".equals(uri.getLastPathSegment())) return new AssetFileDescriptor(openFile(uri,"r"),0,AssetFileDescriptor.UNKNOWN_LENGTH);
         throw new SecurityException("Synthetic typed-open rejection");
     }
     @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-        if (!"r".equals(mode) || "denied".equals(uri.getLastPathSegment())) throw new SecurityException("Synthetic provider denial");
+        if (!"r".equals(mode) || "downloads".equals(uri.getLastPathSegment()) || "denied".equals(uri.getLastPathSegment())) throw new SecurityException("Synthetic provider denial");
         File file=new File(getContext().getCacheDir(),"raw-saf-fixture.gguf");
         try(FileOutputStream out=new FileOutputStream(file)) {
             byte[] chunk=new byte[65536];chunk[0]='G';chunk[1]='G';chunk[2]='U';chunk[3]='F';chunk[4]=3;

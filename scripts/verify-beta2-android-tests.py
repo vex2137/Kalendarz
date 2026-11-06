@@ -4,6 +4,8 @@ import sys
 import xml.etree.ElementTree as ET
 
 required = {
+    "downloadsDenialDoesNotChangeWorkingDocumentsStream",
+    "recoveryRequestsNewSystemSelectionWithoutRewritingFileUri",
     "rawOpenStreamsWhenTypedAssetOpenIsDenied",
     "rawOpenDoesNotSuppressProviderDenialOrAcceptFilePaths",
     "importNonCatalogueGgufThroughSafAndRetainAfterRestart",

@@ -59,12 +59,12 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
     });
   };
   const importFile = (file: File) => { setPicking(true); perform(async () => { try { await importLocalModel(file,file.name); } finally { setPicking(false); } },'import-gguf'); };
-  const importNative = async () => {
+  const importNative = async (location?:'internal-downloads') => {
     setPicking(true); setError(undefined);setOperationMessage(feedback.importing);recordDiagnosticAction('import-gguf','start');
     let token: string | undefined;
     try {
       recordDiagnosticAction('import-gguf','bridge-call');
-      const file = await pickNativeModel(); if (file.cancelled) {recordDiagnosticAction('import-gguf','cancelled');setOperationMessage(feedback.cancelled);return;}
+      const file = await pickNativeModel(location); if (file.cancelled) {recordDiagnosticAction('import-gguf','cancelled');setOperationMessage(feedback.cancelled);return;}
       token = file.token;
       await importLocalModel({url:nativeModelUrl(file.token),bytes:file.bytes},file.name);
       setOperationMessage(feedback.modelSuccess);recordDiagnosticAction('import-gguf','success');
@@ -112,6 +112,10 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
     {['downloading','verifying'].includes(status.phase) && <div role="status"><progress className="w-full" value={status.progress>=0?status.progress:undefined} max={100}/><span>{status.progress>=0?`${Math.floor(status.progress)}%`:view.importing}</span></div>}
     {operationMessage && !error && status.phase!=='error' && <p role="status" aria-live="polite" data-testid="model-operation-result">{operationMessage}</p>}
     {(error || status.phase === 'error') && <p role="alert" className="text-xs">{modelErrorText(error || status.error,language)} {status.installed && lifecycle.retry}{lastFailure && <span className="block mt-1">{failureLabels[0]}: {lastFailure.nativeSaf?.stage||lastFailure.failedStage} · {failureLabels[1]}: {lastFailure.cause||'Error'} · {lastFailure.code}</span>}</p>}
+    {error === 'model-import-permission' && lastFailure?.nativeSaf?.grant?.provider === 'downloads' && <div className="space-y-2 text-xs" data-testid="downloads-provider-recovery">
+      <p className="theme-muted">{({en:'Downloads refused access. Select the same file via Internal storage → Download in the system picker. No move or storage-wide permission is needed.',pl:'Dostawca Pobrane odmówił dostępu. W selektorze systemowym wybierz ten sam plik przez Pamięć wewnętrzna → Download. Nie trzeba przenosić pliku ani nadawać dostępu do całej pamięci.',de:'Downloads hat den Zugriff verweigert. Dieselbe Datei über Interner Speicher → Download in der Systemauswahl wählen. Verschieben oder vollständiger Speicherzugriff sind nicht nötig.',ru:'Поставщик Загрузки отказал в доступе. Выберите тот же файл через Внутренняя память → Download в системном окне. Перемещение и полный доступ к памяти не нужны.'})[language]}</p>
+      <button type="button" disabled={busy||!enabled} className="ai-action rounded-lg p-2 min-h-11 disabled:opacity-50" onClick={()=>{recordDiagnosticAction('import-gguf','click');void importNative('internal-downloads');}}>{({en:'Choose Internal storage → Download',pl:'Wybierz Pamięć wewnętrzna → Download',de:'Interner Speicher → Download wählen',ru:'Выбрать Внутренняя память → Download'})[language]}</button>
+    </div>}
     {busy && status.phase !== 'checking' && <button type="button" className="ai-action rounded-lg p-2 min-h-11" onClick={cancelModelOperation}>{text.cancel}</button>}
     {status.phase === 'error' && !busy && <button type="button" className="ai-action rounded-lg p-2 min-h-11" onClick={() => perform(!status.installed && descriptor.url ? () => installLocalModel() : retryLocalModel)}>{text.retry}</button>}
     {installations[PREFERRED_MODEL.id]?.state !== 'verified' && !(descriptor.id === PREFERRED_MODEL.id && currentModel.installed) && <p className="theme-muted text-xs">{lifecycle.offer}</p>}
