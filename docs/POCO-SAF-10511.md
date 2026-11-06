@@ -27,3 +27,9 @@ These application log entries exclude document URIs and provider exception messa
 ## Built candidate
 
 Source: `1f9da700792f4156bc57c297913096fd273eb632`. APK: `Kalendarz-1.5.0-Part-2-Beta-2-SAF-10511.apk`, 24050827 bytes, SHA-256 `38c0fe24de552413389641f228ce8c440f65890b3d633a6298296c9749cd555f`. Existing package/certificate preserved; versionCode 10511. Local TypeScript, 8 bridge/diagnostic tests, browser import regression, 43 Android JVM tests and instrumentation APK compilation passed. Native regression execution is tracked in source CI; no physical POCO reproduction is claimed. No AppImage rebuild or official release.
+
+## Final emulator result
+
+Corrected-fixture CI passed web, desktop and Android 16: https://github.com/vex2137/Kalendarz/actions/runs/42184733603 . The required-test verifier confirms all five native methods ran, including pickerAcquiresStreamBeforeReturningToken and the 8 MiB streaming/checksum/release regression. Initial 1f9da70 CI failed only because the older random-byte fixture had no GGUF header; test-only commit 3f9f4a8 adds that header without removing assertions. Production application sources remain identical to the signed APK source.
+
+Download: https://github.com/vex2137/Kalendarz/actions/runs/42184224491/artifacts/13486013853 (GitHub login, 30-day retention). Artifact verification/upload succeeded. POCO behavior and the precise physical SecurityException origin still require this device test.
