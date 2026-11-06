@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
+import android.provider.DocumentsContract;
 import android.webkit.WebResourceResponse;
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSObject;
@@ -38,7 +39,7 @@ public class CalendarModelImportPlugin extends Plugin {
         if (error instanceof SecurityException) return "model-import-permission";
         if (error instanceof FileNotFoundException) return "model-import-unavailable";
         String message = error.getMessage();
-        if (message != null && message.matches("model-(import-(expired|unavailable|incomplete)|gguf-invalid|size)")) return message;
+        if (message != null && message.matches("model-(import-(expired|unavailable|incomplete|file)|gguf-invalid|size)")) return message;
         return "model-import-read";
     }
 
@@ -65,10 +66,16 @@ public class CalendarModelImportPlugin extends Plugin {
 
     private SafImportSession openDocument(Uri uri, long bytes, JSObject evidence, PluginCall call) {
         InputStream input = null;
-        String stage = "resolver-open";
+        String stage = "uri-validation";
         try {
-            // Preserve the content URI and use the receiving Activity's resolver.
-            input = getActivity().getContentResolver().openInputStream(uri);
+            if (uri == null || !"content".equals(uri.getScheme()) || uri.getAuthority() == null || uri.getAuthority().isEmpty()) throw new IOException("model-import-file");
+            if (evidence != null && evidence.optBoolean("virtualDocument")) throw new IOException("model-import-file");
+            boolean raw = DocumentsContract.isDocumentUri(getContext(), uri) && "com.android.providers.downloads.documents".equals(uri.getAuthority());
+            stage = raw ? "provider-open-file" : "resolver-open";
+            if (evidence != null) evidence.put("openMethod", raw ? "provider-open-file" : "resolver-input-stream");
+            // Both routes retain the exact URI and the Activity's application attribution.
+            input = raw ? SafDocumentOpener.openRawDocument(getActivity().getContentResolver(), uri)
+                        : getActivity().getContentResolver().openInputStream(uri);
             stage = "header-read";
             SafImportSession session = new SafImportSession(input, bytes);
             return session;
@@ -143,10 +150,17 @@ public class CalendarModelImportPlugin extends Plugin {
         if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
             JSObject cancelled = new JSObject(); cancelled.put("cancelled", true); call.resolve(cancelled); return;
         }
-        Uri uri = result.getData().getData();
-        if (uri == null || !"content".equals(uri.getScheme())) { call.reject("model-import-file"); return; }
+        Uri selected = result.getData().getData();
+        android.content.ClipData clip = result.getData().getClipData();
+        if (selected == null && clip != null && clip.getItemCount() == 1) selected = clip.getItemAt(0).getUri();
+        final Uri uri = selected;
+        if (uri == null || !"content".equals(uri.getScheme()) || uri.getAuthority() == null || uri.getAuthority().isEmpty()) { reject(call, "uri-validation", new IOException("model-import-file")); return; }
         final int flags = result.getData().getFlags();
         final JSObject grant = new JSObject()
+            .put("isDocument", DocumentsContract.isDocumentUri(getContext(), uri))
+            .put("fromClipData", result.getData().getData() == null)
+            .put("sameUid", getContext().getApplicationInfo().uid == android.os.Process.myUid())
+            .put("package", getContext().getPackageName())
             .put("readFlag", (flags & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0)
             .put("persistableFlag", (flags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0)
             .put("readGranted", getActivity().checkUriPermission(uri, android.os.Process.myPid(), android.os.Process.myUid(), Intent.FLAG_GRANT_READ_URI_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED)
@@ -154,17 +168,15 @@ public class CalendarModelImportPlugin extends Plugin {
         io.execute(() -> {
         try {
             String name="model.gguf";long bytes=-1;
-            try (Cursor cursor=getContext().getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE},null,null,null)) {
+            try (Cursor cursor=getActivity().getContentResolver().query(uri, DocumentsContract.isDocumentUri(getContext(), uri) ? new String[]{OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE,DocumentsContract.Document.COLUMN_FLAGS} : new String[]{OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE},null,null,null)) {
                 if(cursor!=null&&cursor.moveToFirst()){
                     int ni=cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME),si=cursor.getColumnIndex(OpenableColumns.SIZE);
                     if(ni>=0&&!cursor.isNull(ni))name=cursor.getString(ni);
                     if(si>=0&&!cursor.isNull(si))bytes=cursor.getLong(si);
+                    int fi=cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS);
+                    if(fi>=0&&!cursor.isNull(fi))grant.put("virtualDocument", (cursor.getLong(fi)&DocumentsContract.Document.FLAG_VIRTUAL_DOCUMENT)!=0);
                 }
             }catch(Exception metadataError){android.util.Log.w("CalendarModelImport","picker metadata unavailable; streaming determines size: "+metadataError.getClass().getSimpleName());}
-            if(bytes<0){
-                try(android.os.ParcelFileDescriptor fd=getContext().getContentResolver().openFileDescriptor(uri,"r")){if(fd!=null)bytes=fd.getStatSize();}
-                catch(Exception statError){android.util.Log.w("CalendarModelImport","document size unavailable; streaming determines size: "+statError.getClass().getSimpleName());}
-            }
             if(bytes==0)throw new IOException("model-size");
             // Acquire access before handing control back to WebView/lifecycle callbacks.
             // ACTION_OPEN_DOCUMENT's temporary read grant is sufficient; no storage-wide
@@ -201,7 +213,8 @@ public class CalendarModelImportPlugin extends Plugin {
         try {
             if (file == null) throw new IOException("model-import-expired");
             android.util.Log.i("CalendarModelImport","opening SAF input stream");
-            InputStream input = context.getContentResolver().openInputStream(file);
+            InputStream input = DocumentsContract.isDocumentUri(context, file) && "com.android.providers.downloads.documents".equals(file.getAuthority())
+                ? SafDocumentOpener.openRawDocument(context.getContentResolver(), file) : context.getContentResolver().openInputStream(file);
             if (input == null) throw new IOException("model-import-unavailable");
             return new WebResourceResponse("application/octet-stream", null, 200, "OK",
                 Collections.singletonMap("Cache-Control", "no-store"), input);

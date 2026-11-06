@@ -70,7 +70,7 @@ public class GgufSafImportTest extends CalendarSmokeTest {
         byte[] bytes=new byte[4096];bytes[0]='G';bytes[1]='G';bytes[2]='U';bytes[3]='F';bytes[4]=3;
         Files.write(source.toPath(),bytes);
         init();try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)) {
-            intending(hasAction(Intent.ACTION_OPEN_DOCUMENT)).respondWith(new Instrumentation.ActivityResult(Activity.RESULT_OK,new Intent().setData(FileProvider.getUriForFile(context,context.getPackageName()+".fileprovider",source)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)));
+            intending(hasAction(Intent.ACTION_OPEN_DOCUMENT)).respondWith(new Instrumentation.ActivityResult(Activity.RESULT_OK,new Intent().setClipData(android.content.ClipData.newRawUri("GGUF",FileProvider.getUriForFile(context,context.getPackageName()+".fileprovider",source))).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)));
             until(scenario,"document.querySelector('#btn-open-ai-assistant')");
             evaluate(scenario,"window.__picked=null;window.Capacitor.nativePromise('CalendarModelImport','pick',{}).then(f=>window.__picked=f)");
             until(scenario,"window.__picked?.token");

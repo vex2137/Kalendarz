@@ -27,3 +27,12 @@ test('SAF failures expose native stage/type without provider paths or raw messag
   assert.equal(event.nativeSaf?.grant?.readGranted,true);assert.equal(event.nativeSaf?.grant?.provider,'other');
   assert.ok(!JSON.stringify(event).includes('private'));
 });
+
+
+test('SAF raw opening diagnostics distinguish URI validation, provider denial and typed route',()=>{
+  for(const stage of ['uri-validation','provider-open-file','resolver-open']) {
+    recordDiagnosticAction('import-gguf','error',Object.assign(Error('model-import-permission'),{data:{saf:{stage,exceptionType:'java.lang.SecurityException',frames:[],grant:{provider:'downloads',readFlag:true,readGranted:true,isDocument:true,sameUid:true,package:'com.kalendarz.offline.diagnostics',openMethod:'provider-open-file'}}}}));
+    const detail=diagnosticActions().at(-1)!.nativeSaf!;
+    assert.equal(detail.stage,stage);assert.equal(detail.grant?.isDocument,true);assert.equal(detail.grant?.sameUid,true);assert.equal(detail.grant?.openMethod,'provider-open-file');
+  }
+});

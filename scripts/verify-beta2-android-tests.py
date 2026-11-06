@@ -4,6 +4,8 @@ import sys
 import xml.etree.ElementTree as ET
 
 required = {
+    "rawOpenStreamsWhenTypedAssetOpenIsDenied",
+    "rawOpenDoesNotSuppressProviderDenialOrAcceptFilePaths",
     "importNonCatalogueGgufThroughSafAndRetainAfterRestart",
     "nativeBridgeReportsExpiredTokensWithoutPrivatePaths",
     "pickerAcquiresStreamBeforeReturningToken",
