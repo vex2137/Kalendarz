@@ -9,7 +9,7 @@ import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
 import { markModelVerified, modelInstallationState, bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel, modelChecksum, copiedModelChecksum } from './localModelStore';
-import { recordModelMetric, recordModelState, recordDiagnosticAction, type DiagnosticStage, type ModelMetric } from './modelDiagnostics';
+import { applyCompletionMetrics, recordModelMetric, recordModelState, recordDiagnosticAction, type DiagnosticStage, type ModelMetric } from './modelDiagnostics';
 import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection, AI_MODELS, registerImportedModel, type ModelDescriptor } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
@@ -488,7 +488,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
   const timeout = setTimeout(() => controller.abort('model-timeout'), options.timeoutMs ?? (status.modelId === 'lfm2.5-350m-q4-k-m' ? 120_000 : 600_000));
   try {
     const current = await ensureEngine(metric, options.threads);
-    Object.assign(metric,{backend:backendStatus().backend});
+    Object.assign(metric,{backend:backendStatus().backend,threads:backendStatus().backend==='cpu-wasm'?actualThreads:backendStatus().threads});
     if (engineStateAtStart !== 'loaded') Object.assign(metric,lastLoad);
     Object.assign(metric,{contextLength:descriptor.maxContext,modelBytes:descriptor.bytes,historyMessages:history.length,maxOutputTokens:completionTokenLimit(descriptor.id,prompt,schema!==undefined,options.maxTokens)});
     controller.signal.throwIfAborted();
@@ -505,15 +505,14 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     let text = '', finish: string | null = null;
     for await (const chunk of result) {
       const native=(chunk as unknown as {calendarNative?:{firstTokenMs?:number;backend:BackendInfo}}).calendarNative;
-      if(native){Object.assign(metric,{firstTokenMs:native.firstTokenMs===undefined?undefined:(metric.loadMs||0)+native.firstTokenMs,firstAnswerTokenMs:native.firstTokenMs===undefined?undefined:(metric.loadMs||0)+native.firstTokenMs,backend:native.backend.backend,gpuActive:native.backend.gpuActive,deviceName:native.backend.deviceName,ramBytes:native.backend.ramBytes,vramBytes:native.backend.vramBytes,fallbackReason:native.backend.fallbackReason});}
+      if(native){const first=typeof native.firstTokenMs==='number'&&Number.isFinite(native.firstTokenMs)&&native.firstTokenMs>=0?(metric.loadMs||0)+native.firstTokenMs:undefined;Object.assign(metric,{firstTokenMs:first,firstAnswerTokenMs:first,backend:native.backend.backend,gpuActive:native.backend.gpuActive,deviceName:native.backend.deviceName,ramBytes:native.backend.ramBytes,vramBytes:native.backend.vramBytes,fallbackReason:native.backend.fallbackReason});}
       const choice = chunk.choices[0];
       const content = choice?.delta?.content;
       const delta = choice?.delta as { reasoning_content?: string; reasoning?: string } | undefined;
-      if (content || delta?.reasoning_content || delta?.reasoning) metric.firstTokenMs ??= performance.now() - started;
-      if (content) { metric.firstAnswerTokenMs ??= performance.now() - started; text += content; }
+      if (!native && (content || delta?.reasoning_content || delta?.reasoning)) metric.firstTokenMs ??= performance.now() - started;
+      if (content) { if(!native)metric.firstAnswerTokenMs ??= performance.now() - started; text += content; }
       if (choice?.finish_reason) finish = choice.finish_reason;
-      if (chunk.usage) Object.assign(metric, { promptTokens: chunk.usage.prompt_tokens, cachedTokens: chunk.usage.prompt_tokens_details?.cached_tokens, completionTokens: chunk.usage.completion_tokens });
-      if (chunk.timings) Object.assign(metric, { promptMs: chunk.timings.prompt_ms, generationMs: chunk.timings.predicted_ms, tokensPerSecond: chunk.timings.predicted_per_second, promptTokens: chunk.timings.prompt_n + chunk.timings.cache_n, cachedTokens: chunk.timings.cache_n, completionTokens: chunk.timings.predicted_n });
+      applyCompletionMetrics(metric,chunk.usage,chunk.timings);
     }
     controller.signal.throwIfAborted();
     // A length-limited conversation remains useful text. A partial calendar
@@ -524,7 +523,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     if (!text) throw new Error('model-response');
     const heap = (performance as Performance & {memory?:{usedJSHeapSize:number}}).memory;
     if (heap) metric.jsHeapBytes = heap.usedJSHeapSize;
-    Object.assign(metric, { threads: actualThreads, multithread: current.isMultithread(), isolated: globalThis.crossOriginIsolated, totalMs: performance.now() - started });
+    Object.assign(metric, { threads: metric.backend==='cpu-wasm'?actualThreads:backendStatus().threads, multithread: current.isMultithread(), isolated: globalThis.crossOriginIsolated, totalMs: performance.now() - started });
     recordModelMetric(metric);
     console.info('Local model performance:', JSON.stringify(metric));
     update({ phase: 'ready' });

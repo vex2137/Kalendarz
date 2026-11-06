@@ -76,14 +76,17 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
   },feedback.releasing);
   const last = [...metrics].reverse().find(metric=>metric.route==='model');
   const labels = {
-    en:['Total response','Model access','Integrity check','Backend initialization','Prompt processing','First token','Generation','Tokens/s','Input / output tokens','Context / CPU threads','Native RAM / JS heap'],
-    pl:['Cała odpowiedź','Dostęp do modelu','Kontrola integralności','Inicjalizacja backendu','Przetwarzanie promptu','Pierwszy token','Generowanie','Tokeny/s','Tokeny wejścia / wyjścia','Kontekst / wątki CPU','RAM natywny / sterta JS'],
-    de:['Gesamte Antwort','Modellzugriff','Integritätsprüfung','Backend-Initialisierung','Promptverarbeitung','Erstes Token','Generierung','Token/s','Eingabe- / Ausgabetokens','Kontext / CPU-Threads','Nativer RAM / JS-Heap'],
-    ru:['Весь ответ','Доступ к модели','Проверка целостности','Инициализация движка','Обработка запроса','Первый токен','Генерация','Токенов/с','Входные / выходные токены','Контекст / потоки CPU','Нативная RAM / куча JS'],
+    en:['Current model attempt','Model access (last load)','Integrity check (last load)','Initialization (last load)','Prompt processing','TTFT (current request)','Generation','Tokens/s','Input / output tokens','Context / CPU threads','Native RAM / JS heap'],
+    pl:['Bieżąca próba modelu','Dostęp do modelu (ostatnie ładowanie)','Kontrola integralności (ostatnie ładowanie)','Inicjalizacja (ostatnie ładowanie)','Przetwarzanie promptu','TTFT (bieżące żądanie)','Generowanie','Tokeny/s','Tokeny wejścia / wyjścia','Kontekst / wątki CPU','RAM natywny / sterta JS'],
+    de:['Aktueller Modellversuch','Modellzugriff (letztes Laden)','Integritätsprüfung (letztes Laden)','Initialisierung (letztes Laden)','Promptverarbeitung','TTFT (aktuelle Anfrage)','Generierung','Token/s','Eingabe- / Ausgabetokens','Kontext / CPU-Threads','Nativer RAM / JS-Heap'],
+    ru:['Текущий вызов модели','Доступ (последняя загрузка)','Проверка (последняя загрузка)','Инициализация (последняя загрузка)','Обработка запроса','TTFT (текущий запрос)','Генерация','Токенов/с','Входные / выходные токены','Контекст / потоки CPU','Нативная RAM / куча JS'],
   }[language];
-  const ms=(n?:number)=>n===undefined?'—':`${n.toFixed(0)} ms`;
-  const mib=(n?:number)=>n===undefined?'—':`${(n/1048576).toFixed(1)} MiB`;
-  const values=last?[ms(last.totalMs),ms(last.storageMs),ms(last.verifyMs),ms(last.initMs),ms(last.promptMs),ms(last.firstTokenMs),ms(last.generationMs),last.tokensPerSecond?.toFixed(1)||'—',`${last.promptTokens??'—'} / ${last.completionTokens??'—'}`,`${last.contextLength??'—'} / ${last.threads??'—'}`,`${mib(last.ramBytes)} / ${mib(last.jsHeapBytes)}`]:[];
+  const missing=({en:'No data',pl:'brak danych',de:'Keine Daten',ru:'Нет данных'})[language];
+  const valid=(n?:number)=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
+  const ms=(n?:number)=>!valid(n)?missing:`${n!.toFixed(0)} ms`;
+  const mib=(n?:number)=>!valid(n)?missing:`${(n!/1048576).toFixed(1)} MiB`;
+  const number=(n?:number)=>valid(n)?String(n):missing;
+  const values=last?[ms(last.totalMs),ms(last.storageMs),ms(last.verifyMs),ms(last.initMs),ms(last.promptMs),ms(last.firstTokenMs),ms(last.generationMs),valid(last.tokensPerSecond)?last.tokensPerSecond!.toFixed(1):missing,`${number(last.promptTokens)} / ${number(last.completionTokens)}`,`${number(last.contextLength)} / ${number(last.threads)}`,`${mib(last.ramBytes)} / ${mib(last.jsHeapBytes)}`]:[];
   return <section data-testid="model-diagnostics" className="p-3 text-xs theme-text">
     <h4 className="font-semibold">{text[0]}</h4>
     <p className="my-2">{findModel(status.modelId).name} · {findModel(status.modelId).quantization} · {findModel(status.modelId).bytes.toLocaleString()} B<br/>{modelLifecycleText(language).disk}: {status.installed?modelLifecycleText(language).yes:modelLifecycleText(language).no} · {modelLifecycleText(language).ram}: {status.loaded?modelLifecycleText(language).yes:modelLifecycleText(language).no}</p>
@@ -92,6 +95,9 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
     <p data-assistant-route={turns.at(-1)?.route || 'none'}>{({ en: 'Last message path', pl: 'Ścieżka ostatniej wiadomości', ru: 'Путь последнего сообщения', de: 'Pfad der letzten Nachricht' })[language]}: {turns.at(-1)?.route || '—'} {turns.at(-1) ? `(${turns.at(-1)!.language}, ${Math.round(turns.at(-1)!.totalMs)} ms)` : ''}</p>
     <BackendSettings language={language} busy={testing||Boolean(actionState?.pending)||['running','verifying','downloading'].includes(status.phase)}/>
     {last && <dl className="grid grid-cols-2 gap-x-3 gap-y-1 my-3" data-testid="inference-metrics">{labels.map((label,i)=><div key={label} className="contents"><dt className="theme-muted">{label}</dt><dd>{values[i]}</dd></div>)}</dl>}
+    {last && <p data-testid="metric-backend">{({en:'Backend of last model attempt',pl:'Backend ostatniej próby modelu',de:'Backend des letzten Modellversuchs',ru:'Бэкенд последнего вызова модели'})[language]}: {last.backend||missing}{last.backend==='vulkan'&&last.gpuActive!==true?' (GPU ?)':''}</p>}
+    {last?.error && <p data-testid="metric-attempt-error">{({en:'Incomplete model attempt',pl:'Nieukończona próba modelu',de:'Unvollständiger Modellversuch',ru:'Незавершённый вызов модели'})[language]}: {last.errorCode||last.error}</p>}
+    {last && <p className="theme-muted" data-testid="metric-timing-scope">{({en:'Last-load timings may include background initialization before this request; they are not components of its total.',pl:'Czasy ostatniego ładowania mogą obejmować inicjalizację w tle sprzed tego żądania; nie są składnikami jego sumy.',de:'Die Zeiten des letzten Ladens können Hintergrundinitialisierung vor dieser Anfrage enthalten; sie sind keine Bestandteile ihrer Gesamtdauer.',ru:'Последняя загрузка могла начаться в фоне до этого запроса; её время не является частью общего времени запроса.'})[language]}</p>}
     <p className="my-2">{text[4]}</p>
     {!desktopAI() && <label className="flex gap-2 mb-2"><input type="checkbox" checked={singleThread} disabled={busy} onChange={e => setSingleThread(e.target.checked)} />{({ en: 'Compare with one CPU thread', pl: 'Porównaj z jednym wątkiem CPU', ru: 'Сравнить с одним потоком CPU', de: 'Mit einem CPU-Thread vergleichen' })[language]}</label>}
     <div className="flex flex-wrap gap-2">

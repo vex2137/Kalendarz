@@ -19,6 +19,15 @@ export interface ModelMetric {
   promptTokens?: number; cachedTokens?: number; completionTokens?: number;
   threads?: number; multithread?: boolean; isolated?: boolean;
 }
+// Merge only reported finite values: sparse/empty timing frames must not erase usage.
+export function applyCompletionMetrics(metric: ModelMetric, usage?: {prompt_tokens?:number;completion_tokens?:number;prompt_tokens_details?:{cached_tokens?:number}} | null, timings?: Partial<Record<'prompt_ms'|'predicted_ms'|'predicted_per_second'|'prompt_n'|'cache_n'|'predicted_n',number>>) {
+  const valid=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
+  const put=(key:'promptMs'|'generationMs'|'tokensPerSecond'|'promptTokens'|'cachedTokens'|'completionTokens',value:unknown)=>{if(valid(value))metric[key]=value;};
+  put('promptMs',timings?.prompt_ms);put('generationMs',timings?.predicted_ms);put('tokensPerSecond',timings?.predicted_per_second);
+  if(valid(timings?.prompt_n)&&valid(timings?.cache_n))put('promptTokens',timings.prompt_n+timings.cache_n);
+  put('cachedTokens',timings?.cache_n);put('completionTokens',timings?.predicted_n);
+  put('promptTokens',usage?.prompt_tokens);put('cachedTokens',usage?.prompt_tokens_details?.cached_tokens);put('completionTokens',usage?.completion_tokens);
+}
 let metrics: ModelMetric[] = [];
 let runtimeState: Record<string, unknown> | undefined;
 export function recordModelState(state:Record<string,unknown>) { runtimeState=state; listeners.forEach(fn=>fn()); }
