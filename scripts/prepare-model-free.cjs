@@ -5,7 +5,7 @@ const fs=require('node:fs/promises'),path=require('node:path');
  const root=path.resolve(__dirname,'..'),target=path.join(root,'build/model-free-public');
  await fs.rm(target,{recursive:true,force:true});await fs.mkdir(target,{recursive:true});
  for(const entry of await fs.readdir(path.join(root,'public'))){if(entry!=='models')await fs.cp(path.join(root,'public',entry),path.join(target,entry),{recursive:true});}
- const model=require('../src/utils/localModelManifest.json');
+ const model={...require('../src/utils/localModelManifest.json'),...require('../src/utils/defaultModelSource.json')};
  await fs.mkdir(path.join(target,'models'));
  await fs.writeFile(path.join(target,'models/catalogue.json'),JSON.stringify([model,...require('../src/utils/optionalModels.json'),...require('../src/utils/fineTunedModels.json')]));
  await fs.writeFile(path.join(target,'models/manifest.json'),JSON.stringify({file:model.file,bytes:model.bytes,sha256:model.sha256}));

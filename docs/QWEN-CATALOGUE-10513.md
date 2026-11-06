@@ -2,7 +2,7 @@
 
 The missing button was caused by `localModelManifest.json` having an empty URL. ModelManager correctly requires a URL before rendering its existing Download action. The default had remained configured as private/local bundled weights even though the owner supplied its public Hugging Face repository. No downloader/rendering rewrite is needed.
 
-Configure the owner-provided source:
+Configure the owner-provided catalogue source in `defaultModelSource.json`, overlaid by modelRegistry on the unchanged bundled manifest:
 https://huggingface.co/Vex909/Qwen-3.5-v2-Q4_K_M/resolve/main/kalendarz-qwen35-v2-q4_k_m.gguf
 
 Preserve the existing trusted model identity, 529297056 bytes and SHA-256 fecd8b646db036ca27801f8a4c2d84c5f8baf981ba9a635ea0d2553b652eb1b5. The training revision, model selection, installed-model records and history remain unchanged. The mutable main URL is constrained by the pinned size/checksum; different bytes cannot be installed. No guessed checksum is introduced.
@@ -14,3 +14,5 @@ Cloud policy excludes Hugging Face. A targeted CI job probes only this repositor
 Regression: the real UI must render an enabled Download action for the missing selected default Qwen. Its configured URL is intercepted with a synthetic HTTP 503; clicking must reach the existing downloader exactly once and leave installed=false/Used absent. Existing legacy model state/migration tests remain. The imported-model fixture explicitly retains url='' rather than inheriting the newly public default URL.
 
 Manual POCO acceptance: update without clearing data, select Kalendarz Qwen3.5 0.8B v2 Q4_K_M, press Download, navigate away and return to current progress. Pause/resume uses the unchanged service. Installed/Use becomes available only after full verification. Existing verified weights must not be replaced on failure. Confirm public transfer and inference on the device; Cloud catalogue tests alone do not establish either.
+
+The first CI run caught the historical 1.4.2 release guard requiring its bundled manifest to remain private. Keep that manifest contract intact and overlay the public URL only for the current application catalogue/model-free distribution; do not weaken the release guard.

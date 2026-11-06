@@ -7,7 +7,8 @@ import urllib.error
 import struct
 from pathlib import Path
 
-model=json.loads((Path(__file__).resolve().parents[1]/'src/utils/localModelManifest.json').read_text())
+catalogue=Path(__file__).resolve().parents[1]/'src/utils'
+model={**json.loads((catalogue/'localModelManifest.json').read_text()),**json.loads((catalogue/'defaultModelSource.json').read_text())}
 report={'url':model['url'],'expectedBytes':model['bytes'],'expectedSha256':model['sha256'],'verifiedMetadataAndHeader':False}
 try:
     request=urllib.request.Request('https://huggingface.co/api/models/Vex909/Qwen-3.5-v2-Q4_K_M?blobs=true',headers={'User-Agent':'Kalendarz-source-check'})

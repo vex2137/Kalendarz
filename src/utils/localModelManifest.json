@@ -4,7 +4,7 @@
   "revision": "local-finetune-v142-v2",
   "file": "kalendarz-qwen35-v2-q4_k_m.gguf",
   "sha256": "fecd8b646db036ca27801f8a4c2d84c5f8baf981ba9a635ea0d2553b652eb1b5",
-  "url": "https://huggingface.co/Vex909/Qwen-3.5-v2-Q4_K_M/resolve/main/kalendarz-qwen35-v2-q4_k_m.gguf",
+  "url": "",
   "license": "https://huggingface.co/Qwen/Qwen3.5-0.8B/blob/2fc06364715b967f1860aea9cf38778875588b17/LICENSE",
   "licenseDownloadUrl": "https://huggingface.co/Qwen/Qwen3.5-0.8B/resolve/2fc06364715b967f1860aea9cf38778875588b17/LICENSE",
   "licenseName": "Apache-2.0",
