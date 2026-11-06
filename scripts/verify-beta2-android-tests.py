@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 required = {
     "importNonCatalogueGgufThroughSafAndRetainAfterRestart",
     "nativeBridgeReportsExpiredTokensWithoutPrivatePaths",
+    "pickerAcquiresStreamBeforeReturningToken",
     "safPickerStreamsContentUriAndReleasesAccess",
     "transferSurvivesStoppedActivityAndResumesAfterNotificationPause",
 }

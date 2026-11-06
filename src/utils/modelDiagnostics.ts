@@ -69,7 +69,15 @@ export function runtimeCapabilities() {
 }
 export type DiagnosticAction = 'backend-mode'|'export-json'|'release-memory'|'device-test'|'import-gguf'|'download-model'|'bridge-info';
 export type DiagnosticStage = 'click'|'start'|'bridge-call'|'success'|'cancelled'|'error'|'lookup'|'stream-open'|'copy'|'verify'|'metadata'|'register'|'commit'|'native-cache'|'engine-load';
-export interface DiagnosticActionEvent { action:DiagnosticAction; stage:DiagnosticStage; at:number; code?:string; cause?:string; modelId?:string; bytes?:number; expectedBytes?:number; failedStage?:DiagnosticStage }
+export interface NativeSafFailure { stage:string; exceptionType:string; frames:string[]; grant?:{readFlag:boolean;persistableFlag:boolean;readGranted:boolean;provider:string} }
+function nativeSafFailure(error:unknown):NativeSafFailure|undefined {
+  const value=(error as {data?:{saf?:NativeSafFailure}}|undefined)?.data?.saf;
+  if(!value||!['resolver-open','header-read','stream-open','copy','picker'].includes(value.stage)||!/^\w+(?:[.$]\w+)*$/.test(value.exceptionType))return;
+  const frames=Array.isArray(value.frames)?value.frames.filter(f=>typeof f==='string'&&f.length<200&&/^[\w.$<>]+$/.test(f)).slice(0,8):[];
+  const grant=value.grant;
+  return {stage:value.stage,exceptionType:value.exceptionType,frames,...(grant?{grant:{readFlag:grant.readFlag===true,persistableFlag:grant.persistableFlag===true,readGranted:grant.readGranted===true,provider:['downloads','external-storage','other'].includes(grant.provider)?grant.provider:'other'}}:{})};
+}
+export interface DiagnosticActionEvent { action:DiagnosticAction; stage:DiagnosticStage; at:number; code?:string; cause?:string; nativeSaf?:NativeSafFailure; modelId?:string; bytes?:number; expectedBytes?:number; failedStage?:DiagnosticStage }
 let actions:DiagnosticActionEvent[]=[];
 const firstFailedStage=new WeakMap<object,DiagnosticStage>();
 export const diagnosticActions=()=>actions;
@@ -80,7 +88,8 @@ export function diagnosticErrorCode(error:unknown) {
 }
 export function recordDiagnosticAction(action:DiagnosticAction,stage:DiagnosticStage,error?:unknown,context:Partial<Pick<DiagnosticActionEvent,'modelId'|'bytes'|'expectedBytes'|'failedStage'>>={}) {
   if(stage==='error'&&error&&typeof error==='object'&&context.failedStage){if(!firstFailedStage.has(error))firstFailedStage.set(error,context.failedStage);context={...context,failedStage:firstFailedStage.get(error)};}
-  const event:DiagnosticActionEvent={action,stage,at:Date.now(),...context,...(error===undefined?{}:{code:diagnosticErrorCode(error),cause:error instanceof Error?error.name:'Unknown'})};
+  if(nativeSafFailure(error)&&!context.failedStage)context={...context,failedStage:'stream-open'};
+  const event:DiagnosticActionEvent={action,stage,at:Date.now(),...context,...(error===undefined?{}:{code:diagnosticErrorCode(error),cause:nativeSafFailure(error)?.exceptionType||(error instanceof Error?error.name:'Unknown'),...(nativeSafFailure(error)?{nativeSaf:nativeSafFailure(error)}:{})})};
   actions=[...actions.slice(-99),event];
   console.info('AI diagnostic action:',JSON.stringify(event));
   listeners.forEach(fn=>fn());

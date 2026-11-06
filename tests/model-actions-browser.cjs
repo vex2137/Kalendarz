@@ -41,7 +41,7 @@ const bytes=Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(fields.length),
   assert.equal(await page.evaluate(()=>window.__picker.releases),3);
   assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().installed),true,'Failed import must preserve the earlier installed copy');
   assert.ok(await page.evaluate(()=>window.__diagnostics.diagnosticActions().some(e=>e.action==='import-gguf'&&e.stage==='error'&&e.code==='model-import-unavailable')));
-  await page.evaluate(()=>window.__picker.mode='permission');await page.locator('#ai-import-gguf').click();await page.getByRole('alert').filter({hasText:'Android denied access'}).waitFor();
+  await page.evaluate(()=>window.__picker.mode='permission');await page.locator('#ai-import-gguf').click();await page.getByRole('alert').filter({hasText:'SecurityException'}).waitFor();
   assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().installed),true);
   await page.evaluate(()=>window.__picker.mode='cancel');await page.locator('#ai-import-gguf').click();await page.getByTestId('model-operation-result').filter({hasText:'Operation cancelled'}).waitFor();
   assert.equal(await page.evaluate(()=>window.__picker.releases),4,'Cancelling a picker does not invent or release a file token');

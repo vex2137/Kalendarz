@@ -29,7 +29,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CalendarModelImportPlugin extends Plugin {
     private final java.util.concurrent.ExecutorService io = java.util.concurrent.Executors.newSingleThreadExecutor();
     private static final ConcurrentHashMap<String, Uri> files = new ConcurrentHashMap<>();
+    private volatile boolean destroyed;
     private final Set<String> ownedTokens = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, JSObject> grantDiagnostics = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, SafImportSession> streams = new ConcurrentHashMap<>();
 
     private static String errorCode(Exception error) {
@@ -44,7 +46,40 @@ public class CalendarModelImportPlugin extends Plugin {
         String code = errorCode(error);
         // Provider messages and document URIs may contain private paths. Keep only safe codes/types.
         android.util.Log.e("CalendarModelImport", stage + " failed: " + code + "; type=" + error.getClass().getSimpleName());
-        call.reject(code);
+        JSObject detail = failureDetail(stage, error);
+        JSObject grant = grantDiagnostics.get(call.getString("token", ""));
+        if (grant != null) detail.put("grant", grant);
+        call.reject(code, code, null, new JSObject().put("saf", detail));
+    }
+
+    static JSObject failureDetail(String stage, Exception error) {
+        JSObject detail = new JSObject().put("stage", stage).put("exceptionType", error.getClass().getName());
+        com.getcapacitor.JSArray frames = new com.getcapacitor.JSArray();
+        for (StackTraceElement frame : error.getStackTrace()) {
+            if (frames.length() >= 8) break;
+            frames.put(frame.getClassName() + "." + frame.getMethodName());
+        }
+        detail.put("frames", frames);
+        return detail;
+    }
+
+    private SafImportSession openDocument(Uri uri, long bytes, JSObject evidence, PluginCall call) {
+        InputStream input = null;
+        String stage = "resolver-open";
+        try {
+            // Preserve the content URI and use the receiving Activity's resolver.
+            input = getActivity().getContentResolver().openInputStream(uri);
+            stage = "header-read";
+            SafImportSession session = new SafImportSession(input, bytes);
+            return session;
+        } catch (Exception error) {
+            if (input != null) try { input.close(); } catch (Exception ignored) {}
+            JSObject detail = failureDetail(stage, error);
+            if (evidence != null) detail.put("grant", evidence);
+            android.util.Log.e("CalendarModelImport", "SAF failure " + detail.toString());
+            call.reject(errorCode(error), errorCode(error), null, new JSObject().put("saf", detail));
+            return null;
+        }
     }
 
     private void closeStream(String token) {
@@ -59,8 +94,9 @@ public class CalendarModelImportPlugin extends Plugin {
             try {
                 Uri uri = ownedTokens.contains(token) ? files.get(token) : null;
                 if (uri == null) throw new IOException("model-import-expired");
-                closeStream(token);
-                SafImportSession session = new SafImportSession(getContext().getContentResolver().openInputStream(uri), call.getLong("bytes", -1L));
+                if (streams.containsKey(token)) { call.resolve(); return; }
+                SafImportSession session = openDocument(uri, call.getLong("bytes", -1L), grantDiagnostics.get(token), call);
+                if (session == null) return;
                 synchronized (this) {
                     if (!ownedTokens.contains(token)) { session.close(); throw new IOException("model-import-expired"); }
                     streams.put(token, session);
@@ -109,6 +145,12 @@ public class CalendarModelImportPlugin extends Plugin {
         }
         Uri uri = result.getData().getData();
         if (uri == null || !"content".equals(uri.getScheme())) { call.reject("model-import-file"); return; }
+        final int flags = result.getData().getFlags();
+        final JSObject grant = new JSObject()
+            .put("readFlag", (flags & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0)
+            .put("persistableFlag", (flags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0)
+            .put("readGranted", getActivity().checkUriPermission(uri, android.os.Process.myPid(), android.os.Process.myUid(), Intent.FLAG_GRANT_READ_URI_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED)
+            .put("provider", "com.android.providers.downloads.documents".equals(uri.getAuthority()) ? "downloads" : "com.android.externalstorage.documents".equals(uri.getAuthority()) ? "external-storage" : "other");
         io.execute(() -> {
         try {
             String name="model.gguf";long bytes=-1;
@@ -124,8 +166,18 @@ public class CalendarModelImportPlugin extends Plugin {
                 catch(Exception statError){android.util.Log.w("CalendarModelImport","document size unavailable; streaming determines size: "+statError.getClass().getSimpleName());}
             }
             if(bytes==0)throw new IOException("model-size");
-            String token = UUID.randomUUID().toString(); files.put(token, uri); ownedTokens.add(token);
-            android.util.Log.i("CalendarModelImport","picker granted; sizeKnown="+(bytes>0));
+            // Acquire access before handing control back to WebView/lifecycle callbacks.
+            // ACTION_OPEN_DOCUMENT's temporary read grant is sufficient; no storage-wide
+            // permission or permanent grant is requested for a one-shot import.
+            SafImportSession session = openDocument(uri, bytes, grant, call);
+            if (session == null) return;
+            String token = UUID.randomUUID().toString();
+            synchronized (this) {
+                if (destroyed) { session.close(); throw new IOException("model-import-expired"); }
+                files.put(token, uri); ownedTokens.add(token);
+                streams.put(token, session); grantDiagnostics.put(token, grant);
+            }
+            android.util.Log.i("CalendarModelImport","picker stream acquired; " + grant.toString());
             JSObject file = new JSObject(); file.put("token", token); file.put("name", name); file.put("bytes", bytes);
             call.resolve(file);
         } catch (Exception error) { reject(call, "picker", error); }
@@ -137,6 +189,7 @@ public class CalendarModelImportPlugin extends Plugin {
         String token = call.getString("token", "");
         synchronized (this) {
             if (ownedTokens.remove(token)) files.remove(token);
+            grantDiagnostics.remove(token);
             closeStream(token);
         }
         call.resolve();
@@ -164,9 +217,10 @@ public class CalendarModelImportPlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         // An old Activity must never expire tokens created by its replacement.
+        destroyed = true;
         synchronized (this) {
             for (String token : ownedTokens) { closeStream(token); files.remove(token); }
-            ownedTokens.clear();
+            ownedTokens.clear(); grantDiagnostics.clear();
         }
         io.shutdownNow();
     }

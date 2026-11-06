@@ -34,7 +34,7 @@ def main():
     if "certificate SHA-256 digest: " + CERT not in certs:
         raise SystemExit("Candidate does not preserve the installed diagnostics signing certificate.")
     badging = run(tools / "aapt", "dump", "badging", args.apk)
-    if "name='com.kalendarz.offline.diagnostics' versionCode='10510' versionName='1.5.0-part2-beta.2'" not in badging:
+    if "name='com.kalendarz.offline.diagnostics' versionCode='10511' versionName='1.5.0-part2-beta.2'" not in badging:
         raise SystemExit("Candidate Android identity/version is incorrect.")
     run(tools / "zipalign", "-c", "-P", "16", "4", args.apk)
     with zipfile.ZipFile(args.apk) as archive:
@@ -55,7 +55,7 @@ def main():
     args.apk.with_name(args.apk.name + ".sha256").write_text(f"{checksum}  {args.apk.name}\n")
     print(json.dumps({"file": args.apk.name, "bytes": args.apk.stat().st_size,
                       "sha256": checksum, "source": args.source,
-                      "package": "com.kalendarz.offline.diagnostics", "versionCode": 10510,
+                      "package": "com.kalendarz.offline.diagnostics", "versionCode": 10511,
                       "certificateSha256": CERT}, indent=2))
 
 

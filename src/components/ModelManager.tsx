@@ -72,7 +72,8 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
     finally { if (token) await releaseNativeModel(token).catch(error=>{recordDiagnosticAction('import-gguf','error',error);setError('model-import-release');}); setPicking(false); }
   };
   const openImport = () => { recordDiagnosticAction('import-gguf','click');setOperationMessage(feedback.importing);if (Capacitor.getPlatform() === 'android') void importNative(); else fileInput.current?.click(); };
-  const lastFailure=[...diagnosticActions()].reverse().find(event=>event.stage==='error'&&event.failedStage&&event.code===(error||status.error));
+  const failures=[...diagnosticActions()].reverse().filter(event=>event.stage==='error'&&event.failedStage&&event.code===(error||status.error));
+  const lastFailure=failures.find(event=>event.nativeSaf)||failures[0];
   const failureLabels={en:['Stage','Type'],pl:['Etap','Typ'],de:['Schritt','Typ'],ru:['Этап','Тип']}[language];
   const modelIcon = (model: ModelDescriptor) => model.bundled ? <Activity className="w-6 h-6"/> : <Box className="w-6 h-6"/>;
   return <div className="space-y-3 ai-design" aria-label={text.models}>
@@ -110,7 +111,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
     {status.phase === 'downloading' && status.transfer && <p className="text-xs theme-muted tabular-nums">{downloadSummary(status.transfer, language)}</p>}
     {['downloading','verifying'].includes(status.phase) && <div role="status"><progress className="w-full" value={status.progress>=0?status.progress:undefined} max={100}/><span>{status.progress>=0?`${Math.floor(status.progress)}%`:view.importing}</span></div>}
     {operationMessage && !error && status.phase!=='error' && <p role="status" aria-live="polite" data-testid="model-operation-result">{operationMessage}</p>}
-    {(error || status.phase === 'error') && <p role="alert" className="text-xs">{modelErrorText(error || status.error,language)} {status.installed && lifecycle.retry}{lastFailure && <span className="block mt-1">{failureLabels[0]}: {lastFailure.failedStage} · {failureLabels[1]}: {lastFailure.cause||'Error'} · {lastFailure.code}</span>}</p>}
+    {(error || status.phase === 'error') && <p role="alert" className="text-xs">{modelErrorText(error || status.error,language)} {status.installed && lifecycle.retry}{lastFailure && <span className="block mt-1">{failureLabels[0]}: {lastFailure.nativeSaf?.stage||lastFailure.failedStage} · {failureLabels[1]}: {lastFailure.cause||'Error'} · {lastFailure.code}</span>}</p>}
     {busy && status.phase !== 'checking' && <button type="button" className="ai-action rounded-lg p-2 min-h-11" onClick={cancelModelOperation}>{text.cancel}</button>}
     {status.phase === 'error' && !busy && <button type="button" className="ai-action rounded-lg p-2 min-h-11" onClick={() => perform(!status.installed && descriptor.url ? () => installLocalModel() : retryLocalModel)}>{text.retry}</button>}
     {installations[PREFERRED_MODEL.id]?.state !== 'verified' && !(descriptor.id === PREFERRED_MODEL.id && currentModel.installed) && <p className="theme-muted text-xs">{lifecycle.offer}</p>}

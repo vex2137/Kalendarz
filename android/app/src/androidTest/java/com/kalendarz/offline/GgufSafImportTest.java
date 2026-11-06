@@ -64,4 +64,22 @@ public class GgufSafImportTest extends CalendarSmokeTest {
         }
     }
 
+    @Test public void pickerAcquiresStreamBeforeReturningToken() throws Exception {
+        android.content.Context context=InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File source=new File(context.getCacheDir(),"saf-acquire-before-token.gguf");
+        byte[] bytes=new byte[4096];bytes[0]='G';bytes[1]='G';bytes[2]='U';bytes[3]='F';bytes[4]=3;
+        Files.write(source.toPath(),bytes);
+        init();try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)) {
+            intending(hasAction(Intent.ACTION_OPEN_DOCUMENT)).respondWith(new Instrumentation.ActivityResult(Activity.RESULT_OK,new Intent().setData(FileProvider.getUriForFile(context,context.getPackageName()+".fileprovider",source)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)));
+            until(scenario,"document.querySelector('#btn-open-ai-assistant')");
+            evaluate(scenario,"window.__picked=null;window.Capacitor.nativePromise('CalendarModelImport','pick',{}).then(f=>window.__picked=f)");
+            until(scenario,"window.__picked?.token");
+            assertTrue(source.delete()); // Existing descriptor must remain usable after unlink.
+            evaluate(scenario,"window.__acquired=null;window.Capacitor.nativePromise('CalendarModelImport','open',{token:window.__picked.token,bytes:window.__picked.bytes}).then(()=>window.Capacitor.nativePromise('CalendarModelImport','read',{token:window.__picked.token})).then(c=>window.__acquired=c).catch(e=>window.__acquired={error:e.message})");
+            until(scenario,"window.__acquired");
+            assertEquals("true",evaluate(scenario,"!window.__acquired.error&&window.__acquired.received>0&&atob(window.__acquired.data).startsWith('GGUF')"));
+            evaluate(scenario,"window.Capacitor.nativePromise('CalendarModelImport','release',{token:window.__picked.token})");
+        }finally{release();source.delete();}
+    }
+
 }
