@@ -1,10 +1,10 @@
 # Part 2 Beta 2 repair candidate — manual acceptance
 
-Source: 1f9da700792f4156bc57c297913096fd273eb632. PR #20 remains Draft/unmerged. No Beta 2 tag or Release is created. These packages contain no GGUF.
+Source: 9c7ac0d7c940ccb851c2fd9d2db9d9ae0dd39f68. PR #20 remains Draft/unmerged. No Beta 2 tag or Release is created. These packages contain no GGUF.
 
-Android update identity: `com.kalendarz.offline.diagnostics`, versionCode **10511**, existing certificate SHA-256 `ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`. Install as an update without uninstalling or clearing data. Verify events, language/theme, PIN/password, history, model selection and installed models survive.
+Android update identity: `com.kalendarz.offline.diagnostics`, versionCode **10512**, existing certificate SHA-256 `ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`. Install as an update without uninstalling or clearing data. Verify events, language/theme, PIN/password, history, model selection and installed models survive.
 
-Latest Android-only candidate: SAF-10511; see [focused diagnosis and log procedure](POCO-SAF-10511.md). The physical POCO failure is not confirmed fixed. The earlier AppImage is unchanged.
+Latest Android-only candidate: SAF-10512; see [focused diagnosis and log procedure](POCO-SAF-10512.md). The physical POCO failure is not confirmed fixed. The earlier AppImage is unchanged.
 
 ## POCO / Android 16
 

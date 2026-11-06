@@ -2,9 +2,9 @@
 import hashlib,json,os,subprocess,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-SOURCE='1f9da700792f4156bc57c297913096fd273eb632'
+SOURCE='9c7ac0d7c940ccb851c2fd9d2db9d9ae0dd39f68'
 CERT='ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143'
-FILES=[{'name': 'Kalendarz-1.5.0-Part-2-Beta-2-SAF-10511.apk', 'size': 24050827, 'sha256': '38c0fe24de552413389641f228ce8c440f65890b3d633a6298296c9749cd555f'}]
+FILES=[{'name': 'Kalendarz-1.5.0-Part-2-Beta-2-SAF-10512.apk', 'size': 24345246, 'sha256': '424a81f647702add5e3321b15847047acef29c1fa30c5995499a9ad2a28bc1bc'}]
 def run(*args):return subprocess.check_output(list(map(str,args)),cwd=ROOT,text=True).strip()
 head=run('git','rev-parse','HEAD');assert head==os.environ['GITHUB_SHA']
 run('git','merge-base','--is-ancestor',SOURCE,head)
@@ -24,7 +24,7 @@ for asset in FILES:
  if target.suffix=='.apk':
   tools=sorted((Path(os.environ['ANDROID_HOME'])/'build-tools').glob('*/apksigner'))[-1].parent
   assert 'certificate SHA-256 digest: '+CERT in run(tools/'apksigner','verify','--print-certs',target)
-  assert "name='com.kalendarz.offline.diagnostics' versionCode='10511' versionName='1.5.0-part2-beta.2'" in run(tools/'aapt','dump','badging',target)
+  assert "name='com.kalendarz.offline.diagnostics' versionCode='10512' versionName='1.5.0-part2-beta.2'" in run(tools/'aapt','dump','badging',target)
   run(tools/'zipalign','-c','-P','16','4',target)
   with zipfile.ZipFile(target) as archive:
    assert archive.testzip() is None

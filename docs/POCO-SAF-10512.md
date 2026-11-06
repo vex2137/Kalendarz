@@ -25,3 +25,7 @@ A test-APK-only provider rejects typed opens while allowing raw openFile. The re
 This models the API mismatch, not Xiaomi's internal implementation. Physical POCO success remains unconfirmed. Update without uninstalling/clearing data, import the same local Downloads GGUF and export diagnostics on failure. The expected new opening method/stage is provider-open-file; a failure there means the raw provider also refused access. uri-validation identifies invalid/unsupported selection; resolver-open indicates the asset route was chosen for another provider/URI type. A granted URI is never treated as proof that an open must succeed.
 
 Package remains com.kalendarz.offline.diagnostics, pinned update certificate ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143, versionCode 10512. No Vulkan/CUDA/UI redesign or AppImage build.
+
+## Built artifact
+
+Source `9c7ac0d7c940ccb851c2fd9d2db9d9ae0dd39f68`, file `Kalendarz-1.5.0-Part-2-Beta-2-SAF-10512.apk`, 24345246 bytes, SHA-256 `424a81f647702add5e3321b15847047acef29c1fa30c5995499a9ad2a28bc1bc`. Signature/alignment/package/version/clean provenance and absence of weights/test provider verified. TypeScript, 9 targeted bridge/diagnostic tests, 43 JVM tests and instrumentation compilation passed locally. Initial test compilation exposed a chained void Intent.setClipData setter; test-only commit 9c7ac0d corrects it. Actual provider-route regression execution is tracked by source CI; no physical POCO success is claimed.
