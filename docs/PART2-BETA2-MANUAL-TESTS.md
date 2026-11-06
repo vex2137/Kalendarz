@@ -1,10 +1,10 @@
 # Part 2 Beta 2 repair candidate — manual acceptance
 
-Source: 9c7ac0d7c940ccb851c2fd9d2db9d9ae0dd39f68. PR #20 remains Draft/unmerged. No Beta 2 tag or Release is created. These packages contain no GGUF.
+Source: 44005cacaeb2758b977d1ede3e70896a4f1b14f8. PR #20 remains Draft/unmerged. No Beta 2 tag or Release is created. These packages contain no GGUF.
 
-Android update identity: `com.kalendarz.offline.diagnostics`, versionCode **10512**, existing certificate SHA-256 `ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`. Install as an update without uninstalling or clearing data. Verify events, language/theme, PIN/password, history, model selection and installed models survive.
+Android update identity: `com.kalendarz.offline.diagnostics`, versionCode **10513**, existing certificate SHA-256 `ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143`. Install as an update without uninstalling or clearing data. Verify events, language/theme, PIN/password, history, model selection and installed models survive.
 
-Latest Android-only candidate: SAF-10512; see [focused diagnosis and log procedure](POCO-SAF-10512.md). The physical POCO failure is not confirmed fixed. The earlier AppImage is unchanged.
+Latest Android-only candidate: Qwen-10513; see [default Qwen catalogue regression and source evidence](QWEN-CATALOGUE-10513.md). Test Download for the missing default Qwen, background progress/resume and verified installation. Import/GPU acceptance remains separate; the earlier AppImage is unchanged.
 
 ## POCO / Android 16
 

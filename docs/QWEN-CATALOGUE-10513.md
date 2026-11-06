@@ -16,3 +16,9 @@ Regression: the real UI must render an enabled Download action for the missing s
 Manual POCO acceptance: update without clearing data, select Kalendarz Qwen3.5 0.8B v2 Q4_K_M, press Download, navigate away and return to current progress. Pause/resume uses the unchanged service. Installed/Use becomes available only after full verification. Existing verified weights must not be replaced on failure. Confirm public transfer and inference on the device; Cloud catalogue tests alone do not establish either.
 
 The first CI run caught the historical 1.4.2 release guard requiring its bundled manifest to remain private. Keep that manifest contract intact and overlay the public URL only for the current application catalogue/model-free distribution; do not weaken the release guard.
+
+## Verified public source
+
+The targeted Actions probe returned verifiedMetadataAndHeader=true, HTTP 206 and Content-Range bytes 0-7/529297056. Hugging Face revision 7934000b9b4016c3056bc1c56e9c402120d7ba0f reports exactly 529297056 bytes and SHA-256 fecd8b646db036ca27801f8a4c2d84c5f8baf981ba9a635ea0d2553b652eb1b5. This establishes matching public metadata and reachable GGUF header, not a full 529 MB transfer or inference test. Full SHA-256 verification remains mandatory during installation.
+
+APK `Kalendarz-1.5.0-Part-2-Beta-2-Qwen-10513.apk`, 24345302 bytes, SHA-256 `a9321bcdc27a21c2f4f4c43e61c06cb88ccdaae5bcdd907ea8fa01c45ff8b3cd`. Application source `44005cacaeb2758b977d1ede3e70896a4f1b14f8`; later 736527f changes only package-catalogue validation/tests and has no src/electron/android/package/lockfile diff from that source. APK package/signature/versionCode 10513/alignment/clean build provenance and absence of GGUF checked. Existing com.kalendarz.offline.diagnostics identity/certificate preserved. No downloader, import or GPU implementation changes.
