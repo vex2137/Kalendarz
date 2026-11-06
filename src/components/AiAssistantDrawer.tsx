@@ -7,7 +7,7 @@ import { Dialog } from './Dialog';
 import React, { useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import { CalendarEvent, AiChatMessage, AiSettings } from '../types';
 import { runModelAssistant, type ModelConversation } from '../utils/modelAssistant';
-import { cancelModelOperation, cancelModelInference, checkLocalModel, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
+import { cancelModelInference, checkLocalModel, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
 import { localModelText } from '../utils/localModelText';
 import { AiSettingsPanel } from './AiSettingsPanel';
 import { aiSettingsText } from '../utils/aiSettingsText';
@@ -375,7 +375,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
         {quickModelOpen && <div className="px-3 py-2"><QuickModelMenu language={language} onClose={() => setQuickModelOpen(false)}/></div>}
         {historyError && <p role="alert" className="p-2 text-xs">{ui.historyError}</p>}
-        {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelOperation}>{ui.cancel}</button></div>}
+        {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelInference}>{ui.cancel}</button></div>}
 
         {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 min-h-11 px-3 py-2 flex items-center justify-center gap-2 rounded theme-surface theme-text theme-border border text-sm">
           <Undo2 className="w-6 h-6 shrink-0"/>

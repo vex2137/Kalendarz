@@ -92,6 +92,25 @@ async function leaveModels(page) {
     await row.getByRole('button', {name:'Download',exact:true}).click();
     await page.waitForFunction(() => window.lifecycleRuntime.modelStatus().transfer?.receivedBytes >= 1024 * 1024);
     const first = await page.evaluate(() => window.lifecycleRuntime.modelStatus().transfer.receivedBytes);
+    await page.locator('#ai-settings-panel header button').click();
+    await page.waitForFunction(() => !document.querySelector('#drawer-ai-assistant input[type=text]').disabled);
+    // Hold history persistence so the chat's cancellation control remains visible
+    // while an unrelated model transfer owns the runtime operation.
+    await page.evaluate(async () => {
+      const request = indexedDB.open('calendar-ai-chats');
+      const db = await new Promise((resolve, reject) => {request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+      const tx = db.transaction(['chats','messages'], 'readwrite');
+      window.releaseHistoryLock = false;
+      const hold = () => {const get=tx.objectStore('chats').get('lock');get.onsuccess=()=>{if(!window.releaseHistoryLock)hold();};};
+      tx.oncomplete=()=>db.close();hold();
+    });
+    await page.locator('#drawer-ai-assistant input[type=text]').fill('Hello');
+    await page.locator('#btn-send-ai-message').click();
+    await page.locator('#btn-stop-ai-generation').click();
+    assert.equal(await page.evaluate(() => window.lifecycleRuntime.modelStatus().phase), 'downloading', 'Chat cancellation must not pause a model download');
+    await page.evaluate(() => {window.releaseHistoryLock=true;});
+    await page.waitForFunction(() => !document.querySelector('#drawer-ai-assistant input[type=text]').disabled);
+    await page.locator('#btn-ai-settings').click();
     await leaveModels(page); // settings -> chat -> calendar -> calendar settings
     await page.evaluate(async () => {
       window.lifecycleRuntime.setAssistantActive(false);
