@@ -16,7 +16,7 @@ module.exports = async function(context) {
   if(process.env.CALENDAR_MODEL_FREE==='true'){
     if(build.distribution!=='model-free'||build.bundledModel!==false||build.version!==require('../package.json').version)throw Error('Rebuild the explicit model-free distribution');
     const catalogue=JSON.parse(require('node:fs').readFileSync(join(root,'dist/models/catalogue.json'),'utf8'));
-    if(JSON.stringify(catalogue)!==JSON.stringify([model,...require('../src/utils/optionalModels.json')]))throw Error('Incorrect model catalogue');
+    if(JSON.stringify(catalogue)!==JSON.stringify([{...model,...require('../src/utils/defaultModelSource.json')},...require('../src/utils/optionalModels.json')]))throw Error('Incorrect model catalogue');
     console.log('Explicit model-free package: existing models retained; import/download required on new installations.');
     return;
   }
