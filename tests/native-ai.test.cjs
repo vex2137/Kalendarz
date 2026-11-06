@@ -92,12 +92,12 @@ test('CPU bypasses device probing; Auto handles absent GPUs and insufficient VRA
   }
 });
 test('Auto makes one CPU attempt after Vulkan initialization, memory, driver or runtime failure',async()=>{
-  for(const log of ['GPU startup failed','VK_ERROR_OUT_OF_DEVICE_MEMORY','VK_ERROR_DEVICE_LOST']){
+  for(const log of ['GPU startup failed','VK_ERROR_OUT_OF_DEVICE_MEMORY','VK_ERROR_OUT_OF_HOST_MEMORY','ErrorOutOfDeviceMemory','ErrorOutOfHostMemory','VK_ERROR_DEVICE_LOST']){
     const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({estimatedRamMB:100})}});
     ai.probe=async()=>[{id:'Vulkan0'}];const calls=[];
     ai.start=async(id,backend)=>{calls.push(backend);if(backend==='vulkan'){ai.log=log;throw Error('native-start-failed');}return ai.snapshot();};
     await ai.prepare('known');assert.deepEqual(calls,['vulkan','cpu']);
-    assert.equal(ai.snapshot().fallbackReason,log.includes('MEMORY')?'insufficient-vram':log.includes('VK_ERROR')?'gpu-driver-failed':'gpu-start-failed');
+    assert.equal(ai.snapshot().fallbackReason,/MEMORY|ErrorOutOf/.test(log)?'insufficient-vram':log.includes('VK_ERROR')?'gpu-driver-failed':'gpu-start-failed');
   }
   const ai=new NativeAI({runtimeRoot:'/definitely-missing-runtime',store:{descriptor:()=>({})}});const calls=[];
   ai.start=async(id,backend)=>{calls.push(backend);throw Error('native-runtime-missing');};

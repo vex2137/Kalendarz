@@ -3,7 +3,7 @@ package com.kalendarz.offline;
 import java.util.*;
 import java.util.regex.*;
 
-/** Bounded startup-only evidence. Never accepts prompts, API keys or command lines. */
+/** Bounded evidence through the first inference. Never accepts prompts, API keys or command lines. */
 final class NativeGpuDiagnostics {
     private final long started=System.nanoTime();
     private final Deque<String> lines=new ArrayDeque<>();
@@ -41,18 +41,24 @@ final class NativeGpuDiagnostics {
     }
     synchronized void line(String raw){
         if(status.equals("failed")||status.equals("confirmed"))return;
-        // Startup is the only capture window. Exclude metadata/chat templates and
-        // ordinary server output, while retaining Vulkan/loader/exception evidence.
+        // Exclude metadata/chat templates and ordinary server/request output.
+        // The model loader's error lines often contain the only nested Vulkan error.
         String s=raw.replaceAll("\\x1B\\[[0-9;]*[A-Za-z]","").trim();
         if(s.contains("tokenizer.")||s.contains("chat_template"))return;
         String lower=s.toLowerCase(Locale.ROOT);
+        if(lower.startsWith("srv ")&&!lower.startsWith("srv load_model:"))return;
         Matcher layers=Pattern.compile("offloaded\\s+(\\d+)/(\\d+)\\s+layers to GPU").matcher(s);
         if(layers.find())offloaded=Integer.parseInt(layers.group(1));
-        if(!(lower.startsWith("ggml_")||lower.startsWith("vulkan")||lower.startsWith("vk::")||lower.startsWith("error:")||lower.startsWith("libc++abi:")||s.contains("GGML_ASSERT")||s.contains("GGML_ABORT")||lower.startsWith("terminate")||lower.startsWith("what():")||lower.startsWith("cannot link executable")||lower.startsWith("llama_context:")||lower.startsWith("load_tensors:")||s.contains("VK_ERROR_")||lower.contains("offloaded ")))return;
-        if(lower.contains("createcomputepipeline")||lower.contains("shader")&&lower.contains("fail"))stage("shader-pipeline-create");
+        boolean loaderError=lower.startsWith("cannot link executable")||lower.contains("dlopen failed:")||lower.startsWith("cannot locate symbol")||lower.startsWith("library ")&&lower.contains(".so")&&lower.contains("not found");
+        boolean modelError=(lower.startsWith("llama_model_load:")||lower.startsWith("llama_model_loader:")||lower.startsWith("common_init_from_params:")||lower.startsWith("srv load_model:"))&&(lower.contains("error")||lower.contains("fail")||lower.contains("unsupported"));
+        if(!(lower.startsWith("ggml_")||lower.startsWith("vulkan")||lower.startsWith("vk::")||lower.startsWith("error:")||lower.startsWith("libc++abi:")||s.contains("GGML_ASSERT")||s.contains("GGML_ABORT")||lower.startsWith("terminate")||lower.startsWith("what():")||loaderError||modelError||lower.startsWith("llama_context:")||lower.startsWith("load_tensors:")||s.contains("VK_ERROR_")||lower.contains("offloaded ")))return;
+        if(loaderError)stage("native-loader");
+        else if(lower.contains("createcomputepipeline")||lower.contains("shader")&&lower.contains("fail"))stage("shader-pipeline-create");
+        else if(lower.contains("createinstance"))stage("vulkan-instance-create");
         else if(lower.contains("createdevice")||lower.contains("required feature")||lower.contains("required extension"))stage("vulkan-device-create");
         else if(lower.startsWith("llama_context:"))stage("context-create");
         else if(lower.startsWith("load_tensors:"))stage("model-load-offload");
+        else if(modelError&&Arrays.asList("device-probe","device-selection","process-start","native-startup","model-verification").contains(stage))stage("model-load-offload");
         s=sanitize(s);lines.add(s);logBytes+=s.length();
         while(lines.size()>64||logBytes>12000){logBytes-=lines.removeFirst().length();}
     }
@@ -67,6 +73,7 @@ final class NativeGpuDiagnostics {
     synchronized String fallbackReason(){
         String text=(String.join("\n",lines)+" "+message).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]","");
         if(text.contains("outofdevicememory")||text.contains("outofhostmemory")||text.contains("outofmemory")||text.contains("badalloc")||text.contains("allocationfailed"))return "insufficient-vram";
+        if(stage.equals("native-loader"))return "gpu-runtime-unavailable";
         if(text.contains("vkerror")||text.contains("errorinitializationfailed")||text.contains("errorfeature")||text.contains("errorextension")||text.contains("errordevicelost")||text.contains("modelgpudriver"))return "gpu-driver-failed";
         return "gpu-start-failed";
     }

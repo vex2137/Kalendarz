@@ -7,12 +7,12 @@ interface CalendarDevicePlugin {
   benchmarkTelemetry(): Promise<Record<string, number|string|boolean|null>>;
   diagnosticsBuildInfo(): Promise<{ commit: string; applicationId: string; version: string }>;
   setLanguage(options: { language: AppLanguage }): Promise<void>;
-  biometricStatus(): Promise<{ available: boolean }>;
+  biometricStatus(): Promise<{ available: boolean; ready: boolean }>;
   authenticateBiometric(options: { title: string; cancel: string }): Promise<{ authenticated: boolean }>;
   setSystemBarColors(options: { background: string; darkIcons: boolean }): Promise<void>;
   notificationStatus(): Promise<{ enabled: boolean; channel: 'ready' | 'silent' | 'blocked' }>;
   openNotificationSettings(): Promise<void>;
-  addListener(event: 'notificationSettingsChanged', listener: () => void): Promise<PluginListenerHandle>;
+  addListener(event: 'notificationSettingsChanged' | 'biometricStateChanged', listener: () => void): Promise<PluginListenerHandle>;
 }
 
 export const CalendarDevice = registerPlugin<CalendarDevicePlugin>('CalendarDevice');

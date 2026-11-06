@@ -1,4 +1,5 @@
 import { modelTransferBytes } from './resumableModelTransfer';
+import { hasNativeTransfers, nativeTransferStatus, nativeTransferRunning, runNativeTransfer, type NativeTransferStatus } from './nativeModelTransfer';
 import { downloadMeter, type DownloadProgress } from './downloadProgress';
 import { androidAIReady } from './nativeAndroidAI';
 import { completionTokenLimit } from './inferencePolicy';
@@ -7,12 +8,12 @@ import { desktopAI, applyBackendMode, type BackendMode, backendMode, backendStat
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel, modelChecksum, copiedModelChecksum } from './localModelStore';
+import { markModelVerified, modelInstallationState, bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel, modelChecksum, copiedModelChecksum } from './localModelStore';
 import { recordModelMetric, recordModelState, recordDiagnosticAction, type DiagnosticStage, type ModelMetric } from './modelDiagnostics';
 import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection, AI_MODELS, registerImportedModel, type ModelDescriptor } from './modelRegistry';
 
 export type ModelPhase = 'checking' | 'missing' | 'downloading' | 'verifying' | 'installed' | 'loading' | 'ready' | 'running' | 'error';
-export interface ModelStatus { resumeBytes?: number; transfer?: DownloadProgress; phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; importing?: boolean; error?: string; errorDetail?: string; modelId: string }
+export interface ModelStatus { installation?: 'missing'|'partial'|'unverified'|'verified'|'unavailable'|'damaged'; queued?: boolean; resumeBytes?: number; transfer?: DownloadProgress; phase: ModelPhase; progress: number; installed: boolean; loaded: boolean; bundled?: boolean; importing?: boolean; error?: string; errorDetail?: string; modelId: string }
 const operationMarker = 'calendar_model_operation_v1';
 const initialModelId = activeModel().id;
 let recoveryRequired = false;
@@ -26,6 +27,7 @@ export const subscribeModel = (listener: () => void) => { listeners.add(listener
 const update = (patch: Partial<ModelStatus>) => { status = { ...status, ...patch }; recordModelState({...status,quantization:findModel(status.modelId).quantization,architecture:findModel(status.modelId).architecture}); listeners.forEach(l => l()); };
 let engine: RuntimeEngine | undefined;
 let operation: AbortController | undefined;
+let operationKind: 'download'|'import'|'inference'|undefined;
 let idleTimer: ReturnType<typeof setTimeout> | undefined;
 let preloadTimer: ReturnType<typeof setTimeout> | undefined;
 let loading: Promise<RuntimeEngine> | undefined;
@@ -37,6 +39,7 @@ let assistantActive = false;
 let manualRelease = false;
 let lifecycleInstalled = false;
 let actualThreads = 1;
+const verifiedBundles = new Set<string>();
 let transition = false;
 let lastLoad: Pick<ModelMetric, 'storageMs' | 'verifyMs' | 'initMs'> = {};
 const runtimeError = (error: unknown) => error instanceof Error && error.message.startsWith('model-') ? error.message : error instanceof Error && /out of memory|bad_alloc|memory access out of bounds|cannot enlarge memory|allocation failed/iu.test(error.message) ? 'model-memory' : error instanceof DOMException ? `model-storage-${error.name}` : 'model-inference';
@@ -50,7 +53,7 @@ export async function selectLocalModel(id: string) {
     await unloadLocalModel();
     clearModelOperation(status.modelId); recoveryRequired = false; manualRelease=false;
     persistModelSelection(descriptor);
-    update({ modelId: id, phase: 'checking', progress: 0, installed: false, loaded: false, bundled: false, error: undefined, errorDetail:undefined });
+    update({ modelId: id, phase: 'checking', installation:'missing', queued:false, resumeBytes:0, transfer:undefined, progress: 0, installed: false, loaded: false, bundled: false, error: undefined, errorDetail:undefined });
     await checkLocalModel();
   } finally { transition = false; }
 }
@@ -64,6 +67,9 @@ export async function retryLocalModel() {
   await prepareLocalModel();
 }
 export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); if((operation||loadController)&&desktopAI())void desktopAI()!.stop().catch(error=>recordDiagnosticAction('release-memory','error',error)); };
+// Navigation and inference residency do not own an installation. Only an
+// explicit transfer cancellation may pause persistent model I/O.
+export const cancelModelInference = () => { if (operationKind !== 'download' && operationKind !== 'import') cancelModelOperation(); };
 const idleDelay = () => assistantActive && !document.hidden ? 5 * 60_000 : 30_000;
 function scheduleRelease() {
   clearTimeout(idleTimer);
@@ -86,7 +92,7 @@ export function setAssistantActive(active: boolean) {
   if (!lifecycleInstalled) {
     lifecycleInstalled = true;
     const resume = () => {
-      if (document.hidden) { cancelModelOperation(); scheduleRelease(); }
+      if (document.hidden) { cancelModelInference(); scheduleRelease(); }
       else if (assistantActive) { clearTimeout(preloadTimer); preloadTimer = setTimeout(() => { void prepareLocalModel(); }, 300); }
     };
     document.addEventListener('visibilitychange', resume);
@@ -95,7 +101,7 @@ export function setAssistantActive(active: boolean) {
     window.addEventListener('pagehide', () => { void unloadLocalModel().catch(error=>recordDiagnosticAction('release-memory','error',error)); });
   }
   if (active && !document.hidden) preloadTimer = setTimeout(() => { void prepareLocalModel(); }, 300);
-  else { cancelModelOperation(); scheduleRelease(); }
+  else { cancelModelInference(); scheduleRelease(); }
 }
 
 export async function checkLocalModel() {
@@ -103,11 +109,69 @@ export async function checkLocalModel() {
   const descriptor = findModel(status.modelId);
   const phaseAtStart = status.phase;
   try {
+    if (hasNativeTransfers()) {
+      const transfer = await nativeTransferStatus(descriptor);
+      if (nativeTransferRunning(transfer)) {
+        if (!operation && !transition && status.modelId === descriptor.id) void installNativeModel(descriptor, true).catch(() => {});
+        return;
+      }
+    }
     const bundled = await bundledModelAvailable(descriptor);
-    const installed = bundled || await hasNativeModelData(descriptor) || Boolean(await recoverSavedModel(descriptor));
-    const resumeBytes = installed ? 0 : await modelTransferBytes(descriptor);
-    if (!engine && !loading && status.phase === phaseAtStart && status.modelId === descriptor.id) update({ phase: recoveryRequired || phaseAtStart === 'error' && installed ? 'error' : installed ? 'installed' : 'missing', installed, loaded:false, bundled, resumeBytes });
-  } catch (error) { if(status.modelId===descriptor.id && !loading && !engine) update({ phase:'error', error:runtimeError(error), loaded:false,...(error instanceof Error && ['model-size','model-checksum'].includes(error.message)?{installed:false}:{}) }); }
+    let installed = await hasNativeModelData(descriptor);
+    if (bundled && !installed) {
+      const key = descriptor.id + ':' + descriptor.sha256;
+      if (!verifiedBundles.has(key)) {
+        if(status.modelId===descriptor.id&&status.phase===phaseAtStart)update({installation:'unverified'});
+        await verifyModel(await loadBundledModel(new AbortController().signal), undefined, undefined, descriptor);
+        verifiedBundles.add(key);
+      }
+      installed = true;
+    }
+    if (!installed) {
+      const blob = await recoverSavedModel(descriptor);
+      if (blob) {
+        const evidence = await modelInstallationState(descriptor);
+        if (evidence.state !== 'verified') { if(status.modelId===descriptor.id&&status.phase===phaseAtStart)update({installation:'unverified'}); await verifyModel(blob, undefined, undefined, descriptor); await markModelVerified(descriptor, blob); }
+        installed = true;
+      }
+    }
+    const native = hasNativeTransfers() ? await nativeTransferStatus(descriptor) : undefined;
+    const resumeBytes = installed ? 0 : Math.max(native?.resumeBytes || 0, await modelTransferBytes(descriptor));
+    if (!engine && !loading && status.phase === phaseAtStart && status.modelId === descriptor.id) update({ phase: recoveryRequired || phaseAtStart === 'error' && installed ? 'error' : installed ? 'installed' : 'missing', installation:installed?'verified':resumeBytes>=descriptor.bytes?'unverified':resumeBytes?'partial':'missing', queued:false, installed, loaded:false, bundled, resumeBytes });
+  } catch (error) { if(status.modelId===descriptor.id && !loading && !engine) update({ phase:'error', installation:error instanceof Error && ['model-size','model-checksum','model-gguf-invalid'].includes(error.message)?'damaged':'unavailable', error:runtimeError(error), loaded:false,installed:false }); }
+}
+
+async function installNativeModel(descriptor: ModelDescriptor, join = false) {
+  if (operation) throw Error('model-busy');
+  const controller = operation = new AbortController(); operationKind = 'download';
+  const previouslyInstalled = status.installed;
+  const progress = (state: NativeTransferStatus) => update({
+    phase:state.phase==='verifying'?'verifying':'downloading', queued:false,
+    installation:previouslyInstalled?'verified':state.phase==='verifying'?'unverified':state.receivedBytes?'partial':'missing',
+    progress:state.totalBytes?state.receivedBytes/state.totalBytes*100:0,
+    resumeBytes:state.resumeBytes,
+    transfer:{receivedBytes:state.receivedBytes,totalBytes:state.totalBytes,bytesPerSecond:state.bytesPerSecond,remainingSeconds:state.etaSeconds},
+  });
+  update({phase:'downloading',queued:true,progress:0,error:undefined,errorDetail:undefined,importing:false});
+  try {
+    await runNativeTransfer(descriptor, controller.signal, progress, join);
+    // Native start checks SHA-256 + GGUF and atomically replaces the private file.
+    if (!await hasNativeModelData(descriptor)) throw Error('model-checksum');
+    update({phase:'installed',installation:'verified',installed:true,loaded:false,queued:false,progress:100,resumeBytes:0,error:undefined});
+    const {removeModelTransfer} = await import('./resumableModelTransfer');
+    if (typeof navigator.storage?.getDirectory === 'function') await removeModelTransfer(descriptor).catch(error => recordDiagnosticAction('download-model','error',error,{modelId:descriptor.id}));
+  } catch (error) {
+    const native = await nativeTransferStatus(descriptor).catch(() => undefined);
+    if (native?.phase === 'installed' && native.installed && native.verified) {
+      update({phase:'installed',installation:'verified',installed:true,loaded:false,queued:false,progress:100,resumeBytes:0,error:undefined});
+      return; // A completed atomic installation wins a simultaneous pause request.
+    }
+    const resumeBytes = Math.max(native?.resumeBytes || 0, native?.receivedBytes || 0, await modelTransferBytes(descriptor).catch(() => 0));
+    const cancelled = controller.signal.aborted || error instanceof Error && error.message === 'model-cancelled';
+    update({phase:cancelled?(previouslyInstalled?'installed':'missing'):'error',installation:previouslyInstalled?'verified':resumeBytes>=descriptor.bytes?'unverified':resumeBytes?'partial':'missing',queued:false,installed:previouslyInstalled,resumeBytes,error:cancelled?undefined:runtimeError(error)});
+    recordDiagnosticAction('download-model',cancelled?'cancelled':'error',cancelled?undefined:error,{modelId:descriptor.id});
+    throw cancelled?Error('model-cancelled'):error;
+  } finally { if(operation===controller){operation=undefined;operationKind=undefined;} }
 }
 
 // Content-addressed imports support quantizations outside the pinned download catalogue.
@@ -118,8 +182,10 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
   if (!Number.isSafeInteger(bytes) || (bytes!==-1&&bytes<=24) || bytes > 16 * 1024 ** 3) throw Error('model-size');
   await unloadLocalModel();
   const controller = operation = new AbortController();
+  operationKind = 'import';
   let blob: Blob | undefined;
   const previous = {...status};
+  let selectionChanged = false;
   update({phase:'downloading',importing:true,progress:bytes>0?0:-1,error:undefined,errorDetail:undefined});
   let stage:DiagnosticStage='stream-open';
   const step=(next:DiagnosticStage)=>{stage=next;recordDiagnosticAction('import-gguf',stage,undefined,{expectedBytes:bytes>0?bytes:undefined});};
@@ -136,17 +202,22 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
       descriptor = {...meta,id:'imported-'+checksum,file:name.slice(0,240),bytes,sha256:checksum,revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(bytes/1048576*1.5)+512,imported:true,experimental:true};
       step('register');registerImportedModel(descriptor);
     }
-    operation = undefined;
+    operation = undefined; operationKind = undefined;
     update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false});
     await selectLocalModel(descriptor.id);
+    selectionChanged = true;
     step('commit');await installLocalModel(blob);
     if (!status.installed || status.phase === 'error') throw Error(status.error || 'model-import-file');
     recordDiagnosticAction('import-gguf','success');
   } catch(error){
+    if (selectionChanged && !operation && !transition) {
+      persistModelSelection(findModel(previous.modelId));
+      update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false});
+    }
     recordDiagnosticAction('import-gguf',controller.signal.aborted?'cancelled':'error',controller.signal.aborted?undefined:error,{failedStage:stage,bytes:blob?.size,expectedBytes:bytes>0?bytes:undefined});
     throw controller.signal.aborted?new Error('model-cancelled'):new Error(runtimeError(error));
   } finally {
-    if (operation === controller) { operation=undefined; update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false}); }
+    if (operation === controller) { operation=undefined; operationKind=undefined; update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false}); }
     await discardDownloadedModel(blob);
   }
 }
@@ -156,7 +227,12 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
   transition = true;
   try { await unloadLocalModel(); } catch (error) { transition = false; throw error; }
   const descriptor = findModel(status.modelId);
+  if (!file && hasNativeTransfers()) {
+    try { await installNativeModel(descriptor); } finally { transition=false; }
+    return;
+  }
   const controller = operation = new AbortController();
+  operationKind = file ? 'import' : 'download';
   const action=file?'import-gguf':'download-model';
   recordDiagnosticAction(action,'start',undefined,{modelId:descriptor.id});
   let stage:DiagnosticStage='lookup';
@@ -164,20 +240,20 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
   step(stage);
   const previouslyInstalled = status.installed;
   let blob: Blob | undefined;
-  update({ phase: file instanceof Blob ? 'verifying' : 'downloading', importing: Boolean(file), progress: 0, transfer: undefined, error: undefined, errorDetail:undefined });
+  update({ phase: file instanceof Blob ? 'verifying' : 'downloading', queued:!file, installation:previouslyInstalled?'verified':file instanceof Blob?'unverified':'missing', importing: Boolean(file), progress: 0, transfer: undefined, error: undefined, errorDetail:undefined });
   try {
     // Importing the bundled model must never create another full weight copy.
     if (descriptor.bundled && await bundledModelAvailable(descriptor)) {
       if (file instanceof Blob) await verifyModel(file,controller.signal,undefined,descriptor);
       else if (file) throw new Error('model-bundled');
-      update({phase:'installed',installed:true,loaded:false,progress:100,error:undefined});
+      update({phase:'installed',installation:'verified',queued:false,installed:true,loaded:false,progress:100,error:undefined});
       return;
     }
     const existing = await recoverSavedModel(descriptor, controller.signal).catch(error => { if (error instanceof Error && ['model-size','model-checksum'].includes(error.message)) return undefined; throw error; });
     // A second install request adopts verified bytes instead of downloading/copying again.
     if (!file && (existing || descriptor.bundled && await bundledModelAvailable(descriptor))) {
       if (existing) await verifyModel(existing, controller.signal, undefined, descriptor);
-      update({phase:'installed',installed:true,loaded:false,progress:100,error:undefined});
+      update({phase:'installed',installation:'verified',queued:false,installed:true,loaded:false,progress:100,error:undefined});
       return;
     }
     await cleanPartialModels(descriptor);
@@ -185,24 +261,24 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
     step(file?'copy':'stream-open');
     const meter = downloadMeter(descriptor.bytes);
     update({transfer: undefined});
-    blob = file instanceof Blob ? file : await downloadModel(controller.signal, n => update({ progress: n / descriptor.bytes * 100, transfer: meter(n) }), file ? {...descriptor,url:file.url} : descriptor, () => update({phase:'verifying',progress:0}));
-    update({ phase: 'verifying', progress: 0 });
+    blob = file instanceof Blob ? file : await downloadModel(controller.signal, n => update({ queued:false, installation:previouslyInstalled?'verified':n?'partial':'missing', progress: n / descriptor.bytes * 100, transfer: meter(n) }), file ? {...descriptor,url:file.url} : descriptor, () => update({phase:'verifying',installation:previouslyInstalled?'verified':'unverified',progress:0}));
+    update({ phase: 'verifying', queued:false, installation:previouslyInstalled?'verified':'unverified', progress: 0 });
     step('verify');await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     step('commit');await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}),action);
-    update({ phase: 'installed', installed: true, loaded:false, progress: 100, resumeBytes: 0, error:undefined,errorDetail:undefined });
+    update({ phase: 'installed', installation:'verified', queued:false, installed: true, loaded:false, progress: 100, resumeBytes: 0, error:undefined,errorDetail:undefined });
   } catch (error) {
     if (error instanceof Error && error.message === 'model-checksum') await discardDownloadedModel(blob, true);
     recordDiagnosticAction(action,controller.signal.aborted?'cancelled':'error',controller.signal.aborted?undefined:error,{modelId:descriptor.id,failedStage:stage,bytes:blob?.size,expectedBytes:descriptor.bytes});
     const resumeBytes = await modelTransferBytes(descriptor).catch(() => 0);
-    update({ resumeBytes, phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : runtimeError(error) });
+    update({ resumeBytes, queued:false, installation:previouslyInstalled?'verified':resumeBytes>=descriptor.bytes?'unverified':resumeBytes?'partial':'missing', phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : runtimeError(error) });
     throw controller.signal.aborted?new Error('model-cancelled'):error;
-  } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; transition = false; update({importing:false}); } }
+  } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; operationKind = undefined; transition = false; update({importing:false,queued:false}); } }
 }
 
 export async function unloadLocalModel() {
   clearTimeout(preloadTimer);
   clearTimeout(idleTimer);
-  if (operation) { releaseRequested = true; cancelModelOperation(); return; }
+  if (operation) { if(operationKind==='inference'){ releaseRequested = true; cancelModelInference(); } return; }
   loadController?.abort();
   if (loading) await loading.catch(() => {});
   await disposeEngine();
@@ -277,7 +353,7 @@ export async function deleteLocalModel() {
   const descriptor = findModel(status.modelId);
   await removeSavedModel(descriptor);
   const bundled = await bundledModelAvailable(descriptor);
-  update({ phase: bundled ? 'installed' : 'missing', installed: bundled, bundled, progress: 0, error: undefined });
+  update({ phase: bundled ? 'installed' : 'missing', installation:bundled?'unverified':'missing', installed: bundled, bundled, progress: 0, resumeBytes:0, transfer:undefined, error: undefined });
 }
 
 function assetUrl(path: string) {
@@ -323,7 +399,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
           if(desktopAI()?.platform!=='android')await removeLegacyModel(descriptor);
           Object.assign(metric,{backend:backendStatus().backend,gpuActive:backendStatus().gpuActive});
           lastLoad={storageMs:metric.storageMs,initMs:metric.initMs};
-          update({phase:'ready',installed:true,loaded:true});if(!operation)clearModelOperation(descriptor.id);return native;
+          update({phase:'ready',installation:'verified',installed:true,loaded:true});if(!operation)clearModelOperation(descriptor.id);return native;
         } catch(error) {
           if(controller.signal.aborted)throw error;
           await desktopAI()!.stop();
@@ -342,6 +418,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       update({installed:true});
       started = performance.now();
       await verifyModel(blob, controller.signal, undefined, descriptor);
+      await markModelVerified(descriptor, blob);
       metric.verifyMs = performance.now() - started;
       started = performance.now();
       const [{ Wllama }, wasm, compatWasm, compatWorker] = await Promise.all([
@@ -371,14 +448,14 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       engine = instance!;
       updateBackend({backend:'cpu-wasm',loaded:true,gpuActive:false,errorCode:undefined});
       lastLoad = {storageMs:metric.storageMs,verifyMs:metric.verifyMs,initMs:metric.initMs};
-      update({ phase: 'ready', installed:true, loaded:true });
+      update({ phase: 'ready', installation:'verified', installed:true, loaded:true });
       if(!operation)clearModelOperation(descriptor.id);
       return engine;
     } catch (error) {
       error=ggufLoadError(error,loadNotes);
       recordDiagnosticAction('bridge-info','error',error,{modelId:status.modelId,failedStage:'engine-load'});
       metric.initializationError = loadNotes || (error instanceof Error ? error.message.slice(0,600) : 'model-load');
-      if(error instanceof Error&&['model-size','model-checksum'].includes(error.message))update({installed:false});
+      if(error instanceof Error&&['model-size','model-checksum'].includes(error.message))update({installed:false,installation:'damaged'});
       clearModelOperation(status.modelId);
       await instance?.exit().catch(() => {});
       update({ phase: controller.signal.aborted ? (status.installed?'installed':'checking') : 'error', loaded:false, error:controller.signal.aborted ? undefined : runtimeError(error), errorDetail:controller.signal.aborted ? undefined : metric.initializationError });
@@ -398,6 +475,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
   if (recoveryRequired) { recoveryRequired=false; clearModelOperation(status.modelId); }
   const controller = operation = new AbortController();
   const descriptor = findModel(status.modelId);
+  operationKind = 'inference';
   markModelOperation(descriptor.id);
   releaseRequested = false;
   clearTimeout(idleTimer);
@@ -458,5 +536,5 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     await disposeEngine();
     update({ phase: code === 'model-cancelled' ? (status.installed?'installed':'missing') : 'error', loaded:false, error:code === 'model-cancelled' ? undefined : code });
     throw new Error(code);
-  } finally { clearModelOperation(descriptor.id); clearTimeout(timeout); controller.signal.removeEventListener('abort', abortLoad); operation = undefined; if (releaseRequested) await disposeEngine(); else scheduleRelease(); }
+  } finally { clearModelOperation(descriptor.id); clearTimeout(timeout); controller.signal.removeEventListener('abort', abortLoad); operation = undefined; operationKind = undefined; if (releaseRequested) await disposeEngine(); else scheduleRelease(); }
 }

@@ -7,7 +7,7 @@ import { Dialog } from './Dialog';
 import React, { useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import { CalendarEvent, AiChatMessage, AiSettings } from '../types';
 import { runModelAssistant, type ModelConversation } from '../utils/modelAssistant';
-import { cancelModelOperation, checkLocalModel, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
+import { cancelModelOperation, cancelModelInference, checkLocalModel, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
 import { localModelText } from '../utils/localModelText';
 import { AiSettingsPanel } from './AiSettingsPanel';
 import { aiSettingsText } from '../utils/aiSettingsText';
@@ -173,7 +173,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     if (isOpen) void checkLocalModel();
     setAssistantActive(aiSettings.enabled && (isOpen || minimized.current && background && isProcessing));
   }, [isOpen, aiSettings.enabled, background, isProcessing]);
-  useEffect(() => () => { cancelModelOperation(); setAssistantActive(false); }, []);
+  useEffect(() => () => { cancelModelInference(); setAssistantActive(false); }, []);
 
   const closeHistory = useAnimatedClose(`${isOpen}:${historyOpen}`, () => { returnFocus.current = 'btn-ai-chat-history'; setHistoryOpen(false); }, animations, '#ai-history-overlay');
   const closeSettings = useAnimatedClose(`${isOpen}:${settingsOpen}`, () => { returnFocus.current = 'btn-ai-settings'; setSettingsOpen(false); }, animations, '#ai-settings-panel');
@@ -310,7 +310,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     savedScroll.current = document.getElementById('ai-chat-messages')?.scrollTop;
     minimized.current = minimize;
     setQuickModelOpen(false);
-    if (!minimize || !background) cancelModelOperation();
+    if (!minimize || !background) cancelModelInference();
     onClose();
   };
   return (

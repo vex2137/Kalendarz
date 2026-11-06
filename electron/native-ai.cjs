@@ -25,7 +25,7 @@ function validateRequest(request){
     ...(request.response_format?{response_format:request.response_format}:{}),chat_template_kwargs:{enable_thinking:false},stream:true,stream_options:{include_usage:true}};
 }
 function gpuFailure(error,log=''){
-  if(/out of (?:device )?memory|VK_ERROR_OUT_OF_DEVICE_MEMORY|CUDA_ERROR_OUT_OF_MEMORY|cudaMalloc.*failed|bad_alloc|allocation failed|not enough.*memory/iu.test(log+' '+error.message))return 'insufficient-vram';
+  if(/out of (?:(?:device|host) )?memory|VK_ERROR_OUT_OF_(?:DEVICE|HOST)_MEMORY|ErrorOutOf(?:Device|Host)Memory|CUDA_ERROR_OUT_OF_MEMORY|cudaMalloc.*failed|bad_alloc|allocation failed|not enough.*memory/iu.test(log+' '+error.message))return 'insufficient-vram';
   if(/VK_ERROR|vulkan.*(?:driver|initializ)|device lost/iu.test(log+' '+error.message))return 'gpu-driver-failed';
   return 'gpu-start-failed';
 }

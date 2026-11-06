@@ -1,12 +1,17 @@
 import { recordDiagnosticAction, type DiagnosticStage } from './modelDiagnostics';
 import { androidAIReady } from './nativeAndroidAI';
+import { nativeModelResponse } from './nativeModelImport';
 import { openDB } from 'idb';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { LOCAL_MODEL, bundledModelUrl } from './localModelManifest';
 import { DEFAULT_MODEL, type ModelDescriptor } from './modelRegistry';
 import { desktopAI, ensureNativeModel } from './nativeDesktopAI';
 import { modelFileWriter } from './modelFileWriter';
-import { resumableModelTransfer, removeModelTransfer } from './resumableModelTransfer';
+import { resumableModelTransfer, removeModelTransfer, modelTransferBytes } from './resumableModelTransfer';
+import { hasNativeTransfers, nativeTransferStatus } from './nativeModelTransfer';
+
+type VerificationSource = { id: string; token: string } | { id: string; opfsName: string; modified: number };
+const verificationSources = new WeakMap<Blob, VerificationSource>();
 
 const database = () => openDB('calendar-local-model', 1, {
   upgrade(db) { db.createObjectStore('models'); },
@@ -54,13 +59,29 @@ async function savedLegacyModel(descriptor:ModelDescriptor):Promise<Blob|undefin
         const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');
         const file = await (await dir.getFileHandle(model.opfsName)).getFile();
         if(file.size!==descriptor.bytes)throw new Error('model-size');
+        verificationSources.set(file,{id:descriptor.id,opfsName:model.opfsName,modified:file.lastModified});
         return file;
       } catch (error) {
         if (error instanceof DOMException && error.name === 'NotFoundError') return undefined;
         throw error;
       }
     }
-    if(model instanceof Blob){if(model.size!==descriptor.bytes)throw new Error('model-size');return model;}
+    if (model instanceof Blob || model?.blob instanceof Blob) {
+      // Give legacy bytes a durable identity before verifying. A replacement
+      // cannot accidentally receive the checksum of an older same-size Blob.
+      const tx = db.transaction('models', 'readwrite');
+      let current = await tx.store.get(descriptor.id);
+      if (current instanceof Blob) {
+        if (current.size !== descriptor.bytes) { await tx.done; throw Error('model-size'); }
+        current = { blob: current, verificationToken: crypto.randomUUID() };
+        await tx.store.put(current, descriptor.id);
+      }
+      await tx.done;
+      if (!(current?.blob instanceof Blob)) return savedLegacyModel(descriptor);
+      if (current.blob.size !== descriptor.bytes) throw Error('model-size');
+      if (typeof current.verificationToken === 'string') verificationSources.set(current.blob,{id:descriptor.id,token:current.verificationToken});
+      return current.blob;
+    }
     return undefined;
   } finally { db.close(); }
 }
@@ -185,13 +206,18 @@ export async function removeLegacyModel(descriptor: ModelDescriptor) {
   } finally { db.close(); }
 }
 
-async function openModelDownload(url:string,signal:AbortSignal) {
+async function openModelDownload(url:string,signal:AbortSignal,bytes=-1) {
+  const native=await nativeModelResponse(url,signal,bytes);
+  if(native)return native;
   let response:Response;
   try { response=await fetch(url,{signal,credentials:'omit',referrerPolicy:'no-referrer'}); }
   catch(error) {if(signal.aborted)throw error;throw Error('model-download');}
   if(!response.ok) {
     const local=new URL(url,globalThis.location?.origin || 'https://localhost');
-    if(local.origin===globalThis.location?.origin&&local.pathname.startsWith('/_calendar_model_import/'))throw Error('model-import-file');
+    if(local.origin===globalThis.location?.origin&&local.pathname.startsWith('/_calendar_model_import/')){
+      const code=response.headers.get('X-Calendar-Import-Error');
+      throw Error(code&&/^model-import-(expired|permission|unavailable|read|incomplete)$/.test(code)?code:'model-import-file');
+    }
     throw Error(`model-http-${response.status}`);
   }
   return response;
@@ -219,14 +245,14 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
       recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:expected});
       writer = await modelFileWriter(handle, name);
       stage='stream-open';recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:expected});
-      const response = await openModelDownload(descriptor.url,signal);
+      const response = await openModelDownload(descriptor.url,signal,expected);
       if (!response.body) throw new Error('model-download');
       const reader = response.body.getReader();
       stage='copy';recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:expected});
       try {
         while (true) {
           signal.throwIfAborted();
-          const { value, done } = await reader.read().catch(error=>{if(signal.aborted)throw error;throw Error('model-download');}); if (done) break;
+          const { value, done } = await reader.read().catch(error=>{if(signal.aborted||error instanceof Error&&error.message.startsWith('model-'))throw error;throw Error('model-download');}); if (done) break;
           loaded += value.byteLength; if (loaded > limit) throw new Error('model-size');
           sourceHash?.update(value);
           await writer.write(value); progress(loaded);
@@ -244,15 +270,15 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
     } catch (error) {recordDiagnosticAction(action,'error',error,{modelId:descriptor.id,failedStage:stage,bytes:loaded,expectedBytes:expected});await writer?.abort().catch(() => {});await dir.removeEntry(name).catch(() => {});throw error;}
   }
   // Older file/WebView origins can import a file without buffering a large download in JS.
-  if (expected===undefined||expected > 512_000_000) throw new Error('model-stream-storage-unavailable');
-  const response = await openModelDownload(descriptor.url,signal);
+  if (new URL(descriptor.url,location.origin).pathname.startsWith('/_calendar_model_import/') || expected===undefined||expected > 512_000_000) throw new Error('model-stream-storage-unavailable');
+  const response = await openModelDownload(descriptor.url,signal,expected);
   if (!response.body) throw new Error('model-download');
   const reader = response.body.getReader();
   const chunks: Uint8Array<ArrayBuffer>[] = [];
   let loaded = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read().catch(error=>{if(signal.aborted)throw error;throw Error('model-download');});
+      const { done, value } = await reader.read().catch(error=>{if(signal.aborted||error instanceof Error&&error.message.startsWith('model-'))throw error;throw Error('model-download');});
       if (done) break;
       signal.throwIfAborted();
       loaded += value.byteLength;
@@ -286,4 +312,78 @@ export async function loadBundledModel(signal: AbortSignal): Promise<Blob> {
   const blob = await response.blob();
   if (blob.size !== LOCAL_MODEL.bytes) throw new Error('model-size');
   return blob;
+}
+
+
+export type ModelInstallationState = 'missing' | 'partial' | 'unverified' | 'verified' | 'unavailable' | 'damaged';
+export interface ModelInstallationSnapshot { state: ModelInstallationState; bytes: number; error?: string }
+/** Read installation evidence without deleting weights or treating a preference as an install.
+ * New OPFS registrations are written only after SHA-256 verification. Legacy Blob
+ * records and complete transfer files remain unverified until the runtime checks them.
+ */
+export async function modelInstallationState(descriptor: ModelDescriptor): Promise<ModelInstallationSnapshot> {
+  try {
+    await androidAIReady;
+    const bridge = desktopAI();
+    if (descriptor.imported && bridge?.registerImported) await bridge.registerImported(descriptor);
+    const native = await bridge?.info(descriptor.id);
+    if (native?.installed) return { state: native.bytes !== undefined && native.bytes !== descriptor.bytes ? 'damaged' : native.verified === true ? 'verified' : 'unverified', bytes: native.bytes ?? descriptor.bytes };
+    let damaged = Boolean(native?.bytes);
+    const db = await database();
+    try {
+      const record = await db.get('models', descriptor.id);
+      if (record?.opfsName && typeof navigator.storage?.getDirectory === 'function') {
+        try {
+          const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');
+          const file = await (await dir.getFileHandle(record.opfsName)).getFile();
+          if (file.size !== descriptor.bytes) damaged = true;
+          else return { state: record.bytes === descriptor.bytes && record.sha256 === descriptor.sha256 ? 'verified' : 'unverified', bytes: file.size };
+        } catch (error) {
+          if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error;
+          damaged = true;
+        }
+      } else if (record instanceof Blob || record?.blob instanceof Blob) {
+        const blob = record instanceof Blob ? record : record.blob;
+        if (blob.size === descriptor.bytes) return { state: !(record instanceof Blob) && record.bytes === descriptor.bytes && record.sha256 === descriptor.sha256 ? 'verified' : 'unverified', bytes: blob.size };
+        damaged = true;
+      }
+    } finally { db.close(); }
+    if (descriptor.bundled && await bundledModelAvailable(descriptor)) return { state: 'unverified', bytes: descriptor.bytes };
+    const transfer = hasNativeTransfers() && descriptor.url ? await nativeTransferStatus(descriptor) : undefined;
+    if (transfer?.installed) return { state: transfer.verified === true ? 'verified' : 'unverified', bytes: transfer.totalBytes };
+    const bytes = Math.max(transfer?.resumeBytes ?? 0, await modelTransferBytes(descriptor));
+    if (bytes > 0) return { state: bytes === descriptor.bytes ? 'unverified' : 'partial', bytes };
+    return { state: damaged ? 'damaged' : 'missing', bytes: 0 };
+  } catch (error) {
+    const code = error instanceof Error && error.message.startsWith('model-') ? error.message : 'model-storage';
+    return { state: ['model-size','model-checksum','model-gguf-invalid'].includes(code) ? 'damaged' : 'unavailable', bytes: 0, error: code };
+  }
+}
+
+
+/** Persist only verification evidence for the exact legacy bytes read earlier.
+ * Blob wrapping preserves the immutable data, and the token prevents a late
+ * checksum result from blessing a concurrent same-size replacement.
+ */
+export async function markModelVerified(descriptor: ModelDescriptor, blob: Blob): Promise<boolean> {
+  const source = verificationSources.get(blob);
+  if (!source || source.id !== descriptor.id) return false;
+  if (blob.size !== descriptor.bytes) throw Error('model-size');
+  if ('opfsName' in source) {
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');
+    const current = await (await dir.getFileHandle(source.opfsName)).getFile();
+    if (current.size !== blob.size || current.lastModified !== source.modified) throw Error('model-storage');
+  }
+  const db = await database();
+  try {
+    const tx = db.transaction('models', 'readwrite');
+    const current = await tx.store.get(descriptor.id);
+    const matches = 'token' in source
+      ? current?.verificationToken === source.token && current.blob instanceof Blob && current.blob.size === blob.size
+      : current?.opfsName === source.opfsName;
+    if (!matches) { await tx.done; throw Error('model-storage'); }
+    await tx.store.put({...current,bytes:descriptor.bytes,sha256:descriptor.sha256},descriptor.id);
+    await tx.done;
+    return true;
+  } finally { db.close(); }
 }

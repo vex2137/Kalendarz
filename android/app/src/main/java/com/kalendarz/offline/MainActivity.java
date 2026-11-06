@@ -49,6 +49,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(CalendarDevicePlugin.class);
         registerPlugin(CalendarModelImportPlugin.class);
+        if (android.os.Build.VERSION.SDK_INT >= 28) registerPlugin(CalendarModelTransferPlugin.class);
         if (android.os.Build.VERSION.SDK_INT >= 28) registerPlugin(CalendarNativeAIPlugin.class);
         super.onCreate(savedInstanceState);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {

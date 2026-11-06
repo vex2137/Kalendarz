@@ -63,10 +63,10 @@ public class CalendarNativeAIPlugin extends Plugin {
     private void check(long version)throws Exception{if(epoch.get()!=version)throw new Exception("model-cancelled");}
     private File binary(){return new File(getContext().getApplicationInfo().nativeLibraryDir,"libcalendar_llama.so");}
     private JSObject snapshot(){
-        JSObject s=new JSObject();s.put("system","Android "+android.os.Build.VERSION.RELEASE);s.put("cpuArchitecture",android.os.Build.SUPPORTED_ABIS.length>0?android.os.Build.SUPPORTED_ABIS[0]:"unknown");s.put("gpuLayers",gpuLayerLimit);s.put("packagedBackends",new JSArray(binary().isFile()?Arrays.asList("cpu-native","vulkan"):Collections.emptyList()));s.put("availableBackends",new JSArray(vulkanDetected?Arrays.asList("vulkan"):Collections.emptyList()));s.put("mode",mode);s.put("backend",gpu?"vulkan":"cpu-native");s.put("available",binary().isFile()&&android.os.Build.VERSION.SDK_INT>=28);s.put("loaded",process!=null&&process.isAlive()&&loadedId!=null);s.put("gpuActive",confirmed&&process!=null&&process.isAlive()&&loadedId!=null);s.put("offloadedLayers",layers);s.put("threads",Math.min(4,Runtime.getRuntime().availableProcessors()));s.put("loadMs",loadMs);
+        JSObject s=new JSObject();s.put("system","Android "+android.os.Build.VERSION.RELEASE);s.put("cpuArchitecture",android.os.Build.SUPPORTED_ABIS.length>0?android.os.Build.SUPPORTED_ABIS[0]:"unknown");s.put("gpuLayers",gpuLayerLimit);s.put("packagedBackends",new JSArray(binary().isFile()?Arrays.asList("cpu-native","vulkan"):Collections.emptyList()));s.put("availableBackends",new JSArray(vulkanDetected?Arrays.asList("vulkan"):Collections.emptyList()));s.put("mode",mode);s.put("backend",gpu?"vulkan":"cpu-native");s.put("available",binary().isFile()&&binary().canExecute()&&android.os.Build.VERSION.SDK_INT>=28);s.put("loaded",process!=null&&process.isAlive()&&loadedId!=null);s.put("gpuActive",confirmed&&process!=null&&process.isAlive()&&loadedId!=null);s.put("offloadedLayers",layers);s.put("threads",Math.min(4,Runtime.getRuntime().availableProcessors()));s.put("loadMs",loadMs);
         if(loadedId!=null){s.put("modelId",loadedId);if(modelName!=null)s.put("modelName",modelName);}if(gpuName!=null)s.put("deviceName",gpuName);if(fallback!=null)s.put("fallbackReason",fallback);if(lastError!=null)s.put("errorCode",lastError);if(speed!=null)s.put("tokensPerSecond",speed);
         if(gpuDiagnostics!=null)s.put("gpuAttempt",new JSONObject(gpuDiagnostics.snapshot()));
-        s.put("nativeRuntime",new JSObject().put("version","b11669").put("commit","620d2225cc436ab0b001e3200e590e3b286ef9ab").put("abi","arm64-v8a").put("vulkanLinkage","static-backend/system-libvulkan"));
+        s.put("nativeRuntime",new JSObject().put("version","b11669").put("commit","620d2225cc436ab0b001e3200e590e3b286ef9ab").put("abi","arm64-v8a").put("vulkanLinkage","static-backend/system-libvulkan").put("binaryPresent",binary().isFile()).put("binaryExecutable",binary().canExecute()).put("supportedAbis",new JSArray(Arrays.asList(android.os.Build.SUPPORTED_ABIS))));
         // Android does not provide portable per-process VRAM counters. Never invent them.
         try{if(process!=null){for(String line:Files.readAllLines(Paths.get("/proc/"+((Number)process.getClass().getMethod("pid").invoke(process)).longValue()+"/status")))if(line.startsWith("VmRSS:")){s.put("ramBytes",Long.parseLong(line.replaceAll("[^0-9]",""))*1024);s.put("memoryScope","native-server resident memory");}}}catch(Exception ignored){}
         for(android.content.pm.FeatureInfo feature:getContext().getPackageManager().getSystemAvailableFeatures()){
@@ -76,7 +76,7 @@ public class CalendarNativeAIPlugin extends Plugin {
         return s;
     }
     @PluginMethod public void status(PluginCall call){submit(call,()->snapshot());}
-    @PluginMethod public void info(PluginCall call){submit(call,()->{JSONObject m=descriptor(call);File f=file(m);JSObject out=new JSObject();out.put("installed",f.isFile()&&f.length()==m.getLong("bytes"));out.put("bytes",f.isFile()?f.length():0);return out;});}
+    @PluginMethod public void info(PluginCall call){submit(call,()->{JSONObject m=descriptor(call);File f=file(m);JSObject out=new JSObject();out.put("installed",false);out.put("verified",false);out.put("bytes",f.isFile()?f.length():0);if(f.isFile()){try{verify(f,m,epoch.get());out.put("installed",true);out.put("verified",true);}catch(Exception e){if(!Arrays.asList("model-size","model-checksum","model-gguf-invalid").contains(e.getMessage()))throw e;out.put("verificationError",e.getMessage());}}return out;});}
     private static class Upload {String token;JSONObject model;File part;FileOutputStream stream;long bytes;}
     @PluginMethod public void begin(PluginCall call){submit(call,()->{
         if(upload!=null)throw new Exception("model-busy");JSONObject m=descriptor(call);File f=file(m);JSObject out=new JSObject();
@@ -91,12 +91,16 @@ public class CalendarNativeAIPlugin extends Plugin {
     @PluginMethod public void remove(PluginCall call){submit(call,()->{JSONObject m=descriptor(call);if(m.getString("id").equals(loadedId))stopProcess();Files.deleteIfExists(file(m).toPath());verified.clear();return new JSObject();});}
     private void interrupt(){epoch.incrementAndGet();HttpURLConnection c=connection;if(c!=null)c.disconnect();Process p=process;if(p!=null)p.destroy();p=probeProcess;if(p!=null)p.destroy();}
     private void kill(Process p)throws Exception{if(p==null)return;p.destroy();if(!p.waitFor(1500,TimeUnit.MILLISECONDS)){p.destroyForcibly();if(!p.waitFor(3500,TimeUnit.MILLISECONDS))throw new Exception("model-stop-timeout");}}
-    private void stopProcess()throws Exception{Process p=process;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;kill(p);if(process==p)process=null;}
+    private void stopProcess()throws Exception{Process p=process;captureGpuStartup=false;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;kill(p);if(process==p)process=null;}
     @PluginMethod public void stop(PluginCall call){interrupt();submit(call,()->{stopProcess();return new JSObject();});}
     @PluginMethod public void setMode(PluginCall call){String next=call.getString("mode","");Integer limit=call.getInt("gpuLayers",999);if(!Arrays.asList("auto","gpu","cpu").contains(next)||limit==null||limit<1||limit>999){call.reject("model-input");return;}interrupt();submit(call,()->{stopProcess();mode=next;gpuLayerLimit=limit;fallback=null;lastError=null;return snapshot();});}
     private Process spawn(List<String> args)throws Exception{
-        List<String> command=new ArrayList<>();command.add(binary().getAbsolutePath());command.addAll(args);
-        ProcessBuilder b=new ProcessBuilder(command).redirectErrorStream(true);b.environment().put("LD_LIBRARY_PATH",binary().getParent());return b.start();
+        return nativeProcessBuilder(binary(),args).start();
+    }
+    // Shared by device packaging tests, so they exercise the production linker environment.
+    static ProcessBuilder nativeProcessBuilder(File binary,List<String> args){
+        List<String> command=new ArrayList<>();command.add(binary.getAbsolutePath());command.addAll(args);
+        ProcessBuilder b=new ProcessBuilder(command).redirectErrorStream(true);b.environment().put("LD_LIBRARY_PATH",binary.getParent());return b;
     }
     private String probe(long version)throws Exception{
         Process p=spawn(Arrays.asList("--list-devices"));probeProcess=p;StringBuilder output=new StringBuilder();
@@ -128,7 +132,7 @@ public class CalendarNativeAIPlugin extends Plugin {
         long started=System.nanoTime();
         List<String> args=Arrays.asList("--host","127.0.0.1","--port",Integer.toString(port),"--api-key",key,"--model",f.getAbsolutePath(),"--ctx-size",Integer.toString(m.getInt("maxContext")),"--parallel","1","--threads",Integer.toString(Math.min(4,Runtime.getRuntime().availableProcessors())),"--batch-size","128","--ubatch-size","64","--no-webui","--n-gpu-layers",device==null?"0":Integer.toString(gpuLayerLimit),"--device",device==null?"none":device,"--jinja");
         if(device!=null&&gpuDiagnostics!=null){gpuDiagnostics.launch(args);gpuDiagnostics.stage("process-start");}
-        Process p=spawn(args);process=p;
+        Process p=spawn(args);process=p;captureGpuStartup=device!=null&&gpuDiagnostics!=null;
         if(device!=null&&gpuDiagnostics!=null)gpuDiagnostics.stage("native-startup");
         Thread reader=new Thread(()->{try(BufferedReader r=new BufferedReader(new InputStreamReader(p.getInputStream()))){String line;while((line=r.readLine())!=null){synchronized(this){log=(log+line+'\n');if(captureGpuStartup&&gpuDiagnostics!=null)gpuDiagnostics.line(line);if(log.length()>32000)log=log.substring(log.length()-32000);Matcher match=Pattern.compile("offloaded (\\d+)/\\d+ layers to GPU").matcher(line);if(match.find())layers=Integer.parseInt(match.group(1));}}}catch(IOException error){if(captureGpuStartup&&gpuDiagnostics!=null)gpuDiagnostics.line("error: native log read: "+error.getClass().getSimpleName()+": "+error.getMessage());}});reader.setDaemon(true);reader.start();
         try{long deadline=System.nanoTime()+120_000_000_000L;boolean ready=false;while(System.nanoTime()<deadline){check(version);if(!p.isAlive())throw new Exception("model-native-load");try{request("/health",null,1000);ready=true;break;}catch(Exception ignored){}check(version);Thread.sleep(100);}
@@ -152,7 +156,9 @@ public class CalendarNativeAIPlugin extends Plugin {
                 while(match.find()){if(!match.group(2).matches("(?i).*(llvmpipe|lavapipe|swiftshader|software|cpu).*")){device=match.group(1);gpuName=match.group(2);break;}}
                 vulkanDetected=device!=null;if(device==null){fallback="no-compatible-gpu";gpuDiagnostics.fail(new Exception("model-gpu-unavailable"),null);}else{gpuDiagnostics.selected(device);start(m,device,version);return;}
             }catch(Exception e){check(version);gpuDiagnostics.fail(e,process==null||process.isAlive()?null:process.exitValue());fallback=gpuDiagnostics.fallbackReason();stopProcess();}
-            finally{captureGpuStartup=false;}
+            // Keep the narrowly filtered capture through the first inference;
+            // successful device enumeration/loading is not proof of GPU execution.
+            finally{captureGpuStartup=gpu&&process!=null&&process.isAlive();}
             if(mode.equals("gpu")){lastError="model-gpu-unavailable";throw new Exception(lastError);}
         }
         start(m,null,version);
@@ -167,15 +173,16 @@ public class CalendarNativeAIPlugin extends Plugin {
     private JSObject complete(JSONObject request,long version)throws Exception{
         HttpURLConnection c=(HttpURLConnection)new URL(endpoint+"/v1/chat/completions").openConnection();connection=c;c.setConnectTimeout(1500);c.setReadTimeout(180000);c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Authorization","Bearer "+key);c.setRequestProperty("Content-Type","application/json");
         NativeCompletionText text=new NativeCompletionText();JSONObject usage=new JSONObject(),timings=new JSONObject();String finish=null;Double first=null;long started=System.nanoTime();
+        if(gpu&&captureGpuStartup&&gpuDiagnostics!=null)gpuDiagnostics.stage("inference");
         try{try(OutputStream out=c.getOutputStream()){out.write(request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}if(c.getResponseCode()!=200)throw new Exception("model-native-response");
             try(BufferedReader r=new BufferedReader(new InputStreamReader(c.getInputStream(),java.nio.charset.StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null){check(version);if(line.length()>512000)throw new Exception("model-response");if(!line.startsWith("data:")||line.equals("data: [DONE]"))continue;JSONObject chunk=new JSONObject(line.substring(5));JSONArray choices=chunk.optJSONArray("choices");if(choices!=null&&choices.length()>0){JSONObject choice=choices.getJSONObject(0),delta=choice.optJSONObject("delta");if(text.append(delta)&&first==null)first=(System.nanoTime()-started)/1e6;if(!choice.isNull("finish_reason"))finish=choice.optString("finish_reason",null);}if(text.length()>24000)throw new Exception("model-response");if(!chunk.isNull("usage"))usage=chunk.getJSONObject("usage");if(!chunk.isNull("timings"))timings=chunk.getJSONObject("timings");}}
-            if(text.length()==0||finish==null)throw new Exception("model-response");confirmed=gpu&&layers>0&&usage.optInt("completion_tokens",timings.optInt("predicted_n",0))>0;speed=timings.has("predicted_per_second")?timings.getDouble("predicted_per_second"):null;if(confirmed&&gpuDiagnostics!=null)gpuDiagnostics.confirmed();
+            if(text.length()==0||finish==null)throw new Exception("model-response");confirmed=gpu&&layers>0&&usage.optInt("completion_tokens",timings.optInt("predicted_n",0))>0;speed=timings.has("predicted_per_second")?timings.getDouble("predicted_per_second"):null;if(confirmed&&gpuDiagnostics!=null){gpuDiagnostics.confirmed();captureGpuStartup=false;}
             JSObject out=new JSObject();out.put("text",text.toString());out.put("finish",finish);out.put("usage",usage);out.put("timings",timings);if(first!=null)out.put("firstTokenMs",first);out.put("backend",snapshot());return out;
         }finally{c.disconnect();if(connection==c)connection=null;}
     }
     @PluginMethod public void complete(PluginCall call){long version=epoch.get();submit(call,()->{
         JSONObject m=descriptor(call),request=validateRequest(call.getObject("request"));
-        try{prepare(m,version);check(version);try{return complete(request,version);}catch(Exception e){check(version);if(!gpu)throw e;if(gpuDiagnostics!=null){gpuDiagnostics.stage("inference");gpuDiagnostics.fail(e,process==null||process.isAlive()?null:process.exitValue());}stopProcess();fallback="gpu-inference-failed";if(mode.equals("gpu"))throw new Exception("model-gpu-inference");start(m,null,version);return complete(request,version);}}
+        try{prepare(m,version);check(version);try{return complete(request,version);}catch(Exception e){check(version);if(!gpu)throw e;if(gpuDiagnostics!=null){if(!captureGpuStartup)gpuDiagnostics.stage("inference");gpuDiagnostics.fail(e,process==null||process.isAlive()?null:process.exitValue());}stopProcess();fallback="gpu-inference-failed";if(mode.equals("gpu"))throw new Exception("model-gpu-inference");start(m,null,version);return complete(request,version);}}
         catch(Exception e){stopProcess();throw e;}
     });}
     static WebResourceResponse intercept(android.content.Context context,Uri url){
