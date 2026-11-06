@@ -5,12 +5,18 @@ const { execFileSync } = require('node:child_process');
 const model = require('../src/utils/localModelManifest.json');
 // electron-builder hook: direct packaging must not silently omit the bundled model.
 module.exports = async function(context) {
+  const root=context.packager.info.appDir;
+  if (process.env.CALENDAR_PART2_BETA === 'true' || process.env.CALENDAR_EXPECTED_COMMIT) {
+    execFileSync(process.platform === 'win32' ? 'python' : 'python3', [
+      'scripts/part2_artifact_guard.py', '--source', process.env.CALENDAR_EXPECTED_COMMIT || '',
+      '--check-remote', '--info', 'dist/build-info.json', '--platform', 'desktop',
+    ], {cwd:root,stdio:'inherit'});
+  }
   execFileSync(process.platform === 'win32' ? 'python' : 'python3', ['scripts/prepare-native.py','--platform',context.electronPlatformName,'--arch',({1:'x64',3:'arm64'})[context.arch]||String(context.arch)], {cwd:context.packager.info.appDir,stdio:'inherit'});
   if (process.env.CALENDAR_INCLUDE_CUDA === 'true') {
     if (context.electronPlatformName !== 'linux' || context.arch !== 1) throw Error('CUDA packaging currently requires Linux x64');
     execFileSync('python3', ['scripts/stage-cuda-runtime.py', '--target', 'linux-x64'], {cwd:context.packager.info.appDir,stdio:'inherit'});
   }
-  const root=context.packager.info.appDir;
   const info=require('node:fs').readFileSync(join(root,'dist/build-info.json'),'utf8');
   const build=JSON.parse(info);
   if(process.env.CALENDAR_MODEL_FREE==='true'){

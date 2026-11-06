@@ -1,6 +1,11 @@
 name: Prepare Part 2 Beta 2 manual test artifacts
 on:
   workflow_dispatch:
+    inputs:
+      artifact_manifest:
+        description: 'JSON: source=exact current HEAD, versionCode, files=[{name,size,sha256}] for APK and AppImage'
+        required: true
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -14,8 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
+      - name: Test provenance and version guards (no build)
+        run: python3 -m unittest discover -s tests -p test_part2_artifact_guard.py
       - name: Retrieve and verify existing signed artifacts
+        env:
+          CALENDAR_ARTIFACT_MANIFEST: ${{ inputs.artifact_manifest }}
         run: python3 scripts/verify-part2-beta2-artifacts.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -25,7 +35,6 @@ jobs:
           compression-level: 0
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: hashFiles('manual-test-assets/linux/**') != ''
         with:
           name: Kalendarz-1.5.0-Part-2-Beta-2-Linux-CUDA-manual-test
           path: manual-test-assets/linux/
