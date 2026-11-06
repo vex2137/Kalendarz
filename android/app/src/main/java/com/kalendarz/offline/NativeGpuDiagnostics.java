@@ -11,6 +11,10 @@ final class NativeGpuDiagnostics {
     private String stage="device-probe",status="initializing",code,nativeCode,errorType,message,device;
     private final int requestedLayers,context;
     private int logBytes,offloaded;
+    private boolean offloadObserved,readerFinished;
+    private int nativeLinesRead;
+    private Double offloadWaitMs;
+    private Boolean processAliveAtFailure;
     private Integer exitCode,healthStatus;
     private final Map<String,String> arguments=new LinkedHashMap<>();
     NativeGpuDiagnostics(int layers,int context){this.requestedLayers=layers;this.context=context;stage("device-probe");}
@@ -30,6 +34,17 @@ final class NativeGpuDiagnostics {
     synchronized void health(int value){if(!status.equals("failed"))healthStatus=value;}
     synchronized void loaded(int layers){offloaded=layers;status="loaded";stage("loaded-awaiting-inference");}
     synchronized void confirmed(){status="confirmed";stage("inference-confirmed");}
+    // /health and stderr are independent channels. A ready server does not mean
+    // the Java reader has consumed the loader's final offload line yet.
+    synchronized int awaitOffload(long timeoutMs)throws InterruptedException{
+        long begin=System.nanoTime(),deadline=begin+java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while(!offloadObserved&&!readerFinished&&!status.equals("failed")){
+            long remaining=deadline-System.nanoTime();if(remaining<=0)break;
+            java.util.concurrent.TimeUnit.NANOSECONDS.timedWait(this,remaining);
+        }
+        offloadWaitMs=(System.nanoTime()-begin)/1e6;return offloaded;
+    }
+    synchronized void readerFinished(){if(status.equals("failed")||status.equals("confirmed"))return;readerFinished=true;notifyAll();}
     private double elapsed(){return (System.nanoTime()-started)/1e6;}
     static String sanitize(String input){
         if(input==null)return "";
@@ -41,17 +56,20 @@ final class NativeGpuDiagnostics {
     }
     synchronized void line(String raw){
         if(status.equals("failed")||status.equals("confirmed"))return;
+        nativeLinesRead++;
         // Exclude metadata/chat templates and ordinary server/request output.
         // The model loader's error lines often contain the only nested Vulkan error.
         String s=raw.replaceAll("\\x1B\\[[0-9;]*[A-Za-z]","").trim();
         if(s.contains("tokenizer.")||s.contains("chat_template"))return;
         String lower=s.toLowerCase(Locale.ROOT);
         if(lower.startsWith("srv ")&&!lower.startsWith("srv load_model:"))return;
-        Matcher layers=Pattern.compile("offloaded\\s+(\\d+)/(\\d+)\\s+layers to GPU").matcher(s);
-        if(layers.find())offloaded=Integer.parseInt(layers.group(1));
+        Matcher layers=Pattern.compile("offloaded\\s+(\\d+)\\s*/\\s*\\d+\\s+layers\\s+to\\s+GPU").matcher(s);
+        boolean offloadLine=layers.find();
+        if(offloadLine){offloaded=Integer.parseInt(layers.group(1));offloadObserved=true;notifyAll();}
         boolean loaderError=lower.startsWith("cannot link executable")||lower.contains("dlopen failed:")||lower.startsWith("cannot locate symbol")||lower.startsWith("library ")&&lower.contains(".so")&&lower.contains("not found");
         boolean modelError=(lower.startsWith("llama_model_load:")||lower.startsWith("llama_model_loader:")||lower.startsWith("common_init_from_params:")||lower.startsWith("srv load_model:"))&&(lower.contains("error")||lower.contains("fail")||lower.contains("unsupported"));
-        if(!(lower.startsWith("ggml_")||lower.startsWith("vulkan")||lower.startsWith("vk::")||lower.startsWith("error:")||lower.startsWith("libc++abi:")||s.contains("GGML_ASSERT")||s.contains("GGML_ABORT")||lower.startsWith("terminate")||lower.startsWith("what():")||loaderError||modelError||lower.startsWith("llama_context:")||lower.startsWith("load_tensors:")||s.contains("VK_ERROR_")||lower.contains("offloaded ")))return;
+        boolean modelDevice=lower.startsWith("llama_model_load:")&&lower.contains("using device ");
+        if(!(lower.startsWith("ggml_")||lower.startsWith("vulkan")||lower.startsWith("vk::")||lower.startsWith("error:")||lower.startsWith("libc++abi:")||s.contains("GGML_ASSERT")||s.contains("GGML_ABORT")||lower.startsWith("terminate")||lower.startsWith("what():")||loaderError||modelError||modelDevice||lower.startsWith("llama_context:")||lower.startsWith("load_tensors:")||s.contains("VK_ERROR_")||offloadLine))return;
         if(loaderError)stage("native-loader");
         else if(lower.contains("createcomputepipeline")||lower.contains("shader")&&lower.contains("fail"))stage("shader-pipeline-create");
         else if(lower.contains("createinstance"))stage("vulkan-instance-create");
@@ -63,9 +81,12 @@ final class NativeGpuDiagnostics {
         while(lines.size()>64||logBytes>12000){logBytes-=lines.removeFirst().length();}
     }
     synchronized void fail(Throwable error,Integer processExit){
+        fail(error,processExit,processExit==null?null:false);
+    }
+    synchronized void fail(Throwable error,Integer processExit,Boolean processAlive){
         if(status.equals("failed"))return;
         status="failed";code=error.getMessage()!=null&&error.getMessage().matches("model-[a-z0-9-]+")?error.getMessage():"model-native-load";
-        errorType=error.getClass().getSimpleName();message=sanitize(error.getMessage());exitCode=processExit;
+        errorType=error.getClass().getSimpleName();message=sanitize(error.getMessage());exitCode=processExit;processAliveAtFailure=processAlive;
         String text=String.join("\n",lines)+"\n"+message;
         Matcher vk=Pattern.compile("VK_ERROR_[A-Z0-9_]+").matcher(text);while(vk.find())nativeCode=vk.group();
         if(nativeCode==null){Matcher hpp=Pattern.compile("\\bError[A-Z][A-Za-z]+\\b").matcher(text);while(hpp.find())nativeCode=hpp.group();}
@@ -78,6 +99,6 @@ final class NativeGpuDiagnostics {
         return "gpu-start-failed";
     }
     synchronized Map<String,Object> snapshot(){
-        Map<String,Object> s=new LinkedHashMap<>();s.put("stage",stage);s.put("status",status);s.put("arguments",new LinkedHashMap<>(arguments));s.put("requestedDevice",device);s.put("requestedLayers",requestedLayers);s.put("contextLength",context);s.put("offloadedLayersObserved",offloaded);s.put("code",code);s.put("nativeCode",nativeCode);s.put("exceptionType",errorType);s.put("message",message);s.put("exitCode",exitCode);s.put("healthHttpStatus",healthStatus);s.put("nativeLog",String.join("\n",lines));s.put("stages",new ArrayList<>(stages));return s;
+        Map<String,Object> s=new LinkedHashMap<>();s.put("stage",stage);s.put("status",status);s.put("arguments",new LinkedHashMap<>(arguments));s.put("requestedDevice",device);s.put("requestedLayers",requestedLayers);s.put("contextLength",context);s.put("offloadedLayersObserved",offloaded);s.put("offloadEvidence",offloadObserved?offloaded>0?"positive":"zero":"missing");s.put("offloadWaitMs",offloadWaitMs);s.put("startupReaderFinished",readerFinished);s.put("nativeLinesRead",nativeLinesRead);s.put("processAliveAtFailure",processAliveAtFailure);s.put("code",code);s.put("nativeCode",nativeCode);s.put("exceptionType",errorType);s.put("message",message);s.put("exitCode",exitCode);s.put("healthHttpStatus",healthStatus);s.put("nativeLog",String.join("\n",lines));s.put("stages",new ArrayList<>(stages));return s;
     }
 }

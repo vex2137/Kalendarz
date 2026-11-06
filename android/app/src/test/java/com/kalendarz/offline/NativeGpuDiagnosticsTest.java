@@ -2,10 +2,45 @@ package com.kalendarz.offline;
 
 import static org.junit.Assert.*;
 import java.util.*;
+import java.util.concurrent.*;
 import org.junit.Test;
 
 /** Fault evidence tests only; never proof of an actual Vulkan-capable device. */
 public class NativeGpuDiagnosticsTest {
+    @Test public void parsesOffloadEvidenceWithAnsiAndFlexibleWhitespace(){
+        NativeGpuDiagnostics trace=new NativeGpuDiagnostics(999,2048);
+        trace.line("\u001B[32mload_tensors: offloaded\t8 / 25\tlayers to GPU\u001B[0m");
+        assertEquals(8,trace.snapshot().get("offloadedLayersObserved"));assertEquals("positive",trace.snapshot().get("offloadEvidence"));
+    }
+    @Test public void readyServerWaitsForAsynchronousOffloadEvidence()throws Exception{
+        NativeGpuDiagnostics trace=new NativeGpuDiagnostics(999,2048);trace.health(200);
+        ExecutorService reader=Executors.newSingleThreadExecutor();
+        try{
+            Future<Integer> observed=reader.submit(()->trace.awaitOffload(1000));
+            try{observed.get(20,TimeUnit.MILLISECONDS);fail("Health alone must not settle the offload check");}catch(TimeoutException expected){}
+            trace.line("load_tensors: offloaded 25/25 layers to GPU");
+            assertEquals(Integer.valueOf(25),observed.get(1,TimeUnit.SECONDS));
+            assertEquals("initializing",trace.snapshot().get("status")); // Still no inference evidence.
+        }finally{reader.shutdownNow();}
+    }
+    @Test public void distinguishesMissingLogFromExplicitZeroAndCapturesLiveProcess()throws Exception{
+        NativeGpuDiagnostics missing=new NativeGpuDiagnostics(999,2048);missing.stage("native-startup");missing.health(200);
+        assertEquals(0,missing.awaitOffload(0));missing.fail(new Exception("model-gpu-offload"),null,true);
+        Map<String,Object> state=missing.snapshot();assertEquals("missing",state.get("offloadEvidence"));assertEquals(true,state.get("processAliveAtFailure"));assertNull(state.get("exitCode"));
+        missing.readerFinished();assertEquals(state,missing.snapshot()); // Cleanup cannot rewrite failure-time evidence.
+        NativeGpuDiagnostics zero=new NativeGpuDiagnostics(999,2048);zero.line("load_tensors: offloaded 0/25 layers to GPU");
+        assertEquals(0,zero.awaitOffload(1000));assertEquals("zero",zero.snapshot().get("offloadEvidence"));
+    }
+    @Test public void readerEofEndsObservationWithoutClaimingOffload()throws Exception{
+        NativeGpuDiagnostics trace=new NativeGpuDiagnostics(999,2048);trace.line("ggml_vulkan: VK_ERROR_DEVICE_LOST");trace.readerFinished();
+        assertEquals(0,trace.awaitOffload(1000));trace.fail(new Exception("model-native-load"),134,false);
+        assertEquals(true,trace.snapshot().get("startupReaderFinished"));assertEquals(false,trace.snapshot().get("processAliveAtFailure"));assertEquals(1,trace.snapshot().get("nativeLinesRead"));assertEquals("VK_ERROR_DEVICE_LOST",trace.snapshot().get("nativeCode"));
+    }
+    @Test public void retainsModelDeviceChoiceWithoutClaimingOffload(){
+        NativeGpuDiagnostics trace=new NativeGpuDiagnostics(999,2048);
+        trace.line("llama_model_load: using device Vulkan0 (Mali-G720 MC7) - 4096 MiB free");
+        assertTrue(((String)trace.snapshot().get("nativeLog")).contains("using device Vulkan0"));assertEquals("missing",trace.snapshot().get("offloadEvidence"));
+    }
     @Test public void capturesActualFailureStageAndRequestBeforeCleanup(){
         NativeGpuDiagnostics trace=new NativeGpuDiagnostics(999,2048);trace.selected("Vulkan0");trace.stage("process-start");
         trace.line("ggml_vulkan: vk::Device::createComputePipelines: ErrorInitializationFailed");trace.fail(new Exception("model-native-load"),134);
