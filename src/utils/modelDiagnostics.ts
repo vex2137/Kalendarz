@@ -39,6 +39,7 @@ export interface AssistantTurnMetric {
   startedAt: number; quickMs?: number; rulesMs?: number; totalMs: number; uiCommitMs?: number;
   modelPhaseAtSend?: string; commandAction?: string; error?: boolean;
   modelId?: string; quantization?: string; modelLoadedAtSend?: boolean;
+  validation?:import('./calendarCommandParser').CalendarValidationTrace;
   modelJsonValid?: boolean; modelResponseCharacters?: number; proposalPrepared?: boolean;
   commandFields?: { title:boolean; date:boolean; time:boolean; endTime:boolean; reminder:boolean };
   requestFields?: { date:boolean; time:boolean; duration:boolean; invalid:boolean };

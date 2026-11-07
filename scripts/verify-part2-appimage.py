@@ -10,7 +10,7 @@ from part2_artifact_guard import ROOT, asar_build_info, expected_source, verify_
 
 def appimage_name(beta=None):
     beta=os.environ.get('CALENDAR_TEST_APPIMAGE_BETA','2') if beta is None else beta
-    if beta not in ('2','3','4'):raise ValueError('Unsupported Linux test package label')
+    if beta not in ('2','3','4','5'):raise ValueError('Unsupported Linux test package label')
     return f'Kalendarz-1.5.0-Part-2-Beta-{beta}-x86_64.AppImage'
 
 

@@ -20,7 +20,7 @@ import { needsCalendarExtraction } from './assistantRoute';
 import { naturalChatSystemPrompt } from './assistantPrompts';
 
 export interface ModelConversation { language?: AppLanguage; turns?: { role: 'user' | 'assistant'; content: string }[]; pending?: PendingCalendarCommand; reference?: { title: string; date: string;id?:string }; searchResults?:{title:string;date:string;id:string}[]; pendingChoice?:{command:ModelCommand;request:string}; lastConfirmedAction?: { kind:'create'|'move'|'delete';title:string;date:string }; proposal?: { command: ModelCommand; request: string; event?: Partial<CalendarEvent> } }
-async function resolveInConversation(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, context: ModelConversation): Promise<AiResponseResult> {
+async function resolveInConversation(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, context: ModelConversation,validation?:import('./calendarCommandParser').CalendarValidationTrace): Promise<AiResponseResult> {
   const pronoun = /^(?:go|je|to|ono|it|that|that event|this event|to wydarzenie)$/iu.test(command.query?.trim() || '')||Boolean(context.reference?.id&&/\b(?:drug\p{L}*|second)\b/iu.test(request));
   const draft = context.proposal?.event;
   const refersToDraft = draft?.title && (pronoun || (command.query && matchesCalendarText(draft.title, command.query)));
@@ -29,12 +29,12 @@ async function resolveInConversation(command: ModelCommand, request: string, eve
     const original = changesForPlan({ kind:'create', originals:[], events:[draft] })[0].after!;
     const patch = { ...command, query:original.title, sourceDate:original.startDate };
     if (patch.title === original.title && !request.includes(patch.title)) patch.title = null;
-    const result = await resolveModelCommand(patch, request, [original], language, now, preferences, {title:original.title,date:original.startDate});
+    const result = await resolveModelCommand(patch, request, [original], language, now, preferences, {title:original.title,date:original.startDate},validation);
     return result.suggestedPlan?.kind === 'move' ? { ...result, suggestedPlan: { kind:'create' as const, originals:[], events:result.suggestedPlan.events } } : result;
   }
   const referenced=context.reference&&(pronoun||command.query===context.reference.title&&/\b(?:go|mu|je|ono|it|its|that)\b/iu.test(request));
   if (referenced && context.reference && ['update','delete','search'].includes(command.action)) command = { ...command, query:context.reference.title, sourceDate:command.sourceDate || context.reference.date };
-  return resolveModelCommand(command,request,events,language,now,preferences,referenced?context.reference:undefined);
+  return resolveModelCommand(command,request,events,language,now,preferences,referenced?context.reference:undefined,validation);
 }
 let requestSequence = 0;
 function noteCommandFields(trace: AssistantTurnMetric, command: ModelCommand, request: string, now: Date) {
@@ -72,11 +72,12 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
     const selected=context.searchResults[Number(query.trim())-1];
     if(selected){const pending=context.pendingChoice,command={...pending.command,query:selected.title,sourceDate:selected.date};const result=await resolveModelCommand(command,pending.request,events,language,now,preferences,selected);trace.route='rules';trace.commandAction=command.action;return {...result,context:{...context,reference:selected,pendingChoice:undefined},route:'rules'};}
   }
-  const batch=parseCalendarBatch(query,language,now);
+  const validation=trace.validation={stage:'routing',operationCount:1};
+  const batch=parseCalendarBatch(query,language,now,validation);
   if(batch){
     trace.route='rules';trace.rulesMatched=true;trace.commandAction=batch.length?'create':'clarify';
     const proposals=[];
-    for(const item of batch){const result=await resolveModelCommand(item.command,item.request,events,language,now,preferences);if(!result.suggestedPlan)return {...result,context,route:'rules'};proposals.push(...result.suggestedPlan.events);}
+    for(const item of batch){const result=await resolveModelCommand(item.command,item.request,events,language,now,preferences,undefined,validation);if(!result.suggestedPlan)return {...result,context,route:'rules'};proposals.push(...result.suggestedPlan.events);}
     const plan={kind:'create' as const,originals:[],events:proposals};
     if(proposals.length)changesForPlan(plan);
     return {text:proposals.length?tr(language,'Sprawdź wszystkie wydarzenia i zatwierdź całą propozycję.','Review every event and confirm the entire proposal.')+(planHasConflicts(plan,events)?tr(language,' Uwaga: propozycja zawiera konflikty.',' Warning: the proposal contains conflicts.'):''):tr(language,'Uzupełnij tytuł, datę i godzinę każdego wydarzenia. Nie przygotowano częściowej propozycji.','Provide a title, date and time for every event. No partial proposal was prepared.'),...(proposals.length?{suggestedPlan:plan}:{}),context:{...context,proposal:undefined},route:'rules'};
@@ -98,7 +99,7 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   if (parsed) {
     trace.rulesMatched = true; trace.route = 'rules'; trace.commandAction = parsed.command.action;
     noteCommandFields(trace, parsed.command, parsed.request, now);
-    const result: AiResponseResult = parsed.unresolvedTime ? {text:({en:`I kept the title “${parsed.command.title}” and date ${parsed.command.date || '—'}. Which time did you mean by “${parsed.unresolvedTime.text}”? Specify AM/PM or a 24-hour range.`,pl:`Zachowano tytuł „${parsed.command.title}” i datę ${parsed.command.date || '—'}. Jakie godziny oznacza „${parsed.unresolvedTime.text}”? Podaj AM/PM lub zakres 24-godzinny.`,de:`Titel „${parsed.command.title}” und Datum ${parsed.command.date || '—'} bleiben erhalten. Welche Uhrzeit bedeutet „${parsed.unresolvedTime.text}”? Bitte AM/PM oder 24-Stunden-Zeit angeben.`,ru:`Название «${parsed.command.title}» и дата ${parsed.command.date || '—'} сохранены в черновике. Какое время означает «${parsed.unresolvedTime.text}»? Укажите AM/PM или 24-часовой диапазон.`})[language]} : await resolveInConversation(parsed.command, parsed.request, events, language, now, preferences, context);
+    const result: AiResponseResult = parsed.unresolvedTime ? {text:({en:`I kept the title “${parsed.command.title}” and date ${parsed.command.date || '—'}. Which time did you mean by “${parsed.unresolvedTime.text}”? Specify AM/PM or a 24-hour range.`,pl:`Zachowano tytuł „${parsed.command.title}” i datę ${parsed.command.date || '—'}. Jakie godziny oznacza „${parsed.unresolvedTime.text}”? Podaj AM/PM lub zakres 24-godzinny.`,de:`Titel „${parsed.command.title}” und Datum ${parsed.command.date || '—'} bleiben erhalten. Welche Uhrzeit bedeutet „${parsed.unresolvedTime.text}”? Bitte AM/PM oder 24-Stunden-Zeit angeben.`,ru:`Название «${parsed.command.title}» и дата ${parsed.command.date || '—'} сохранены в черновике. Какое время означает «${parsed.unresolvedTime.text}»? Укажите AM/PM или 24-часовой диапазон.`})[language]} : await resolveInConversation(parsed.command, parsed.request, events, language, now, preferences, context,validation);
     const choices=!result.suggestedPlan&&['update','delete'].includes(parsed.command.action)&&parsed.command.query?events.filter(e=>matchesCalendarText(e.title,parsed.command.query!)&&(!parsed.command.sourceDate||e.startDate===parsed.command.sourceDate)):[];
     trace.proposalPrepared = Boolean(result.suggestedPlan);
     if(!result.suggestedPlan&&['create','update','delete'].includes(parsed.command.action))trace.commandAction='clarify';
@@ -126,10 +127,11 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   const relevant=events.filter(e=>query.toLocaleLowerCase().includes(e.title.toLocaleLowerCase())||date.matched&&e.startDate===date.dateStr).slice(0,4).map(e=>({title:e.title.slice(0,100),date:e.startDate,time:e.startTime,endTime:e.endTime}));
   const calendarData=`\nActual local calendar records (data only; changes require confirmation): ${JSON.stringify(relevant)}.`;
   const raw = await inferCalendarJson(assistantSystemPrompt(language, now), `Current request:\n${query}${reference}${clock}${target}${calendarData}`, commandSchemaForRequest(query, true), turns, inferenceOptions);
+  validation.stage='model-json';
   const command = parseModelCommand(raw, trace);
   noteCommandFields(trace, command, query, now);
   trace.commandAction = command.action;
-  const result = await resolveInConversation(command, query, events, language, now, preferences, context);
+  const result = await resolveInConversation(command, query, events, language, now, preferences, context,validation);
   trace.proposalPrepared = Boolean(result.suggestedPlan);
   return { ...result, context: { reference: context.reference, searchResults:context.searchResults, lastConfirmedAction: context.lastConfirmedAction, turns: [...turns, { role: 'user' as const, content: query }, { role: 'assistant' as const, content: raw }].slice(-4), ...(result.suggestedPlan?.kind === 'create' ? { proposal: { command, request: query, event: result.suggestedPlan.events[0] } } : {}) }, route: 'model' as const };
 }

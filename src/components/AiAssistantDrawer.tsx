@@ -489,7 +489,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       {plan.events.map((draft, index) => (
                         <div key={index} className="space-y-1 theme-border border-b pb-2">
                           <p className="font-semibold">{draft.title}</p>
-                          {plan.originals[index] && <p className="theme-muted">{tr(language, 'Przed:', 'Before:')} {plan.originals[index].startDate} {plan.originals[index].startTime} – {plan.originals[index].endDate} {plan.originals[index].endTime}</p>}
+                          {plan.kind === 'move' && plan.originals[index] && <p className="theme-muted">{tr(language, 'Przed:', 'Before:')} {plan.originals[index].startDate} {plan.originals[index].startTime} – {plan.originals[index].endDate} {plan.originals[index].endTime}</p>}
                           <p>{plan.kind === 'move' ? (tr(language, 'Po:', 'After:')) : ''} {draft.startDate} {draft.startTime || (tr(language, 'Cały dzień', 'All day'))} – {draft.endDate} {draft.endTime}</p>
                           {draft.location && <p>{tr(language, 'Miejsce:', 'Location:')} {draft.location}</p>}
                           {draft.recurrence && draft.recurrence !== 'NONE' && <p>{tr(language, 'Powtarzanie:', 'Repeats:')} {({ DAILY: tr(language, 'codziennie', 'daily'), WEEKLY: tr(language, 'co tydzień', 'weekly'), MONTHLY: tr(language, 'co miesiąc', 'monthly') } as Record<string, string>)[draft.recurrence] || draft.recurrence}</p>}

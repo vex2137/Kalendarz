@@ -14,6 +14,7 @@ class AppImageGuardTests(unittest.TestCase):
         self.assertEqual(guard.appimage_name('2'),'Kalendarz-1.5.0-Part-2-Beta-2-x86_64.AppImage')
         self.assertEqual(guard.appimage_name('3'),'Kalendarz-1.5.0-Part-2-Beta-3-x86_64.AppImage')
         self.assertEqual(guard.appimage_name('4'),'Kalendarz-1.5.0-Part-2-Beta-4-x86_64.AppImage')
+        self.assertEqual(guard.appimage_name('5'),'Kalendarz-1.5.0-Part-2-Beta-5-x86_64.AppImage')
         for invalid in ['1','../../unsafe','',3]:
             with self.subTest(invalid=invalid),self.assertRaises(ValueError):guard.appimage_name(invalid)
     def test_explicit_linux_manifest(self):self.assertEqual(guard.appimage_manifest(self.manifest(),'a'*40)['name'],guard.NAME)

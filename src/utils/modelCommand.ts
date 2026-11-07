@@ -127,7 +127,8 @@ JSON: ${example({ action: 'delete', query: name })}`;
 export function assistantSystemPrompt(language: AppLanguage, now: Date) {
   return calendarSystemPrompt(language, now) + `\nFor natural conversation/general questions, use action=chat and reply=your actual helpful answer in the current user's language, respecting an explicit request to switch language. Language hint: ${language}; never let interface language override the actual message. Do not turn greetings or conversation into event updates. For calendar requests keep the command format above. A negated deletion is not permission to delete; answer a requested lookup with search. Only use clarify when information needed for an action is missing. Never claim that a proposal was saved.`;
 }
-export async function resolveModelCommand(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, referenceEvidence?: {title:string;date:string;id?:string}): Promise<AiResponseResult> {
+export async function resolveModelCommand(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, referenceEvidence?: {title:string;date:string;id?:string},validation?:import('./calendarCommandParser').CalendarValidationTrace): Promise<AiResponseResult> {
+  const reject=(field:string,expectedType:string,value:unknown,code='unrequested-field')=>{if(validation)Object.assign(validation,{stage:'field-validation',code,field,expectedType,receivedType:value===null?'null':Array.isArray(value)?'array':typeof value});};
   const ask = (pl: string, en: string): AiResponseResult => ({ text: tr(language, pl, en) });
   if(command.action==='chat'&&/^(?:(?:please|proszę|could you)\s+)?(?:dodaj|utw[oó]rz|przesuń|przenieś|usuń|add|create|move|reschedule|delete|remove)\b/iu.test(request.trim()))return ask('Nie przygotowano ani nie zapisano zmian. Podaj parametry operacji.','No calendar changes were prepared or saved. Specify the operation parameters.');
   if (command.action === 'chat') return { text: guardCalendarWriteClaim(command.reply?.trim() || tr(language, 'Co chcesz omówić?', 'What would you like to talk about?'),language) };
@@ -135,15 +136,15 @@ export async function resolveModelCommand(command: ModelCommand, request: string
   const evidence = language === 'pl' || language === 'en' ? calendarFields(evidenceText, now) : undefined;
   const requestedReminder=requestedReminderMinutes(request);
   const requestedColor=requestedEventColor(request);
-  if(command.color&&command.color!==requestedColor)return ask('Podaj jednoznaczny kolor wydarzenia.','Specify the event color.');
+  if(command.color&&command.color!==requestedColor){reject('color','requested-color',command.color);return ask('Podaj jednoznaczny kolor wydarzenia.','Specify the event color.');}
   const outsideQuotes = request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '');
   if (['create', 'update', 'delete'].includes(command.action) && /\b(?:nie|not|never|don't|gdyby\p{L}*|if|zamiast|instead)\b|не\s|nicht/iu.test(outsideQuotes)) return ask('Doprecyzuj, jaką zmianę mam przygotować; nic nie zmieniono.', 'Please clarify which change to prepare; nothing was changed.');
   if (['update','delete'].includes(command.action) && command.query?.trim() && request.trim()) {
     const title=command.query.replace(/^(?:wydarzenie|event|событие|termin|veranstaltung)\s+/iu,'');
     const evidenced=matchesCalendarText(request,title)||parseCalendarCommand(request,language,now)?.command.query?.toLocaleLowerCase()===title.toLocaleLowerCase()||Boolean(referenceEvidence&&referenceEvidence.title===title&&(!command.sourceDate||command.sourceDate===referenceEvidence.date));
-    if(!evidenced)return ask('Nie wskazano tego wydarzenia w poleceniu. Podaj tytuł przed przygotowaniem zmiany.','This event was not identified in the request. Specify its title before preparing a change.');
+    if(!evidenced){reject('query','requested-event-title',command.query);return ask('Nie wskazano tego wydarzenia w poleceniu. Podaj tytuł przed przygotowaniem zmiany.','This event was not identified in the request. Specify its title before preparing a change.');}
   }
-  if ((command.action === 'create' || command.action === 'update') && request.trim() && command.title && !request.toLocaleLowerCase().includes(command.title.toLocaleLowerCase()) && !matchesCalendarText(request, command.title)) return ask('Podaj dokładny tytuł wydarzenia; model zwrócił inną nazwę.', 'Please specify the exact event title; the model returned another name.');
+  if ((command.action === 'create' || command.action === 'update') && request.trim() && command.title && !request.toLocaleLowerCase().includes(command.title.toLocaleLowerCase()) && !matchesCalendarText(request, command.title)) {reject('title','requested-event-title',command.title);return ask('Podaj dokładny tytuł wydarzenia; model zwrócił inną nazwę.', 'Please specify the exact event title; the model returned another name.');}
   if (command.action === 'clarify') return { text: guardCalendarWriteClaim(command.question || tr(language, 'Podaj tytuł, datę i godzinę wydarzenia.', 'Please specify the event title, date and time.'),language) };
   if (command.action === 'assistant') {
     if (!command.query?.trim()) return ask('Doprecyzuj polecenie kalendarza.', 'Please clarify the calendar request.');
@@ -184,13 +185,15 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     const clocks = [...request.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g)].map(match => `${match[1].padStart(2, '0')}:${match[2]}`);
     const wrongClock = evidence?.time ? (command.time && command.time !== evidence.time) || (command.endTime && /\b(?:do|until|to)\s+\d/iu.test(request) && command.endTime !== evidence.endTime) : (command.time && clocks.length && !clocks.includes(command.time)) || (command.endTime && clocks.length > 1 && !clocks.includes(command.endTime));
     if ((command.allDay === true && !explicitlyAllDay) || (command.recurrence && command.recurrence !== 'NONE' && !explicitlyRecurring) || unmentionedText || wrongClock) {
-      return ask('Model dodał dane niewymienione w poleceniu. Doprecyzuj wydarzenie; nic nie zmieniono.', 'The model added details absent from the request. Please clarify the event; nothing was changed.');
+      const field=command.allDay===true&&!explicitlyAllDay?'allDay':command.recurrence&&command.recurrence!=='NONE'&&!explicitlyRecurring?'recurrence':unmentionedText?(command.location&&!request.toLocaleLowerCase().includes(command.location.trim().toLocaleLowerCase())?'location':'description'):command.time&&evidence?.time&&command.time!==evidence.time?'time':'endTime';
+      reject(field,field==='time'||field==='endTime'?'requested-time':'requested-field',command[field]);
+      return ask(`Pole ${field} nie jest zgodne z poleceniem. Doprecyzuj je; nic nie zmieniono.`, `Field ${field} does not match the request. Please clarify it; nothing was changed.`);
     }
   }
   if (command.action !== 'create') {
-    if (!command.query?.trim() || matches.length !== 1) return {
+    if (!command.query?.trim() || matches.length !== 1) {reject(command.sourceDate&&candidates.length?'sourceDate':'query','one-existing-event',command.sourceDate&&candidates.length?command.sourceDate:command.query,matches.length?'ambiguous-target':'target-not-found');return {
       text: tr(language, 'Podaj jednoznaczny tytuł i pierwotną datę wydarzenia.', 'Specify an unambiguous event title and its original date.') + '\n' + matches.slice(0, 10).map((e,i) => `${i+1}. ${e.title} — ${e.startDate} ${e.startTime || ''}`).join('\n'),
-    };
+    };}
     const original = matches[0];
     if (original.id.startsWith('pl-holiday-')) return ask('Święto jest tylko do odczytu.', 'This holiday is read-only.');
     if (original.recurrence !== 'NONE' || original.rrule || original.exdates?.length) return ask('To wydarzenie cykliczne. Wybierz zakres zmiany lub usunięcia w edytorze wydarzenia.', 'This is a recurring event. Choose the edit or deletion scope in the event editor.');
@@ -244,8 +247,11 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     const expected=(targetText?calendarFields(targetText,now).date:undefined)||(target?.matched?target.dateStr:requestedDate);
     if((expected&&command.date!==expected)||(!expected&&command.date!==original.startDate))return ask('Podaj jednoznaczną nową datę wydarzenia.', 'Please specify the exact new event date.');
   }
-  if (!original && requestedDate && requestedDate !== date) return ask('Daty w poleceniu są niejednoznaczne. Podaj datę w formacie RRRR-MM-DD.', 'The requested date is ambiguous. Please use YYYY-MM-DD.');
+  if (!original && requestedDate && requestedDate !== date){reject('date','requested-date',command.date);return ask('Daty w poleceniu są niejednoznaczne. Podaj datę w formacie RRRR-MM-DD.', 'The requested date is ambiguous. Please use YYYY-MM-DD.');}
   const plan: AssistantPlan = { kind: original ? 'move' : 'create', originals: original ? [original] : [], events: [draft] };
-  changesForPlan(plan); // Existing event validation runs before displaying a proposal, then again at commit.
+  if(validation)validation.stage='event-validation';
+  try{changesForPlan(plan);}catch(error){reject('event','valid-calendar-event',plan.events[0],'invalid-event');throw error;}
+  if(validation)Object.assign(validation,{stage:'proposal-ready',code:undefined,field:undefined,expectedType:undefined,receivedType:undefined});
+  // // Existing event validation runs before displaying a proposal, then again at commit.
   return { text: tr(language, 'Sprawdź wszystkie dane przed zatwierdzeniem.', 'Review all details before confirming.')+(planHasConflicts(plan,events)?tr(language,' Uwaga: konflikt z innym wydarzeniem.',' Warning: conflict with another event.'):''), suggestedPlan: plan };
 }
