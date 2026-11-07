@@ -36,3 +36,7 @@ node --check scripts/verify-packaged-model.cjs
 ```
 
 No CI dispatch, tag, Release, driver/backend change or APK installation is authorized by this validation alone. PR #20 stays Draft.
+
+## Explicit Linux-only manual testing
+
+The same registered workflow has a separate `target=appimage-test` job with read-only permissions. This is not a paired candidate or release: it never builds or accepts an APK. Its manifest must contain `kind: appimage-test`, the exact current HEAD as `source`, and exactly one named AppImage in `files`, with real size/SHA-256. The verifier checks embedded clean desktop provenance, x86_64 ELF, absence of GGUF/signing files and the pinned CPU/CUDA/Vulkan manifest and file hashes before uploading a source-labelled test artifact. Live branch HEAD is checked before and after verification. The default `target=pair` still requires both APK and AppImage; its verifier is unchanged.
