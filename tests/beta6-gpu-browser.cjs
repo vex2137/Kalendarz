@@ -19,6 +19,7 @@ await page.addInitScript(()=>{
  }};
 });
 await page.goto('http://127.0.0.1:4199/tests/beta6-gpu.html');await page.getByText(/GPU wykryte — backend inferencji Vulkan/).waitFor();
+await page.waitForFunction(()=>JSON.parse(document.querySelector('#ai-diagnostics-report').textContent).androidGpu.discovery?.physicalDevices?.[0]?.deviceName==='Fixture GPU (mock)');
 assert.equal(await page.evaluate(()=>window.__computeCalls),0);assert.deepEqual(await page.evaluate(()=>window.__mutations),[]);
 await page.getByTestId('gpu-compute-test').click();await page.getByTestId('gpu-compute-status').filter({hasText:'Wynik Compute zweryfikowany'}).waitFor();
 await page.getByRole('button',{name:'Kopiuj pełną diagnostykę',exact:true}).click();let report=await page.evaluate(()=>JSON.parse(window.__copied));assert.equal(report.androidGpu.computeTest.compute.verified,true);assert.equal(report.backend.backend,'cpu-native');assert.equal(report.backend.mode,'gpu');assert.equal(report.backend.gpuActive,false);

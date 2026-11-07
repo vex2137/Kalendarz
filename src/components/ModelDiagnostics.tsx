@@ -1,3 +1,4 @@
+import {gpuDiagnosticsSnapshot,subscribeGpuDiagnostics} from '../utils/androidGpuDiagnostics';
 import { diagnosticActionText } from '../utils/diagnosticActionText';
 import { exportDiagnosticsJson } from '../utils/diagnosticExport';
 import { AndroidGpuDiagnostics } from './AndroidGpuDiagnostics';
@@ -22,6 +23,7 @@ const copy = {
   de: ['KI-Diagnose', 'Gerätetest: kalt + warm', 'JSON exportieren', 'Speicher freigeben', 'Zwei echte Modellaufrufe ohne Termine zu speichern. Offline im Flugmodus prüfen.', 'Test fehlgeschlagen. Diagnose exportieren und erneut versuchen.'],
 };
 export function ModelDiagnostics({ language, enabled }: { language: AppLanguage; enabled: boolean }) {
+  useSyncExternalStore(subscribeGpuDiagnostics,gpuDiagnosticsSnapshot);
   const metrics = useSyncExternalStore(subscribeMetrics, modelMetrics);
   const turns = useSyncExternalStore(subscribeMetrics, assistantTurns);
   useSyncExternalStore(subscribeMetrics, nativeBuildInfo);
