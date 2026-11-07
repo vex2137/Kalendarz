@@ -42,7 +42,7 @@ def verify_extracted(appdir, source):
     native=appdir/'resources/native'
     meta=json.loads((native/'runtime-manifest.json').read_text())
     pinned=json.loads((ROOT/'scripts/native-runtime-manifest.json').read_text())
-    if meta.get('commit')!=pinned['commit']:raise ValueError('Incorrect pinned native runtime commit')
+    if meta.get('commit')!=pinned.get('overrides',{}).get('linux-x64',pinned)['commit']:raise ValueError('Incorrect pinned native runtime commit')
     for backend in ['cpu','cuda','vulkan']:
         if f'{backend}/llama-server' not in meta['files']:raise ValueError('Missing required native backend: '+backend)
     for name,checksum in meta['files'].items():

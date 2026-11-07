@@ -1,12 +1,14 @@
+import { activeModel, type ModelDescriptor } from './modelRegistry';
+import { gpuLayerLimit, gpuLayerPreference, gpuLayerStorageKey, saveGpuLayerPreference } from './modelGpuLayers';
 import { androidAI } from './nativeAndroidAI';
 export type BackendMode = 'auto'|'gpu'|'cpu';
 export interface BackendInfo {
   backend:'cpu-native'|'vulkan'|'cuda'|'metal'|'cpu-wasm'; mode:BackendMode; available:boolean;
   contextLimit?:number; availableMemoryBytes?:number; contextRequested?:number; contextApplied?:number; contextUsed?:number;
-  loaded:boolean;gpuActive:boolean;modeChanging?:boolean;gpuLayers?:number;system?:string;cpuArchitecture?:string;packagedBackends?:string[];availableBackends?:string[];vulkanFeatureVersion?:number;vulkanHardwareLevel?:number;deviceName?:string;offloadedLayers?:number;
+  loaded:boolean;gpuActive:boolean;automaticLayers?:boolean;modeChanging?:boolean;gpuLayers?:number;system?:string;cpuArchitecture?:string;packagedBackends?:string[];availableBackends?:string[];vulkanFeatureVersion?:number;vulkanHardwareLevel?:number;deviceName?:string;offloadedLayers?:number;
   fallbackReason?:string;threads?:number;ramBytes?:number;vramBytes?:number;memoryScope?:string;
   errorCode?:string;modelId?:string;modelName?:string;loadMs?:number;tokensPerSecond?:number;
-  nativeAttempts?:{backend:string;binary:string;stage:string;status:string;requestedLayers:number;contextLength?:number;offloadedLayers:number;stderr:string;code?:string;reason?:string;nativeCode?:string;exitCode?:number|null;signal?:string|null;healthHttpStatus?:number}[];
+  nativeAttempts?:{backend:string;binary:string;stage:string;status:string;requestedLayers:number;effectiveLayers?:number;estimatedVramBytes?:number;availableVramBytes?:number;reserveBytes?:number;kvCacheBytes?:number;backendOverheadBytes?:number;estimateKind?:string;layerMetadataKnown?:boolean;contextLength?:number;offloadedLayers:number;stderr:string;code?:string;reason?:string;nativeCode?:string;exitCode?:number|null;signal?:string|null;healthHttpStatus?:number}[];
   gpuAttempt?:{arguments?:Record<string,string>;stage:string;status:string;requestedDevice?:string;requestedLayers:number;contextLength:number;offloadedLayersObserved:number;code?:string;nativeCode?:string;exceptionType?:string;message?:string;exitCode?:number;healthHttpStatus?:number;nativeLog:string;stages:{stage:string;elapsedMs:number}[]};
   nativeRuntime?:{version:string;commit:string;abi:string;vulkanLinkage:string;binaryPresent?:boolean;binaryExecutable?:boolean;supportedAbis?:string[]};
   gpuDevices?:{id:string;name:string;totalBytes?:number;freeBytes?:number}[];
@@ -22,7 +24,7 @@ export interface DesktopBridge {
   write(token:string,chunk:Uint8Array):Promise<number>;finish(token:string):Promise<{installed:boolean}>;
   abortUpload(token:string):Promise<void>;remove(id:string):Promise<void>;
   prepare(id:string,contextSize?:number):Promise<BackendInfo>;complete(id:string,request:unknown):Promise<NativeResult>;
-  stop():Promise<void>;setMode(mode:BackendMode,gpuLayers?:number):Promise<BackendInfo>;status():Promise<BackendInfo>;
+  stop():Promise<void>;setMode(mode:BackendMode,gpuLayers?:number,automaticLayers?:boolean):Promise<BackendInfo>;status():Promise<BackendInfo>;
 }
 export interface ModelFolderSnapshot {
   folders:{id:string;path:string}[];
@@ -39,20 +41,21 @@ export function updateBackend(next:Partial<BackendInfo>){status={...status,...('
 const key='calendar_ai_backend_mode_v1';
 export function backendMode():BackendMode {try{const v=localStorage.getItem(key);return v==='gpu'||v==='cpu'?v:'auto';}catch{return'auto';}}
 const layersKey='calendar_ai_gpu_layers_v1';
-export function backendGpuLayers():number {try{const n=Number(localStorage.getItem(layersKey));return Number.isInteger(n)&&n>=1&&n<=999?n:999;}catch{return 999;}}
-export async function applyBackendMode(mode:BackendMode,layers=backendGpuLayers()){
-  if(!['auto','gpu','cpu'].includes(mode)||!Number.isInteger(layers)||layers<1||layers>999)throw Error('model-input');
-  const bridge=desktopAI(),previous=backendMode(),previousLayers=backendGpuLayers();
+export const backendGpuLayers=(model=activeModel())=>gpuLayerLimit(model);
+export async function applyBackendMode(mode:BackendMode,layers?:number|'auto',model:ModelDescriptor=activeModel()){
+  if(!['auto','gpu','cpu'].includes(mode))throw Error('model-input');
+  const bridge=desktopAI(),previous=backendMode(),previousLayers=backendGpuLayers(model),previousAuto=gpuLayerPreference(model).mode==='auto';
   if(mode==='gpu'&&!bridge)throw Error('model-gpu-unavailable');
-  // Check persistent storage before changing the native engine. Roll back both
-  // fields and native policy if a write or bridge acknowledgement fails.
+  const oldPreferences=localStorage.getItem(gpuLayerStorageKey),oldLegacy=localStorage.getItem(layersKey);
   try{
-    localStorage.setItem(key,mode);localStorage.setItem(layersKey,String(layers));
-    if(bridge)updateBackend(await bridge.setMode(mode,layers));
-    updateBackend({mode,gpuLayers:layers});
+    if(layers!==undefined)saveGpuLayerPreference(model,layers);
+    const limit=backendGpuLayers(model),automatic=gpuLayerPreference(model).mode==='auto';
+    localStorage.setItem(key,mode);localStorage.setItem(layersKey,String(limit));
+    if(bridge)updateBackend(await bridge.setMode(mode,limit,automatic));
+    updateBackend({mode,gpuLayers:limit,automaticLayers:automatic});
   }catch(error){
-    try{localStorage.setItem(key,previous);localStorage.setItem(layersKey,String(previousLayers));}catch{}
-    if(bridge)try{updateBackend(await bridge.setMode(previous,previousLayers));}catch{updateBackend({errorCode:'model-mode-rollback'});}
+    try{localStorage.setItem(key,previous);if(oldPreferences===null)localStorage.removeItem(gpuLayerStorageKey);else localStorage.setItem(gpuLayerStorageKey,oldPreferences);if(oldLegacy===null)localStorage.removeItem(layersKey);else localStorage.setItem(layersKey,oldLegacy);}catch{}
+    if(bridge)try{updateBackend(await bridge.setMode(previous,previousLayers,previousAuto));}catch{updateBackend({errorCode:'model-mode-rollback'});}
     throw error;
   }
 }

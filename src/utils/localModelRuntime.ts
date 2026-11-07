@@ -308,7 +308,7 @@ export async function unloadLocalModel() {
 
 // A mode change may interrupt an automatic preload, but never a model transfer
 // or foreground generation. Keep preloading paused until an explicit next use.
-export async function changeLocalBackend(mode:BackendMode,layers?:number) {
+export async function changeLocalBackend(mode:BackendMode,layers?:number|'auto') {
   if(operation||transition)throw Error('model-busy');
   transition=true;manualRelease=true;updateBackend({modeChanging:true});
   recordDiagnosticAction('backend-mode','start');

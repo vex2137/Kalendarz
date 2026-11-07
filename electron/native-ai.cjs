@@ -1,3 +1,4 @@
+const {gpuPlan,offloadEvidence}=require('./gpu-plan.cjs');
 const {classifyLoadFailure,safeStartupLine}=require('./native-startup.cjs');
 const {nativeProcessEnvironment}=require('./native-environment.cjs');
 const {spawn,execFile}=require('node:child_process');
@@ -29,13 +30,14 @@ function gpuFailure(error,log=''){
   if(error.nativeFailureReason)return error.nativeFailureReason;
   if(error.message?.startsWith('native-runtime')||/error while loading shared libraries|undefined symbol/iu.test(log))return 'gpu-runtime-unavailable';
   if(error.message==='native-offload-unconfirmed')return 'gpu-offload-unconfirmed';
+  if(error.message==='native-offload-failed')return 'gpu-offload-failed';
   if(/out of (?:(?:device|host) )?memory|VK_ERROR_OUT_OF_(?:DEVICE|HOST)_MEMORY|ErrorOutOf(?:Device|Host)Memory|CUDA_ERROR_OUT_OF_MEMORY|cudaMalloc.*failed|bad_alloc|allocation failed|not enough.*memory/iu.test(log+' '+error.message))return 'insufficient-vram';
   if(/CUDA_ERROR|CUDA error|cuda.*(?:driver|initializ)|VK_ERROR|vulkan.*(?:driver|initializ)|device lost/iu.test(log+' '+error.message))return 'gpu-driver-failed';
   return 'gpu-start-failed';
 }
 class NativeAI {
-  constructor({runtimeRoot,store,platform=process.platform}){this.root=runtimeRoot;this.store=store;this.platform=platform;this.mode='auto';this.gpuLayers=999;this.contexts=new Map();this.packaged=[];try{const m=JSON.parse(readFileSync(path.join(runtimeRoot,'runtime-manifest.json'),'utf8'));this.packaged=[...new Set(Object.keys(m.files).map(file=>file.split('/')[0]==='cpu'?'cpu-native':file.split('/')[0]))];if(platform==='darwin'&&this.packaged.includes('cpu-native'))this.packaged.push('metal');}catch{}this.state={backend:'cpu-native',gpuActive:false,loaded:false,available:false};this.checked=new Set();this.attempts=[];}
-  snapshot(){return {...this.state,nativeAttempts:this.attempts.map(a=>({...a})),contextLimit:2147483647,availableMemoryBytes:require('node:os').freemem(),mode:this.mode,gpuLayers:this.gpuLayers,system:this.platform,cpuArchitecture:process.arch,packagedBackends:this.packaged,availableBackends:[...new Set((this.devices||[]).map(d=>d.backend))],gpuDevices:this.devices||[]};}
+  constructor({runtimeRoot,store,platform=process.platform}){this.root=runtimeRoot;this.store=store;this.platform=platform;this.mode='auto';this.gpuLayers=999;this.automaticLayers=true;this.metadata=new Map();this.contexts=new Map();this.packaged=[];try{const m=JSON.parse(readFileSync(path.join(runtimeRoot,'runtime-manifest.json'),'utf8'));this.packaged=[...new Set(Object.keys(m.files).map(file=>file.split('/')[0]==='cpu'?'cpu-native':file.split('/')[0]))];if(platform==='darwin'&&this.packaged.includes('cpu-native'))this.packaged.push('metal');}catch{}this.state={backend:'cpu-native',gpuActive:false,loaded:false,available:false};this.checked=new Set();this.attempts=[];}
+  snapshot(){return {...this.state,nativeAttempts:this.attempts.map(a=>({...a})),contextLimit:2147483647,availableMemoryBytes:require('node:os').freemem(),mode:this.mode,gpuLayers:this.gpuLayers,automaticLayers:this.automaticLayers,system:this.platform,cpuArchitecture:process.arch,packagedBackends:this.packaged,availableBackends:[...new Set((this.devices||[]).map(d=>d.backend))],gpuDevices:this.devices||[]};}
   binary(backend){return path.join(this.root,backend==='metal'?'cpu':backend,this.platform==='win32'?'llama-server.exe':'llama-server');}
   env(backend){const directory=path.join(this.root,backend==='metal'?'cpu':backend);const base=this.platform==='linux'?nativeProcessEnvironment():process.env;return {...base,...(this.platform==='darwin'?{DYLD_LIBRARY_PATH:directory+(base.DYLD_LIBRARY_PATH?':'+base.DYLD_LIBRARY_PATH:'')}:{}),PATH:directory+path.delimiter+(base.PATH||''),...(this.platform==='linux'?{LD_LIBRARY_PATH:directory+(base.LD_LIBRARY_PATH?':'+base.LD_LIBRARY_PATH:'')}:{})};}
   async verifyRuntime(backend){
@@ -91,23 +93,25 @@ class NativeAI {
     this.cancelling=(async()=>{this.operation?.abort();this.startController?.abort();await this.stop();await this.loading?.catch(()=>{});await this.operationDone;await this.stop();})();
     try{await this.cancelling;}finally{this.cancelling=undefined;}
   }
-  async setMode(mode,gpuLayers=999){if(!['auto','gpu','cpu'].includes(mode)||!Number.isInteger(gpuLayers)||gpuLayers<1||gpuLayers>999)throw Error('model-input');if(this.operation)throw Error('model-busy');await this.cancel();this.mode=mode;this.gpuLayers=gpuLayers;this.state.fallbackReason=undefined;this.state.errorCode=undefined;return this.snapshot();}
+  async setMode(mode,gpuLayers=999,automaticLayers=gpuLayers===999){if(!['auto','gpu','cpu'].includes(mode)||!Number.isInteger(gpuLayers)||gpuLayers<1||gpuLayers>1000001||typeof automaticLayers!=='boolean')throw Error('model-input');if(this.operation)throw Error('model-busy');await this.cancel();this.mode=mode;this.gpuLayers=gpuLayers;this.automaticLayers=automaticLayers;this.state.fallbackReason=undefined;this.state.errorCode=undefined;return this.snapshot();}
   async start(id,backend,device,signal){
-    const started=performance.now(),attempt={backend,binary:path.relative(this.root,this.binary(backend)),stage:'stop-previous',status:'starting',requestedLayers:backend==='cpu'?0:this.gpuLayers,contextLength:this.contexts.get(id)||this.store.descriptor(id).maxContext,offloadedLayers:0,stderr:''};
+    const modelMeta=this.metadata.get(id)||this.store.descriptor(id);
+    const plan=device?.plan||gpuPlan(modelMeta,this.gpuLayers,this.contexts.get(id)||modelMeta.maxContext||2048,device,this.automaticLayers);
+    const started=performance.now(),attempt={backend,binary:path.relative(this.root,this.binary(backend)),stage:'stop-previous',status:'starting',...(backend==='cpu'?{requestedLayers:0,effectiveLayers:0}:plan),contextLength:this.contexts.get(id)||this.store.descriptor(id).maxContext,offloadedLayers:0,stderr:''};
     this.attempts=[...this.attempts,attempt].slice(-4);this.currentAttempt=attempt;
     let child,localLog='',pending='',spawnError,closed=false,key,file;
     const stage=name=>{attempt.stage=name;};
     const check=()=>{signal.throwIfAborted();if(child&&(this.child!==child||spawnError||child.exitCode!==null||child.signalCode!==null))throw spawnError||Error('native-start-failed');};
-    const add=chunk=>{localLog=(localLog+chunk.toString()).slice(-32000);if(this.child!==child||this.currentAttempt!==attempt)return;this.log=localLog;const matches=[...localLog.matchAll(/offloaded (\d+)\/(\d+) layers to GPU/g)];if(matches.length)this.offloaded=attempt.offloadedLayers=Number(matches.at(-1)[1]);};
+    const add=chunk=>{localLog=(localLog+chunk.toString()).slice(-32000);if(this.child!==child||this.currentAttempt!==attempt)return;this.log=localLog;const evidence=offloadEvidence(localLog);if(evidence){this.observedOffload=evidence;this.offloaded=attempt.offloadedLayers=evidence.layers;}};
     const stderr=chunk=>{add(chunk);if(attempt.status!=='starting')return;pending=(pending+chunk.toString()).slice(-8192);let split;while((split=pending.indexOf('\n'))>=0){const line=safeStartupLine(pending.slice(0,split),[key,file,this.root]);pending=pending.slice(split+1);if(line)attempt.stderr=(attempt.stderr+line+'\n').slice(-4096);}};
     const abort=()=>{child?.kill();};
     try{
       await this.stop();stage('verify-runtime');await this.verifyRuntime(backend);check();
       stage('verify-model');const model=this.store.descriptor(id);file=await this.store.verifiedPath(id,signal);check();
       const port=await new Promise((resolve,reject)=>{const s=net.createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const port=s.address().port;s.close(()=>resolve(port));});});check();
-      key=crypto.randomBytes(32).toString('hex');this.endpoint=`http://127.0.0.1:${port}`;this.key=key;this.log='';this.offloaded=0;
+      key=crypto.randomBytes(32).toString('hex');this.endpoint=`http://127.0.0.1:${port}`;this.key=key;this.log='';this.offloaded=0;this.observedOffload=undefined;
       const args=['--host','127.0.0.1','--port',String(port),'--api-key',key,'--model',file,'--ctx-size',String(attempt.contextLength),'--parallel','1','--threads',String(Math.min(4,require('node:os').availableParallelism())),'--batch-size','128','--ubatch-size','64','--no-webui','--timeout','180','--sleep-idle-seconds','300',
-        '--n-gpu-layers',String(attempt.requestedLayers),'--device',backend!=='cpu'?device.id:'none'];
+        '--fit','off','--log-verbosity','4','--n-gpu-layers',String(attempt.effectiveLayers),'--device',backend!=='cpu'?device.id:'none'];
       stage('process-start');child=spawn(this.binary(backend),args,{env:this.env(backend),stdio:['ignore','pipe','pipe'],windowsHide:true});this.child=child;this.backend=backend;
       child.stdout.on('data',add);child.stderr.on('data',stderr);child.on('error',error=>{spawnError=error;});child.on('close',()=>{closed=true;});
       child.on('exit',()=>{if(this.child===child){this.state.loaded=false;this.state.gpuActive=false;}});
@@ -116,7 +120,7 @@ class NativeAI {
       while(Date.now()<end){check();try{const response=await fetch(this.endpoint+'/health',{headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(1500)});attempt.healthHttpStatus=response.status;if(response.ok){healthy=true;break;}}catch{}await delay(100);}
       check();if(!healthy)throw Error('native-load-timeout');
       // /health readiness and pipe delivery are independent asynchronous events.
-      if(backend!=='cpu'){stage('offload');const deadline=Date.now()+1000;while(!this.offloaded&&Date.now()<deadline){check();await delay(20);}check();if(!this.offloaded)throw Error('native-offload-unconfirmed');}
+      if(backend!=='cpu'){stage('offload');const deadline=Date.now()+3000;while(!this.observedOffload&&Date.now()<deadline){check();await delay(20);}check();if(!this.observedOffload)throw Error('native-offload-unconfirmed');if(!this.offloaded)throw Error('native-offload-failed');}
       stage('context');let props;try{const r=await fetch(this.endpoint+'/props',{headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(1500)});if(r.ok)props=await r.json();}catch{}check();
       const contextApplied=parseContextSize(localLog,props);attempt.stage='loaded';attempt.status='loaded';
       this.loadedId=id;this.state={...this.state,modelId:id,modelName:model.name,contextRequested:attempt.contextLength,contextApplied,contextUsed:undefined,loadMs:performance.now()-started,tokensPerSecond:undefined,errorCode:undefined,available:true,loaded:true,threads:Math.min(4,require('node:os').availableParallelism()),backend:backend==='cpu'?'cpu-native':backend,deviceName:device?.name,gpuActive:false,offloadedLayers:this.offloaded};await this.memory();return this.snapshot();
@@ -148,9 +152,12 @@ class NativeAI {
     this.loading=(async()=>{
       this.probeReason=undefined;
       const devices=this.mode==='cpu'?[]:await this.probe(true),descriptor=this.store.descriptor(id);
-      const rejected=devices.filter(d=>this.gpuLayers>=999&&d.freeBytes!==undefined&&d.freeBytes<(descriptor.estimatedRamMB+256)*1048576);
-      for(const backend of new Set(rejected.map(d=>d.backend||'vulkan')))this.attempts=[...this.attempts,{backend,binary:path.relative(this.root,this.binary(backend)),stage:'memory-preflight',status:'rejected',reason:'insufficient-vram',requestedLayers:this.gpuLayers,contextLength:requested,offloadedLayers:0,stderr:''}].slice(-4);
-      const compatible=devices.filter(d=>this.gpuLayers<999||d.freeBytes===undefined||d.freeBytes>=(descriptor.estimatedRamMB+256)*1048576);
+      const metadata=this.store.metadata?await this.store.metadata(id,controller.signal):descriptor;
+      this.metadata.set(id,metadata);
+      const planned=devices.map(device=>({...device,plan:gpuPlan(metadata,this.gpuLayers,requested||2048,device,this.automaticLayers)}));
+      const rejected=planned.filter(d=>d.plan.rejected);
+      for(const device of rejected){const backend=device.backend||'vulkan';this.attempts=[...this.attempts,{backend,binary:path.relative(this.root,this.binary(backend)),stage:'memory-preflight',status:'rejected',reason:'insufficient-vram',...device.plan,contextLength:requested,offloadedLayers:0,stderr:''}].slice(-4);}
+      const compatible=planned.filter(d=>!d.plan.rejected);
       controller.signal.throwIfAborted();
       // Try each packaged GPU backend once, in CUDA/Vulkan or Metal preference order.
       const attempted=new Set();

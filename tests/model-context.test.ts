@@ -14,7 +14,7 @@ function fixture(arch:string,blocks:unknown=24,padding=0){
  return Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(fields.length),...fields.flatMap(([k,t,v])=>[str(k),u32(t),v]),Buffer.alloc(128*1024)]);
 }
 test('GGUF uses architecture-specific block count and preserves declared context above 2048/131072',async()=>{
- for(const arch of ['qwen35','llama','lfm2','mamba']){const meta=await ggufMetadata(new Blob([fixture(arch)]));assert.equal(meta.blockCount,24);assert.equal(meta.contextLength,262144);assert.equal(meta.maxContext,2048);}
+ for(const arch of ['qwen35','llama','lfm2','lfm3','mamba']){const meta=await ggufMetadata(new Blob([fixture(arch)]));assert.equal(meta.blockCount,24);assert.equal(meta.contextLength,262144);assert.equal(meta.maxContext,2048);}
 });
 test('missing, negative and nonnumeric block metadata is unknown, never inferred from another architecture',async()=>{
  for(const blocks of [undefined,-1,'24']){const bytes=blocks===undefined?fixture('llama',null):fixture('llama',blocks);const meta=await ggufMetadata(new Blob([bytes]));assert.equal(meta.blockCount,undefined);}

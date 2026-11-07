@@ -27,12 +27,18 @@ async function readGGUF(file){
       if(keep&&type===4)return b.readUInt32LE();if(keep&&type===5)return b.readInt32LE();if(keep&&(type===10||type===11)){const n=Number(type===10?b.readBigUInt64LE():b.readBigInt64LE());return Number.isSafeInteger(n)&&n>=0?n:undefined;}return;
     };
     const metadata={};
-    for(let i=0;i<count;i++){const key=string(),type=u32();const keep=/^general\.(?:architecture|name|file_type)$|\.(?:context_length|block_count)$|^split\.(?:count|no)$/.test(key);const v=value(type,keep);if(keep)metadata[key]=v;}
+    for(let i=0;i<count;i++){const key=string(),type=u32();const keep=/^general\.(?:architecture|name|file_type)$|\.(?:context_length|block_count|embedding_length|attention\.head_count|attention\.head_count_kv|attention\.key_length|attention\.value_length)$|^split\.(?:count|no)$/.test(key);const v=value(type,keep);if(keep)metadata[key]=v;}
     const architecture=metadata['general.architecture'];if(typeof architecture!=='string'||!architecture||architecture.length>100)throw Error('model-gguf-invalid');
     if(metadata['split.count']>1)throw Error('model-gguf-split');
     if(!Number.isSafeInteger(metadata[architecture+'.context_length'])||metadata[architecture+'.context_length']<1)throw Error('model-gguf-unsupported');
     const blockCount=metadata[architecture+'.block_count'];
-    return {stat,architecture,name:typeof metadata['general.name']==='string'?metadata['general.name'].slice(0,200):path.basename(file),maxContext:Math.min(2048,Math.max(512,metadata[architecture+'.context_length'])),contextLength:metadata[architecture+'.context_length'],...(Number.isSafeInteger(blockCount)&&blockCount>0&&blockCount<=1000000?{blockCount}:{}),contextIdentity:idFor('file-',`${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`),quantization:'GGUF'};
+    // Standard attention only. Recurrent/hybrid layouts (Qwen3.5/LFM3) keep an
+    // explicitly approximate allowance instead of pretending their KV is known.
+    const get=key=>metadata[architecture+'.'+key],heads=get('attention.head_count'),kvHeads=get('attention.head_count_kv'),embedding=get('embedding_length');
+    const keyLength=get('attention.key_length')||(embedding/heads),valueLength=get('attention.value_length')||(embedding/heads);
+    const kv=2*blockCount*kvHeads*(keyLength+valueLength);
+    const kvBytesPerToken=['llama','qwen2','gemma','gemma2','mistral'].includes(architecture)&&Number.isSafeInteger(kv)&&kv>0?kv:undefined;
+    return {stat,...(kvBytesPerToken?{kvBytesPerToken}:{}),architecture,name:typeof metadata['general.name']==='string'?metadata['general.name'].slice(0,200):path.basename(file),maxContext:Math.min(2048,Math.max(512,metadata[architecture+'.context_length'])),contextLength:metadata[architecture+'.context_length'],...(Number.isSafeInteger(blockCount)&&blockCount>0&&blockCount<=1000000?{blockCount}:{}),contextIdentity:idFor('file-',`${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`),quantization:'GGUF'};
   }finally{await handle.close();}
 }
 

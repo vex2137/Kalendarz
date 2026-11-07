@@ -32,6 +32,11 @@ class NativeModelStore {
     const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file)){signal?.throwIfAborted();hash.update(chunk);}
     if(hash.digest('hex')!==d.sha256)throw Error('model-checksum');this.verified.set(file,cache);return file;
   }
+  async metadata(id,signal){
+    const file=await this.verifiedPath(id,signal);
+    const {stat,...metadata}=await require('./model-folders.cjs').readGGUF(file);
+    signal?.throwIfAborted();return {...metadata,bytes:stat.size};
+  }
   async begin(id) {
     if(id?.startsWith('external-'))throw Error('model-external-readonly');
     const d=this.descriptor(id);if(id===this.bundledId)throw Error('model-bundled');

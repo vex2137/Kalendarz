@@ -1,3 +1,5 @@
+import { findModel } from './modelRegistry';
+import { gpuLayerPreference } from './modelGpuLayers';
 import { recordDiagnosticAction } from './modelDiagnostics';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { backendGpuLayers,backendMode,backendStatus,desktopAI,updateBackend } from './nativeDesktopAI';
@@ -6,7 +8,8 @@ export async function prepareNativeEngine(id:string,signal:AbortSignal,contextSi
   const bridge=desktopAI()!;
   const stop=()=>{void bridge.stop().catch(error=>recordDiagnosticAction('release-memory','error',error));};signal.addEventListener('abort',stop,{once:true});
   try{
-    if(backendStatus().mode!==backendMode()||backendStatus().gpuLayers!==backendGpuLayers())updateBackend(await bridge.setMode(backendMode(),backendGpuLayers()));
+    const model=findModel(id),layers=backendGpuLayers(model),automatic=gpuLayerPreference(model).mode==='auto';
+    if(backendStatus().mode!==backendMode()||backendStatus().gpuLayers!==layers||backendStatus().automaticLayers!==automatic)updateBackend(await bridge.setMode(backendMode(),layers,automatic));
     const status=await bridge.prepare(id,contextSize);signal.throwIfAborted();if(!status.loaded)throw Error('native-not-loaded');updateBackend(status);
   }finally{signal.removeEventListener('abort',stop);}
   const engine={

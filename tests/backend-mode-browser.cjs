@@ -19,6 +19,7 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
    });
    const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.goto('http://127.0.0.1:4197');
+   await page.evaluate(async()=>{const {activeModel}=await import('/src/utils/modelRegistry.ts');const {cacheModelMetadata}=await import('/src/utils/modelContext.ts');cacheModelMetadata(activeModel(),{architecture:'qwen35',contextLength:262144,blockCount:24});});
    const press=locator=>touch?locator.tap():locator.click();
    await press(page.locator('#btn-open-ai-assistant'));await page.waitForFunction(()=>window.__mode.prepares>0);
    await press(page.locator('#btn-ai-settings'));
@@ -31,6 +32,8 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
    const prepares=await page.evaluate(()=>window.__mode.prepares);
    await page.evaluate(()=>window.dispatchEvent(new Event('calendar-app-resume')));await page.waitForTimeout(450);
    assert.equal(await page.evaluate(()=>window.__mode.prepares),prepares,'No mode-change preload loop');
+   assert.equal(await panel.locator('input[type=number]').getAttribute('max'),'25');
+   await panel.locator('input[type=checkbox]').uncheck();
    await panel.locator('input[type=number]').fill('8');await press(panel.getByRole('button',{name:'Apply layer limit',exact:true}));
    await page.waitForFunction(()=>window.__mode.layers===8);
    await press(panel.locator('[data-mode="gpu"]'));await page.waitForFunction(()=>window.__mode.mode==='gpu');

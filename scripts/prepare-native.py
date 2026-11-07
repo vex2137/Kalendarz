@@ -17,6 +17,7 @@ parser=argparse.ArgumentParser();parser.add_argument('--platform',default=sys.pl
 platform={'win32':'win','linux':'linux','darwin':'mac'}.get(args.platform,args.platform)
 key=platform+'-'+args.arch;meta=json.loads((ROOT/'scripts/native-runtime-manifest.json').read_text())
 if key not in meta['targets']:raise SystemExit('Unsupported native runtime target: '+key+'')
+meta={**meta,**meta.get('overrides',{}).get(key,{})}
 output=Path(args.output)/key;output.mkdir(parents=True,exist_ok=True)
 cache=Path(os.environ.get('CALENDAR_NATIVE_ARCHIVE_DIR',str(ROOT/'native/downloads')));cache.mkdir(parents=True,exist_ok=True)
 def digest(path):

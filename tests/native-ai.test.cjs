@@ -183,10 +183,11 @@ test('shutdown retains ownership of a live process after the termination deadlin
 
 test('GPU layer limits are validated and retained; changing mode clears an old failure',async()=>{
  const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({})}});ai.cancel=async()=>{};
- for(const value of [0,-1,1000,1.5,'8',NaN])await assert.rejects(ai.setMode('gpu',value),/model-input/);
+ for(const value of [0,-1,1000002,1.5,'8',NaN])await assert.rejects(ai.setMode('gpu',value),/model-input/);
  ai.state.errorCode='model-gpu-unavailable';await ai.setMode('gpu',8);
  assert.equal(ai.snapshot().gpuLayers,8);assert.equal(ai.snapshot().mode,'gpu');assert.equal(ai.snapshot().errorCode,undefined);
- ai.probe=async()=>[{backend:'vulkan',id:'Vulkan0',freeBytes:1}];let selected;
+ ai.store.descriptor=()=>({bytes:5*1024**3,blockCount:40,maxContext:2048});
+ ai.probe=async()=>[{backend:'vulkan',id:'Vulkan0',freeBytes:2*1024**3}];let selected;
  ai.start=async(id,backend)=>{selected=backend;return ai.snapshot();};await ai.prepare('known');
- assert.equal(selected,'vulkan','Partial offload is measured by native allocation rather than rejected using full-model RAM');
+ assert.equal(selected,'vulkan','A partial model fits even when the full model exceeds available VRAM');
 });

@@ -5,16 +5,16 @@
   "targets": {
     "linux-x64": {
       "cpu": {
-        "file": "llama-b11669-bin-ubuntu-x64.tar.gz",
-        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-ubuntu-x64.tar.gz",
-        "bytes": 17851611,
-        "sha256": "cf07c1c112d709bd67e522017471de57ed0ec8bea031d732c5422351c07f65ac"
+        "file": "llama-b12189-bin-ubuntu-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12189/llama-b12189-bin-ubuntu-x64.tar.gz",
+        "bytes": 23058620,
+        "sha256": "c446a7ba4df3c3b1cc880a734fbff586d6d34b9cebc09e151754813b94ded8c9"
       },
       "vulkan": {
-        "file": "llama-b11669-bin-ubuntu-vulkan-x64.tar.gz",
-        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-ubuntu-vulkan-x64.tar.gz",
-        "bytes": 30497889,
-        "sha256": "e8709e5ba6c1b093dea7f3de57f4aba842f9a188fba6b465782d65d6fcfa4d9f"
+        "file": "llama-b12189-bin-ubuntu-vulkan-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12189/llama-b12189-bin-ubuntu-vulkan-x64.tar.gz",
+        "bytes": 35871731,
+        "sha256": "f59bca3239bde0bd2280fde0b538f2abd9e80abc8ccce6c740bb17e630cd6269"
       }
     },
     "win-x64": {
@@ -47,5 +47,32 @@
         "sha256": "cab28238d78158109b48deb27b05d50e0dcef56275d2e76da9ca8281526c7532"
       }
     }
+  },
+  "overrides": {
+    "linux-x64": {
+      "version": "b12189",
+      "commit": "80d2c0c2c56e4a1bbf74be98f64b99927bf230bc",
+      "architectures": [
+        "lfm3",
+        "qwen35",
+        "qwen35moe"
+      ]
+    }
+  },
+  "cuda": {
+    "linux-x64": [
+      {
+        "file": "llama-b12189-bin-ubuntu-cuda-12.8-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12189/llama-b12189-bin-ubuntu-cuda-12.8-x64.tar.gz",
+        "bytes": 188173082,
+        "sha256": "664f720005135f621960b8f1550979a1bdd73b8ba887e2a47a314b0154fcaa0a"
+      },
+      {
+        "file": "cudart-llama-b12189-bin-ubuntu-cuda-12.8-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12189/cudart-llama-b12189-bin-ubuntu-cuda-12.8-x64.tar.gz",
+        "bytes": 594371476,
+        "sha256": "81408740817d383bd18b9f2f8d4fda14bbd1cf9dac63331e7b56c6fb82380650"
+      }
+    ]
   }
 }

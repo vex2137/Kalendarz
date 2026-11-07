@@ -13,6 +13,17 @@ function fixture(name='Local test'){
 }
 async function workspace(fn){const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'calendar-folders-')));try{await fn(root);}finally{await fs.rm(root,{recursive:true,force:true});}}
 const configFile=root=>path.join(root,'settings','model-folders-v1.json');
+test('native memory metadata reads standard KV dimensions from the bounded GGUF header',()=>workspace(async root=>{
+ const data=fixture(),fields=[['llama.embedding_length',1024],['llama.attention.head_count',8],['llama.attention.head_count_kv',2]];
+ data.writeBigUInt64LE(7n,16);
+ const extra=fields.map(([key,value])=>{const bytes=Buffer.from(key),length=Buffer.alloc(8),scalar=Buffer.alloc(8);length.writeBigUInt64LE(BigInt(bytes.length));scalar.writeUInt32LE(4);scalar.writeUInt32LE(value,4);return Buffer.concat([length,bytes,scalar]);});
+ const file=path.join(root,'header.gguf'),bytes=Buffer.concat([data,...extra]);await fs.writeFile(file,bytes);
+ const meta=await readGGUF(file);assert.equal(meta.blockCount,24);assert.equal(meta.kvBytesPerToken,24576);
+ const {createHash}=require('node:crypto'),sha256=createHash('sha256').update(bytes).digest('hex'),id='imported-'+sha256;
+ const store=new NativeModelStore({root,catalogue:[{id,name:'header fixture',sha256,bytes:bytes.length,maxContext:2048}]});
+ await fs.rename(file,store.file(id));const stored=await store.metadata(id,new AbortController().signal);
+ assert.equal(stored.blockCount,24);assert.equal(stored.bytes,bytes.length);assert.equal(stored.kvBytesPerToken,24576);
+}));
 test('folder scans recursively find valid GGUF and survive restart without copying model bytes',()=>workspace(async root=>{
   const directory=path.join(root,'LM Studio','publisher','model');await fs.mkdir(directory,{recursive:true});
   const file=path.join(directory,'weights.GGUF');await fs.writeFile(file,fixture());
