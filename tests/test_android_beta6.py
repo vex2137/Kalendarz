@@ -28,7 +28,7 @@ class AndroidBeta6GuardTest(unittest.TestCase):
         binary = b'\x7fELF\x02\x01' + bytes(10) + b'\x03\x00\xb7\x00'
         runtime = dict(llamaCommit=guard.RUNTIME_COMMIT, llamaVersion='b12189', abi='arm64-v8a', backends=['cpu-native'], architectures=['lfm3','qwen35'], binarySha256=hashlib.sha256(binary).hexdigest(), sources=[dict(url='https://codeload.github.com/ggml-org/llama.cpp/tar.gz/'+guard.RUNTIME_COMMIT, sha256=guard.SOURCE_SHA256)])
         runtime.update(overrides.get('runtime', {}))
-        info=dict(branch='feat/1.5.0-part2',commit=overrides.get('source','a'*40),dirty=False,version='1.5.0',distribution='model-free',bundledModel=False,androidNative=True)
+        info=dict(workflowCommit=overrides.get('workflowCommit',guard.os.environ.get('GITHUB_SHA')),branch='feat/1.5.0-part2',commit=overrides.get('source','a'*40),dirty=False,version='1.5.0',distribution='model-free',bundledModel=False,androidNative=True)
         with zipfile.ZipFile(path, 'w') as z:
             z.writestr('lib/arm64-v8a/libcalendar_llama.so', overrides.get('binary', binary))
             probe=binary+b'probe'
@@ -58,6 +58,11 @@ class AndroidBeta6GuardTest(unittest.TestCase):
                 with self.subTest(values=values):
                     self.package(p,**values)
                     with self.assertRaises(ValueError): self.verify(p)
+
+    def test_rejects_incorrect_private_workflow_commit(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.dict(guard.os.environ,{'GITHUB_REPOSITORY':'vex2137/Kalendarz-private-builds','GITHUB_SHA':'c'*40}):
+            p=Path(tmp)/guard.NAME;self.package(p,workflowCommit='b'*40)
+            with self.assertRaisesRegex(ValueError,'Private workflow provenance mismatch'):self.verify(p)
 
     def test_rejects_new_signing_key(self):
         with tempfile.TemporaryDirectory() as tmp:

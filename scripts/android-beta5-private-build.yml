@@ -80,8 +80,8 @@ jobs:
       - name: Beta 6 QR/import/export and GPU separation regressions
         if: env.CALENDAR_ANDROID_BETA == '6'
         run: |
-          node --import tsx --test tests/optional-qr.test.ts tests/encrypted-sync.test.ts tests/sync.test.ts tests/calendar.test.ts tests/android-gpu-diagnostics.test.ts tests/assistant-actions.test.ts tests/assistant-beta4.test.ts tests/assistant-beta5.test.ts tests/model-command.test.ts tests/native-model-import.test.ts tests/gguf-import.test.ts tests/diagnostic-actions.test.ts
           python3 -m unittest discover -s tests -p test_android_beta6.py
+          node --import tsx --test tests/optional-qr.test.ts tests/encrypted-sync.test.ts tests/sync.test.ts tests/calendar.test.ts tests/android-gpu-diagnostics.test.ts tests/assistant-actions.test.ts tests/assistant-beta4.test.ts tests/assistant-beta5.test.ts tests/model-command.test.ts tests/native-model-import.test.ts tests/gguf-import.test.ts tests/diagnostic-actions.test.ts
           node tests/beta6-gpu-browser.cjs
           node tests/beta6-sync-browser.cjs
       - name: Native Vulkan diagnostic on software ICD (not phone GPU or inference)
