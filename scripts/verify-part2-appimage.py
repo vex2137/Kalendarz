@@ -8,7 +8,13 @@ import subprocess
 import tempfile
 from part2_artifact_guard import ROOT, asar_build_info, expected_source, verify_info
 
-NAME = 'Kalendarz-1.5.0-Part-2-Beta-2-x86_64.AppImage'
+def appimage_name(beta=None):
+    beta=os.environ.get('CALENDAR_TEST_APPIMAGE_BETA','2') if beta is None else beta
+    if beta not in ('2','3'):raise ValueError('Unsupported Linux test package label')
+    return f'Kalendarz-1.5.0-Part-2-Beta-{beta}-x86_64.AppImage'
+
+
+NAME = appimage_name()
 
 
 def appimage_manifest(manifest, source):

@@ -10,6 +10,11 @@ guard=importlib.util.module_from_spec(spec);spec.loader.exec_module(guard)
 from part2_artifact_guard import verify_manifest
 class AppImageGuardTests(unittest.TestCase):
     def manifest(self):return {'kind':'appimage-test','source':'a'*40,'files':[{'name':guard.NAME,'size':100,'sha256':'b'*64}]}
+    def test_explicit_test_labels(self):
+        self.assertEqual(guard.appimage_name('2'),'Kalendarz-1.5.0-Part-2-Beta-2-x86_64.AppImage')
+        self.assertEqual(guard.appimage_name('3'),'Kalendarz-1.5.0-Part-2-Beta-3-x86_64.AppImage')
+        for invalid in ['1','../../unsafe','',3]:
+            with self.subTest(invalid=invalid),self.assertRaises(ValueError):guard.appimage_name(invalid)
     def test_explicit_linux_manifest(self):self.assertEqual(guard.appimage_manifest(self.manifest(),'a'*40)['name'],guard.NAME)
     def test_stale_source_is_rejected(self):
         with self.assertRaises(ValueError):guard.appimage_manifest(self.manifest(),'c'*40)
