@@ -61,14 +61,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Acquire and verify the existing update key (secrets or one-use encrypted handoff)
-        env:
-          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
-          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
-          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
-          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/android-beta5-signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP" "$CALENDAR_EXPECTED_COMMIT" "$GITHUB_REPOSITORY"
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -149,6 +141,14 @@ jobs:
           node node_modules/vite/bin/vite.js build --mode production
           npx --no-install cap sync android
       - uses: gradle/actions/setup-gradle@v4
+      - name: Acquire and verify the existing update key (secrets or one-use encrypted handoff)
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/android-beta5-signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP" "$CALENDAR_EXPECTED_COMMIT" "$GITHUB_REPOSITORY"
       - name: Android JVM tests, signed update APK and compile device tests
         run: |
           set -euo pipefail

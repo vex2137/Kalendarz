@@ -30,7 +30,7 @@ export function AndroidGpuDiagnostics({language}:{language:AppLanguage}){
   <p>Active: {backend.backend} · Mode: {backend.mode} · Offload: {backend.offloadedLayers??0} · {backend.errorCode||backend.fallbackReason}</p>
   <h4 className="font-semibold">{text[2]}</h4><p className="theme-muted">{text[11]}</p>
   <button type="button" data-testid="gpu-compute-test" disabled={Boolean(report.pending)} className="theme-border border rounded p-2 disabled:opacity-50" onClick={()=>void runGpuDiagnostic(true)}>{report.pending==='compute'?'…':text[3]}</button>
-  <p role="status" data-testid="gpu-compute-status">{c?(c.success&&c.compute?.verified?text[8]:`${c.stage} · ${c.errorCode} · VkResult: ${c.vkResult??'—'}`):text[9]} {c?`${Math.round(c.durationMs??c.processDurationMs??0)} ms`:''}</p>
+  <p role="status" data-testid="gpu-compute-status">{report.pending==='compute'?({pl:'Test w toku…',en:'Test running…',de:'Test läuft…',ru:'Тест выполняется…'})[language]:c?(c.success&&c.compute?.verified?text[8]:`${c.stage} · ${c.errorCode} · VkResult: ${c.vkResult??'—'}`):text[9]} {c?`${Math.round(c.durationMs??c.processDurationMs??0)} ms`:''}</p>
   {c?.selectedDevice && <p data-testid="gpu-compute-device">{c.selectedDevice.deviceName} · {c.selectedDevice.deviceType} {c.selectedDevice.softwareDevice?({pl:'Programowy Vulkan — nie potwierdza sprzętowego GPU.',en:'Software Vulkan — not evidence of hardware GPU compute.',de:'Software-Vulkan — kein Nachweis einer Hardware-GPU.',ru:'Программный Vulkan — аппаратный GPU не подтверждён.'})[language]:''}</p>}
   <p className="theme-muted">Probe: {d?.probeVersion||c?.probeVersion||text[6]} · llama.cpp: {backend.nativeRuntime?.version||text[6]}</p>
  </section>;

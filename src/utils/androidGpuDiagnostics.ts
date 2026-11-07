@@ -20,7 +20,7 @@ export const subscribeGpuDiagnostics=(fn:()=>void)=>{listeners.add(fn);return()=
 function update(next:typeof state){state=next;listeners.forEach(fn=>fn());}
 export async function runGpuDiagnostic(compute=false){
   if(state.pending||!gpuDiagnosticsAvailable())return;
-  update({...state,pending:compute?'compute':'discovery'});
+  update({...state,pending:compute?'compute':'discovery',...(compute?{computeTest:undefined}:{})});
   let report:VulkanReport;
   try{report=compute?await plugin.testCompute({confirmed:true}):await plugin.discover();}
   catch{report={version:1,success:false,stage:'bridge',errorCode:'vulkan-probe-bridge'};}
