@@ -40,3 +40,11 @@ No CI dispatch, tag, Release, driver/backend change or APK installation is autho
 ## Explicit Linux-only manual testing
 
 The same registered workflow has a separate `target=appimage-test` job with read-only permissions. This is not a paired candidate or release: it never builds or accepts an APK. Its manifest must contain `kind: appimage-test`, the exact current HEAD as `source`, and exactly one named AppImage in `files`, with real size/SHA-256. The verifier checks embedded clean desktop provenance, x86_64 ELF, absence of GGUF/signing files and the pinned CPU/CUDA/Vulkan manifest and file hashes before uploading a source-labelled test artifact. Live branch HEAD is checked before and after verification. The default `target=pair` still requires both APK and AppImage; its verifier is unchanged.
+
+## Build on the GitHub Actions runner
+
+Select the separate `target=appimage-build` mode (leave the prebuilt manifest empty). It uses the existing model-free Vite/electron-builder process and pinned CPU/CUDA/Vulkan archive staging, without compiling llama.cpp or building Android. The exact dispatch/live HEAD must contain 388980c; actual ASAR provenance, no weights, all native hashes and an Xvfb smoke are checked before upload. Only read-only repository permission is granted; there is no Release/tag operation. Native regression/type/UI checks run without downloading a model.
+
+```fish
+gh workflow run publish-142.yml --repo vex2137/Kalendarz --ref feat/1.5.0-part2 -f target=appimage-build
+```

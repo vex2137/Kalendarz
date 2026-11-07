@@ -3,13 +3,13 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Paired candidates or a separate Linux-only manual test (never a release)'
+        description: 'Paired candidates, a prebuilt Linux test, or a Linux-only Actions build (never a release)'
         type: choice
         default: pair
-        options: [pair, appimage-test]
+        options: [pair, appimage-test, appimage-build]
       artifact_manifest:
-        description: 'JSON: exact source and files with name/size/sha256; pair needs versionCode, Linux-only needs kind=appimage-test'
-        required: true
+        description: 'Required for prebuilt targets: exact source/file hashes. Leave empty for appimage-build.'
+        required: false
         type: string
 permissions:
   contents: read
@@ -67,6 +67,63 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Kalendarz-Part-2-Beta-2-AppImage-test-${{ github.sha }}
+          path: manual-test-assets/appimage/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  build-appimage-test:
+    if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/feat/1.5.0-part2' && inputs.target == 'appimage-build'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'false'
+      CALENDAR_BETA_APK: 'false'
+      CALENDAR_PART2_BETA: 'true'
+      CALENDAR_EXPECTED_COMMIT: ${{ github.sha }}
+      CALENDAR_INCLUDE_CUDA: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Require current source with the native startup fixes
+        run: |
+          git merge-base --is-ancestor 388980c5ebd12746ebc19274fbf5f7c12e35e396 "$GITHUB_SHA"
+          python3 scripts/part2_artifact_guard.py --source "$GITHUB_SHA" --check-remote
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - name: Targeted native regressions, types and existing artifact guards
+        run: |
+          npm run lint
+          node --test tests/native-startup.test.cjs tests/native-ai.test.cjs tests/model-context-native.test.cjs tests/native-environment.test.cjs
+          python3 -m unittest discover -s tests -p test_part2_appimage.py
+          python3 -m unittest discover -s tests -p test_part2_artifact_guard.py
+      - name: Install browser/Xvfb runtime dependencies
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Native diagnostic UI/export regression
+        run: node tests/native-startup-browser.cjs
+      - name: Build the existing model-free frontend and Linux AppImage
+        run: |
+          node scripts/prepare-model-free.cjs
+          node node_modules/vite/bin/vite.js build --mode production
+          npx --no-install electron-builder --linux AppImage --x64 --publish never --config.publish.provider=github --config.publish.owner=vex2137 --config.publish.repo=Kalendarz --config.linux.artifactName=Kalendarz-1.5.0-Part-2-Beta-2-x86_64.AppImage
+      - name: Verify actual AppImage source, no weights and CPU/CUDA/Vulkan library hashes
+        run: python3 scripts/check-built-appimage.py
+      - name: Smoke the actual extracted AppImage under Xvfb
+        run: xvfb-run -a node tests/appimage-startup-smoke.cjs
+      - name: Final live-head provenance guard
+        run: python3 scripts/part2_artifact_guard.py --source "$GITHUB_SHA" --check-remote
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Kalendarz-Part-2-Beta-2-AppImage-Actions-build-${{ github.sha }}
           path: manual-test-assets/appimage/
           if-no-files-found: error
           compression-level: 0
