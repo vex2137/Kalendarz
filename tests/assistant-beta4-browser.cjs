@@ -32,8 +32,11 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   const generation=page.getByTestId('model-generation-settings').filter({visible:true});
   await generation.locator('input[type=checkbox]').uncheck();await generation.locator('input[type=number]').fill('1500');await generation.getByRole('button',{name:'Save response limit',exact:true}).click();
   await page.locator('#ai-tab-diagnostics').click();
+  // Diagnostics stay live while preload progresses. Capture the full expected
+  // snapshot in the same click event, before React's bubble-phase copy handler.
+  await page.evaluate(async()=>{const {diagnosticsReport}=await import('/src/utils/modelDiagnostics.ts');document.querySelector('[aria-label="Copy full diagnostics"]').addEventListener('click',()=>{window.__expectedCopy=JSON.stringify(diagnosticsReport(),null,2);},{capture:true});});
   const copy=page.getByRole('button',{name:'Copy full diagnostics',exact:true});await copy.click();await page.getByText('Diagnostics copied.',{exact:true}).waitFor();
-  assert.equal(await page.evaluate(()=>window.__copied),await page.locator('#ai-diagnostics-report').innerText());
+  assert.equal(await page.evaluate(()=>window.__copied),await page.evaluate(()=>window.__expectedCopy));
   await page.evaluate(()=>window.__copyFail=true);await copy.click();await page.getByRole('alert').filter({hasText:'Could not copy diagnostics'}).waitFor();
   await page.reload();await page.locator('#btn-open-ai-assistant').click();assert.equal((await records()).length,2);
   await send('Tell me a longer story about a forest');await page.getByText(/Response length limit reached/).last().waitFor();
