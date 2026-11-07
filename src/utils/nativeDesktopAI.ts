@@ -6,6 +6,7 @@ export interface BackendInfo {
   loaded:boolean;gpuActive:boolean;modeChanging?:boolean;gpuLayers?:number;system?:string;cpuArchitecture?:string;packagedBackends?:string[];availableBackends?:string[];vulkanFeatureVersion?:number;vulkanHardwareLevel?:number;deviceName?:string;offloadedLayers?:number;
   fallbackReason?:string;threads?:number;ramBytes?:number;vramBytes?:number;memoryScope?:string;
   errorCode?:string;modelId?:string;modelName?:string;loadMs?:number;tokensPerSecond?:number;
+  nativeAttempts?:{backend:string;binary:string;stage:string;status:string;requestedLayers:number;contextLength?:number;offloadedLayers:number;stderr:string;code?:string;reason?:string;nativeCode?:string;exitCode?:number|null;signal?:string|null;healthHttpStatus?:number}[];
   gpuAttempt?:{arguments?:Record<string,string>;stage:string;status:string;requestedDevice?:string;requestedLayers:number;contextLength:number;offloadedLayersObserved:number;code?:string;nativeCode?:string;exceptionType?:string;message?:string;exitCode?:number;healthHttpStatus?:number;nativeLog:string;stages:{stage:string;elapsedMs:number}[]};
   nativeRuntime?:{version:string;commit:string;abi:string;vulkanLinkage:string;binaryPresent?:boolean;binaryExecutable?:boolean;supportedAbis?:string[]};
   gpuDevices?:{id:string;name:string;totalBytes?:number;freeBytes?:number}[];
