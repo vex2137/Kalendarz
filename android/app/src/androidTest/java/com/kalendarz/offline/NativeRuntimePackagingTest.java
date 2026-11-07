@@ -38,7 +38,11 @@ public class NativeRuntimePackagingTest {
         assertEquals("AArch64 (EM_AARCH64)",183,elf[18]&255);assertEquals(0,elf[19]);
     }
     @Test public void packagedRuntimeExecutesAndReportsPinnedVersion() throws Exception {
-        assertTrue(runRuntime("--version").contains("620d2225"));
+        org.json.JSONObject manifest;
+        try(InputStream in=InstrumentationRegistry.getInstrumentation().getTargetContext().getAssets().open("android-native-runtime.json")){
+            ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1)out.write(b,0,n);manifest=new org.json.JSONObject(out.toString("UTF-8"));
+        }
+        assertTrue(runRuntime("--version").contains(manifest.getString("llamaCommit").substring(0,8)));
     }
     @Test public void productionLauncherCanEnumerateDevicesWithoutClaimingInference() throws Exception {
         // An empty list is valid. This checks the ABI/linker/probe path, not Vulkan inference.

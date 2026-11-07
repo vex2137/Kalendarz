@@ -10,9 +10,14 @@ public class NativeContextConfigTest {
             catch(IllegalArgumentException expected) { org.junit.Assert.assertEquals("model-output-range",expected.getMessage()); }
         }
     }
+    @Test public void rejectsMemoryPressureBeforeSpawn(){
+        NativeContextConfig.requireMemory(512L*1024*1024,false);
+        for(boolean low:new boolean[]{false,true})try{NativeContextConfig.requireMemory(128L*1024*1024,low);fail();}catch(IllegalArgumentException expected){assertEquals("model-memory",expected.getMessage());}
+        try{NativeContextConfig.requireMemory(1024L*1024*1024,true);fail();}catch(IllegalArgumentException expected){}
+    }
     @Test public void preservesExactContextAndRejectsInvalidValues(){
         assertEquals(8193,NativeContextConfig.validate(8193));
-        for(double value:new double[]{0,31,1.5,Double.NaN,Double.POSITIVE_INFINITY,2147483648d}){
+        for(double value:new double[]{0,31,1.5,Double.NaN,Double.POSITIVE_INFINITY,32769,2147483648d}){
             try{NativeContextConfig.validate(value);fail("invalid context accepted");}catch(IllegalArgumentException expected){}
         }
     }

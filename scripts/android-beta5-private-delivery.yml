@@ -1,0 +1,89 @@
+# Install this delivery-only workflow in vex2137/Kalendarz-private-builds/main.
+name: Private Android Beta 5 artifact delivery
+on:
+  repository_dispatch:
+    types: [android-beta5-delivery]
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: Exact verified APK manifest JSON from the builder
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  deliver:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          lfs: false
+      - name: Require private visibility and the current public application source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_MANIFEST: ${{ inputs.manifest }}
+          EVENT_MANIFEST: ${{ toJSON(github.event.client_payload.manifest) }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.private and (.visibility == "private")')" = true
+          python3 - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          m=json.loads(os.environ.get('INPUT_MANIFEST') or os.environ['EVENT_MANIFEST'])
+          assert re.fullmatch('[a-f0-9]{40}',m['source']) and re.fullmatch('[a-f0-9]{64}',m['sha256'])
+          assert type(m['bytes']) is int and 0<m['bytes']<512*1024*1024
+          assert m['file']=='Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk'
+          remote=subprocess.check_output(['git','ls-remote','https://github.com/vex2137/Kalendarz.git','refs/heads/feat/1.5.0-part2'],text=True).split()[0]
+          assert m['source']==remote,'Refusing stale application artifacts'
+          Path('delivery-manifest.json').write_text(json.dumps(m))
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('APPLICATION_SHA='+m['source']+'\n')
+          PY
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: vex2137/Kalendarz
+          ref: ${{ env.APPLICATION_SHA }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install signature verification tools
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"'
+      - name: Retrieve the signed bytes without a binary Git commit
+        run: |
+          python3 - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          m=json.loads(Path('delivery-manifest.json').read_text());out=Path('delivery');out.mkdir()
+          pointer=f"version https://git-lfs.github.com/spec/v1\noid sha256:{m['sha256']}\nsize {m['bytes']}\n"
+          with (out/m['file']).open('wb') as f:subprocess.run(['git','lfs','smudge'],input=pointer.encode(),stdout=f,check=True)
+          PY
+      - name: Independently verify certificate, source, ABI, runtime and SHA-256
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          sys.path.insert(0,str(Path('source/scripts').resolve()))
+          from android_beta5_guard import verify_apk,NAME
+          m=json.loads(Path('delivery-manifest.json').read_text());apk=Path('delivery')/NAME
+          result=verify_apk(apk,m['source'],Path(os.environ['ANDROID_HOME'])/'build-tools/35.0.0')
+          assert result['bytes']==m['bytes'] and result['sha256']==m['sha256']
+          result['androidJvmTests']=m.get('androidJvmTests');result['physicalInferenceTested']=False;result['deviceInstrumentationExecuted']=False
+          apk.with_suffix('.apk.sha256').write_text(result['sha256']+'  '+NAME+'\n')
+          apk.with_suffix('.apk.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        id: artifact
+        with:
+          name: Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64-${{ env.APPLICATION_SHA }}
+          path: delivery/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Record authenticated download URL
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: printf 'Private APK artifact (owner login required, retained 30 days)\n\n%s\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
