@@ -15,11 +15,13 @@ public class CalendarGpuDiagnosticsPlugin extends Plugin {
     private void execute(PluginCall call,boolean compute){
         if(!busy.compareAndSet(false,true)){call.reject("vulkan-probe-busy");return;}
         try{worker.execute(()->{try{
+            long started=System.nanoTime();
             File binary=new File(getContext().getApplicationInfo().nativeLibraryDir,"libcalendar_gpu_probe.so");
             JSONObject result;
             if(!binary.isFile()||!binary.canExecute())result=NativeProbeRunner.failure("packaging","vulkan-probe-not-packaged");
             else result=runner.run(new ProcessBuilder(binary.getAbsolutePath(),compute?"--compute":"--discover"),6000);
             if(compute&&result.optBoolean("success")&&(result.optJSONObject("compute")==null||!result.getJSONObject("compute").optBoolean("verified")))result=NativeProbeRunner.failure("result-verify","vulkan-result-unverified");
+            result.put("processDurationMs",(System.nanoTime()-started)/1e6);
             call.resolve(new JSObject(result.toString()));
         }catch(Exception error){call.reject("vulkan-probe-response");}finally{busy.set(false);}});}catch(RejectedExecutionException error){busy.set(false);call.reject("vulkan-probe-cancelled");}
     }

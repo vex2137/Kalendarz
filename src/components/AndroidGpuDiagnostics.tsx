@@ -14,7 +14,7 @@ export function AndroidGpuDiagnostics({language}:{language:AppLanguage}){
  const available=gpuDiagnosticsAvailable();
  useEffect(()=>{if(available&&!gpuDiagnosticsSnapshot().discovery)void runGpuDiagnostic();},[available]);
  if(!available)return null;
- const d=report.discovery,c=report.computeTest,device=d?.selectedDevice||d?.physicalDevices?.[0];
+ const d=report.discovery,c=report.computeTest,device=d?.physicalDevices?.find(d=>['integrated','discrete','virtual'].includes(d.deviceType))||d?.selectedDevice||d?.physicalDevices?.[0];
  const vendor=(id?:number)=>id===undefined?text[6]:({[0x5143]:'Qualcomm',[0x13b5]:'Arm',[0x10de]:'NVIDIA',[0x1002]:'AMD',[0x8086]:'Intel',[0x1010]:'Imagination',[0x144d]:'Samsung'}[id]||text[6])+` (0x${id.toString(16)})`;
  return <section data-testid="android-gpu-diagnostics" className="mt-3 space-y-3 theme-border border rounded-xl p-3 break-words">
   <h4 className="font-semibold">{text[0]}</h4>
@@ -31,6 +31,7 @@ export function AndroidGpuDiagnostics({language}:{language:AppLanguage}){
   <h4 className="font-semibold">{text[2]}</h4><p className="theme-muted">{text[11]}</p>
   <button type="button" data-testid="gpu-compute-test" disabled={Boolean(report.pending)} className="theme-border border rounded p-2 disabled:opacity-50" onClick={()=>void runGpuDiagnostic(true)}>{report.pending==='compute'?'…':text[3]}</button>
   <p role="status" data-testid="gpu-compute-status">{c?(c.success&&c.compute?.verified?text[8]:`${c.stage} · ${c.errorCode} · VkResult: ${c.vkResult??'—'}`):text[9]} {c?`${Math.round(c.durationMs??c.processDurationMs??0)} ms`:''}</p>
+  {c?.selectedDevice && <p data-testid="gpu-compute-device">{c.selectedDevice.deviceName} · {c.selectedDevice.deviceType} {c.selectedDevice.softwareDevice?({pl:'Programowy Vulkan — nie potwierdza sprzętowego GPU.',en:'Software Vulkan — not evidence of hardware GPU compute.',de:'Software-Vulkan — kein Nachweis einer Hardware-GPU.',ru:'Программный Vulkan — аппаратный GPU не подтверждён.'})[language]:''}</p>}
   <p className="theme-muted">Probe: {d?.probeVersion||c?.probeVersion||text[6]} · llama.cpp: {backend.nativeRuntime?.version||text[6]}</p>
  </section>;
 }
