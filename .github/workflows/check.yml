@@ -37,6 +37,7 @@ jobs:
       - run: node tests/model-actions-browser.cjs
       - run: node tests/resumable-transfer-browser.cjs
       - run: node tests/model-state-browser.cjs
+      - run: node tests/model-context-browser.cjs
       - run: node tests/model-transfer-lifecycle-browser.cjs
       - name: Verify automatic biometric prompting and retry lifecycle
         shell: bash

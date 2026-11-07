@@ -14,7 +14,7 @@ function fixture(quant){const fields=[['general.architecture','qwen35'],['genera
     const open=async()=>{await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();};
     await open();
     const preferred=await page.evaluate(()=>window.__registry.DEFAULT_MODEL.id),row=id=>page.locator(`[data-model-id="${id}"]`);
-    await row(preferred).getByTestId('catalogue-model-status').filter({hasText:'Available in catalogue'}).waitFor();
+    await row(preferred).getByTestId('catalogue-model-status').filter({hasText:'Available'}).waitFor();
     assert.equal(await row(preferred).getAttribute('data-model-selected'),'true');
     assert.equal(await row(preferred).getAttribute('data-model-installation'),'missing');
     await row(preferred).getByRole('button',{name:'Download',exact:true}).waitFor();
@@ -36,11 +36,11 @@ function fixture(quant){const fields=[['general.architecture','qwen35'],['genera
       await page.getByLabel('Import GGUF',{exact:true}).setInputFiles({name:`state-${quant}.gguf`,mimeType:'application/octet-stream',buffer:fixture(quant)});
       await page.waitForFunction(()=>window.__runtime.modelStatus().phase==='installed'&&window.__runtime.modelStatus().modelId.startsWith('imported-'));
       const id=await page.evaluate(()=>window.__runtime.modelStatus().modelId);ids.push(id);
-      await row(id).getByTestId('catalogue-model-status').filter({hasText:'Installed and verified'}).waitFor();
+      await row(id).getByTestId('catalogue-model-status').filter({hasText:'Installed'}).waitFor();
       assert.equal(await row(id).getAttribute('data-model-loaded'),'false');
       assert.equal(await row(id).getByTestId('model-in-use').count(),0,'Verified on disk is independent of engine residency');
     }
-    await row(ids[0]).getByRole('button',{name:'Use model',exact:true}).waitFor();
+    await row(ids[0]).getByRole('button',{name:'Use',exact:true}).waitFor();
     // A legacy record is readable but does not inherit a checksum guarantee just
     // from its size. Keep it inactive so automatic checking cannot hide the state.
     await page.evaluate(async id=>{
@@ -48,8 +48,9 @@ function fixture(quant){const fields=[['general.architecture','qwen35'],['genera
       const request=indexedDB.open('calendar-local-model');await new Promise((resolve,reject)=>{request.onerror=()=>reject(request.error);request.onsuccess=()=>{const db=request.result,tx=db.transaction('models','readwrite');tx.objectStore('models').put(blob,id);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});
       await window.__runtime.selectLocalModel(window.__registry.DEFAULT_MODEL.id);
     },ids[0]);
-    await row(ids[0]).getByTestId('catalogue-model-status').filter({hasText:'Complete — verification required'}).waitFor();
-    assert.equal(await row(ids[0]).getByRole('button',{name:'Use model',exact:true}).count(),0);
+    await row(ids[0]).getByTestId('catalogue-model-status').filter({hasText:'Verification'}).waitFor();
+    assert.equal(await row(ids[0]).getByRole('button',{name:'Use',exact:true}).count(),0);
+    await row(ids[0]).locator('summary').click();
     await row(ids[0]).getByRole('button',{name:'Verify model',exact:true}).waitFor();
     // A durable Range checkpoint is partial, not installed, selected or used.
     const partial=await page.evaluate(async()=>{
@@ -58,9 +59,10 @@ function fixture(quant){const fields=[['general.architecture','qwen35'],['genera
       const writer=await(await dir.getFileHandle(key+'.gguf',{create:true})).createWritable();await writer.write(new Uint8Array(64));await writer.close();
       await window.__runtime.selectLocalModel(d.id);return d.id;
     });
-    await row(partial).getByTestId('catalogue-model-status').filter({hasText:'Partly downloaded'}).waitFor();
+    await row(partial).getByTestId('catalogue-model-status').filter({hasText:'Available'}).waitFor();
+    assert.equal(await row(partial).getAttribute('data-model-installation'),'partial');
     await row(partial).getByRole('button',{name:'Resume download',exact:true}).waitFor();
-    assert.equal(await row(partial).getByRole('button',{name:'Use model',exact:true}).count(),0);
+    assert.equal(await row(partial).getByRole('button',{name:'Use',exact:true}).count(),0);
     assert.equal(await row(partial).getByTestId('model-in-use').count(),0);
     await page.locator('#ai-settings-panel header button').click();await page.locator('#btn-close-ai-drawer').click();await page.locator('#btn-view-week').click();await open();
     await row(partial).getByRole('button',{name:'Resume download',exact:true}).waitFor();

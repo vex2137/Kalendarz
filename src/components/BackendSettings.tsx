@@ -2,6 +2,9 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { AppLanguage } from '../utils/i18n';
 import { backendGpuLayers, backendMode, backendStatus, desktopAI, subscribeBackend, updateBackend, type BackendMode } from '../utils/nativeDesktopAI';
 import { changeLocalBackend } from '../utils/localModelRuntime';
+import { contextRevision, modelMetadata, subscribeContext } from '../utils/modelContext';
+import { modelSettingsText } from '../utils/modelSettingsText';
+import { activeModel, type ModelDescriptor } from '../utils/modelRegistry';
 import { diagnosticErrorCode, recordDiagnosticAction } from '../utils/modelDiagnostics';
 
 const copy = {
@@ -11,10 +14,12 @@ const copy = {
   ru: {title:'Движок инференса',mode:'Режим вычислений',auto:'Автоматически',gpu:'GPU',cpu:'CPU',active:'Инференс на GPU подтверждён',inactive:'GPU неактивен',unloaded:'Модель не загружена',unknown:'Недоступно',device:'Обнаруженный GPU',memory:'RAM процесса / VRAM',scope:'RAM — резидентная память процесса инференса; VRAM указан только при наличии счётчика этого процесса.',mobile:'Нативный GPU-движок недоступен. CPU использует WebAssembly.',failed:'Не удалось сменить режим. Выгрузите модель и повторите.',fallback:'Переход на CPU',reasons:{'no-compatible-gpu':'Нет совместимого GPU или драйвера','insufficient-vram':'Недостаточно свободной VRAM','gpu-start-failed':'Ошибка инициализации GPU','gpu-runtime-unavailable':'Программа GPU или нужная библиотека недоступна','gpu-driver-failed':'Ошибка драйвера GPU или инициализации устройства Vulkan','gpu-inference-failed':'Ошибка генерации на GPU; повторено на CPU','native-runtime-unavailable':'Нативный движок недоступен; используется WebAssembly'}},
 };
 
-export function BackendSettings({language,busy}:{language:AppLanguage;busy:boolean}) {
+export function BackendSettings({language,busy,model=activeModel()}:{language:AppLanguage;busy:boolean;model?:ModelDescriptor}) {
   const status=useSyncExternalStore(subscribeBackend,backendStatus),text=copy[language];
   const [error,setError]=useState<string>(),[message,setMessage]=useState(false),[layers,setLayers]=useState(String(backendGpuLayers()));
   const labels={en:{saved:'Mode saved. The next request loads the model with this setting.',layers:'GPU layer limit (1–999; 999 = all)',apply:'Apply layer limit',system:'System / CPU architecture',packaged:'Packaged backends',available:'Detected GPU backends (not inference confirmation)',changing:'Releasing the model and changing mode…'},pl:{saved:'Tryb zapisany. Następne zapytanie załaduje model z tym ustawieniem.',layers:'Limit warstw GPU (1–999; 999 = wszystkie)',apply:'Zastosuj limit warstw',system:'System / architektura CPU',packaged:'Dostarczone backendy',available:'Wykryte backendy GPU (bez potwierdzenia inferencji)',changing:'Zwalnianie modelu i zmiana trybu…'},de:{saved:'Modus gespeichert. Die nächste Anfrage lädt das Modell mit dieser Einstellung.',layers:'GPU-Schichtlimit (1–999; 999 = alle)',apply:'Schichtlimit anwenden',system:'System / CPU-Architektur',packaged:'Mitgelieferte Backends',available:'Erkannte GPU-Backends (keine Inferenzbestätigung)',changing:'Modell freigeben und Modus ändern…'},ru:{saved:'Режим сохранён. Следующий запрос загрузит модель с этой настройкой.',layers:'Лимит слоёв GPU (1–999; 999 = все)',apply:'Применить лимит слоёв',system:'Система / архитектура CPU',packaged:'Поставляемые движки',available:'Обнаруженные GPU-движки (не подтверждение инференса)',changing:'Выгрузка модели и смена режима…'}}[language];
+  useSyncExternalStore(subscribeContext,contextRevision);
+  const layerText=modelSettingsText(language),meta=modelMetadata(model);
   const native=desktopAI();
   useEffect(()=>{if(native)void native.status().then(updateBackend).catch(error=>recordDiagnosticAction('bridge-info','error',error));},[native]);
   const change=async(mode:BackendMode,limit=backendGpuLayers())=>{recordDiagnosticAction('backend-mode','click');setError(undefined);setMessage(false);try{await changeLocalBackend(mode,limit);setLayers(String(backendGpuLayers()));setMessage(true);}catch(error){setError(diagnosticErrorCode(error));}};
@@ -33,7 +38,8 @@ export function BackendSettings({language,busy}:{language:AppLanguage;busy:boole
     {!native && <p className="theme-muted">{text.mobile}</p>}
     <p data-backend={status.loaded?status.backend:'unloaded'} data-gpu-active={status.gpuActive}>{status.loaded ? status.backend==='vulkan'?'Vulkan':status.backend==='cuda'?'CUDA':status.backend==='metal'?'Metal':status.backend==='cpu-native'?'CPU · llama.cpp':'CPU · WebAssembly' : text.unloaded} · {status.gpuActive?text.active:text.inactive}</p>
     {native && <><p>{text.device}: {status.deviceName||status.gpuDevices?.map(device=>device.name).join(', ')||text.unknown}</p><p>{text.memory}: {memory(status.ramBytes)} / {memory(status.vramBytes)}</p><p className="theme-muted">{text.scope}</p></>}
-    {status.loaded && <p>{status.modelName} · {metrics.layers}: {status.offloadedLayers ?? 0}{status.loadMs !== undefined ? ` · ${metrics.load}: ${(status.loadMs/1000).toFixed(2)} s` : ''}{status.tokensPerSecond !== undefined ? ` · ${metrics.speed}: ${status.tokensPerSecond.toFixed(1)}` : ''}</p>}
+    <p data-testid="model-layer-counts">{layerText.total}: {meta.blockCount??layerText.unknown} · {layerText.requested}: {backendGpuLayers()} · {layerText.offload}: {status.loaded&&status.gpuActive?status.offloadedLayers??layerText.unknown:layerText.unknown}</p>
+    {status.loaded && <p>{status.modelName} · {metrics.layers}: {status.gpuActive?status.offloadedLayers??text.unknown:text.unknown}{status.loadMs !== undefined ? ` · ${metrics.load}: ${(status.loadMs/1000).toFixed(2)} s` : ''}{status.tokensPerSecond !== undefined ? ` · ${metrics.speed}: ${status.tokensPerSecond.toFixed(1)}` : ''}</p>}
     {reason && <p role={gpuError?'alert':'status'}>{gpuError?metrics.failure:text.fallback}: {text.reasons[reason]||reason}</p>}
     {native && <><p>{labels.system}: {status.system||text.unknown} / {status.cpuArchitecture||text.unknown}</p><p>{labels.packaged}: {status.packagedBackends?.join(', ')||text.unknown}</p><p>{labels.available}: {status.availableBackends?.join(', ')||text.unknown}</p></>}
     {status.gpuAttempt && <details data-testid="gpu-attempt-details" className="theme-border border rounded p-2">

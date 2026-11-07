@@ -9,6 +9,7 @@ import { desktopAI, ensureNativeModel } from './nativeDesktopAI';
 import { modelFileWriter } from './modelFileWriter';
 import { resumableModelTransfer, removeModelTransfer, modelTransferBytes } from './resumableModelTransfer';
 import { hasNativeTransfers, nativeTransferStatus } from './nativeModelTransfer';
+import { ggufMetadata, ggufStreamMetadata } from './ggufMetadata';
 
 type VerificationSource = { id: string; token: string } | { id: string; opfsName: string; modified: number };
 const verificationSources = new WeakMap<Blob, VerificationSource>();
@@ -39,6 +40,15 @@ export async function hasDownloadedModelData(descriptor: ModelDescriptor) {
 }
 
 export async function hasNativeModelData(descriptor:ModelDescriptor){ await androidAIReady;if(descriptor.imported&&desktopAI()?.registerImported)await desktopAI()!.registerImported!(descriptor);return Boolean(await desktopAI()?.info(descriptor.id).then(value=>value.installed)); }
+
+export async function installedModelMetadata(descriptor:ModelDescriptor) {
+  if(await hasNativeModelData(descriptor)){
+    const url=desktopAI()?.platform==='android'?new URL(`/_calendar_native_model/${descriptor.id}`,location.origin).href:`calendar-asset://installed-models/${descriptor.id}`;
+    return ggufStreamMetadata(await fetch(url),descriptor.bytes);
+  }
+  const blob=await savedLegacyModel(descriptor);
+  if(blob)return ggufMetadata(blob);
+}
 
 export async function savedModel(descriptor:ModelDescriptor=DEFAULT_MODEL):Promise<Blob|undefined>{
   if(desktopAI()?.platform==='android'){

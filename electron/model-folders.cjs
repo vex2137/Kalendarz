@@ -24,14 +24,15 @@ async function readGGUF(file){
       if(type===8){if(keep)return string();take(u64());return;}
       if(type===9){const subtype=u32(),length=u64();if(length>1000000||subtype===9)throw Error('model-gguf-invalid');if(sizes[subtype])take(length*sizes[subtype]);else if(subtype===8){for(let i=0;i<length;i++)take(u64());}else throw Error('model-gguf-invalid');return;}
       if(!sizes[type])throw Error('model-gguf-invalid');const b=take(sizes[type]);
-      if(keep&&type===4)return b.readUInt32LE();if(keep&&type===10)return Number(b.readBigUInt64LE());return;
+      if(keep&&type===4)return b.readUInt32LE();if(keep&&type===5)return b.readInt32LE();if(keep&&(type===10||type===11)){const n=Number(type===10?b.readBigUInt64LE():b.readBigInt64LE());return Number.isSafeInteger(n)&&n>=0?n:undefined;}return;
     };
     const metadata={};
-    for(let i=0;i<count;i++){const key=string(),type=u32();const keep=/^general\.(?:architecture|name|file_type)$|\.context_length$|^split\.(?:count|no)$/.test(key);const v=value(type,keep);if(keep)metadata[key]=v;}
+    for(let i=0;i<count;i++){const key=string(),type=u32();const keep=/^general\.(?:architecture|name|file_type)$|\.(?:context_length|block_count)$|^split\.(?:count|no)$/.test(key);const v=value(type,keep);if(keep)metadata[key]=v;}
     const architecture=metadata['general.architecture'];if(typeof architecture!=='string'||!architecture||architecture.length>100)throw Error('model-gguf-invalid');
     if(metadata['split.count']>1)throw Error('model-gguf-split');
-    if(!Number.isFinite(metadata[architecture+'.context_length'])||metadata[architecture+'.context_length']<1)throw Error('model-gguf-unsupported');
-    return {stat,architecture,name:typeof metadata['general.name']==='string'?metadata['general.name'].slice(0,200):path.basename(file),maxContext:Math.min(2048,Math.max(512,metadata[architecture+'.context_length'])),quantization:'GGUF'};
+    if(!Number.isSafeInteger(metadata[architecture+'.context_length'])||metadata[architecture+'.context_length']<1)throw Error('model-gguf-unsupported');
+    const blockCount=metadata[architecture+'.block_count'];
+    return {stat,architecture,name:typeof metadata['general.name']==='string'?metadata['general.name'].slice(0,200):path.basename(file),maxContext:Math.min(2048,Math.max(512,metadata[architecture+'.context_length'])),contextLength:metadata[architecture+'.context_length'],...(Number.isSafeInteger(blockCount)&&blockCount>0&&blockCount<=1000000?{blockCount}:{}),contextIdentity:idFor('file-',`${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`),quantization:'GGUF'};
   }finally{await handle.close();}
 }
 

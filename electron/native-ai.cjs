@@ -30,8 +30,8 @@ function gpuFailure(error,log=''){
   return 'gpu-start-failed';
 }
 class NativeAI {
-  constructor({runtimeRoot,store,platform=process.platform}){this.root=runtimeRoot;this.store=store;this.platform=platform;this.mode='auto';this.gpuLayers=999;this.packaged=[];try{const m=JSON.parse(readFileSync(path.join(runtimeRoot,'runtime-manifest.json'),'utf8'));this.packaged=[...new Set(Object.keys(m.files).map(file=>file.split('/')[0]==='cpu'?'cpu-native':file.split('/')[0]))];if(platform==='darwin'&&this.packaged.includes('cpu-native'))this.packaged.push('metal');}catch{}this.state={backend:'cpu-native',gpuActive:false,loaded:false,available:false};this.checked=new Set();}
-  snapshot(){return {...this.state,mode:this.mode,gpuLayers:this.gpuLayers,system:this.platform,cpuArchitecture:process.arch,packagedBackends:this.packaged,availableBackends:[...new Set((this.devices||[]).map(d=>d.backend))],gpuDevices:this.devices||[]};}
+  constructor({runtimeRoot,store,platform=process.platform}){this.root=runtimeRoot;this.store=store;this.platform=platform;this.mode='auto';this.gpuLayers=999;this.contexts=new Map();this.packaged=[];try{const m=JSON.parse(readFileSync(path.join(runtimeRoot,'runtime-manifest.json'),'utf8'));this.packaged=[...new Set(Object.keys(m.files).map(file=>file.split('/')[0]==='cpu'?'cpu-native':file.split('/')[0]))];if(platform==='darwin'&&this.packaged.includes('cpu-native'))this.packaged.push('metal');}catch{}this.state={backend:'cpu-native',gpuActive:false,loaded:false,available:false};this.checked=new Set();}
+  snapshot(){return {...this.state,contextLimit:2147483647,availableMemoryBytes:require('node:os').freemem(),mode:this.mode,gpuLayers:this.gpuLayers,system:this.platform,cpuArchitecture:process.arch,packagedBackends:this.packaged,availableBackends:[...new Set((this.devices||[]).map(d=>d.backend))],gpuDevices:this.devices||[]};}
   binary(backend){return path.join(this.root,backend==='metal'?'cpu':backend,this.platform==='win32'?'llama-server.exe':'llama-server');}
   env(backend){const directory=path.join(this.root,backend==='metal'?'cpu':backend);const base=this.platform==='linux'?nativeProcessEnvironment():process.env;return {...base,...(this.platform==='darwin'?{DYLD_LIBRARY_PATH:directory+(base.DYLD_LIBRARY_PATH?':'+base.DYLD_LIBRARY_PATH:'')}:{}),PATH:directory+path.delimiter+(base.PATH||''),...(this.platform==='linux'?{LD_LIBRARY_PATH:directory+(base.LD_LIBRARY_PATH?':'+base.LD_LIBRARY_PATH:'')}:{})};}
   async verifyRuntime(backend){
@@ -75,7 +75,7 @@ class NativeAI {
   }
   async stop(){
     if(this.stopping)return this.stopping;
-    const child=this.child;this.loadedId=undefined;this.backend=undefined;this.state={...this.state,loaded:false,gpuActive:false,deviceName:undefined,offloadedLayers:undefined,ramBytes:undefined,vramBytes:undefined};
+    const child=this.child;this.loadedId=undefined;this.backend=undefined;this.state={...this.state,loaded:false,gpuActive:false,deviceName:undefined,offloadedLayers:undefined,contextApplied:undefined,contextUsed:undefined,contextRequested:undefined,ramBytes:undefined,vramBytes:undefined};
     if(child&&child.exitCode===null&&child.signalCode===null){this.stopping=new Promise((resolve,reject)=>{let kill,deadline;const finish=error=>{clearTimeout(kill);clearTimeout(deadline);child.removeListener('exit',exited);child.removeListener('error',failed);error?reject(error):resolve();};const exited=()=>finish();const failed=error=>finish(error);child.once('exit',exited);child.once('error',failed);kill=setTimeout(()=>child.kill('SIGKILL'),1500);deadline=setTimeout(()=>finish(Error('model-stop-timeout')),5000);child.kill();});try{await this.stopping;}finally{this.stopping=undefined;}}
     if(this.child===child)this.child=undefined;
   }
@@ -92,7 +92,7 @@ class NativeAI {
     const port=await new Promise((resolve,reject)=>{const s=net.createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const port=s.address().port;s.close(()=>resolve(port));});});
     signal.throwIfAborted();
     const key=crypto.randomBytes(32).toString('hex');this.endpoint=`http://127.0.0.1:${port}`;this.key=key;this.log='';this.offloaded=0;
-    const args=['--host','127.0.0.1','--port',String(port),'--api-key',key,'--model',file,'--ctx-size',String(model.maxContext),'--parallel','1','--threads',String(Math.min(4,require('node:os').availableParallelism())),'--batch-size','128','--ubatch-size','64','--no-webui','--timeout','180','--sleep-idle-seconds','300',
+    const args=['--host','127.0.0.1','--port',String(port),'--api-key',key,'--model',file,'--ctx-size',String(this.contexts.get(id)||model.maxContext),'--parallel','1','--threads',String(Math.min(4,require('node:os').availableParallelism())),'--batch-size','128','--ubatch-size','64','--no-webui','--timeout','180','--sleep-idle-seconds','300',
       '--n-gpu-layers',backend!=='cpu'?String(this.gpuLayers):'0','--device',backend!=='cpu'?device.id:'none'];
     const child=spawn(this.binary(backend),args,{env:this.env(backend),stdio:['ignore','pipe','pipe'],windowsHide:true});this.child=child;this.backend=backend;
     const logs=chunk=>{this.log=(this.log+chunk.toString()).slice(-32000);const matches=[...this.log.matchAll(/offloaded (\d+)\/(\d+) layers to GPU/g)];if(matches.length)this.offloaded=Number(matches.at(-1)[1]);};
@@ -102,7 +102,9 @@ class NativeAI {
       const end=Date.now()+120000;let healthy=false;
       while(Date.now()<end){signal.throwIfAborted();if(failed||child.exitCode!==null||child.signalCode!==null)throw Error('native-start-failed');try{const response=await fetch(this.endpoint+'/health',{headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(1500)});if(response.ok){healthy=true;break;}}catch{}await delay(100);}
       if(!healthy)throw Error('native-load-timeout');if(backend!=='cpu'&&!this.offloaded)throw Error('native-offload-unconfirmed');
-      this.loadedId=id;this.state={...this.state,modelId:id,modelName:model.name,loadMs:performance.now()-started,tokensPerSecond:undefined,errorCode:undefined,available:true,loaded:true,threads:Math.min(4,require('node:os').availableParallelism()),backend:backend==='cpu'?'cpu-native':backend,deviceName:device?.name,gpuActive:false,offloadedLayers:this.offloaded};await this.memory();return this.snapshot();
+      let props;try{const r=await fetch(this.endpoint+'/props',{headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(1500)});if(r.ok)props=await r.json();}catch{}
+      const contextApplied=parseContextSize(this.log,props);
+      this.loadedId=id;this.state={...this.state,modelId:id,modelName:model.name,contextRequested:this.contexts.get(id)||model.maxContext,contextApplied,contextUsed:undefined,loadMs:performance.now()-started,tokensPerSecond:undefined,errorCode:undefined,available:true,loaded:true,threads:Math.min(4,require('node:os').availableParallelism()),backend:backend==='cpu'?'cpu-native':backend,deviceName:device?.name,gpuActive:false,offloadedLayers:this.offloaded};await this.memory();return this.snapshot();
     }catch(error){
       const log=this.log;await this.stop();
       if(!signal.aborted&&backend==='cpu'){
@@ -113,11 +115,12 @@ class NativeAI {
     }
     finally{signal.removeEventListener('abort',abort);}
   }
-  async prepare(id){
+  async prepare(id,contextSize){
+    if(contextSize!==undefined){this.store.descriptor(id);if(!Number.isInteger(contextSize)||contextSize<32||contextSize>2147483647)throw Error('model-context-range');if(this.operation||this.loading)throw Error('model-busy');this.contexts.set(id,contextSize);}
     if(this.cancelling)throw Error('model-busy');
     this.store.descriptor(id);if(this.loading){if(this.loadingId!==id)throw Error('model-busy');return this.loading;}
     if(this.operation&&this.operationId!==id)throw Error('model-busy');
-    if(this.loadedId===id&&this.state.loaded&&this.child?.exitCode===null&&this.child.signalCode===null)return this.snapshot();
+    if(this.loadedId===id&&this.state.contextRequested===(this.contexts.get(id)||this.store.descriptor(id).maxContext)&&this.state.loaded&&this.child?.exitCode===null&&this.child.signalCode===null)return this.snapshot();
     this.state.fallbackReason=undefined;this.state.errorCode=undefined;this.loadingId=id;
     const controller=this.startController=new AbortController();
     this.loading=(async()=>{
@@ -143,6 +146,7 @@ class NativeAI {
     finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
     if(!text||!finish)throw Error('model-response');await this.memory();const tokens=usage.completion_tokens||timings.predicted_n||0;
     this.state.gpuActive=['vulkan','cuda','metal'].includes(this.backend)&&this.offloaded>0&&tokens>0;
+    this.state.contextUsed=Number.isInteger(usage.prompt_tokens)&&Number.isInteger(usage.completion_tokens)?usage.prompt_tokens+usage.completion_tokens:undefined;
     this.state.tokensPerSecond=Number.isFinite(timings.predicted_per_second)?timings.predicted_per_second:undefined;
     return {text,finish,usage,timings,firstTokenMs,backend:this.snapshot()};
   }
@@ -158,4 +162,5 @@ class NativeAI {
     finally{clearTimeout(timeout);controller.signal.removeEventListener('abort',abortLoad);this.operation=undefined;this.operationId=undefined;this.operationDone=undefined;finished();}
   }
 }
-module.exports={NativeAI,parseDevices,validateRequest};
+function parseContextSize(log,props){const value=props?.default_generation_settings?.n_ctx;const match=[...log.matchAll(/\bn_ctx_per_seq\s*=\s*(\d+)/g)].at(-1)||[...log.matchAll(/\bn_ctx\s*=\s*(\d+)/g)].at(-1);const n=Number(value??match?.[1]);return Number.isInteger(n)&&n>0&&n<=2147483647?n:undefined;}
+module.exports={parseContextSize,NativeAI,parseDevices,validateRequest};

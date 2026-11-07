@@ -8,6 +8,7 @@ export interface ModelDescriptor {
   id: string; name: string; file: string; bytes: number; sha256: string; revision: string;
   url: string; license: string; licenseName: string; architecture: string; quantization: string;
   estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean; imported?: boolean;
+  contextLength?:number; blockCount?:number; contextIdentity?:string;
 }
 export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, ...defaultModelSource, bundled: BUILD_INFO.bundledModel !== false };
 // The default has a checksum-pinned public source as well as optional bundled assets.

@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('calendarNativeAI',{
   finish:token=>invoke('upload-finish',token),
   abortUpload:token=>invoke('upload-abort',token),
   remove:id=>invoke('model-remove',id),
-  prepare:id=>invoke('prepare',id),
+  prepare:(id,contextSize)=>invoke('prepare',id,contextSize),
   complete:(id,request)=>invoke('complete',id,request),
   stop:()=>invoke('stop'),
   setMode:(mode,layers)=>invoke('mode',mode,layers),

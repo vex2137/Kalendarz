@@ -1,6 +1,9 @@
 import { downloadSummary } from '../utils/downloadProgress';
 import { diagnosticActionText } from '../utils/diagnosticActionText';
 import { diagnosticActions, recordDiagnosticAction, diagnosticErrorCode, type DiagnosticAction } from '../utils/modelDiagnostics';
+import { ModelContextSettings } from './ModelContextSettings';
+import { contextRevision, modelMetadata, subscribeContext } from '../utils/modelContext';
+import { modelSettingsText } from '../utils/modelSettingsText';
 import { BackendSettings } from './BackendSettings';
 import { ModelFoldersPanel } from './ModelFoldersPanel';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -9,7 +12,7 @@ import { modelChoices, PREFERRED_MODEL, OPTIONAL_FALLBACK, findModel, type Model
 import { modelInstallationState, removeSavedModel, type ModelInstallationSnapshot } from '../utils/localModelStore';
 import { modelPresentationState } from '../utils/modelPresentationState';
 import { modelStateText } from '../utils/modelStateText';
-import { checkLocalModel, importLocalModel, cancelModelOperation, deleteLocalModel, installLocalModel, modelStatus, restoreFallbackModel, retryLocalModel, selectLocalModel, subscribeModel } from '../utils/localModelRuntime';
+import { inspectLocalModel, checkLocalModel, importLocalModel, cancelModelOperation, deleteLocalModel, installLocalModel, modelStatus, restoreFallbackModel, retryLocalModel, selectLocalModel, subscribeModel } from '../utils/localModelRuntime';
 import { assistantUiText } from '../utils/assistantUiText';
 import type { AppLanguage } from '../utils/i18n';
 import { Capacitor } from '@capacitor/core';
@@ -36,7 +39,8 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
   const feedback=diagnosticActionText(language);
   const settings = aiSettingsText(language), text = assistantUiText(language), view = aiInterfaceText(language), lifecycle = modelLifecycleText(language);
   const descriptor = findModel(status.modelId);
-  const stateText = modelStateText(language);
+  const stateText = modelStateText(language), compact=modelSettingsText(language);
+  useSyncExternalStore(subscribeContext,contextRevision);
   const currentModel = modelPresentationState(descriptor.id, descriptor.bytes, status, installations[descriptor.id]);
   const busy = picking || ['checking', 'downloading', 'verifying', 'loading', 'running'].includes(status.phase);
   useEffect(() => {
@@ -44,6 +48,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
     void Promise.all(modelChoices().map(async model => [model.id, await modelInstallationState(model)] as const)).then(entries => { if (current) setInstallations(Object.fromEntries(entries)); });
     return () => { current = false; };
   }, [status.phase, status.modelId]);
+  useEffect(()=>{for(const model of modelChoices())if(installations[model.id]?.state==='verified')void inspectLocalModel(model.id).catch(()=>{});},[installations]);
   useEffect(()=>{
     const input=fileInput.current;
     const cancel=()=>{recordDiagnosticAction('import-gguf','cancelled');setOperationMessage(feedback.cancelled);};
@@ -98,7 +103,8 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
         <button id="ai-background-work" role="switch" aria-checked={background} aria-label={view.background} onClick={() => setAssistantBackground(!background)} className={`ai-switch shrink-0 ${background ? 'ai-switch-on' : ''}`}><span/></button>
       </div>
     </article>
-    <BackendSettings language={language} busy={picking||['downloading','verifying','running'].includes(status.phase)}/>
+    <BackendSettings model={descriptor} language={language} busy={picking||['downloading','verifying','running'].includes(status.phase)}/>
+    <ModelContextSettings key={descriptor.id} model={descriptor} language={language} busy={busy||!enabled}/>
     <ModelFoldersPanel language={language} busy={busy||!enabled}/>
     <div className="grid grid-cols-3 gap-1.5 text-[11px]">
       <button id="ai-download-model" type="button" disabled={busy || !enabled} className="ai-primary min-h-12 rounded-lg px-1 flex gap-1 items-center justify-center disabled:opacity-50" onClick={() => {recordDiagnosticAction('download-model','click');setDownloadOpen(true);catalogue.current?.scrollIntoView({block:'nearest'});}}><Download className="w-5 h-5 shrink-0"/>{view.download}</button>
@@ -129,22 +135,27 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
       {modelChoices().sort((a,b)=>Number(b.id===PREFERRED_MODEL.id)-Number(a.id===PREFERRED_MODEL.id)).filter(model=>!matches||matches.includes(model.id)).map(model=>{
         const presentation=modelPresentationState(model.id, model.bytes, status, installations[model.id]);
         const { selected: active, installed: onDisk }=presentation;
-        return <article key={model.id} className={`ai-model-card theme-border border rounded-xl p-3 space-y-2 ${active?'ai-model-selected':''}`} data-model-id={model.id} data-model-selected={active} data-model-installation={presentation.installation} data-model-loaded={presentation.loaded} data-model-state={presentation.state}>
-          <div className="flex items-start gap-3">
-            <span className="ai-model-icon rounded-xl w-10 h-10 flex items-center justify-center shrink-0">{modelIcon(model)}</span>
-            <div className="min-w-0 flex-1"><p className="font-semibold text-sm break-words">{model.name}</p><p className="theme-muted text-[11px] flex flex-wrap gap-x-2 gap-y-1 mt-1"><span className="inline-flex items-center gap-1"><HardDrive className="w-3.5 h-3.5"/>{(model.bytes/1_000_000).toFixed(1)} MB</span><span className="inline-flex items-center gap-1"><Cpu className="w-3.5 h-3.5"/>{text.memory}: ~{model.estimatedRamMB} MB</span></p></div>
-            {active && <span className="ai-model-badge rounded-full px-2 py-1 text-[10px]">{text.selected}</span>}
+        const meta=modelMetadata(model);
+        const shortStatus=active&&status.phase==='error'?compact.error:active&&status.phase==='verifying'?compact.verifying:presentation.loaded?compact.loaded:onDisk?compact.installed:presentation.state==='downloading'||presentation.state==='queued'?compact.downloading:presentation.state==='unverified'?compact.verifying:['damaged','unavailable'].includes(presentation.installation)?compact.error:compact.available;
+        return <article key={model.id} className={`ai-model-card theme-border border rounded-xl px-3 py-2 min-w-0 ${active?'ai-model-selected':''}`} data-model-id={model.id} data-model-selected={active} data-model-installation={presentation.installation} data-model-loaded={presentation.loaded} data-model-state={presentation.state}>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="min-w-0 flex-1"><p className="font-semibold text-xs break-words [overflow-wrap:anywhere]">{model.name}</p>
+              <p className="theme-muted text-[11px] flex flex-wrap gap-x-2"><span>{(model.bytes/1_000_000).toFixed(1)} MB</span><span>{meta.architecture}</span><span>{compact.layers}: {meta.blockCount??compact.unknown}</span></p>
+              <p className="text-[11px] theme-muted" data-testid="catalogue-model-status" role="status">{shortStatus}{active?` · ${text.selected}`:''}</p>
+            </div>
+            {presentation.loaded ? <span className="ai-model-badge rounded-lg px-2 py-1 text-xs shrink-0" data-testid="model-in-use"><Check className="w-3 h-3 inline"/> {view.used}</span> : onDisk ? <button type="button" disabled={busy||!enabled} className="ai-primary rounded-lg px-2 py-1 min-h-10 text-xs shrink-0 disabled:opacity-50" onClick={()=>perform(async()=>{await selectLocalModel(model.id);await retryLocalModel();})}>{active?compact.load:compact.use}</button> : presentation.canDownload && !model.imported && model.url ? <button type="button" disabled={busy||!enabled} className="ai-primary rounded-lg px-2 py-1 min-h-10 text-xs shrink-0 disabled:opacity-50" onClick={()=>{recordDiagnosticAction('download-model','click');perform(async()=>{await selectLocalModel(model.id);await installLocalModel();},'download-model');}}>{presentation.canResume?stateText.resume:text.download}</button> : null}
           </div>
-          <p role="status" className={`text-xs flex gap-2 items-center ${onDisk ? 'text-emerald-500' : 'theme-muted'}`} data-testid="catalogue-model-status">{onDisk && <CheckCircle2 className="w-4 h-4"/>}{stateText[presentation.state]}</p>
-          <div className="flex gap-2 text-xs">
-            {presentation.loaded ? <span className="ai-model-badge rounded-lg p-2 min-h-11 flex-1 flex items-center justify-center gap-2" data-testid="model-in-use"><Check className="w-4 h-4"/>{view.used}</span> : active ? <span className="ai-model-badge rounded-lg p-2 min-h-11 flex-1 flex items-center justify-center">{stateText.selected}</span> : <button type="button" disabled={busy||!enabled} className="ai-primary rounded-lg p-2 min-h-11 flex-1 flex items-center justify-center gap-2 disabled:opacity-50" onClick={()=>perform(()=>selectLocalModel(model.id))}>{onDisk && <Play className="w-4 h-4"/>}{onDisk ? text.select : stateText.choose}</button>}
-            {presentation.canVerify && <button type="button" disabled={busy||!enabled} className="ai-primary rounded-lg p-2 min-h-11 disabled:opacity-50" onClick={()=>perform(async()=>{await selectLocalModel(model.id);await checkLocalModel();if(!modelStatus().installed && model.url)await installLocalModel();})}>{stateText.verify}</button>}
-            {presentation.canDownload && !model.imported && model.url && <button type="button" disabled={busy||!enabled} className="ai-primary rounded-lg p-2 min-h-11 disabled:opacity-50" onClick={()=>{recordDiagnosticAction('download-model','click');perform(async()=>{await selectLocalModel(model.id);await installLocalModel();},'download-model');}}>{presentation.canResume ? stateText.resume : text.download}</button>}
-            {!model.bundled && ['verified','unverified','damaged'].includes(presentation.installation) && <button type="button" disabled={busy} className="ai-action rounded-lg p-2 min-h-11 flex items-center gap-2 disabled:opacity-50" onClick={()=>perform(async()=>{if(active)await deleteLocalModel();else await removeSavedModel(model);setInstallations(values=>({...values,[model.id]:{state:'missing',bytes:0}}));})}><Trash2 className="w-4 h-4"/>{text.remove}</button>}
-
-          </div>
-          {model.bundled && <p className="theme-muted text-[11px]">{view.bundled}</p>}
-          {!model.imported && <details className="theme-muted text-[11px]"><summary className="cursor-pointer">{view.source}{model.experimental ? ` · ${text.experimental}` : ''}</summary><a className="underline" href={model.license} target="_blank" rel="noreferrer">{model.licenseName}</a>{model.url && <a className="underline ml-2" href={model.url.split('/resolve/')[0]} target="_blank" rel="noreferrer">{new URL(model.url).pathname.split('/')[1]}</a>}</details>}
+          <details className="theme-muted text-[11px] mt-1"><summary className="cursor-pointer w-fit">{compact.details}</summary>
+            <div className="space-y-2 pt-2 break-words"><p>{model.quantization} · {text.memory}: ~{model.estimatedRamMB} MB · {compact.modelMax}: {meta.contextLength??compact.unknown}</p>
+              <p>{compact.total}: {meta.blockCount??compact.unknown} · {stateText[presentation.installation]}</p>
+              <div className="flex flex-wrap gap-2">
+                {presentation.canVerify&&<button type="button" disabled={busy||!enabled} className="ai-action rounded-lg p-2 disabled:opacity-50" onClick={()=>perform(async()=>{await selectLocalModel(model.id);await checkLocalModel();if(!modelStatus().installed&&model.url)await installLocalModel();})}>{stateText.verify}</button>}
+                {!model.bundled&&['verified','unverified','damaged'].includes(presentation.installation)&&<button type="button" disabled={busy} className="ai-action rounded-lg p-2 inline-flex gap-1 items-center disabled:opacity-50" onClick={()=>perform(async()=>{if(active)await deleteLocalModel();else await removeSavedModel(model);setInstallations(values=>({...values,[model.id]:{state:'missing',bytes:0}}));})}><Trash2 className="w-3 h-3"/>{text.remove}</button>}
+              </div>
+              {model.bundled&&<p>{view.bundled}</p>}
+              {!model.imported&&<p>{view.source}: <a className="underline" href={model.license} target="_blank" rel="noreferrer">{model.licenseName}</a>{model.url&&<a className="underline ml-2" href={model.url.split('/resolve/')[0]} target="_blank" rel="noreferrer">{new URL(model.url).pathname.split('/')[1]}</a>} {model.experimental?text.experimental:''}</p>}
+            </div>
+          </details>
         </article>;
       })}
     </div>

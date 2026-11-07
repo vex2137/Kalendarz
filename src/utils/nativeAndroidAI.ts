@@ -13,7 +13,7 @@ const bridge:DesktopBridge={
   info:id=>plugin.info({model:model(id)}),begin:id=>plugin.begin({model:model(id)}),
   write:async(token,chunk)=>{let binary='';for(let i=0;i<chunk.length;i+=8192)binary+=String.fromCharCode(...chunk.subarray(i,i+8192));return (await plugin.write({token,data:btoa(binary)})).bytes;},
   finish:token=>plugin.finish({token}),abortUpload:token=>plugin.abortUpload({token}),remove:id=>plugin.remove({model:model(id)}),
-  prepare:id=>plugin.prepare({model:model(id)}),complete:(id,request)=>plugin.complete({model:model(id),request}),
+  prepare:(id,contextSize)=>plugin.prepare({model:model(id),contextSize}),complete:(id,request)=>plugin.complete({model:model(id),request}),
   stop:()=>plugin.stop(),setMode:(mode:BackendMode,gpuLayers?:number)=>plugin.setMode({mode,gpuLayers}),status:()=>plugin.status(),
 };
 let available=false;

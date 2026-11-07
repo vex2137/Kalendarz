@@ -33,6 +33,9 @@ public class CalendarNativeAIPlugin extends Plugin {
     private String modelName;
     private double loadMs;
     private Double speed;
+    private final Map<String,Integer> contexts=new HashMap<>();
+    private Integer contextRequested,contextApplied,contextUsed;
+    private volatile boolean completing;
     private String gpuName;
     private NativeGpuDiagnostics gpuDiagnostics;
     private volatile boolean captureGpuStartup;
@@ -64,6 +67,10 @@ public class CalendarNativeAIPlugin extends Plugin {
     private File binary(){return new File(getContext().getApplicationInfo().nativeLibraryDir,"libcalendar_llama.so");}
     private JSObject snapshot(){
         JSObject s=new JSObject();s.put("system","Android "+android.os.Build.VERSION.RELEASE);s.put("cpuArchitecture",android.os.Build.SUPPORTED_ABIS.length>0?android.os.Build.SUPPORTED_ABIS[0]:"unknown");s.put("gpuLayers",gpuLayerLimit);s.put("packagedBackends",new JSArray(binary().isFile()?Arrays.asList("cpu-native","vulkan"):Collections.emptyList()));s.put("availableBackends",new JSArray(vulkanDetected?Arrays.asList("vulkan"):Collections.emptyList()));s.put("mode",mode);s.put("backend",gpu?"vulkan":"cpu-native");s.put("available",binary().isFile()&&binary().canExecute()&&android.os.Build.VERSION.SDK_INT>=28);s.put("loaded",process!=null&&process.isAlive()&&loadedId!=null);s.put("gpuActive",confirmed&&process!=null&&process.isAlive()&&loadedId!=null);s.put("offloadedLayers",layers);s.put("threads",Math.min(4,Runtime.getRuntime().availableProcessors()));s.put("loadMs",loadMs);
+        s.put("contextLimit",Integer.MAX_VALUE);
+        android.app.ActivityManager manager=(android.app.ActivityManager)getContext().getSystemService(android.content.Context.ACTIVITY_SERVICE);
+        if(manager!=null){android.app.ActivityManager.MemoryInfo memory=new android.app.ActivityManager.MemoryInfo();manager.getMemoryInfo(memory);s.put("availableMemoryBytes",memory.availMem);}
+        if(contextRequested!=null)s.put("contextRequested",contextRequested);if(contextApplied!=null)s.put("contextApplied",contextApplied);if(contextUsed!=null)s.put("contextUsed",contextUsed);
         if(loadedId!=null){s.put("modelId",loadedId);if(modelName!=null)s.put("modelName",modelName);}if(gpuName!=null)s.put("deviceName",gpuName);if(fallback!=null)s.put("fallbackReason",fallback);if(lastError!=null)s.put("errorCode",lastError);if(speed!=null)s.put("tokensPerSecond",speed);
         if(gpuDiagnostics!=null)s.put("gpuAttempt",new JSONObject(gpuDiagnostics.snapshot()));
         s.put("nativeRuntime",new JSObject().put("version","b11669").put("commit","620d2225cc436ab0b001e3200e590e3b286ef9ab").put("abi","arm64-v8a").put("vulkanLinkage","static-backend/system-libvulkan").put("binaryPresent",binary().isFile()).put("binaryExecutable",binary().canExecute()).put("supportedAbis",new JSArray(Arrays.asList(android.os.Build.SUPPORTED_ABIS))));
@@ -91,7 +98,7 @@ public class CalendarNativeAIPlugin extends Plugin {
     @PluginMethod public void remove(PluginCall call){submit(call,()->{JSONObject m=descriptor(call);if(m.getString("id").equals(loadedId))stopProcess();Files.deleteIfExists(file(m).toPath());verified.clear();return new JSObject();});}
     private void interrupt(){epoch.incrementAndGet();HttpURLConnection c=connection;if(c!=null)c.disconnect();Process p=process;if(p!=null)p.destroy();p=probeProcess;if(p!=null)p.destroy();}
     private void kill(Process p)throws Exception{if(p==null)return;p.destroy();if(!p.waitFor(1500,TimeUnit.MILLISECONDS)){p.destroyForcibly();if(!p.waitFor(3500,TimeUnit.MILLISECONDS))throw new Exception("model-stop-timeout");}}
-    private void stopProcess()throws Exception{Process p=process;captureGpuStartup=false;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;kill(p);if(process==p)process=null;}
+    private void stopProcess()throws Exception{Process p=process;captureGpuStartup=false;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;contextApplied=null;contextUsed=null;contextRequested=null;kill(p);if(process==p)process=null;}
     @PluginMethod public void stop(PluginCall call){interrupt();submit(call,()->{stopProcess();return new JSObject();});}
     @PluginMethod public void setMode(PluginCall call){String next=call.getString("mode","");Integer limit=call.getInt("gpuLayers",999);if(!Arrays.asList("auto","gpu","cpu").contains(next)||limit==null||limit<1||limit>999){call.reject("model-input");return;}interrupt();submit(call,()->{stopProcess();mode=next;gpuLayerLimit=limit;fallback=null;lastError=null;return snapshot();});}
     private Process spawn(List<String> args)throws Exception{
@@ -130,7 +137,7 @@ public class CalendarNativeAIPlugin extends Plugin {
         verify(f,m,version);int port;try(ServerSocket socket=new ServerSocket(0,0,InetAddress.getByName("127.0.0.1"))){port=socket.getLocalPort();}
         key=UUID.randomUUID().toString()+UUID.randomUUID();endpoint="http://127.0.0.1:"+port;log="";layers=0;
         long started=System.nanoTime();
-        List<String> args=Arrays.asList("--host","127.0.0.1","--port",Integer.toString(port),"--api-key",key,"--model",f.getAbsolutePath(),"--ctx-size",Integer.toString(m.getInt("maxContext")),"--parallel","1","--threads",Integer.toString(Math.min(4,Runtime.getRuntime().availableProcessors())),"--batch-size","128","--ubatch-size","64","--no-webui","--n-gpu-layers",device==null?"0":Integer.toString(gpuLayerLimit),"--device",device==null?"none":device,"--jinja");
+        List<String> args=Arrays.asList("--host","127.0.0.1","--port",Integer.toString(port),"--api-key",key,"--model",f.getAbsolutePath(),"--ctx-size",Integer.toString(contexts.containsKey(m.getString("id"))?contexts.get(m.getString("id")):m.getInt("maxContext")),"--parallel","1","--threads",Integer.toString(Math.min(4,Runtime.getRuntime().availableProcessors())),"--batch-size","128","--ubatch-size","64","--no-webui","--n-gpu-layers",device==null?"0":Integer.toString(gpuLayerLimit),"--device",device==null?"none":device,"--jinja");
         if(device!=null&&gpuDiagnostics!=null){gpuDiagnostics.launch(args);gpuDiagnostics.stage("process-start");}
         Process p=spawn(args);process=p;captureGpuStartup=device!=null&&gpuDiagnostics!=null;
         NativeGpuDiagnostics startupTrace=device==null?null:gpuDiagnostics;
@@ -139,6 +146,9 @@ public class CalendarNativeAIPlugin extends Plugin {
         try{long deadline=System.nanoTime()+120_000_000_000L;boolean ready=false;while(System.nanoTime()<deadline){check(version);if(!p.isAlive())throw new Exception("model-native-load");try{request("/health",null,1000);ready=true;break;}catch(Exception ignored){}check(version);Thread.sleep(100);}
             check(version);if(!ready)throw new Exception("model-timeout");
             if(startupTrace!=null){layers=startupTrace.awaitOffload(1000);check(version);if(!p.isAlive())throw new Exception("model-native-load");if(layers<1)throw new Exception("model-gpu-offload");}
+            contextRequested=contexts.containsKey(m.getString("id"))?contexts.get(m.getString("id")):m.getInt("maxContext");
+            contextApplied=NativeContextConfig.fromLog(log);
+            try{int actual=request("/props",null,1500).optJSONObject("default_generation_settings").optInt("n_ctx",0);if(actual>0)contextApplied=actual;}catch(Exception ignored){}
             loadedId=m.getString("id");modelName=m.optString("name",loadedId);gpu=device!=null;confirmed=false;loadMs=(System.nanoTime()-started)/1e6;if(startupTrace!=null)startupTrace.loaded(layers);
         }catch(Exception e){
             if(startupTrace!=null){if(!p.isAlive())reader.join(1000);boolean alive=p.isAlive();startupTrace.fail(e,alive?null:p.exitValue(),alive);}
@@ -153,7 +163,7 @@ public class CalendarNativeAIPlugin extends Plugin {
         if(process!=null&&process.isAlive()&&m.getString("id").equals(loadedId))return;
         fallback=null;lastError=null;gpuName=null;
         if(!mode.equals("cpu")){
-            gpuDiagnostics=new NativeGpuDiagnostics(gpuLayerLimit,m.getInt("maxContext"));captureGpuStartup=true;
+            gpuDiagnostics=new NativeGpuDiagnostics(gpuLayerLimit,contexts.containsKey(m.getString("id"))?contexts.get(m.getString("id")):m.getInt("maxContext"));captureGpuStartup=true;
             try{
                 String devices=probe(version);Matcher match=Pattern.compile("(?m)^\\s*(Vulkan\\d+):\\s*(.+)$").matcher(devices);String device=null;
                 while(match.find()){if(!match.group(2).matches("(?i).*(llvmpipe|lavapipe|swiftshader|software|cpu).*")){device=match.group(1);gpuName=match.group(2);break;}}
@@ -166,7 +176,11 @@ public class CalendarNativeAIPlugin extends Plugin {
         }
         start(m,null,version);
     }
-    @PluginMethod public void prepare(PluginCall call){long version=epoch.get();submit(call,()->{try{prepare(descriptor(call),version);return snapshot();}catch(Exception e){stopProcess();throw e;}});}
+    @PluginMethod public void prepare(PluginCall call){
+        if(completing){call.reject("model-busy");return;}
+        final Integer requested;
+        try{requested=call.getData().has("contextSize")&&!call.getData().isNull("contextSize")?NativeContextConfig.validate(call.getData().optDouble("contextSize",Double.NaN)):null;}catch(Exception error){call.reject("model-context-range");return;}
+        long version=epoch.get();submit(call,()->{try{JSONObject m=descriptor(call);if(requested!=null){if(!requested.equals(contexts.get(m.getString("id")))&&loadedId!=null)stopProcess();contexts.put(m.getString("id"),requested);}prepare(m,version);return snapshot();}catch(Exception e){stopProcess();throw e;}});}
     private JSONObject validateRequest(JSONObject input)throws Exception{
         if(input==null||input.toString().length()>60000)throw new Exception("model-input");
         JSONArray messages=input.getJSONArray("messages");int max=input.getInt("max_tokens"),length=0;if(messages.length()>7||max<1||max>768)throw new Exception("model-input");
@@ -174,14 +188,16 @@ public class CalendarNativeAIPlugin extends Plugin {
         JSONObject out=new JSONObject();out.put("messages",messages);out.put("max_tokens",max);out.put("temperature",0);out.put("stream",true);out.put("stream_options",new JSONObject().put("include_usage",true));out.put("chat_template_kwargs",new JSONObject().put("enable_thinking",false));if(input.has("response_format"))out.put("response_format",input.get("response_format"));return out;
     }
     private JSObject complete(JSONObject request,long version)throws Exception{
+        completing=true;
         HttpURLConnection c=(HttpURLConnection)new URL(endpoint+"/v1/chat/completions").openConnection();connection=c;c.setConnectTimeout(1500);c.setReadTimeout(180000);c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Authorization","Bearer "+key);c.setRequestProperty("Content-Type","application/json");
         NativeCompletionText text=new NativeCompletionText();JSONObject usage=new JSONObject(),timings=new JSONObject();String finish=null;Double first=null;long started=System.nanoTime();
         if(gpu&&captureGpuStartup&&gpuDiagnostics!=null)gpuDiagnostics.stage("inference");
         try{try(OutputStream out=c.getOutputStream()){out.write(request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}if(c.getResponseCode()!=200)throw new Exception("model-native-response");
             try(BufferedReader r=new BufferedReader(new InputStreamReader(c.getInputStream(),java.nio.charset.StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null){check(version);if(line.length()>512000)throw new Exception("model-response");if(!line.startsWith("data:")||line.equals("data: [DONE]"))continue;JSONObject chunk=new JSONObject(line.substring(5));JSONArray choices=chunk.optJSONArray("choices");if(choices!=null&&choices.length()>0){JSONObject choice=choices.getJSONObject(0),delta=choice.optJSONObject("delta");if(text.append(delta)&&first==null)first=(System.nanoTime()-started)/1e6;if(!choice.isNull("finish_reason"))finish=choice.optString("finish_reason",null);}if(text.length()>24000)throw new Exception("model-response");if(!chunk.isNull("usage"))usage=chunk.getJSONObject("usage");if(!chunk.isNull("timings"))timings=chunk.getJSONObject("timings");}}
             if(text.length()==0||finish==null)throw new Exception("model-response");confirmed=gpu&&layers>0&&usage.optInt("completion_tokens",timings.optInt("predicted_n",0))>0;speed=timings.has("predicted_per_second")?timings.getDouble("predicted_per_second"):null;if(confirmed&&gpuDiagnostics!=null){gpuDiagnostics.confirmed();captureGpuStartup=false;}
+            contextUsed=usage.has("prompt_tokens")&&usage.has("completion_tokens")?usage.getInt("prompt_tokens")+usage.getInt("completion_tokens"):null;
             JSObject out=new JSObject();out.put("text",text.toString());out.put("finish",finish);out.put("usage",usage);out.put("timings",timings);if(first!=null)out.put("firstTokenMs",first);out.put("backend",snapshot());return out;
-        }finally{c.disconnect();if(connection==c)connection=null;}
+        }finally{completing=false;c.disconnect();if(connection==c)connection=null;}
     }
     @PluginMethod public void complete(PluginCall call){long version=epoch.get();submit(call,()->{
         JSONObject m=descriptor(call),request=validateRequest(call.getObject("request"));

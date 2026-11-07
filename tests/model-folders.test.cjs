@@ -9,7 +9,7 @@ function fixture(name='Local test'){
   const u64=n=>{const b=Buffer.alloc(8);b.writeBigUInt64LE(BigInt(n));return b;};
   const u32=n=>{const b=Buffer.alloc(4);b.writeUInt32LE(n);return b;};
   const string=s=>Buffer.concat([u64(Buffer.byteLength(s)),Buffer.from(s)]);
-  return Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(3),string('general.architecture'),u32(8),string('llama'),string('llama.context_length'),u32(4),u32(4096),string('general.name'),u32(8),string(name)]);
+  return Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(4),string('llama.block_count'),u32(5),u32(24),string('general.architecture'),u32(8),string('llama'),string('llama.context_length'),u32(4),u32(4096),string('general.name'),u32(8),string(name)]);
 }
 async function workspace(fn){const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'calendar-folders-')));try{await fn(root);}finally{await fs.rm(root,{recursive:true,force:true});}}
 const configFile=root=>path.join(root,'settings','model-folders-v1.json');
@@ -18,7 +18,7 @@ test('folder scans recursively find valid GGUF and survive restart without copyi
   const file=path.join(directory,'weights.GGUF');await fs.writeFile(file,fixture());
   const folders=new ModelFolders({configFile:configFile(root)});assert.deepEqual((await folders.list()).folders,[]);
   const added=await folders.add(path.join(root,'LM Studio'));assert.equal(added.models.length,1);assert.equal(added.models[0].name,'Local test');assert.equal(added.models[0].file,'weights.GGUF');
-  assert.equal(added.models[0].maxContext,2048);assert.equal(added.models[0].external,true);assert.equal(JSON.stringify(added.models).includes(directory),false);
+  assert.equal(added.models[0].maxContext,2048);assert.equal(added.models[0].contextLength,4096);assert.equal(added.models[0].blockCount,24);assert.equal(added.models[0].external,true);assert.equal(JSON.stringify(added.models).includes(directory),false);
   assert.equal((await folders.add(path.join(root,'LM Studio'))).folders.length,1);
   const reopened=new ModelFolders({configFile:configFile(root)});assert.deepEqual(await reopened.list(),added);
   assert.equal(await reopened.verifiedPath(added.models[0].id),file);assert.deepEqual(await fs.readdir(directory),['weights.GGUF']);

@@ -2,13 +2,14 @@ import { modelTransferBytes } from './resumableModelTransfer';
 import { hasNativeTransfers, nativeTransferStatus, nativeTransferRunning, runNativeTransfer, type NativeTransferStatus } from './nativeModelTransfer';
 import { downloadMeter, type DownloadProgress } from './downloadProgress';
 import { androidAIReady } from './nativeAndroidAI';
+import { cacheModelMetadata, contextPlan, modelMetadata, modelContextKey, saveContextPreference, type ContextPreference } from './modelContext';
 import { completionTokenLimit } from './inferencePolicy';
 import { ggufMetadata, ggufLoadError } from './ggufMetadata';
 import { desktopAI, applyBackendMode, type BackendMode, backendMode, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
-import { markModelVerified, modelInstallationState, bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel, modelChecksum, copiedModelChecksum } from './localModelStore';
+import { installedModelMetadata, markModelVerified, modelInstallationState, bundledModelAvailable, loadBundledModel, downloadModel, removeSavedModel, savedModel, recoverSavedModel, saveModel, verifyModel, discardDownloadedModel, cleanPartialModels, hasNativeModelData, removeLegacyModel, modelChecksum, copiedModelChecksum } from './localModelStore';
 import { applyCompletionMetrics, recordModelMetric, recordModelState, recordDiagnosticAction, type DiagnosticStage, type ModelMetric } from './modelDiagnostics';
 import { activeModel, DEFAULT_MODEL, OPTIONAL_FALLBACK, findModel, persistModelSelection, AI_MODELS, registerImportedModel, type ModelDescriptor } from './modelRegistry';
 
@@ -56,6 +57,25 @@ export async function selectLocalModel(id: string) {
     update({ modelId: id, phase: 'checking', installation:'missing', queued:false, resumeBytes:0, transfer:undefined, progress: 0, installed: false, loaded: false, bundled: false, error: undefined, errorDetail:undefined });
     await checkLocalModel();
   } finally { transition = false; }
+}
+const metadataReads=new Map<string,Promise<void>>();
+export async function inspectLocalModel(id:string){
+  const model=findModel(id);if(model.id!==id||model.external||modelMetadata(model).contextLength)return;
+  const key=modelContextKey(model);if(metadataReads.has(key))return metadataReads.get(key);
+  const reading=(async()=>{const meta=await installedModelMetadata(model);if(meta)cacheModelMetadata(model,meta);})();
+  metadataReads.set(key,reading);try{await reading;}finally{metadataReads.delete(key);}
+}
+export async function changeLocalContext(preference:ContextPreference){
+  if(operation||transition)throw Error('model-busy');
+  const descriptor=findModel(status.modelId);contextPlan(descriptor,preference);
+  transition=true;manualRelease=true;
+  try{
+    await unloadLocalModel();
+    const bridge=desktopAI();if(bridge){await bridge.stop();const state=await bridge.status();updateBackend(state);if(state.loaded)throw Error('model-release-unconfirmed');}
+    saveContextPreference(descriptor,preference);
+    recoveryRequired=false;clearModelOperation(descriptor.id);
+    update({phase:status.installed?'installed':'missing',loaded:false,error:undefined,errorDetail:undefined});
+  }finally{transition=false;}
 }
 export const restoreFallbackModel = () => selectLocalModel(OPTIONAL_FALLBACK.id);
 export async function retryLocalModel() {
@@ -202,6 +222,7 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
       descriptor = {...meta,id:'imported-'+checksum,file:name.slice(0,240),bytes,sha256:checksum,revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(bytes/1048576*1.5)+512,imported:true,experimental:true};
       step('register');registerImportedModel(descriptor);
     }
+    cacheModelMetadata(descriptor,meta);
     operation = undefined; operationKind = undefined;
     update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false});
     await selectLocalModel(descriptor.id);
@@ -264,6 +285,7 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
     blob = file instanceof Blob ? file : await downloadModel(controller.signal, n => update({ queued:false, installation:previouslyInstalled?'verified':n?'partial':'missing', progress: n / descriptor.bytes * 100, transfer: meter(n) }), file ? {...descriptor,url:file.url} : descriptor, () => update({phase:'verifying',installation:previouslyInstalled?'verified':'unverified',progress:0}));
     update({ phase: 'verifying', queued:false, installation:previouslyInstalled?'verified':'unverified', progress: 0 });
     step('verify');await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
+    try{cacheModelMetadata(descriptor,await ggufMetadata(blob));}catch{/* Keep valid older engine-compatible files usable. */}
     step('commit');await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}),action);
     update({ phase: 'installed', installation:'verified', queued:false, installed: true, loaded:false, progress: 100, resumeBytes: 0, error:undefined,errorDetail:undefined });
   } catch (error) {
@@ -376,7 +398,10 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       const descriptor = findModel(status.modelId);
       markModelOperation(descriptor.id);
       metric.modelId = descriptor.id;
-      metric.contextLength = descriptor.maxContext;
+      await inspectLocalModel(descriptor.id).catch(()=>{});
+      let availableMemoryBytes:number|undefined;try{availableMemoryBytes=(await desktopAI()?.status())?.availableMemoryBytes;}catch{}
+      let context=contextPlan(descriptor,undefined,availableMemoryBytes,backendStatus().contextLimit);
+      metric.contextLength = context.requested;
       metric.modelBytes = descriptor.bytes;
       let started = performance.now();
       const bundled = await bundledModelAvailable(descriptor);
@@ -394,7 +419,8 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
           }
           update({installed:true});metric.storageMs=performance.now()-started;started=performance.now();
           recordDiagnosticAction('bridge-info','engine-load',undefined,{modelId:descriptor.id});
-          const native=await prepareNativeEngine(descriptor.id,controller.signal);
+          const native=await prepareNativeEngine(descriptor.id,controller.signal,context.requested);
+          await inspectLocalModel(descriptor.id).catch(()=>{});
           metric.initMs=performance.now()-started;engine=native;actualThreads=backendStatus().threads||1;
           if(desktopAI()?.platform!=='android')await removeLegacyModel(descriptor);
           Object.assign(metric,{backend:backendStatus().backend,gpuActive:backendStatus().gpuActive});
@@ -419,6 +445,8 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       started = performance.now();
       await verifyModel(blob, controller.signal, undefined, descriptor);
       await markModelVerified(descriptor, blob);
+      try{cacheModelMetadata(descriptor,await ggufMetadata(blob));}catch{}
+      context=contextPlan(descriptor,undefined,availableMemoryBytes);
       metric.verifyMs = performance.now() - started;
       started = performance.now();
       const [{ Wllama }, wasm, compatWasm, compatWorker] = await Promise.all([
@@ -437,7 +465,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
         instance = new Wllama({ default: assetUrl(wasm.default) }, { suppressNativeLog: false, logger: { log() {}, debug() {}, warn() {}, error(...args: unknown[]) { if (initializing) loadNotes = (loadNotes + args.map(String).join(' ')).slice(-600); } } });
         instance.setCompat({ wasm: assetUrl(compatWasm.default), worker: { code: compatWorker.default } }, 'firefox_safari');
         try {
-          await instance.loadModel([blob], { n_ctx: descriptor.maxContext, n_batch: 128, n_ubatch: 64, n_parallel: 1, n_gpu_layers: 0, n_threads: threads, cache_type_k: 'f16', cache_type_v: 'f16', warmup: true });
+          await instance.loadModel([blob], { n_ctx: context.requested, n_batch: 128, n_ubatch: 64, n_parallel: 1, n_gpu_layers: 0, n_threads: threads, cache_type_k: 'f16', cache_type_v: 'f16', warmup: true });
           initializing = false;
           actualThreads = instance.isMultithread() ? threads : 1;
           break;
@@ -446,7 +474,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
       controller.signal.throwIfAborted();
       metric.initMs = performance.now() - started;
       engine = instance!;
-      updateBackend({backend:'cpu-wasm',loaded:true,gpuActive:false,errorCode:undefined});
+      updateBackend({backend:'cpu-wasm',modelId:descriptor.id,loaded:true,gpuActive:false,errorCode:undefined,contextRequested:context.requested,contextApplied:instance?.getLoadedContextInfo().n_ctx,contextUsed:undefined});
       lastLoad = {storageMs:metric.storageMs,verifyMs:metric.verifyMs,initMs:metric.initMs};
       update({ phase: 'ready', installation:'verified', installed:true, loaded:true });
       if(!operation)clearModelOperation(descriptor.id);
@@ -490,7 +518,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     const current = await ensureEngine(metric, options.threads);
     Object.assign(metric,{backend:backendStatus().backend,threads:backendStatus().backend==='cpu-wasm'?actualThreads:backendStatus().threads});
     if (engineStateAtStart !== 'loaded') Object.assign(metric,lastLoad);
-    Object.assign(metric,{contextLength:descriptor.maxContext,modelBytes:descriptor.bytes,historyMessages:history.length,maxOutputTokens:completionTokenLimit(descriptor.id,prompt,schema!==undefined,options.maxTokens)});
+    Object.assign(metric,{contextLength:backendStatus().contextApplied??backendStatus().contextRequested,modelBytes:descriptor.bytes,historyMessages:history.length,maxOutputTokens:completionTokenLimit(descriptor.id,prompt,schema!==undefined,options.maxTokens)});
     controller.signal.throwIfAborted();
     metric.loadMs = performance.now() - started;
     update({ phase: 'running' });
@@ -513,6 +541,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
       if (content) { if(!native)metric.firstAnswerTokenMs ??= performance.now() - started; text += content; }
       if (choice?.finish_reason) finish = choice.finish_reason;
       applyCompletionMetrics(metric,chunk.usage,chunk.timings);
+      if(chunk.usage?.prompt_tokens!==undefined&&chunk.usage?.completion_tokens!==undefined)updateBackend({contextUsed:chunk.usage.prompt_tokens+chunk.usage.completion_tokens});
     }
     controller.signal.throwIfAborted();
     // A length-limited conversation remains useful text. A partial calendar
