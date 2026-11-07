@@ -19,7 +19,10 @@ live branch HEAD must match; the APK embeds clean source metadata and the runtim
 hash/pin. ZIP integrity, ELF64 AArch64 PIE, 16 KiB alignment and signature are checked.
 
 Dispatch `.github/workflows/publish-142.yml` on `feat/1.5.0-part2`, target
-`android-beta5`. It uses existing `CALENDAR_ANDROID_UPDATE_*` secrets, then transfers
+`android-beta5`. It uses existing `CALENDAR_ANDROID_UPDATE_*` secrets when available, or the existing
+private update backup via a one-use encrypted runner handoff (no Release or secret
+changes). The transport branch contains only an ephemeral public key and bound
+ciphertext and is removed by the receiver. It then transfers
 the signed APK to the private `vex2137/Kalendarz-private-builds` LFS object store
 without committing any binary or pointer. `CALENDAR_MODEL_DEPOT_TOKEN` needs
 Contents read/write on that private repository (LFS upload and repository_dispatch).

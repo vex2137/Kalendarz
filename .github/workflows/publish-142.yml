@@ -147,6 +147,8 @@ jobs:
     if: github.repository == 'vex2137/Kalendarz' && github.ref == 'refs/heads/feat/1.5.0-part2' && inputs.target == 'android-beta5'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
+    permissions:
+      contents: write
     env:
       CALENDAR_MODEL_FREE: 'true'
       CALENDAR_ANDROID_NATIVE: 'true'
@@ -163,13 +165,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Fail closed before building if the existing update key is unavailable
-        env:
-          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
-          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
-          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
-          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
-        run: bash .github/scripts/check-signing.sh
       - name: Require private delivery access before building
         env:
           GH_TOKEN: ${{ secrets.CALENDAR_MODEL_DEPOT_TOKEN }}
@@ -177,6 +172,14 @@ jobs:
           test -n "$GH_TOKEN"
           test "$(gh api repos/vex2137/Kalendarz-private-builds --jq '.private and (.visibility == "private")')" = true
           python3 scripts/android_beta5_guard.py --source "$GITHUB_SHA" --check-remote
+      - name: Acquire and verify the existing update key (secrets or one-use encrypted handoff)
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/android-beta5-signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP" "$GITHUB_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -216,16 +219,9 @@ jobs:
           npx --no-install cap sync android
       - uses: gradle/actions/setup-gradle@v4
       - name: Android JVM tests, signed update APK and compile device tests
-        env:
-          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
-          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
-          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
-          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          export CALENDAR_KEYSTORE_PATH="$RUNNER_TEMP/calendar-release.p12"
           trap 'rm -f "$CALENDAR_KEYSTORE_PATH"' EXIT
-          node scripts/restore-android-signing.cjs
           cd android
           bash ./gradlew :app:testDiagnosticsUnitTest :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarPart2Beta=true -PcalendarPart2BetaNumber=5 -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
       - name: Verify update signature, source, runtime hash, ABI, ZIP and absence of weights
