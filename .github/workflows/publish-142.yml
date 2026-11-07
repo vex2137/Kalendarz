@@ -11,7 +11,7 @@ on:
         description: 'Linux-only test package label; application source is the exact workflow checkout'
         type: choice
         default: '2'
-        options: ['2', '3']
+        options: ['2', '3', '4']
       artifact_manifest:
         description: 'Required for prebuilt targets: exact source/file hashes. Leave empty for appimage-build.'
         required: false
@@ -115,7 +115,9 @@ jobs:
       - name: Install browser/Xvfb runtime dependencies
         run: npx --no-install playwright install --with-deps chromium
       - name: Native diagnostic UI/export regression
-        run: node tests/native-startup-browser.cjs
+        run: |
+          node tests/native-startup-browser.cjs
+          node tests/assistant-beta4-browser.cjs
       - name: Build the existing model-free frontend and Linux AppImage
         run: |
           test ! -e native/linux-x64/runtime-manifest.json

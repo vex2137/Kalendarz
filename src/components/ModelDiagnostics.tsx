@@ -25,6 +25,7 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
   const turns = useSyncExternalStore(subscribeMetrics, assistantTurns);
   useSyncExternalStore(subscribeMetrics, nativeBuildInfo);
   const status = useSyncExternalStore(subscribeModel, modelStatus);
+  const [copyState,setCopyState]=useState<'success'|'error'>();
   const [testing, setTesting] = useState(false);
   useSyncExternalStore(subscribeMetrics, diagnosticActions);
   const [actionState,setActionState]=useState<{pending:boolean;message:string;error?:boolean}>();
@@ -108,7 +109,11 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
     {actionState && <p data-testid="diagnostic-action-result" role={actionState.error?'alert':'status'} aria-live="polite" aria-busy={actionState.pending} className="mt-2 break-words">{actionState.pending && <span className="inline-block animate-spin mr-2" aria-hidden="true">◌</span>}{actionState.message}</p>}
     {busy&&!actionState?.pending&&<p role="status">{feedback.busy}</p>}
     {bridgeError&&<p role="alert">{feedback.bridgeError} ({bridgeError})</p>}
-    <pre id="ai-diagnostics-report" className="overflow-auto max-h-48 mt-2" aria-live="polite">{JSON.stringify({ ...diagnosticsReport(), metrics: undefined, turns: undefined, lastTurn: turns.at(-1), lastModel: [...metrics].reverse().find(metric=>metric.route==='model'), lastRouteMetric:metrics.at(-1) }, null, 2)}</pre>
+    <div className="relative mt-2" data-testid="full-diagnostic-json">
+      <button type="button" aria-label={({en:'Copy full diagnostics',pl:'Kopiuj pełną diagnostykę',de:'Vollständige Diagnose kopieren',ru:'Копировать полную диагностику'})[language]} className="absolute right-1 top-1 theme-surface theme-border border rounded p-2" onClick={()=>{const json=JSON.stringify(diagnosticsReport(),null,2);void Promise.resolve().then(()=>navigator.clipboard.writeText(json)).then(()=>setCopyState('success')).catch(()=>setCopyState('error'));}}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg></button>
+      <pre id="ai-diagnostics-report" className="overflow-auto max-h-48 pr-12">{JSON.stringify(diagnosticsReport(),null,2)}</pre>
+      {copyState&&<p role={copyState==='error'?'alert':'status'}>{(copyState==='success'?{en:'Diagnostics copied.',pl:'Skopiowano diagnostykę.',de:'Diagnose kopiert.',ru:'Диагностика скопирована.'}:{en:'Could not copy diagnostics. Try exporting JSON.',pl:'Nie udało się skopiować diagnostyki. Spróbuj eksportu JSON.',de:'Kopieren fehlgeschlagen. JSON exportieren.',ru:'Не удалось скопировать. Экспортируйте JSON.'})[language]}</p>}
+    </div>
     <ModelBenchmarks language={language} disabled={busy || actionState?.pending || !enabled || !status.installed}/>
   </section>;
 }

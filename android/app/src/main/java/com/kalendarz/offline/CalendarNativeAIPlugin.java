@@ -183,7 +183,7 @@ public class CalendarNativeAIPlugin extends Plugin {
         long version=epoch.get();submit(call,()->{try{JSONObject m=descriptor(call);if(requested!=null){if(!requested.equals(contexts.get(m.getString("id")))&&loadedId!=null)stopProcess();contexts.put(m.getString("id"),requested);}prepare(m,version);return snapshot();}catch(Exception e){stopProcess();throw e;}});}
     private JSONObject validateRequest(JSONObject input)throws Exception{
         if(input==null||input.toString().length()>60000)throw new Exception("model-input");
-        JSONArray messages=input.getJSONArray("messages");int max=input.getInt("max_tokens"),length=0;if(messages.length()>7||max<1||max>768)throw new Exception("model-input");
+        JSONArray messages=input.getJSONArray("messages");int max=NativeContextConfig.validateOutputTokens(input.getDouble("max_tokens")),length=0;if(messages.length()>7||max<1||max>4096)throw new Exception("model-input");
         for(int i=0;i<messages.length();i++){JSONObject message=messages.getJSONObject(i);if(!Arrays.asList("user","assistant","system").contains(message.getString("role")))throw new Exception("model-input");length+=message.getString("content").length();}if(length>20000)throw new Exception("model-input");
         JSONObject out=new JSONObject();out.put("messages",messages);out.put("max_tokens",max);out.put("temperature",0);out.put("stream",true);out.put("stream_options",new JSONObject().put("include_usage",true));out.put("chat_template_kwargs",new JSONObject().put("enable_thinking",false));if(input.has("response_format"))out.put("response_format",input.get("response_format"));return out;
     }

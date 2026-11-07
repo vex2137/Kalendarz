@@ -275,7 +275,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     try {
       setIsProcessing(true);
       await onApplyPlan(plan);
-      conversationRef.current = { ...conversationRef.current, pending: undefined, proposal: undefined, lastConfirmedAction: {kind:plan.kind,title:plan.events[0].title!,date:plan.events[0].startDate!}, reference: plan.kind === 'delete' ? undefined : { title: plan.events[0].title!, date: plan.events[0].startDate! } };
+      conversationRef.current = { ...conversationRef.current, pending: undefined, proposal: undefined, lastConfirmedAction: {kind:plan.kind,title:plan.events[0].title!,date:plan.events[0].startDate!}, reference: plan.kind === 'delete' ? undefined : { title: plan.events[0].title!, date: plan.events[0].startDate!,...(plan.originals[0]?{id:plan.originals[0].id}:{}) } };
       setAddedEventsIds(prev => [...prev, msgId]);
       const next: AiChatMessage[] = [...messages, { id: crypto.randomUUID(), role: 'assistant', content: tr(language, 'Zapisano zmiany.', 'Changes saved.'), timestamp: Date.now() }];
       setMessages(next); await persist(next);
@@ -288,6 +288,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
+  const discardProposal=(msgId:string)=>{
+    if(operationRef.current)return;
+    conversationRef.current={...conversationRef.current,proposal:undefined,pending:undefined,pendingChoice:undefined};
+    const next=messages.map(m=>m.id===msgId?{...m,suggestedPlan:undefined,suggestedEvent:undefined,content:tr(language,'Anulowano propozycję. Nie zmieniono kalendarza.','Proposal cancelled. The calendar was not changed.')}:m);
+    setMessages(next);void persist(next).catch(()=>setHistoryError(true));
+  };
   const handleUndo = async () => {
     if (operationRef.current || !canUndo) return;
     operationRef.current = true;
@@ -492,6 +498,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 ai-primary rounded-xl disabled:opacity-50">
                         {plan.kind === 'delete' ? modelText.delete : tr(language, 'Zatwierdź wszystkie zmiany', 'Confirm all changes')}
                       </button>}
+                      {!isAdded&&<button type="button" disabled={isProcessing} data-testid="cancel-ai-proposal" className="w-full p-2 theme-border border rounded-lg" onClick={()=>discardProposal(msg.id)}>{tr(language,'Anuluj całą propozycję','Cancel entire proposal')}</button>}
                     </div>
                   )}
                 </div>

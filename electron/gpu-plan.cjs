@@ -1,3 +1,4 @@
+const {hybridKvBytes}=require('./gguf-memory.cjs');
 const MiB=1048576;
 const blocksOf=model=>Number.isInteger(model.blockCount)&&model.blockCount>0&&model.blockCount<=1000000?model.blockCount:undefined;
 function layerLimit(model,requested){
@@ -11,9 +12,10 @@ function memoryEstimate(model,layers,context){
   // Partial placement is approximate: embedding/output tensors are not uniform.
   const weights=Number.isSafeInteger(model.bytes)&&model.bytes>0?Math.ceil(model.bytes*(maximum?layers/maximum:1)):undefined;
   const kvKnown=Number.isSafeInteger(model.kvBytesPerToken)&&model.kvBytesPerToken>0;
-  const kv=kvKnown?Math.ceil(model.kvBytesPerToken*context*(blocks?Math.min(layers,blocks)/blocks:1)):Math.ceil(256*MiB*Math.max(1,context/2048));
+  const hybrid=Array.isArray(model.kvLayout)&&model.kvLayout.length===blocks;
+  const kv=hybrid?hybridKvBytes(model.kvLayout,layers,context):kvKnown?Math.ceil(model.kvBytesPerToken*context*(blocks?Math.min(layers,blocks)/blocks:1)):Math.ceil(256*MiB*Math.max(1,context/2048));
   const overhead=384*MiB,reserve=256*MiB;
-  return {estimatedVramBytes:weights===undefined?undefined:weights+kv+overhead,kvCacheBytes:kv,backendOverheadBytes:overhead,reserveBytes:reserve,estimateKind:kvKnown&&maximum?'metadata':'approximate'};
+  return {estimatedVramBytes:weights===undefined?undefined:weights+kv+overhead,kvCacheBytes:kv,backendOverheadBytes:overhead,reserveBytes:reserve,estimateKind:hybrid?'hybrid-metadata':kvKnown&&maximum?'metadata':'approximate'};
 }
 function gpuPlan(model,requested,context,device,automatic){
   const maximum=layerLimit(model,automatic?undefined:requested),availableVramBytes=device?.freeBytes;

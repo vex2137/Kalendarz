@@ -13,6 +13,13 @@ function fixture(name='Local test'){
 }
 async function workspace(fn){const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'calendar-folders-')));try{await fn(root);}finally{await fs.rm(root,{recursive:true,force:true});}}
 const configFile=root=>path.join(root,'settings','model-folders-v1.json');
+test('bounded native GGUF parsing retains LFM3 per-layer arrays for memory planning',()=>workspace(async root=>{
+ const u32=n=>{const b=Buffer.alloc(4);b.writeUInt32LE(n);return b;},u64=n=>{const b=Buffer.alloc(8);b.writeBigUInt64LE(BigInt(n));return b;},str=s=>Buffer.concat([u64(Buffer.byteLength(s)),Buffer.from(s)]);
+ const fields={'general.architecture':'lfm3','lfm3.context_length':262144,'lfm3.block_count':4,'lfm3.embedding_length':2048,'lfm3.attention.head_count':16,'lfm3.attention.head_count_kv':[0,2,2,0],'lfm3.attention.sliding_window_pattern':[0,1,0,0],'lfm3.attention.sliding_window':1024,'lfm3.shortconv.l_cache':3};
+ const body=Object.entries(fields).flatMap(([key,value])=>[str(key),typeof value==='string'?Buffer.concat([u32(8),str(value)]):Array.isArray(value)?Buffer.concat([u32(9),u32(4),u64(value.length),...value.map(u32)]):Buffer.concat([u32(4),u32(value)])]);
+ const file=path.join(root,'lfm-header.gguf');await fs.writeFile(file,Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(Object.keys(fields).length),...body]));
+ const meta=await readGGUF(file);assert.equal(meta.kvLayout.length,4);assert.equal(meta.kvLayout[1].window,1024);assert.equal(meta.contextLength,262144);
+}));
 test('native memory metadata reads standard KV dimensions from the bounded GGUF header',()=>workspace(async root=>{
  const data=fixture(),fields=[['llama.embedding_length',1024],['llama.attention.head_count',8],['llama.attention.head_count_kv',2]];
  data.writeBigUInt64LE(7n,16);

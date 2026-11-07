@@ -2,6 +2,14 @@ package com.kalendarz.offline;
 import org.junit.Test;
 import static org.junit.Assert.*;
 public class NativeContextConfigTest {
+    @org.junit.Test public void outputBudgetIsBoundedAndDoesNotTruncateFractions() {
+        org.junit.Assert.assertEquals(1500,NativeContextConfig.validateOutputTokens(1500));
+        org.junit.Assert.assertEquals(4096,NativeContextConfig.validateOutputTokens(4096));
+        for(double value:new double[]{0,-1,4097,1.5,Double.NaN,Double.POSITIVE_INFINITY}) {
+            try { NativeContextConfig.validateOutputTokens(value);org.junit.Assert.fail("Invalid budget accepted"); }
+            catch(IllegalArgumentException expected) { org.junit.Assert.assertEquals("model-output-range",expected.getMessage()); }
+        }
+    }
     @Test public void preservesExactContextAndRejectsInvalidValues(){
         assertEquals(8193,NativeContextConfig.validate(8193));
         for(double value:new double[]{0,31,1.5,Double.NaN,Double.POSITIVE_INFINITY,2147483648d}){

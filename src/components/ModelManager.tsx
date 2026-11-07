@@ -1,3 +1,4 @@
+import { ModelGenerationSettings } from './ModelGenerationSettings';
 import { downloadSummary } from '../utils/downloadProgress';
 import { diagnosticActionText } from '../utils/diagnosticActionText';
 import { diagnosticActions, recordDiagnosticAction, diagnosticErrorCode, type DiagnosticAction } from '../utils/modelDiagnostics';
@@ -104,6 +105,7 @@ export function ModelManager({ language, enabled, onDiagnostics }: { language: A
       </div>
     </article>
     <BackendSettings model={descriptor} language={language} busy={picking||['downloading','verifying','running'].includes(status.phase)}/>
+    <ModelGenerationSettings key={descriptor.id+'-generation'} model={descriptor} language={language} busy={busy||!enabled}/>
     <ModelContextSettings key={descriptor.id} model={descriptor} language={language} busy={busy||!enabled}/>
     <ModelFoldersPanel language={language} busy={busy||!enabled}/>
     <div className="grid grid-cols-3 gap-1.5 text-[11px]">

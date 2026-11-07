@@ -21,7 +21,7 @@ function parseDevices(output){
 function validateRequest(request){
   if(!request||typeof request!=='object'||!Array.isArray(request.messages)||request.messages.length>7)throw Error('model-input');
   let length=0;for(const m of request.messages){if(!['system','user','assistant'].includes(m.role)||typeof m.content!=='string')throw Error('model-input');length+=m.content.length;}
-  if(length>20000||!Number.isInteger(request.max_tokens)||request.max_tokens<1||request.max_tokens>768)throw Error('model-input');
+  if(length>20000||!Number.isInteger(request.max_tokens)||request.max_tokens<1||request.max_tokens>4096)throw Error('model-input');
   if(request.response_format&&JSON.stringify(request.response_format).length>32000)throw Error('model-input');
   return {messages:request.messages,max_tokens:request.max_tokens,temperature:0,top_k:50,repeat_penalty:1.05,
     ...(request.response_format?{response_format:request.response_format}:{}),chat_template_kwargs:{enable_thinking:false},stream:true,stream_options:{include_usage:true}};
@@ -84,7 +84,7 @@ class NativeAI {
   }
   async stop(){
     if(this.stopping)return this.stopping;
-    const child=this.child;this.loadedId=undefined;this.backend=undefined;this.state={...this.state,loaded:false,gpuActive:false,deviceName:undefined,offloadedLayers:undefined,contextApplied:undefined,contextUsed:undefined,contextRequested:undefined,ramBytes:undefined,vramBytes:undefined};
+    const child=this.child;this.loadedId=undefined;this.backend=undefined;this.state={...this.state,loaded:false,gpuActive:false,modelId:undefined,modelName:undefined,deviceName:undefined,offloadedLayers:undefined,contextApplied:undefined,contextUsed:undefined,contextRequested:undefined,ramBytes:undefined,vramBytes:undefined};
     if(child&&child.exitCode===null&&child.signalCode===null){this.stopping=new Promise((resolve,reject)=>{let kill,deadline;const finish=error=>{clearTimeout(kill);clearTimeout(deadline);child.removeListener('exit',exited);child.removeListener('error',failed);error?reject(error):resolve();};const exited=()=>finish();const failed=error=>finish(error);child.once('exit',exited);child.once('error',failed);kill=setTimeout(()=>child.kill('SIGKILL'),1500);deadline=setTimeout(()=>finish(Error('model-stop-timeout')),5000);child.kill();});try{await this.stopping;}finally{this.stopping=undefined;}}
     if(this.child===child)this.child=undefined;
   }

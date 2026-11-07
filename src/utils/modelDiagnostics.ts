@@ -5,8 +5,9 @@ import type { AppLanguage } from './i18n';
 export interface ModelMetric {
   backend?:string;gpuActive?:boolean;deviceName?:string;ramBytes?:number;vramBytes?:number;fallbackReason?:string;
   contextLength?:number; modelBytes?:number; historyMessages?:number; maxOutputTokens?:number; jsHeapBytes?:number;
+  requestedOutputTokens?:number;estimatedInputTokens?:number;contextLimited?:boolean;outputLimitSource?:'auto'|'manual'|'structured'|'override';
   outputTruncated?: boolean;
-  finishReason?: 'stop' | 'length' | 'other' | 'missing';
+  finishReason?: 'stop' | 'length' | 'other' | 'missing' | 'cancelled' | 'error';
   modelId?: string;
   quantization?: string;
   engineStateAtStart?: 'loaded' | 'loading' | 'unloaded';

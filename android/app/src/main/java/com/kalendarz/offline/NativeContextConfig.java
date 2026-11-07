@@ -5,6 +5,11 @@ import java.util.regex.Pattern;
 
 /** Inference settings only; never infer applied capacity from a requested flag. */
 final class NativeContextConfig {
+    static int validateOutputTokens(double value) {
+        if (!Double.isFinite(value) || value != Math.floor(value) || value < 1 || value > 4096)
+            throw new IllegalArgumentException("model-output-range");
+        return (int)value;
+    }
     static int validate(double value) {
         if (!Double.isFinite(value) || value != Math.floor(value) || value < 32 || value > Integer.MAX_VALUE)
             throw new IllegalArgumentException("model-context-range");

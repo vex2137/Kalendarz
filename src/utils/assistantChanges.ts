@@ -2,6 +2,23 @@ import type { CalendarEvent } from '../types';
 import type { AssistantPlan } from './assistantPlanning';
 import type { AssistantChange } from './calendarStore';
 import { validateEvents } from './validation';
+import { buildEventIndex } from './recurrence';
+import { addDays } from './dates';
+
+export function planHasConflicts(plan:AssistantPlan,events:CalendarEvent[]){
+  if(plan.kind==='delete')return false;
+  const added=changesForPlan(plan).flatMap(c=>c.after?[c.after]:[]),ids=new Set(added.map(e=>e.id));
+  const existing=events.filter(e=>!plan.originals.some(o=>o.id===e.id));
+  const from=added.map(e=>e.startDate).sort()[0],last=added.map(e=>e.endDate).sort().at(-1)!;
+  const until=last<addDays(from,366)?last:addDays(from,366);
+  for(const bucket of buildEventIndex([...existing,...added],from,until).values()){
+    for(let i=0;i<bucket.length;i++)for(let j=i+1;j<bucket.length;j++){
+      const a=bucket[i],b=bucket[j];
+      if((ids.has(a.event.id)||ids.has(b.event.id))&&a.event.id!==b.event.id&&(a.event.allDay||b.event.allDay||a.startMinutes<b.endMinutes&&b.startMinutes<a.endMinutes))return true;
+    }
+  }
+  return false;
+}
 
 export function changesForPlan(plan: AssistantPlan): AssistantChange[] {
   if (!['create', 'move', 'delete'].includes(plan.kind)) throw new Error('Invalid assistant action');

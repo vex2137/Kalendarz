@@ -158,6 +158,7 @@ export async function saveChat(
     chat.context = structuredClone(context);
     // Live proposals are not restored after a restart or chat switch.
     delete chat.context.proposal;
+    delete chat.context.pendingChoice;
     await tx.objectStore("chats").put(chat);
     await tx.done;
   } finally {

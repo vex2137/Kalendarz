@@ -1,9 +1,9 @@
+import { generationPlan } from './generationSettings';
 import { modelTransferBytes } from './resumableModelTransfer';
 import { hasNativeTransfers, nativeTransferStatus, nativeTransferRunning, runNativeTransfer, type NativeTransferStatus } from './nativeModelTransfer';
 import { downloadMeter, type DownloadProgress } from './downloadProgress';
 import { androidAIReady } from './nativeAndroidAI';
 import { cacheModelMetadata, contextPlan, modelMetadata, modelContextKey, saveContextPreference, type ContextPreference } from './modelContext';
-import { completionTokenLimit } from './inferencePolicy';
 import { ggufMetadata, ggufLoadError } from './ggufMetadata';
 import { desktopAI, applyBackendMode, type BackendMode, backendMode, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
@@ -518,13 +518,17 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     const current = await ensureEngine(metric, options.threads);
     Object.assign(metric,{backend:backendStatus().backend,threads:backendStatus().backend==='cpu-wasm'?actualThreads:backendStatus().threads});
     if (engineStateAtStart !== 'loaded') Object.assign(metric,lastLoad);
-    Object.assign(metric,{contextLength:backendStatus().contextApplied??backendStatus().contextRequested,modelBytes:descriptor.bytes,historyMessages:history.length,maxOutputTokens:completionTokenLimit(descriptor.id,prompt,schema!==undefined,options.maxTokens)});
+    Object.assign(metric,{modelId:descriptor.id,backend:backendStatus().backend});
+    const messages=[{ role: 'system' as const, content: system }, ...history, { role: 'user' as const, content: prompt }];
+    const budget=generationPlan(descriptor,prompt,schema!==undefined,options.maxTokens,backendStatus().contextApplied??backendStatus().contextRequested??descriptor.maxContext,messages);
+    Object.assign(metric,budget);
+    Object.assign(metric,{contextLength:backendStatus().contextApplied??backendStatus().contextRequested,modelBytes:descriptor.bytes,historyMessages:history.length,maxOutputTokens:budget.maxOutputTokens});
     controller.signal.throwIfAborted();
     metric.loadMs = performance.now() - started;
     update({ phase: 'running' });
     const result = await current.createChatCompletion({
-      messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: prompt }],
-      max_tokens: completionTokenLimit(descriptor.id,prompt,schema!==undefined,options.maxTokens), temperature: 0, top_k: 50, penalty_repeat: 1.05,
+      messages,
+      max_tokens: budget.maxOutputTokens, temperature: 0, top_k: 50, penalty_repeat: 1.05,
       ...(schema ? { response_format: { type: 'json_schema' as const, json_schema: { name: 'calendar_command', schema, strict: true } } } : {}),
       ...(descriptor.architecture === 'qwen35' ? { chat_template_kwargs: { enable_thinking: false } } : {}),
       abortSignal: controller.signal,
@@ -560,7 +564,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
   } catch (error) {
     console.warn('Local model operation failed', { modelId: status.modelId, cancelled: controller.signal.aborted, outputLimit: error instanceof Error && error.message === 'model-incomplete' });
     const code = controller.signal.aborted ? controller.signal.reason === 'model-timeout' ? 'model-timeout' : 'model-cancelled' : runtimeError(error);
-    recordModelMetric({ ...metric,errorCode:code, failureReason: error instanceof Error && error.message === 'model-incomplete' ? 'output-limit' : 'engine', totalMs: performance.now() - started, error: code === 'model-cancelled' ? 'cancelled' : 'inference' });
+    recordModelMetric({ ...metric,finishReason:code==='model-cancelled'?'cancelled':metric.finishReason??'error',errorCode:code, failureReason: error instanceof Error && error.message === 'model-incomplete' ? 'output-limit' : 'engine', totalMs: performance.now() - started, error: code === 'model-cancelled' ? 'cancelled' : 'inference' });
     await disposeEngine();
     update({ phase: code === 'model-cancelled' ? (status.installed?'installed':'missing') : 'error', loaded:false, error:code === 'model-cancelled' ? undefined : code });
     throw new Error(code);
