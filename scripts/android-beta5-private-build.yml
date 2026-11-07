@@ -30,6 +30,7 @@ jobs:
       contents: write
       actions: read
     env:
+      TZ: Europe/Warsaw
       CALENDAR_APPLICATION_BRANCH: feat/1.5.0-part2
       CALENDAR_ANDROID_BETA: ${{ inputs.android_beta || '5' }}
       CALENDAR_MODEL_FREE: 'true'
@@ -87,7 +88,7 @@ jobs:
       - name: Beta 6 QR/import/export and GPU separation regressions
         if: env.CALENDAR_ANDROID_BETA == '6'
         run: |
-          node --import tsx --test tests/optional-qr.test.ts tests/encrypted-sync.test.ts tests/sync.test.ts tests/calendar.test.ts tests/android-gpu-diagnostics.test.ts
+          node --import tsx --test tests/optional-qr.test.ts tests/encrypted-sync.test.ts tests/sync.test.ts tests/calendar.test.ts tests/android-gpu-diagnostics.test.ts tests/assistant-actions.test.ts tests/assistant-beta4.test.ts tests/assistant-beta5.test.ts tests/model-command.test.ts tests/native-model-import.test.ts tests/gguf-import.test.ts tests/diagnostic-actions.test.ts
           python3 -m unittest discover -s tests -p test_android_beta6.py
           node tests/beta6-gpu-browser.cjs
           node tests/beta6-sync-browser.cjs
