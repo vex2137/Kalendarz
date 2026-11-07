@@ -149,6 +149,7 @@ jobs:
     timeout-minutes: 55
     permissions:
       contents: write
+      actions: read
     env:
       CALENDAR_MODEL_FREE: 'true'
       CALENDAR_ANDROID_NATIVE: 'true'

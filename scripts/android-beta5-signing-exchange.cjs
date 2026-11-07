@@ -7,7 +7,7 @@ const repo=process.argv[6]||'vex2137/Kalendarz',prefix='.github/android-beta5-si
 function api(method,endpoint,data,optional=false){
  const args=['api','--method',method,endpoint];if(data)args.push('--input','-');
  const result=spawnSync('gh',args,{input:data?JSON.stringify(data):undefined,encoding:'utf8',maxBuffer:1024*1024});
- if(result.status!==0){if(optional&&/HTTP 404/.test(result.stderr))return;throw Error('Signing transport request failed: '+method+' '+endpoint.split('?')[0]);}
+ if(result.status!==0){if(optional&&/HTTP 404/.test(result.stderr))return;throw Error('Signing transport request failed: '+method+' '+endpoint.split('?')[0]+' '+(result.stderr.match(/HTTP \d+/)?.[0]||'CLI failure')); }
  return result.stdout.trim()?JSON.parse(result.stdout):undefined;
 }
 async function main(){
@@ -51,4 +51,4 @@ async function main(){
  for(const name of ['CALENDAR_KEYSTORE_PATH','CALENDAR_KEYSTORE_PASSWORD','CALENDAR_KEY_PASSWORD','CALENDAR_KEY_ALIAS'])fs.appendFileSync(process.env.GITHUB_ENV,name+'='+env[name]+'\n');
  console.log('Existing update certificate and private-key proof verified; signing file is runner-temporary only.');
 }
-if(require.main===module)main().catch(()=>{console.error('Android Beta 5 signing handoff failed; no secret values are logged.');process.exitCode=1;});
+if(require.main===module)main().catch(error=>{const safe=/^(Signing transport request failed|Refusing untrusted workflow|Runner identity mismatch|Invalid exchange arguments|Existing update certificate)/.test(error.message)?error.message:'No secret details logged';console.error('Android Beta 5 signing handoff failed: '+safe);process.exitCode=1;});
