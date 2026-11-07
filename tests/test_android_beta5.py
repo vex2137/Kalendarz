@@ -19,6 +19,24 @@ class AndroidBeta5GuardTest(unittest.TestCase):
         for bad in ["name='com.kalendarz.offline'", "name='com.kalendarz.offline.diagnostics' versionCode='10515' versionName='1.5.0-part2-beta.5'"]:
             with self.assertRaises(ValueError): guard.identity(bad)
 
+    def test_private_workflow_checks_its_own_sha_and_current_application_separately(self):
+        source,workflow='a'*40,'c'*40
+        env=dict(GITHUB_REPOSITORY='vex2137/Kalendarz-private-builds',GITHUB_EVENT_NAME='workflow_dispatch',GITHUB_REF='refs/heads/main',GITHUB_WORKSPACE='/workflow',GITHUB_SHA=workflow)
+        def command(*args):
+            if args==('git','rev-parse','HEAD'):return source
+            if args==('git','-C',Path('/workflow'),'rev-parse','HEAD'):return workflow
+            if args[-3:]==('remote','get-url','origin'):
+                return 'https://github.com/vex2137/'+('Kalendarz-private-builds' if args[2]==Path('/workflow') else 'Kalendarz')
+            if args[:2]==('git','status'):return ''
+            if args[:2]==('git','ls-remote'):return source+' refs/heads/feat/1.5.0-part2'
+            raise AssertionError(args)
+        with patch.dict(guard.os.environ,env,clear=True),patch.object(guard,'run',side_effect=command):
+            self.assertEqual(guard.expected_android_source(source,True),source)
+            for override in [dict(GITHUB_SHA='d'*40),dict(GITHUB_REF='refs/heads/untrusted'),dict(GITHUB_EVENT_NAME='push')]:
+                with patch.dict(guard.os.environ,override):
+                    with self.assertRaises(ValueError):guard.expected_android_source(source,True)
+            with self.assertRaises(ValueError):guard.expected_android_source('b'*40,True)
+
     def test_old_paired_guard_is_unchanged(self):
         import part2_artifact_guard as old
         self.assertEqual(old.version_policy(), 10515)

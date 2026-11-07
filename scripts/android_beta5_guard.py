@@ -3,15 +3,40 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import zipfile
-from part2_artifact_guard import ROOT, expected_source, verify_info
+from part2_artifact_guard import ROOT, expected_source, verify_info, run, BRANCH
 
 CERT = 'ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143'
 RUNTIME_COMMIT = '80d2c0c2c56e4a1bbf74be98f64b99927bf230bc'
 SOURCE_SHA256 = 'e9bf2b83a13e14b5577dcdb65bb18ff8c049143caab22106547d37ef8c54fbf3'
 NAME = 'Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk'
+
+
+def expected_android_source(source, check_remote=False):
+    if os.environ.get('GITHUB_REPOSITORY') != 'vex2137/Kalendarz-private-builds':
+        return expected_source(source, check_remote)
+    # Private delivery/build workflow has its own SHA. Verify both checkouts
+    # explicitly; never overwrite GITHUB_SHA or relax the public/paired guard.
+    if os.environ.get('GITHUB_EVENT_NAME') != 'workflow_dispatch' or os.environ.get('GITHUB_REF') != 'refs/heads/main':
+        raise ValueError('Private Android builds require a manual main-branch workflow')
+    if not re.fullmatch('[a-f0-9]{40}', source or '') or source != run('git','rev-parse','HEAD'):
+        raise ValueError('Private builder application source differs from checkout')
+    workspace = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+    if workspace == ROOT.resolve() or run('git','-C',workspace,'rev-parse','HEAD') != os.environ.get('GITHUB_SHA'):
+        raise ValueError('Private workflow checkout/source mismatch')
+    for directory, repository in [(ROOT,'Kalendarz'), (workspace,'Kalendarz-private-builds')]:
+        if run('git','-C',directory,'remote','get-url','origin').removesuffix('.git') != 'https://github.com/vex2137/'+repository:
+            raise ValueError('Unexpected workflow/application repository')
+    if run('git','status','--porcelain','--untracked-files=no'):
+        raise ValueError('Dirty application source')
+    if check_remote:
+        remote=run('git','ls-remote','origin','refs/heads/'+BRANCH).split()
+        if not remote or remote[0] != source:
+            raise ValueError('Application source is not the current public HEAD')
+    return source
 
 
 def policy():
@@ -71,7 +96,7 @@ def main():
     p.add_argument('--platform', choices=['android'])
     p.add_argument('--apk', type=Path)
     args = p.parse_args()
-    expected_source(args.source, args.check_remote)
+    expected_android_source(args.source, args.check_remote)
     result = dict(source=args.source, **policy())
     if args.info:
         verify_info(json.loads(args.info.read_text()), args.source, android=True)

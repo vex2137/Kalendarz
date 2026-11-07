@@ -3,7 +3,7 @@
 // No Release, permanent secret change or new Android signing key is involved.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{spawnSync}=require('node:child_process');
 const {seal,open}=require('./signing-exchange.cjs');
-const repo='vex2137/Kalendarz',prefix='.github/android-beta5-signing/';
+const repo=process.argv[6]||'vex2137/Kalendarz',prefix='.github/android-beta5-signing/';
 function api(method,endpoint,data,optional=false){
  const args=['api','--method',method,endpoint];if(data)args.push('--input','-');
  const result=spawnSync('gh',args,{input:data?JSON.stringify(data):undefined,encoding:'utf8',maxBuffer:1024*1024});
@@ -12,11 +12,13 @@ function api(method,endpoint,data,optional=false){
 }
 async function main(){
  const [mode,runId,directory,source]=process.argv.slice(2);
+ const privateBuilder=repo==='vex2137/Kalendarz-private-builds';
+ if(!["vex2137/Kalendarz","vex2137/Kalendarz-private-builds"].includes(repo))throw Error('Untrusted builder repository');
  if(!['send','receive'].includes(mode)||!/^\d+$/.test(runId)||!directory||!/^[a-f0-9]{40}$/.test(source))throw Error('Invalid exchange arguments');
  const run=api('GET',`repos/${repo}/actions/runs/${runId}`);
- if(run.event!=='workflow_dispatch'||run.path!=='.github/workflows/publish-142.yml'||run.status!=='in_progress'||run.head_sha!==source||run.head_branch!=='feat/1.5.0-part2')throw Error('Refusing untrusted workflow/source');
+ if(run.event!=='workflow_dispatch'||run.path!==(privateBuilder?'.github/workflows/build-android-beta5.yml':'.github/workflows/publish-142.yml')||run.status!=='in_progress'||(!privateBuilder&&run.head_sha!==source)||run.head_branch!==(privateBuilder?'main':'feat/1.5.0-part2'))throw Error('Refusing untrusted workflow/source');
  const branch=`android-beta5-signing-${runId}-${run.run_attempt}`,endpoint=`repos/${repo}/contents/${prefix}`;
- const binding=JSON.stringify({repository:repo,runId,attempt:run.run_attempt,source});
+ const binding=JSON.stringify({repository:repo,runId,attempt:run.run_attempt,workflowSource:run.head_sha,source});
  if(mode==='send'){
   const response=api('GET',endpoint+'public.json?ref='+branch),info=JSON.parse(Buffer.from(response.content,'base64'));
   if(info.binding!==binding||info.source!==source||info.repository!==repo)throw Error('Public key binding mismatch');
@@ -26,13 +28,13 @@ async function main(){
   api('PUT',endpoint+'envelope.json',{branch,message:'Deliver one-use encrypted Android update key [skip ci]',content:Buffer.from(JSON.stringify(envelope)).toString('base64')});
   console.log('Encrypted existing update key delivered for this exact run/source; no plaintext or secret changes.');return;
  }
- if(process.env.GITHUB_REPOSITORY!==repo||process.env.GITHUB_RUN_ID!==runId||process.env.GITHUB_SHA!==source)throw Error('Runner identity mismatch');
+ if(process.env.GITHUB_REPOSITORY!==repo||process.env.GITHUB_RUN_ID!==runId||process.env.GITHUB_SHA!==run.head_sha||process.env.CALENDAR_EXPECTED_COMMIT!==source)throw Error('Runner identity mismatch');
  let payload;
  if(process.env.CALENDAR_ANDROID_KEYSTORE_BASE64){
   payload={keystore:process.env.CALENDAR_ANDROID_KEYSTORE_BASE64,password:process.env.CALENDAR_KEYSTORE_PASSWORD,keyPassword:process.env.CALENDAR_KEY_PASSWORD,alias:process.env.CALENDAR_KEY_ALIAS};
  }else{
   const {publicKey,privateKey}=crypto.generateKeyPairSync('rsa',{modulusLength:3072});
-  api('POST',`repos/${repo}/git/refs`,{ref:'refs/heads/'+branch,sha:source});
+  api('POST',`repos/${repo}/git/refs`,{ref:'refs/heads/'+branch,sha:run.head_sha});
   try{
    api('PUT',endpoint+'public.json',{branch,message:'Publish one-use Android runner public key [skip ci]',content:Buffer.from(JSON.stringify({repository:repo,source,binding,publicKey:publicKey.export({type:'spki',format:'pem'})})).toString('base64')});
    console.log('Waiting up to 10 minutes for encrypted existing update key: '+branch);

@@ -1,0 +1,139 @@
+# Install in the private builds repository. Never upload APKs to public Actions.
+name: Build private Android Beta 5
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact current feat/1.5.0-part2 application commit
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: private-android-beta5
+  cancel-in-progress: false
+jobs:
+  android:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    permissions:
+      contents: write
+    env:
+      CALENDAR_MODEL_FREE: 'true'
+      CALENDAR_ANDROID_NATIVE: 'true'
+      CALENDAR_BETA_APK: 'false'
+      CALENDAR_EXPECTED_COMMIT: ${{ inputs.source_commit }}
+      CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
+      EXPECTED_ANDROID_CERTIFICATE: ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Require private visibility and immutable source input
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.private and (.visibility == "private")')" = true
+          python3 -c 'import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: vex2137/Kalendarz
+          ref: ${{ inputs.source_commit }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify both workflow and current application checkouts
+        run: python3 scripts/android_beta5_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Acquire and verify the existing update key (secrets or one-use encrypted handoff)
+        env:
+          CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+          CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+          CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+          CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/android-beta5-signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP" "$CALENDAR_EXPECTED_COMMIT" "$GITHUB_REPOSITORY"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - name: Targeted Android and shared assistant regressions
+        run: |
+          npm run lint
+          python3 -m unittest discover -s tests -p test_android_beta5.py
+          python3 -m unittest discover -s tests -p test_part2_artifact_guard.py
+          npx --no-install playwright install --with-deps chromium
+          node tests/assistant-beta4-browser.cjs
+          node tests/assistant-beta5-browser.cjs
+          node tests/android-beta5-browser.cjs
+      - name: Install Android ARM64 build tools
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865" "cmake;3.31.6"'
+      - name: Fresh Android b12189 CPU build, never Linux x86_64 binaries or a stale cache
+        run: |
+          test ! -e build/android-b12189-cpu
+          python3 scripts/build-android-native.py --profile beta5 --jobs 3
+          "$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h -l -d build/android-jni/arm64-v8a/libcalendar_llama.so > build/android-runtime-elf.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('build/android-runtime-elf.txt').read_text()
+          assert 'AArch64' in text and '/system/bin/linker64' in text
+          needed=re.findall(r'Shared library: \[(.*?)\]',text)
+          assert needed and set(needed)<= {'libc.so','libm.so','libdl.so','liblog.so','libandroid.so'},needed
+          print('Android AArch64 PIE; only Android system dependencies:',needed)
+          PY
+      - name: Build the existing model-free frontend and synchronize Capacitor
+        run: |
+          node scripts/prepare-model-free.cjs
+          node node_modules/vite/bin/vite.js build --mode production
+          npx --no-install cap sync android
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Android JVM tests, signed update APK and compile device tests
+        run: |
+          set -euo pipefail
+          trap 'rm -f "$CALENDAR_KEYSTORE_PATH"' EXIT
+          cd android
+          bash ./gradlew :app:testDiagnosticsUnitTest :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarPart2Beta=true -PcalendarPart2BetaNumber=5 -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
+      - name: Verify update signature, source, runtime hash, ABI, ZIP and absence of weights
+        run: |
+          mkdir private-android
+          cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk private-android/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk
+          python3 scripts/android_beta5_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote --apk private-android/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,xml.etree.ElementTree as ET
+          tests=[c for p in Path('android/app/build/test-results/testDiagnosticsUnitTest').glob('*.xml') for c in ET.parse(p).getroot().iter('testcase')]
+          assert tests and all(c.find('failure') is None and c.find('error') is None for c in tests)
+          p=Path('private-android/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk.json')
+          report=json.loads(p.read_text());report['androidJvmTests']=len(tests);report['physicalInferenceTested']=False;report['deviceInstrumentationExecuted']=False
+          p.write_text(json.dumps(report,indent=2)+'\n')
+          print('Android JVM tests passed:',len(tests))
+          PY
+          "$ANDROID_HOME/platform-tools/adb" devices -l
+          echo 'No ARM64 device/system image is provided by this runner. Device tests compiled; installation, WebView lifecycle and inference require POCO validation.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Final current-source guard
+        run: python3 scripts/android_beta5_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        id: artifact
+        with:
+          name: Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64-${{ inputs.source_commit }}
+          path: source/private-android/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Record private download URL
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: printf 'Private APK artifact (owner login required, retained 30 days)\n\n%s\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove signing material even after failure
+        if: always()
+        run: rm -f "$RUNNER_TEMP/calendar-release.p12"

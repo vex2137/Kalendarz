@@ -45,3 +45,13 @@ update, retained settings/history/GGUF, real offline Qwen/LFM inference, cancell
 SAF import/removal, PL/EN two/three-event proposals, edits, conflicts and no writes
 before confirmation. Verify orientation, keyboard and background/resume. Screen
 rotation/lifecycle and physical memory/inference remain device acceptance checks.
+
+When repository UPDATE secrets are unavailable or the old depot token is expired,
+install `scripts/android-beta5-private-build.yml` in the private depot as
+`.github/workflows/build-android-beta5.yml`, dispatch with the current application
+SHA, and send the one-use envelope using `android-beta5-signing-exchange.cjs send`
+with that run ID, the existing private update backup, application SHA, and
+`vex2137/Kalendarz-private-builds`. The private workflow checks its own checkout
+SHA separately from the exact, clean, current public application checkout and
+uploads the APK directly as a private artifact. It requires no permanent secret
+changes and leaves the public/paired guards intact.
