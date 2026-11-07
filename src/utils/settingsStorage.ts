@@ -2,6 +2,7 @@ import { storedCustomThemes, validThemeId, isCustomTheme } from './themes';
 import type { AppSettings } from '../types';
 import { DEFAULT_APP_SETTINGS } from './constants';
 import { planningPreferences } from './assistantPlanning';
+import { animationPreferences } from './animations';
 export function loadStoredSettings(): AppSettings {
   const raw = localStorage.getItem('offline_calendar_settings_v2');
   if (!raw) return DEFAULT_APP_SETTINGS;
@@ -15,6 +16,7 @@ export function loadStoredSettings(): AppSettings {
     ai: { ...DEFAULT_APP_SETTINGS.ai, ...parsed.ai, planning: planningPreferences(parsed.ai?.planning) },
     language: parsed.language === 'pl' || parsed.language === 'ru' || parsed.language === 'de' ? parsed.language : 'en',
     security: { ...DEFAULT_APP_SETTINGS.security, ...parsed.security },
+    animations: animationPreferences(parsed.animations),
   };
 }
 export function saveStoredSettings(settings: AppSettings) {

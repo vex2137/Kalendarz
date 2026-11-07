@@ -14,6 +14,8 @@ import {
 import { assistantQuickReply } from "./assistantQuickReply";
 import { parseCalendarCommand, fold } from "./calendarCommandParser";
 import { matchesCalendarText } from "./assistantPlanning";
+import { completionTokenLimit } from './inferencePolicy';
+import { needsCalendarExtraction } from './assistantRoute';
 import { minutes, timeString } from "./dates";
 import {
   assistantSystemPrompt,
@@ -254,7 +256,7 @@ export function scoreBenchmarkCommand(
   for (const [key, value] of Object.entries(expectedFields[id] || {}))
     checks[key] =
       actual?.[key] === value ||
-      (typeof value === "string" &&
+      (actual?.action==='assistant'&&typeof value === "string" &&
         typeof actual?.query === "string" &&
         actual.query.includes(value));
   return checks;
@@ -500,6 +502,7 @@ export async function runAssistantBenchmark(options: {
             now,
             context,
             DEFAULT_PLANNING,
+            {maxTokens:needsCalendarExtraction(query,now,context,language)?completionTokenLimit(modelStatus().modelId,query,true):96},
           );
           if (options.preset === 'stability') stabilityConversation = response.context || {};
           const plan = response.suggestedPlan,
@@ -516,6 +519,9 @@ export async function runAssistantBenchmark(options: {
                       : "create",
                 date: event?.startDate,
                 time: event?.startTime,
+                endTime: event?.endTime,
+                allDay: event?.allDay,
+                recurrence:event?.recurrence,
                 query: plan.originals[0]?.title,
               }
             : { action: trace?.commandAction, reply: response.text };
@@ -527,6 +533,7 @@ export async function runAssistantBenchmark(options: {
             command,
             language,
           );
+          if(['create','update','delete'].includes(item.action))result.checks.validatedProposal=Boolean(plan);
           if (item.id === "009" || options.preset === "stability")
             result.checks.arithmetic = /4|cztery|four/iu.test(response.text);
           result.checks.languageRouting =

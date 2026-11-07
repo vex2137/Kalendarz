@@ -34,13 +34,54 @@ public class GgufSafImportTest extends CalendarSmokeTest {
         init();try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
             intending(hasAction(Intent.ACTION_OPEN_DOCUMENT)).respondWith(new Instrumentation.ActivityResult(Activity.RESULT_OK,new Intent().setData(FileProvider.getUriForFile(context,context.getPackageName()+".fileprovider",source))));
             until(scenario,"document.querySelector('#btn-open-ai-assistant')");evaluate(scenario,"document.querySelector('#btn-open-ai-assistant').click()");until(scenario,"document.querySelector('#btn-ai-settings')");evaluate(scenario,"document.querySelector('#btn-ai-settings').click()");
+            // Reproduce a broken local HTTP proxy independently of the provider. The
+            // production bounded plugin transport must still import successfully.
+            evaluate(scenario,"window.__importProxyRequests=0;const safFetch=window.fetch;window.fetch=(input,options)=>{const u=new URL(typeof input==='string'?input:input.url,location.href);if(u.pathname.startsWith('/_calendar_model_import/')){window.__importProxyRequests++;return Promise.resolve(new Response('',{status:404}));}return safFetch(input,options)}");
             until(scenario,"document.querySelector('#ai-import-gguf')&&!document.querySelector('#ai-import-gguf').disabled");evaluate(scenario,"document.querySelector('#ai-import-gguf').click()");
             until(scenario,"localStorage.getItem('calendar_active_ai_model_v1')==='"+id+"'&&document.querySelector('[data-testid=local-model-setup]')?.dataset.modelInstalled==='true'",60);intended(hasAction(Intent.ACTION_OPEN_DOCUMENT));
             assertArrayEquals(bytes,Files.readAllBytes(source.toPath()));
+            assertEquals("0",evaluate(scenario,"window.__importProxyRequests"));
+            // A failed second import must retain the previously installed model and selection.
+            byte[] invalid = bytes.clone(); invalid[0] = 'X'; Files.write(source.toPath(),invalid);
+            until(scenario,"document.querySelector('#ai-import-gguf')&&!document.querySelector('#ai-import-gguf').disabled");
+            evaluate(scenario,"document.querySelector('#ai-import-gguf').click()");
+            until(scenario,"document.querySelector('[role=alert]')?.textContent.includes('GGUF')",60);
+            assertEquals("\""+id+"\"",evaluate(scenario,"localStorage.getItem('calendar_active_ai_model_v1')"));
+            assertEquals("true",evaluate(scenario,"document.querySelector('[data-testid=local-model-setup]')?.dataset.modelInstalled==='true'"));
+            assertArrayEquals(invalid,Files.readAllBytes(source.toPath()));
             scenario.recreate();until(scenario,"document.querySelector('#btn-open-ai-assistant')");
             assertEquals("\""+id+"\"",evaluate(scenario,"localStorage.getItem('calendar_active_ai_model_v1')"));
             assertEquals("true",evaluate(scenario,"JSON.parse(localStorage.getItem('calendar_imported_ai_models_v1')).some(m=>m.id==='"+id+"'&&m.bytes==="+bytes.length+")"));
             evaluate(scenario,"window.__opfsStored=false;const r=indexedDB.open('calendar-local-model');r.onsuccess=()=>{const db=r.result,g=db.transaction('models').objectStore('models').get('"+id+"');g.onsuccess=async()=>{const entry=g.result;db.close();if(!entry?.opfsName)return;const d=await(await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models');const f=await(await d.getFileHandle(entry.opfsName)).getFile();window.__opfsStored=f.size==="+bytes.length+";};};");until(scenario,"window.__opfsStored");
         }finally{release();source.delete();}
     }
+    @Test public void nativeBridgeReportsExpiredTokensWithoutPrivatePaths() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)) {
+            until(scenario,"document.querySelector('#btn-open-ai-assistant')");
+            evaluate(scenario,"window.__expiredSaf=null;window.Capacitor.nativePromise('CalendarModelImport','open',{token:'11111111-1111-4111-8111-111111111111',bytes:-1}).then(()=>window.__expiredSaf='unexpected-success').catch(e=>window.__expiredSaf=e.message)");
+            until(scenario,"window.__expiredSaf");
+            assertEquals("\"model-import-expired\"",evaluate(scenario,"window.__expiredSaf"));
+        }
+    }
+
+    @Test public void pickerAcquiresStreamBeforeReturningToken() throws Exception {
+        android.content.Context context=InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File source=new File(context.getCacheDir(),"saf-acquire-before-token.gguf");
+        byte[] bytes=new byte[4096];bytes[0]='G';bytes[1]='G';bytes[2]='U';bytes[3]='F';bytes[4]=3;
+        Files.write(source.toPath(),bytes);
+        init();try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)) {
+            Intent selection = new Intent().addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            selection.setClipData(android.content.ClipData.newRawUri("GGUF",FileProvider.getUriForFile(context,context.getPackageName()+".fileprovider",source)));
+            intending(hasAction(Intent.ACTION_OPEN_DOCUMENT)).respondWith(new Instrumentation.ActivityResult(Activity.RESULT_OK, selection));
+            until(scenario,"document.querySelector('#btn-open-ai-assistant')");
+            evaluate(scenario,"window.__picked=null;window.Capacitor.nativePromise('CalendarModelImport','pick',{}).then(f=>window.__picked=f)");
+            until(scenario,"window.__picked?.token");
+            assertTrue(source.delete()); // Existing descriptor must remain usable after unlink.
+            evaluate(scenario,"window.__acquired=null;window.Capacitor.nativePromise('CalendarModelImport','open',{token:window.__picked.token,bytes:window.__picked.bytes}).then(()=>window.Capacitor.nativePromise('CalendarModelImport','read',{token:window.__picked.token})).then(c=>window.__acquired=c).catch(e=>window.__acquired={error:e.message})");
+            until(scenario,"window.__acquired");
+            assertEquals("true",evaluate(scenario,"!window.__acquired.error&&window.__acquired.received>0&&atob(window.__acquired.data).startsWith('GGUF')"));
+            evaluate(scenario,"window.Capacitor.nativePromise('CalendarModelImport','release',{token:window.__picked.token})");
+        }finally{release();source.delete();}
+    }
+
 }

@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Fixture exists only in the test APK, never the signed application. -->
+        <provider android:name="com.kalendarz.offline.RawSafFixtureProvider"
+            android:authorities="com.kalendarz.offline.saf.open.fixture"
+            android:exported="true" />
+    </application>
+</manifest>

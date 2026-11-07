@@ -9,16 +9,34 @@ function fixture(name='Local test'){
   const u64=n=>{const b=Buffer.alloc(8);b.writeBigUInt64LE(BigInt(n));return b;};
   const u32=n=>{const b=Buffer.alloc(4);b.writeUInt32LE(n);return b;};
   const string=s=>Buffer.concat([u64(Buffer.byteLength(s)),Buffer.from(s)]);
-  return Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(3),string('general.architecture'),u32(8),string('llama'),string('llama.context_length'),u32(4),u32(4096),string('general.name'),u32(8),string(name)]);
+  return Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(4),string('llama.block_count'),u32(5),u32(24),string('general.architecture'),u32(8),string('llama'),string('llama.context_length'),u32(4),u32(4096),string('general.name'),u32(8),string(name)]);
 }
 async function workspace(fn){const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'calendar-folders-')));try{await fn(root);}finally{await fs.rm(root,{recursive:true,force:true});}}
 const configFile=root=>path.join(root,'settings','model-folders-v1.json');
+test('bounded native GGUF parsing retains LFM3 per-layer arrays for memory planning',()=>workspace(async root=>{
+ const u32=n=>{const b=Buffer.alloc(4);b.writeUInt32LE(n);return b;},u64=n=>{const b=Buffer.alloc(8);b.writeBigUInt64LE(BigInt(n));return b;},str=s=>Buffer.concat([u64(Buffer.byteLength(s)),Buffer.from(s)]);
+ const fields={'general.architecture':'lfm3','lfm3.context_length':262144,'lfm3.block_count':4,'lfm3.embedding_length':2048,'lfm3.attention.head_count':16,'lfm3.attention.head_count_kv':[0,2,2,0],'lfm3.attention.sliding_window_pattern':[0,1,0,0],'lfm3.attention.sliding_window':1024,'lfm3.shortconv.l_cache':3};
+ const body=Object.entries(fields).flatMap(([key,value])=>[str(key),typeof value==='string'?Buffer.concat([u32(8),str(value)]):Array.isArray(value)?Buffer.concat([u32(9),u32(4),u64(value.length),...value.map(u32)]):Buffer.concat([u32(4),u32(value)])]);
+ const file=path.join(root,'lfm-header.gguf');await fs.writeFile(file,Buffer.concat([Buffer.from('GGUF'),u32(3),u64(1),u64(Object.keys(fields).length),...body]));
+ const meta=await readGGUF(file);assert.equal(meta.kvLayout.length,4);assert.equal(meta.kvLayout[1].window,1024);assert.equal(meta.contextLength,262144);
+}));
+test('native memory metadata reads standard KV dimensions from the bounded GGUF header',()=>workspace(async root=>{
+ const data=fixture(),fields=[['llama.embedding_length',1024],['llama.attention.head_count',8],['llama.attention.head_count_kv',2]];
+ data.writeBigUInt64LE(7n,16);
+ const extra=fields.map(([key,value])=>{const bytes=Buffer.from(key),length=Buffer.alloc(8),scalar=Buffer.alloc(8);length.writeBigUInt64LE(BigInt(bytes.length));scalar.writeUInt32LE(4);scalar.writeUInt32LE(value,4);return Buffer.concat([length,bytes,scalar]);});
+ const file=path.join(root,'header.gguf'),bytes=Buffer.concat([data,...extra]);await fs.writeFile(file,bytes);
+ const meta=await readGGUF(file);assert.equal(meta.blockCount,24);assert.equal(meta.kvBytesPerToken,24576);
+ const {createHash}=require('node:crypto'),sha256=createHash('sha256').update(bytes).digest('hex'),id='imported-'+sha256;
+ const store=new NativeModelStore({root,catalogue:[{id,name:'header fixture',sha256,bytes:bytes.length,maxContext:2048}]});
+ await fs.rename(file,store.file(id));const stored=await store.metadata(id,new AbortController().signal);
+ assert.equal(stored.blockCount,24);assert.equal(stored.bytes,bytes.length);assert.equal(stored.kvBytesPerToken,24576);
+}));
 test('folder scans recursively find valid GGUF and survive restart without copying model bytes',()=>workspace(async root=>{
   const directory=path.join(root,'LM Studio','publisher','model');await fs.mkdir(directory,{recursive:true});
   const file=path.join(directory,'weights.GGUF');await fs.writeFile(file,fixture());
   const folders=new ModelFolders({configFile:configFile(root)});assert.deepEqual((await folders.list()).folders,[]);
   const added=await folders.add(path.join(root,'LM Studio'));assert.equal(added.models.length,1);assert.equal(added.models[0].name,'Local test');assert.equal(added.models[0].file,'weights.GGUF');
-  assert.equal(added.models[0].maxContext,2048);assert.equal(added.models[0].external,true);assert.equal(JSON.stringify(added.models).includes(directory),false);
+  assert.equal(added.models[0].maxContext,2048);assert.equal(added.models[0].contextLength,4096);assert.equal(added.models[0].blockCount,24);assert.equal(added.models[0].external,true);assert.equal(JSON.stringify(added.models).includes(directory),false);
   assert.equal((await folders.add(path.join(root,'LM Studio'))).folders.length,1);
   const reopened=new ModelFolders({configFile:configFile(root)});assert.deepEqual(await reopened.list(),added);
   assert.equal(await reopened.verifiedPath(added.models[0].id),file);assert.deepEqual(await fs.readdir(directory),['weights.GGUF']);

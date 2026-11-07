@@ -42,9 +42,10 @@ test('paired evaluation checks complete proposals, constraints, read-only result
 });
 
 test('ambiguous, negated, recurring and constrained commands retain real model extraction', () => {
-  for (const query of ['Nie usuwaj dentysty', 'Delete Joga except next week', 'Dodaj kurs co tydzień jutro o 15', 'Add meeting tomorrow after 15', 'Dodaj kurs jutro przed 12', 'Dodaj Kurs jutro o 25:00', 'Dodaj Kurs jutro o 10:99', 'Dodaj Kurs jutro o 0 pm', 'Dodaj Kurs jutro pojutrze o 12', 'Dodaj Kurs 2026-02-30 o 15', 'Dodaj Kurs jutro o 12 z przypomnieniem 10 minut wcześniej']) assert.equal(parseCalendarCommand(query, 'pl', now), undefined, query);
+  for (const query of ['Nie usuwaj dentysty', 'Delete Joga except next week', 'Dodaj kurs co tydzień jutro o 15', 'Add meeting tomorrow after 15', 'Dodaj kurs jutro przed 12', 'Dodaj Kurs jutro o 25:00', 'Dodaj Kurs jutro o 10:99', 'Dodaj Kurs jutro o 0 pm', 'Dodaj Kurs jutro pojutrze o 12', 'Dodaj Kurs 2026-02-30 o 15']) assert.equal(parseCalendarCommand(query, 'pl', now), undefined, query);
   for (const query of ['Dodaj Kurs jutro o 12 bez kolizji', 'Add Review tomorrow at 12 with a reminder', 'Dodaj Kurs jutro o 12 z Anią']) assert.equal(parseCalendarCommand(query, 'pl', now), undefined, query);
   assert.equal(parseCalendarCommand('Dodaj Kurs jutro o 12', 'de', now), undefined);
+  assert.equal(parseCalendarCommand('Dodaj Kurs jutro o 12 z przypomnieniem 10 minut wcześniej','pl',now)?.command.reminderMinutes,10);
 });
 
 test('missing dates and times are never invented; quoted words and midnight remain literal', () => {

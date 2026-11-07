@@ -2,10 +2,10 @@ import type { CalendarEvent, PlanningPreferences } from '../types';
 import type { AppLanguage } from './i18n';
 import { tr } from './i18n';
 import { addDays, isValidDate, isValidTime, localDate, minutes, timeString } from './dates';
-import { changesForPlan } from './assistantChanges';
+import { changesForPlan, planHasConflicts } from './assistantChanges';
 import { searchCalendar, matchesCalendarText, type AssistantPlan } from './assistantPlanning';
 import { parseDateFromNaturalLanguage, runLocalAiAssistant, type AiResponseResult } from './aiEngine';
-import { calendarFields } from './calendarCommandParser';
+import { calendarFields, requestedEventColor, parseCalendarCommand } from './calendarCommandParser';
 import { guardCalendarWriteClaim } from './calendarWriteClaim';
 import { requestedReminderMinutes } from './calendarReminder';
 import { normalizeGermanInput } from './germanQuery';
@@ -20,7 +20,7 @@ export interface ModelCommand {
   recurrence: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
   sourceDate: string | null; question: string | null;
   reply: string | null;
-  reminderMinutes: number | null;
+  reminderMinutes: number | null; color?:import('../types').GoogleCalendarColor|null;
 }
 const nullableString = { type: ['string', 'null'] };
 const nullableDate = { ...nullableString, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' };
@@ -28,7 +28,7 @@ const nullableTime = { ...nullableString, pattern: '^([01][0-9]|2[0-3]):[0-5][0-
 export const COMMAND_SCHEMA = {
   type: 'object', additionalProperties: false,
   properties: {
-    action: { type: 'string', enum: actions }, query: nullableString,
+    color: nullableString, action: { type: 'string', enum: actions }, query: nullableString,
     title: nullableString, date: nullableDate, endDate: nullableDate,
     time: nullableTime, endTime: nullableTime, allDay: { type: ['boolean', 'null'] },
     location: nullableString, description: nullableString,
@@ -127,16 +127,20 @@ JSON: ${example({ action: 'delete', query: name })}`;
 export function assistantSystemPrompt(language: AppLanguage, now: Date) {
   return calendarSystemPrompt(language, now) + `\nFor natural conversation/general questions, use action=chat and reply=your actual helpful answer in the current user's language, respecting an explicit request to switch language. Language hint: ${language}; never let interface language override the actual message. Do not turn greetings or conversation into event updates. For calendar requests keep the command format above. A negated deletion is not permission to delete; answer a requested lookup with search. Only use clarify when information needed for an action is missing. Never claim that a proposal was saved.`;
 }
-export async function resolveModelCommand(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, referenceEvidence?: {title:string;date:string}): Promise<AiResponseResult> {
+export async function resolveModelCommand(command: ModelCommand, request: string, events: CalendarEvent[], language: AppLanguage, now: Date, preferences: PlanningPreferences, referenceEvidence?: {title:string;date:string;id?:string}): Promise<AiResponseResult> {
   const ask = (pl: string, en: string): AiResponseResult => ({ text: tr(language, pl, en) });
+  if(command.action==='chat'&&/^(?:(?:please|proszę|could you)\s+)?(?:dodaj|utw[oó]rz|przesuń|przenieś|usuń|add|create|move|reschedule|delete|remove)\b/iu.test(request.trim()))return ask('Nie przygotowano ani nie zapisano zmian. Podaj parametry operacji.','No calendar changes were prepared or saved. Specify the operation parameters.');
   if (command.action === 'chat') return { text: guardCalendarWriteClaim(command.reply?.trim() || tr(language, 'Co chcesz omówić?', 'What would you like to talk about?'),language) };
-  const evidence = language === 'pl' || language === 'en' ? calendarFields(request, now) : undefined;
+  const evidenceText=command.action==='update'&&command.sourceDate?request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu,'').match(/\b(?:na|to)\s+([\s\S]+)$/iu)?.[1]||request:request;
+  const evidence = language === 'pl' || language === 'en' ? calendarFields(evidenceText, now) : undefined;
   const requestedReminder=requestedReminderMinutes(request);
+  const requestedColor=requestedEventColor(request);
+  if(command.color&&command.color!==requestedColor)return ask('Podaj jednoznaczny kolor wydarzenia.','Specify the event color.');
   const outsideQuotes = request.replace(/"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '');
   if (['create', 'update', 'delete'].includes(command.action) && /\b(?:nie|not|never|don't|gdyby\p{L}*|if|zamiast|instead)\b|не\s|nicht/iu.test(outsideQuotes)) return ask('Doprecyzuj, jaką zmianę mam przygotować; nic nie zmieniono.', 'Please clarify which change to prepare; nothing was changed.');
   if (['update','delete'].includes(command.action) && command.query?.trim() && request.trim()) {
     const title=command.query.replace(/^(?:wydarzenie|event|событие|termin|veranstaltung)\s+/iu,'');
-    const evidenced=matchesCalendarText(request,title)||Boolean(referenceEvidence&&referenceEvidence.title===title&&(!command.sourceDate||command.sourceDate===referenceEvidence.date));
+    const evidenced=matchesCalendarText(request,title)||parseCalendarCommand(request,language,now)?.command.query?.toLocaleLowerCase()===title.toLocaleLowerCase()||Boolean(referenceEvidence&&referenceEvidence.title===title&&(!command.sourceDate||command.sourceDate===referenceEvidence.date));
     if(!evidenced)return ask('Nie wskazano tego wydarzenia w poleceniu. Podaj tytuł przed przygotowaniem zmiany.','This event was not identified in the request. Specify its title before preparing a change.');
   }
   if ((command.action === 'create' || command.action === 'update') && request.trim() && command.title && !request.toLocaleLowerCase().includes(command.title.toLocaleLowerCase()) && !matchesCalendarText(request, command.title)) return ask('Podaj dokładny tytuł wydarzenia; model zwrócił inną nazwę.', 'Please specify the exact event title; the model returned another name.');
@@ -155,6 +159,7 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     const title = query.replace(/^(?:wydarzenie|event|событие|termin|veranstaltung)\s+(?=\S)/iu, '');
     if (title !== query) candidates = searchCalendar(events, title);
   }
+  if(referenceEvidence?.id)candidates=candidates.filter(e=>e.id===referenceEvidence.id);
   const matches = candidates
     .filter(e => command.action === 'search' || !command.sourceDate || e.startDate === command.sourceDate);
   if (command.action === 'search') {
@@ -184,7 +189,7 @@ export async function resolveModelCommand(command: ModelCommand, request: string
   }
   if (command.action !== 'create') {
     if (!command.query?.trim() || matches.length !== 1) return {
-      text: tr(language, 'Podaj jednoznaczny tytuł i pierwotną datę wydarzenia.', 'Specify an unambiguous event title and its original date.') + '\n' + matches.slice(0, 10).map(e => `${e.title} — ${e.startDate} ${e.startTime || ''}`).join('\n'),
+      text: tr(language, 'Podaj jednoznaczny tytuł i pierwotną datę wydarzenia.', 'Specify an unambiguous event title and its original date.') + '\n' + matches.slice(0, 10).map((e,i) => `${i+1}. ${e.title} — ${e.startDate} ${e.startTime || ''}`).join('\n'),
     };
     const original = matches[0];
     if (original.id.startsWith('pl-holiday-')) return ask('Święto jest tylko do odczytu.', 'This holiday is read-only.');
@@ -195,7 +200,7 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     };
   }
   const original = command.action === 'update' ? matches[0] : undefined;
-  if (original && !command.date && !command.time && !command.title && !command.location && !command.description && command.allDay === null && !command.recurrence && requestedReminder===undefined) return ask('Podaj nową datę, godzinę lub nazwę wydarzenia.', 'Please specify a new date, time or event name.');
+  if (original && !command.date && !command.time && !command.endTime && !command.title && !command.location && !command.description && command.allDay === null && !command.recurrence && requestedReminder===undefined) return ask('Podaj nową datę, godzinę lub nazwę wydarzenia.', 'Please specify a new date, time or event name.');
   const date = command.date || original?.startDate;
   const allDay = command.allDay ?? original?.allDay ?? false;
   const time = command.time || original?.startTime;
@@ -222,6 +227,7 @@ export async function resolveModelCommand(command: ModelCommand, request: string
     startDate: date, endDate: endDate || (original && !command.date && !command.time ? original.endDate : addDays(date, Math.floor(end / 1440))),
     allDay, startTime: allDay ? undefined : time, endTime: allDay ? undefined : timeString(end),
     location: command.location ?? original?.location, description: command.description ?? original?.description,
+    color: requestedColor??original?.color,
     recurrence: command.recurrence || original?.recurrence || 'NONE',
     ...(requestedReminder!==undefined?{reminders:[requestedReminder]}:{}),
   };
@@ -241,5 +247,5 @@ export async function resolveModelCommand(command: ModelCommand, request: string
   if (!original && requestedDate && requestedDate !== date) return ask('Daty w poleceniu są niejednoznaczne. Podaj datę w formacie RRRR-MM-DD.', 'The requested date is ambiguous. Please use YYYY-MM-DD.');
   const plan: AssistantPlan = { kind: original ? 'move' : 'create', originals: original ? [original] : [], events: [draft] };
   changesForPlan(plan); // Existing event validation runs before displaying a proposal, then again at commit.
-  return { text: tr(language, 'Sprawdź wszystkie dane przed zatwierdzeniem.', 'Review all details before confirming.'), suggestedPlan: plan };
+  return { text: tr(language, 'Sprawdź wszystkie dane przed zatwierdzeniem.', 'Review all details before confirming.')+(planHasConflicts(plan,events)?tr(language,' Uwaga: konflikt z innym wydarzeniem.',' Warning: conflict with another event.'):''), suggestedPlan: plan };
 }

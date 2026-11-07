@@ -1,3 +1,5 @@
+import { useAnimatedClose } from '../hooks/useAnimatedClose';
+import type { AnimationSettings } from '../types';
 import { tr } from '../utils/i18n';
 import type { AssistantPlan } from '../utils/assistantPlanning';
 import { planningPreferences } from '../utils/assistantPlanning';
@@ -5,7 +7,7 @@ import { Dialog } from './Dialog';
 import React, { useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import { CalendarEvent, AiChatMessage, AiSettings } from '../types';
 import { runModelAssistant, type ModelConversation } from '../utils/modelAssistant';
-import { cancelModelOperation, checkLocalModel, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
+import { cancelModelInference, checkLocalModel, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
 import { localModelText } from '../utils/localModelText';
 import { AiSettingsPanel } from './AiSettingsPanel';
 import { aiSettingsText } from '../utils/aiSettingsText';
@@ -36,6 +38,7 @@ import {
 } from 'lucide-react';
 
 interface AiAssistantDrawerProps {
+  animations: AnimationSettings;
   isOpen: boolean;
   onClose: () => void;
   events: CalendarEvent[];
@@ -54,6 +57,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   onUndo,
   canUndo,
   aiSettings,
+  animations,
   language = 'en',
 }) => {
   const t = getTranslation(language);
@@ -169,8 +173,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     if (isOpen) void checkLocalModel();
     setAssistantActive(aiSettings.enabled && (isOpen || minimized.current && background && isProcessing));
   }, [isOpen, aiSettings.enabled, background, isProcessing]);
-  useEffect(() => () => { cancelModelOperation(); setAssistantActive(false); }, []);
+  useEffect(() => () => { cancelModelInference(); setAssistantActive(false); }, []);
 
+  const closeHistory = useAnimatedClose(`${isOpen}:${historyOpen}`, () => { returnFocus.current = 'btn-ai-chat-history'; setHistoryOpen(false); }, animations, '#ai-history-overlay');
+  const closeSettings = useAnimatedClose(`${isOpen}:${settingsOpen}`, () => { returnFocus.current = 'btn-ai-settings'; setSettingsOpen(false); }, animations, '#ai-settings-panel');
   if (!isOpen) return null;
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -269,7 +275,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     try {
       setIsProcessing(true);
       await onApplyPlan(plan);
-      conversationRef.current = { ...conversationRef.current, pending: undefined, proposal: undefined, lastConfirmedAction: {kind:plan.kind,title:plan.events[0].title!,date:plan.events[0].startDate!}, reference: plan.kind === 'delete' ? undefined : { title: plan.events[0].title!, date: plan.events[0].startDate! } };
+      conversationRef.current = { ...conversationRef.current, pending: undefined, proposal: undefined, lastConfirmedAction: {kind:plan.kind,title:plan.events[0].title!,date:plan.events[0].startDate!}, reference: plan.kind === 'delete' ? undefined : { title: plan.events[0].title!, date: plan.events[0].startDate!,...(plan.originals[0]?{id:plan.originals[0].id}:{}) } };
       setAddedEventsIds(prev => [...prev, msgId]);
       const next: AiChatMessage[] = [...messages, { id: crypto.randomUUID(), role: 'assistant', content: tr(language, 'Zapisano zmiany.', 'Changes saved.'), timestamp: Date.now() }];
       setMessages(next); await persist(next);
@@ -282,8 +288,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
-  const closeHistory = () => { returnFocus.current = 'btn-ai-chat-history'; setHistoryOpen(false); };
-  const closeSettings = () => { returnFocus.current = 'btn-ai-settings'; setSettingsOpen(false); };
+  const discardProposal=(msgId:string)=>{
+    if(operationRef.current)return;
+    conversationRef.current={...conversationRef.current,proposal:undefined,pending:undefined,pendingChoice:undefined};
+    const next=messages.map(m=>m.id===msgId?{...m,suggestedPlan:undefined,suggestedEvent:undefined,content:tr(language,'Anulowano propozycję. Nie zmieniono kalendarza.','Proposal cancelled. The calendar was not changed.')}:m);
+    setMessages(next);void persist(next).catch(()=>setHistoryError(true));
+  };
   const handleUndo = async () => {
     if (operationRef.current || !canUndo) return;
     operationRef.current = true;
@@ -306,7 +316,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     savedScroll.current = document.getElementById('ai-chat-messages')?.scrollTop;
     minimized.current = minimize;
     setQuickModelOpen(false);
-    if (!minimize || !background) cancelModelOperation();
+    if (!minimize || !background) cancelModelInference();
     onClose();
   };
   return (
@@ -371,7 +381,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
         {quickModelOpen && <div className="px-3 py-2"><QuickModelMenu language={language} onClose={() => setQuickModelOpen(false)}/></div>}
         {historyError && <p role="alert" className="p-2 text-xs">{ui.historyError}</p>}
-        {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelOperation}>{ui.cancel}</button></div>}
+        {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelInference}>{ui.cancel}</button></div>}
 
         {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 min-h-11 px-3 py-2 flex items-center justify-center gap-2 rounded theme-surface theme-text theme-border border text-sm">
           <Undo2 className="w-6 h-6 shrink-0"/>
@@ -488,6 +498,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 ai-primary rounded-xl disabled:opacity-50">
                         {plan.kind === 'delete' ? modelText.delete : tr(language, 'Zatwierdź wszystkie zmiany', 'Confirm all changes')}
                       </button>}
+                      {!isAdded&&<button type="button" disabled={isProcessing} data-testid="cancel-ai-proposal" className="w-full p-2 theme-border border rounded-lg" onClick={()=>discardProposal(msg.id)}>{tr(language,'Anuluj całą propozycję','Cancel entire proposal')}</button>}
                     </div>
                   )}
                 </div>
@@ -537,21 +548,21 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             placeholder={
               tr(language, 'Napisz np. Trening jutro o 18 na 1h...', 'Type e.g. Workout tomorrow at 6pm for 1h...')
             }
-            disabled={isProcessing || !aiSettings.enabled || !historyReady}
+            disabled={isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyOpen}
             maxLength={1000}
             className="flex-1 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
           <button
             id="btn-send-ai-message"
             onClick={() => handleSendMessage()}
-            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady}
+            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyOpen}
             className="p-2.5 ai-primary disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
       </div>
-      {historyOpen && <div className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
+      {historyOpen && <div id="ai-history-overlay" className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
       {settingsOpen && <AiSettingsPanel language={language} enabled={aiSettings.enabled} onClose={closeSettings}/>}
     </Dialog>
   );

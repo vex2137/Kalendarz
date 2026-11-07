@@ -17,3 +17,22 @@ test('diagnostic action history is bounded and every UI language has operation f
   assert.equal(diagnosticActions().length,100);
   for(const lang of ['pl','en','de','ru'] as const){const text=diagnosticActionText(lang);for(const key of ['saved','cancelled','releasing','released','already','exportError','releaseError','modelSuccess'] as const)assert.ok(text[key].length>5);}
 });
+
+
+test('SAF failures expose native stage/type without provider paths or raw messages',()=>{
+  const error=Object.assign(Error('model-import-permission'),{data:{saf:{stage:'header-read',exceptionType:'java.lang.SecurityException',frames:['android.content.ContentResolver.openInputStream','content://private/file'],grant:{readFlag:true,readGranted:true,persistableFlag:false,provider:'private/path'}}}});
+  recordDiagnosticAction('import-gguf','error',error);
+  const event=diagnosticActions().at(-1)!;
+  assert.equal(event.nativeSaf?.stage,'header-read');assert.equal(event.cause,'java.lang.SecurityException');
+  assert.equal(event.nativeSaf?.grant?.readGranted,true);assert.equal(event.nativeSaf?.grant?.provider,'other');
+  assert.ok(!JSON.stringify(event).includes('private'));
+});
+
+
+test('SAF raw opening diagnostics distinguish URI validation, provider denial and typed route',()=>{
+  for(const stage of ['uri-validation','provider-open-file','resolver-open']) {
+    recordDiagnosticAction('import-gguf','error',Object.assign(Error('model-import-permission'),{data:{saf:{stage,exceptionType:'java.lang.SecurityException',frames:[],grant:{provider:'downloads',readFlag:true,readGranted:true,isDocument:true,sameUid:true,package:'com.kalendarz.offline.diagnostics',openMethod:'provider-open-file'}}}}));
+    const detail=diagnosticActions().at(-1)!.nativeSaf!;
+    assert.equal(detail.stage,stage);assert.equal(detail.grant?.isDocument,true);assert.equal(detail.grant?.sameUid,true);assert.equal(detail.grant?.openMethod,'provider-open-file');
+  }
+});

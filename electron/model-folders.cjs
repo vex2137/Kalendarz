@@ -1,3 +1,4 @@
+const {hybridKvLayout}=require('./gguf-memory.cjs');
 // Desktop-only, read-only access to explicitly selected model directories.
 const fs=require('node:fs/promises');
 const path=require('node:path');
@@ -22,16 +23,24 @@ async function readGGUF(file){
     const sizes={0:1,1:1,2:2,3:2,4:4,5:4,6:4,7:1,10:8,11:8,12:8};
     const value=(type,keep=false)=>{
       if(type===8){if(keep)return string();take(u64());return;}
-      if(type===9){const subtype=u32(),length=u64();if(length>1000000||subtype===9)throw Error('model-gguf-invalid');if(sizes[subtype])take(length*sizes[subtype]);else if(subtype===8){for(let i=0;i<length;i++)take(u64());}else throw Error('model-gguf-invalid');return;}
+      if(type===9){const subtype=u32(),length=u64();if(length>1000000||subtype===9)throw Error('model-gguf-invalid');if(keep&&length<=4096&&[4,5,7].includes(subtype))return Array.from({length},()=>{const b=take(sizes[subtype]);return subtype===4?b.readUInt32LE():subtype===5?b.readInt32LE():b.readUInt8();});if(sizes[subtype])take(length*sizes[subtype]);else if(subtype===8){for(let i=0;i<length;i++)take(u64());}else throw Error('model-gguf-invalid');return;}
       if(!sizes[type])throw Error('model-gguf-invalid');const b=take(sizes[type]);
-      if(keep&&type===4)return b.readUInt32LE();if(keep&&type===10)return Number(b.readBigUInt64LE());return;
+      if(keep&&type===4)return b.readUInt32LE();if(keep&&type===5)return b.readInt32LE();if(keep&&(type===10||type===11)){const n=Number(type===10?b.readBigUInt64LE():b.readBigInt64LE());return Number.isSafeInteger(n)&&n>=0?n:undefined;}return;
     };
     const metadata={};
-    for(let i=0;i<count;i++){const key=string(),type=u32();const keep=/^general\.(?:architecture|name|file_type)$|\.context_length$|^split\.(?:count|no)$/.test(key);const v=value(type,keep);if(keep)metadata[key]=v;}
+    for(let i=0;i<count;i++){const key=string(),type=u32();const keep=/^general\.(?:architecture|name|file_type)$|\.(?:context_length|block_count|embedding_length|attention\.head_count|attention\.head_count_kv|attention\.key_length|attention\.value_length|attention\.sliding_window|attention\.sliding_window_pattern|shortconv\.l_cache)$|^split\.(?:count|no)$/.test(key);const v=value(type,keep);if(keep)metadata[key]=v;}
     const architecture=metadata['general.architecture'];if(typeof architecture!=='string'||!architecture||architecture.length>100)throw Error('model-gguf-invalid');
     if(metadata['split.count']>1)throw Error('model-gguf-split');
-    if(!Number.isFinite(metadata[architecture+'.context_length'])||metadata[architecture+'.context_length']<1)throw Error('model-gguf-unsupported');
-    return {stat,architecture,name:typeof metadata['general.name']==='string'?metadata['general.name'].slice(0,200):path.basename(file),maxContext:Math.min(2048,Math.max(512,metadata[architecture+'.context_length'])),quantization:'GGUF'};
+    if(!Number.isSafeInteger(metadata[architecture+'.context_length'])||metadata[architecture+'.context_length']<1)throw Error('model-gguf-unsupported');
+    const blockCount=metadata[architecture+'.block_count'];
+    // Standard attention only. Recurrent/hybrid layouts (Qwen3.5/LFM3) keep an
+    // explicitly approximate allowance instead of pretending their KV is known.
+    const get=key=>metadata[architecture+'.'+key],heads=get('attention.head_count'),kvHeads=get('attention.head_count_kv'),embedding=get('embedding_length');
+    const keyLength=get('attention.key_length')||(embedding/heads),valueLength=get('attention.value_length')||(embedding/heads);
+    const kv=2*blockCount*kvHeads*(keyLength+valueLength);
+    const kvLayout=hybridKvLayout(architecture,metadata,blockCount);
+    const kvBytesPerToken=['llama','qwen2','gemma','gemma2','mistral'].includes(architecture)&&Number.isSafeInteger(kv)&&kv>0?kv:undefined;
+    return {stat,...(kvLayout?{kvLayout}:{}),...(kvBytesPerToken?{kvBytesPerToken}:{}),architecture,name:typeof metadata['general.name']==='string'?metadata['general.name'].slice(0,200):path.basename(file),maxContext:Math.min(2048,Math.max(512,metadata[architecture+'.context_length'])),contextLength:metadata[architecture+'.context_length'],...(Number.isSafeInteger(blockCount)&&blockCount>0&&blockCount<=1000000?{blockCount}:{}),contextIdentity:idFor('file-',`${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`),quantization:'GGUF'};
   }finally{await handle.close();}
 }
 

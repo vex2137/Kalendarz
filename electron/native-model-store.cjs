@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 class NativeModelStore {
   constructor({root,bundledPath,catalogue,bundledId,external}) {
     this.root=root;this.bundledPath=bundledPath;this.bundledId=bundledId;
-    this.models=new Map(catalogue.map(m=>[m.id,m]));this.uploads=new Map();this.external=external;
+    this.models=new Map(catalogue.map(m=>[m.id,m]));this.uploads=new Map();this.external=external;this.verified=new Map();
   }
   async registerImported(d) {
     if(!d||d.imported!==true||d.id!=='imported-'+d.sha256||!/^imported-[a-f0-9]{64}$/.test(d.id)||!Number.isSafeInteger(d.bytes)||d.bytes<24||d.bytes>16*1024**3||typeof d.name!=='string'||d.name.length>200||!Number.isInteger(d.maxContext)||d.maxContext<1||d.maxContext>2048||typeof d.architecture!=='string'||!/^[a-z0-9_]{1,64}$/.test(d.architecture)||d.external||d.bundled||d.url!=='')throw Error('model-input');
@@ -15,12 +15,27 @@ class NativeModelStore {
   }
   descriptor(id) { const d=this.models.get(id)||this.external?.models.get(id);if(!d)throw Error('model-unknown');return d; }
   file(id) { const d=this.descriptor(id);return id===this.bundledId?this.bundledPath:path.join(this.root,`${id}-${d.sha256}.gguf`); }
-  async info(id) { if(id?.startsWith('external-')){await this.external?.ready;try{const file=await this.external.verifiedPath(id);const stat=await fs.stat(file);return {installed:true,bytes:stat.size};}catch{return {installed:false};}}const d=this.descriptor(id);try{const stat=await fs.stat(this.file(id));return {installed:stat.isFile()&&stat.size===d.bytes,bytes:stat.size};}catch(e){if(e.code==='ENOENT')return {installed:false};throw e;} }
+  async info(id) {
+    if(id?.startsWith('external-')){await this.external?.ready;try{const file=await this.external.verifiedPath(id);const stat=await fs.stat(file);return {installed:true,verified:true,bytes:stat.size};}catch{return {installed:false,verified:false};}}
+    this.descriptor(id);
+    let stat;try{stat=await fs.stat(this.file(id));}catch(e){if(e.code==='ENOENT')return {installed:false,verified:false};throw e;}
+    try{await this.verifiedPath(id);return {installed:true,verified:true,bytes:stat.size};}
+    catch(e){if(['model-size','model-checksum','model-missing'].includes(e.message))return {installed:false,verified:false,bytes:stat.size,verificationError:e.message};throw e;}
+  }
   async verifiedPath(id,signal) {
     if(id?.startsWith('external-'))return this.external.verifiedPath(id,signal);
-    const d=this.descriptor(id),file=this.file(id);if(!(await this.info(id)).installed)throw Error('model-missing');
+    const d=this.descriptor(id),file=this.file(id);signal?.throwIfAborted();
+    const stat=await fs.stat(file).catch(e=>{if(e.code==='ENOENT')throw Error('model-missing');throw e;});
+    if(!stat.isFile()||stat.size!==d.bytes)throw Error('model-size');
+    const cache=[stat.size,stat.mtimeMs,stat.ctimeMs,d.sha256].join(':');
+    if(this.verified.get(file)===cache)return file;
     const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file)){signal?.throwIfAborted();hash.update(chunk);}
-    if(hash.digest('hex')!==d.sha256)throw Error('model-checksum');return file;
+    if(hash.digest('hex')!==d.sha256)throw Error('model-checksum');this.verified.set(file,cache);return file;
+  }
+  async metadata(id,signal){
+    const file=await this.verifiedPath(id,signal);
+    const {stat,...metadata}=await require('./model-folders.cjs').readGGUF(file);
+    signal?.throwIfAborted();return {...metadata,bytes:stat.size};
   }
   async begin(id) {
     if(id?.startsWith('external-'))throw Error('model-external-readonly');

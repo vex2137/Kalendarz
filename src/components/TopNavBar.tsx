@@ -39,15 +39,15 @@ export function TopNavBar(p: Props) {
     ['day', t.day], ['agenda', t.agenda],
   ] as const;
   const actions = [
-    { id: 'btn-open-search', label: t.search, click: p.onOpenSearch, Icon: Search,
+    { id: 'btn-open-search', shortLabel: t.search, label: t.search, click: p.onOpenSearch, Icon: Search,
       color: 'text-blue-500 bg-blue-500/10 border-blue-500/25 hover:bg-blue-500/20' },
-    ...(p.isAiEnabled ? [{ id: 'btn-open-ai-assistant', label: t.assistant, click: p.onOpenAiDrawer, Icon: Sparkles,
+    ...(p.isAiEnabled ? [{ id: 'btn-open-ai-assistant', shortLabel: 'AI', label: t.assistant, click: p.onOpenAiDrawer, Icon: Sparkles,
       color: 'text-violet-500 bg-violet-500/10 border-violet-500/25 hover:bg-violet-500/20' }] : []),
-    { id: 'btn-open-sync', label: t.sync, click: p.onOpenSync, Icon: ArrowLeftRight,
+    { id: 'btn-open-sync', shortLabel: ({pl:'Transfer',en:'Transfer',de:'Transfer',ru:'Передача'})[language], label: t.sync, click: p.onOpenSync, Icon: ArrowLeftRight,
       color: 'text-teal-500 bg-teal-500/10 border-teal-500/25 hover:bg-teal-500/20' },
-    { id: 'btn-open-settings', label: t.settings, click: p.onOpenSettings, Icon: Settings,
+    { id: 'btn-open-settings', shortLabel: t.settings, label: t.settings, click: p.onOpenSettings, Icon: Settings,
       color: 'text-amber-500 bg-amber-500/10 border-amber-500/25 hover:bg-amber-500/20' },
-    ...(p.onOpenDownload ? [{ id: 'btn-open-download', label: tr(language, 'Pobierz aplikację', 'Download app'), click: p.onOpenDownload, Icon: Download,
+    ...(p.onOpenDownload ? [{ id: 'btn-open-download', shortLabel: ({pl:'Aplikacja',en:'App',de:'App',ru:'Приложение'})[language], label: tr(language, 'Pobierz aplikację', 'Download app'), click: p.onOpenDownload, Icon: Download,
       color: 'text-sky-500 bg-sky-500/10 border-sky-500/25 hover:bg-sky-500/20' }] : []),
   ];
   return (
@@ -61,13 +61,13 @@ export function TopNavBar(p: Props) {
             </h2>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <button id="btn-nav-today" onClick={p.onNavigateToday}
-              className="min-h-11 sm:min-h-10 px-3 rounded-xl theme-border border theme-hover text-xs font-semibold">
-              {t.today}
-            </button>
             <button id="btn-nav-prev" aria-label={tr(language, 'Poprzedni', 'Previous')}
               onClick={p.onNavigatePrev} className="w-11 h-11 rounded-lg theme-hover flex items-center justify-center">
               <ChevronLeft size={18} />
+            </button>
+            <button id="btn-nav-today" onClick={p.onNavigateToday}
+              className="min-h-11 sm:min-h-10 px-3 rounded-xl theme-border border theme-hover text-xs font-semibold">
+              {t.today}
             </button>
             <button id="btn-nav-next" aria-label={tr(language, 'Następny', 'Next')}
               onClick={p.onNavigateNext} className="w-11 h-11 rounded-lg theme-hover flex items-center justify-center">
@@ -76,10 +76,10 @@ export function TopNavBar(p: Props) {
           </div>
         </div>
         <div className="calendar-global-actions flex items-center gap-2 sm:gap-1">
-          {actions.map(({ id, label, click, Icon, color }) => (
+          {actions.map(({ id, label, shortLabel, click, Icon, color }) => (
             <button key={id} id={id} aria-label={label} title={label} onClick={click}
-              className={`flex-1 sm:flex-none sm:w-10 h-11 sm:h-10 min-w-0 rounded-xl border flex items-center justify-center transition-colors ${color}`}>
-              <Icon size={20} />
+              className={`calendar-tool-button flex-1 sm:flex-none sm:w-10 h-11 sm:h-10 min-w-0 rounded-xl border flex items-center justify-center transition-colors ${color}`}>
+              <Icon size={20} className="shrink-0" /><span className="calendar-tool-label">{shortLabel}</span>
             </button>
           ))}
           <button id="btn-create-event-top" onClick={p.onOpenCreateModal}

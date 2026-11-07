@@ -5,8 +5,9 @@ import type { AppLanguage } from './i18n';
 export interface ModelMetric {
   backend?:string;gpuActive?:boolean;deviceName?:string;ramBytes?:number;vramBytes?:number;fallbackReason?:string;
   contextLength?:number; modelBytes?:number; historyMessages?:number; maxOutputTokens?:number; jsHeapBytes?:number;
+  requestedOutputTokens?:number;estimatedInputTokens?:number;contextLimited?:boolean;outputLimitSource?:'auto'|'manual'|'structured'|'override';
   outputTruncated?: boolean;
-  finishReason?: 'stop' | 'length' | 'other' | 'missing';
+  finishReason?: 'stop' | 'length' | 'other' | 'missing' | 'cancelled' | 'error';
   modelId?: string;
   quantization?: string;
   engineStateAtStart?: 'loaded' | 'loading' | 'unloaded';
@@ -18,6 +19,15 @@ export interface ModelMetric {
   promptMs?: number; generationMs?: number; tokensPerSecond?: number;
   promptTokens?: number; cachedTokens?: number; completionTokens?: number;
   threads?: number; multithread?: boolean; isolated?: boolean;
+}
+// Merge only reported finite values: sparse/empty timing frames must not erase usage.
+export function applyCompletionMetrics(metric: ModelMetric, usage?: {prompt_tokens?:number;completion_tokens?:number;prompt_tokens_details?:{cached_tokens?:number}} | null, timings?: Partial<Record<'prompt_ms'|'predicted_ms'|'predicted_per_second'|'prompt_n'|'cache_n'|'predicted_n',number>>) {
+  const valid=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
+  const put=(key:'promptMs'|'generationMs'|'tokensPerSecond'|'promptTokens'|'cachedTokens'|'completionTokens',value:unknown)=>{if(valid(value))metric[key]=value;};
+  put('promptMs',timings?.prompt_ms);put('generationMs',timings?.predicted_ms);put('tokensPerSecond',timings?.predicted_per_second);
+  if(valid(timings?.prompt_n)&&valid(timings?.cache_n))put('promptTokens',timings.prompt_n+timings.cache_n);
+  put('cachedTokens',timings?.cache_n);put('completionTokens',timings?.predicted_n);
+  put('promptTokens',usage?.prompt_tokens);put('cachedTokens',usage?.prompt_tokens_details?.cached_tokens);put('completionTokens',usage?.completion_tokens);
 }
 let metrics: ModelMetric[] = [];
 let runtimeState: Record<string, unknown> | undefined;
@@ -69,7 +79,15 @@ export function runtimeCapabilities() {
 }
 export type DiagnosticAction = 'backend-mode'|'export-json'|'release-memory'|'device-test'|'import-gguf'|'download-model'|'bridge-info';
 export type DiagnosticStage = 'click'|'start'|'bridge-call'|'success'|'cancelled'|'error'|'lookup'|'stream-open'|'copy'|'verify'|'metadata'|'register'|'commit'|'native-cache'|'engine-load';
-export interface DiagnosticActionEvent { action:DiagnosticAction; stage:DiagnosticStage; at:number; code?:string; cause?:string; modelId?:string; bytes?:number; expectedBytes?:number; failedStage?:DiagnosticStage }
+export interface NativeSafFailure { stage:string; exceptionType:string; frames:string[]; grant?:{readFlag:boolean;persistableFlag:boolean;readGranted:boolean;provider:string;virtualDocument?:boolean;isDocument?:boolean;fromClipData?:boolean;sameUid?:boolean;package?:string;openMethod?:string;documentFamily?:string;selectionRoute?:string} }
+function nativeSafFailure(error:unknown):NativeSafFailure|undefined {
+  const value=(error as {data?:{saf?:NativeSafFailure}}|undefined)?.data?.saf;
+  if(!value||!['uri-validation','provider-open-file','resolver-open','header-read','stream-open','copy','picker'].includes(value.stage)||!/^\w+(?:[.$]\w+)*$/.test(value.exceptionType))return;
+  const frames=Array.isArray(value.frames)?value.frames.filter(f=>typeof f==='string'&&f.length<200&&/^[\w.$<>]+$/.test(f)).slice(0,8):[];
+  const grant=value.grant;
+  return {stage:value.stage,exceptionType:value.exceptionType,frames,...(grant?{grant:{readFlag:grant.readFlag===true,persistableFlag:grant.persistableFlag===true,readGranted:grant.readGranted===true,virtualDocument:grant.virtualDocument===true,documentFamily:['raw','numeric','media-file','media-directory','primary-volume','other','not-document'].includes(grant.documentFamily||'')?grant.documentFamily:undefined,selectionRoute:['internal-downloads','standard'].includes(grant.selectionRoute||'')?grant.selectionRoute:undefined,isDocument:grant.isDocument===true,fromClipData:grant.fromClipData===true,sameUid:grant.sameUid===true,package:grant.package==='com.kalendarz.offline.diagnostics'?'com.kalendarz.offline.diagnostics':'other',openMethod:['provider-open-file','resolver-input-stream'].includes(grant.openMethod||'')?grant.openMethod:undefined,provider:['downloads','external-storage','other'].includes(grant.provider)?grant.provider:'other'}}:{})};
+}
+export interface DiagnosticActionEvent { action:DiagnosticAction; stage:DiagnosticStage; at:number; code?:string; cause?:string; nativeSaf?:NativeSafFailure; modelId?:string; bytes?:number; expectedBytes?:number; failedStage?:DiagnosticStage }
 let actions:DiagnosticActionEvent[]=[];
 const firstFailedStage=new WeakMap<object,DiagnosticStage>();
 export const diagnosticActions=()=>actions;
@@ -80,7 +98,8 @@ export function diagnosticErrorCode(error:unknown) {
 }
 export function recordDiagnosticAction(action:DiagnosticAction,stage:DiagnosticStage,error?:unknown,context:Partial<Pick<DiagnosticActionEvent,'modelId'|'bytes'|'expectedBytes'|'failedStage'>>={}) {
   if(stage==='error'&&error&&typeof error==='object'&&context.failedStage){if(!firstFailedStage.has(error))firstFailedStage.set(error,context.failedStage);context={...context,failedStage:firstFailedStage.get(error)};}
-  const event:DiagnosticActionEvent={action,stage,at:Date.now(),...context,...(error===undefined?{}:{code:diagnosticErrorCode(error),cause:error instanceof Error?error.name:'Unknown'})};
+  if(nativeSafFailure(error)&&!context.failedStage)context={...context,failedStage:'stream-open'};
+  const event:DiagnosticActionEvent={action,stage,at:Date.now(),...context,...(error===undefined?{}:{code:diagnosticErrorCode(error),cause:nativeSafFailure(error)?.exceptionType||(error instanceof Error?error.name:'Unknown'),...(nativeSafFailure(error)?{nativeSaf:nativeSafFailure(error)}:{})})};
   actions=[...actions.slice(-99),event];
   console.info('AI diagnostic action:',JSON.stringify(event));
   listeners.forEach(fn=>fn());

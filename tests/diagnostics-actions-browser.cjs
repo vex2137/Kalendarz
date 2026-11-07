@@ -34,6 +34,20 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   await page.waitForFunction(()=>window.__bridge.loaded);
   await page.locator('#btn-ai-settings').click();await page.locator('#ai-tab-diagnostics').click();
   const attempt=page.locator('[data-testid=gpu-attempt-details]:visible');await attempt.locator('summary').click();await attempt.getByText('model-native-load VK_ERROR_FEATURE_NOT_PRESENT',{exact:false}).waitFor();
+  // Real runtime/adapter with a diagnostic-only native result: empty timings
+  // must not erase usage, and aggregated delivery is not a TTFT measurement.
+  const metric=await page.evaluate(async()=>{
+    window.calendarNativeAI.complete=async()=>{await new Promise(r=>setTimeout(r,40));return {text:'Metric fixture',finish:'stop',usage:{prompt_tokens:13,completion_tokens:3},timings:{},firstTokenMs:12,backend:await window.calendarNativeAI.status()};};
+    await window.__runtime.inferLocalText('Reply briefly','Metric fixture');
+    const m=window.__diagnostics.modelMetrics().filter(m=>m.route==='model').at(-1);
+    window.__diagnostics.recordModelMetric({...m,totalMs:2443,initMs:6015,storageMs:8});return m;
+  });
+  assert.equal(metric.threads,2);assert.equal(metric.promptTokens,13);assert.equal(metric.completionTokens,3);assert.ok(metric.firstTokenMs>=12);
+  const table=page.getByTestId('inference-metrics');await table.getByText('Initialization (last load)',{exact:true}).waitFor();
+  await table.getByText('6015 ms',{exact:true}).waitFor();await table.getByText('2443 ms',{exact:true}).waitFor();
+  await table.getByText('13 / 3',{exact:true}).waitFor();await table.getByText('2048 / 2',{exact:true}).waitFor();
+  await page.getByTestId('metric-backend').filter({hasText:'cpu-native'}).waitFor();
+  assert.ok((await page.getByTestId('metric-timing-scope').innerText()).includes('not components'));
   const result=page.getByTestId('diagnostic-action-result');
   await page.getByRole('button',{name:'Release memory',exact:true}).click();
   await result.filter({hasText:'Model unloaded'}).waitFor();
@@ -66,6 +80,13 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   await page.evaluate(()=>window.Capacitor.PluginHeaders=[]);
   await page.getByRole('button',{name:'Export JSON',exact:true}).click();await result.filter({hasText:'diagnostics-native-unavailable'}).waitFor();
   assert.equal(await page.evaluate(()=>window.__bridge.exportCalls),3,'Missing bridge must not look like a successful save');
+  await page.evaluate(async()=>{
+    window.calendarNativeAI.complete=async()=>{throw Error('model-inference');};
+    await window.__runtime.retryLocalModel();try{await window.__runtime.inferLocalText('Reply briefly','Failure fixture');}catch{}
+  });
+  const failed=await page.evaluate(()=>window.__diagnostics.modelMetrics().filter(m=>m.route==='model').at(-1));
+  assert.equal(failed.threads,2,'Reported thread count survives an incomplete attempt');assert.equal(failed.firstTokenMs,undefined);
+  await page.getByTestId('metric-attempt-error').waitFor();assert.ok((await table.innerText()).includes('No data'));
   assert.deepEqual(errors,[]);console.log('PASS diagnostic clicks: memory release, no-op, native error/retry, resume pause; browser JSON; Android proxy save/cancel/write error. Native bridge fault injection only.');await context.close();
  }finally{await browser?.close();server.kill();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

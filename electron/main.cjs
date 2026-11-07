@@ -96,10 +96,10 @@ app.whenReady().then(() => {
   handle('upload-finish',token=>nativeModels.finish(token));
   handle('upload-abort',token=>nativeModels.abort(token));
   handle('model-remove',id=>{if(nativeAI.operation||nativeAI.loading)throw Error('model-busy');return nativeModels.remove(id);});
-  handle('prepare',async id=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.prepare(id);});
+  handle('prepare',async(id,contextSize)=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.prepare(id,contextSize);});
   handle('complete',async(id,request)=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.complete(id,request);});
   handle('stop',()=>nativeAI.cancel());
-  handle('mode',(mode,layers)=>nativeAI.setMode(mode,layers));
+  handle('mode',(mode,layers,automatic)=>nativeAI.setMode(mode,layers,automatic));
   handle('status',()=>nativeAI.snapshot());
   handle('folders-list',()=>modelFolders.list());
   const foldersIdle=()=>{if(nativeAI.operation||nativeAI.loading)throw Error('model-busy');};
