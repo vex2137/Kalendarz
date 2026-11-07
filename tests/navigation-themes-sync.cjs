@@ -158,9 +158,51 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
     await receiver.page.locator('#btn-open-search').click();
     await receiver.page.getByPlaceholder('Szukaj wydarzeń, osób, miejsc...').fill('Encrypted private event');
     await receiver.page.getByRole('dialog').getByText('Encrypted private event', { exact: true }).waitFor();
+    // Explicit unprotected generation -> real QR image -> mobile import/cancel.
+    await sender.page.getByRole('button',{name:'Text code',exact:true}).click();
+    await sender.page.getByTestId('qr-password-protection').uncheck();
+    assert.equal(await sender.page.getByLabel('Sync password',{exact:true}).count(),0);
+    await sender.page.getByRole('button',{name:'Generate unprotected code',exact:true}).click();
+    await sender.page.getByRole('button',{name:'Copy my code',exact:true}).click();
+    const plainCode=await sender.page.evaluate(()=>window.copiedSyncCode);assert.ok(plainCode.startsWith('KAL2:'));
+    await sender.page.getByRole('button',{name:'Show QR',exact:true}).click();await sender.page.getByAltText('Sync QR',{exact:true}).waitFor();
+    const plainFrames=Number((await sender.page.getByText(/^1\/\d+$/).textContent()).split('/')[1]);
+    const plainReceiver=await context({mobile:true,language:'pl'});await plainReceiver.page.locator('#btn-open-sync').click();await plainReceiver.page.getByRole('button',{name:'Skanuj',exact:true}).click();
+    for(let i=0;i<plainFrames;i++){
+      const src=await sender.page.getByAltText('Sync QR',{exact:true}).getAttribute('src');
+      await plainReceiver.page.getByLabel('Wczytaj zdjęcie QR',{exact:true}).setInputFiles({name:`plain-${i}.png`,mimeType:'image/png',buffer:Buffer.from(src.split(',')[1],'base64')});
+      if(i+1<plainFrames){await plainReceiver.page.getByRole('status').filter({hasText:`${i+1}/${plainFrames}`}).waitFor();await sender.page.getByRole('button',{name:'Next QR',exact:true}).click();await sender.page.waitForFunction(old=>document.querySelector('img[alt="Sync QR"]')?.src!==old,src);}
+    }
+    await plainReceiver.page.getByTestId('incoming-sync').waitFor();assert.equal(await plainReceiver.page.getByLabel('Hasło nadawcy',{exact:true}).count(),0);
+    const incomingEvents=()=>plainReceiver.page.evaluate(async()=>(await import('/src/utils/calendarStore.ts')).loadCalendar().then(r=>r.events));
+    assert.equal((await incomingEvents()).length,0);await plainReceiver.page.getByRole('button',{name:'Anuluj',exact:true}).click();assert.equal((await incomingEvents()).length,0);
+    await plainReceiver.page.getByRole('button',{name:'Kod tekstowy',exact:true}).click();
+    await plainReceiver.page.locator('textarea').last().fill(plainCode);
+    await plainReceiver.page.getByRole('button',{name:'Scal dane',exact:true}).click();
+    await plainReceiver.page.getByTestId('incoming-sync').waitFor();
+    await plainReceiver.page.getByRole('button',{name:'Scal nieszyfrowane dane',exact:true}).click();
+    await plainReceiver.page.getByText('Zapisano i scalono dane.',{exact:true}).waitFor();assert.equal((await incomingEvents()).filter(e=>e.id.startsWith('private-')).length,80);
+    // Exercise the real JSON download and browser file input, with confirmation.
+    await sender.page.getByRole('button',{name:'File',exact:true}).click();
+    const downloadPromise=sender.page.waitForEvent('download');await sender.page.getByRole('button',{name:'Export full package',exact:true}).click();const download=await downloadPromise;
+    const chunks=[];for await(const chunk of await download.createReadStream())chunks.push(chunk);const exported=Buffer.concat(chunks);const exportedPayload=JSON.parse(exported);
+    assert.equal(exportedPayload.events.length,80);
+    await plainReceiver.page.getByRole('button',{name:'Plik',exact:true}).click();
+    const fileInput=plainReceiver.page.getByLabel('Importuj JSON lub ICS (scalanie)',{exact:true});
+    await fileInput.setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('invalid JSON')});
+    await plainReceiver.page.getByRole('status').filter({hasText:/SyntaxError|JSON/}).waitFor();assert.equal((await incomingEvents()).length,80);
+    await fileInput.setInputFiles({name:'export.json',mimeType:'application/json',buffer:exported});await plainReceiver.page.getByTestId('incoming-sync').waitFor();
+    const beforeFile=await incomingEvents();await plainReceiver.page.getByRole('button',{name:'Anuluj',exact:true}).click();assert.deepEqual(await incomingEvents(),beforeFile);
+    await fileInput.setInputFiles({name:'export-again.json',mimeType:'application/json',buffer:exported});await plainReceiver.page.getByTestId('incoming-sync').waitFor();
+    await plainReceiver.page.getByRole('button',{name:'Scal nieszyfrowane dane',exact:true}).click();await plainReceiver.page.getByText('Zapisano i scalono dane.',{exact:true}).waitFor();
+    const restored=(await incomingEvents()).filter(e=>e.id.startsWith('private-')).sort((a,b)=>a.id.localeCompare(b.id));
+    assert.deepEqual(restored,exportedPayload.events.sort((a,b)=>a.id.localeCompare(b.id)));
+    await sender.page.getByRole('button',{name:'Text code',exact:true}).click();
+    await sender.page.getByTestId('qr-password-protection').check();await sender.page.getByLabel('Sync password',{exact:true}).waitFor();assert.equal(await sender.page.getByRole('button',{name:'Generate encrypted code',exact:true}).isDisabled(),true);
+    await plainReceiver.ctx.close();
     await sender.ctx.close(); await receiver.ctx.close();
     assert.deepEqual(errors, []);
-    console.log('PASS fully offline gzip/encrypted QR generation, English desktop → Polish mobile decryption, wrong-password isolation, retry/merge/persistence and no stored passwords.');
+    console.log('PASS encrypted/plain QR images and multipart scanning, PL mobile/EN desktop, password re-enable, wrong password, cancel/no writes, JSON export/file-input import, invalid input isolation and exact event fields. Native SAF/camera not tested.');
     }
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }

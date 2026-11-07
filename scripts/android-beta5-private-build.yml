@@ -1,5 +1,5 @@
 # Install in the private builds repository. Never upload APKs to public Actions.
-name: Build private Android Beta 5
+name: Build private Android test candidate
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +7,12 @@ on:
         description: Exact current feat/1.5.0-part2 application commit
         required: true
         type: string
+      android_beta:
+        description: Android candidate profile (CPU remains the verified b12189 engine)
+        required: true
+        type: choice
+        default: '6'
+        options: ['5', '6']
 permissions:
   contents: read
 concurrency:
@@ -24,6 +30,8 @@ jobs:
       contents: write
       actions: read
     env:
+      CALENDAR_APPLICATION_BRANCH: feat/1.5.0-part2
+      CALENDAR_ANDROID_BETA: ${{ inputs.android_beta || '5' }}
       CALENDAR_MODEL_FREE: 'true'
       CALENDAR_ANDROID_NATIVE: 'true'
       CALENDAR_BETA_APK: 'false'
@@ -47,7 +55,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify both workflow and current application checkouts
-        run: python3 scripts/android_beta5_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+        run: python3 "scripts/android_beta${CALENDAR_ANDROID_BETA}_guard.py" --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -76,9 +84,51 @@ jobs:
           node tests/assistant-beta4-browser.cjs
           node tests/assistant-beta5-browser.cjs
           node tests/android-beta5-browser.cjs
+      - name: Beta 6 QR/import/export and GPU separation regressions
+        if: env.CALENDAR_ANDROID_BETA == '6'
+        run: |
+          node --import tsx --test tests/optional-qr.test.ts tests/encrypted-sync.test.ts tests/sync.test.ts tests/calendar.test.ts tests/android-gpu-diagnostics.test.ts
+          python3 -m unittest discover -s tests -p test_android_beta6.py
+          node tests/beta6-gpu-browser.cjs
+          node tests/beta6-sync-browser.cjs
+      - name: Native Vulkan diagnostic on software ICD (not phone GPU or inference)
+        if: env.CALENDAR_ANDROID_BETA == '6'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libvulkan-dev glslc mesa-vulkan-drivers
+          python3 scripts/build-android-vulkan-probe.py --host
+          python3 scripts/build-android-vulkan-probe.py --host --corrupt-result-test
+          export VK_ICD_FILENAMES="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp*.json' -print -quit)"
+          test -f "$VK_ICD_FILENAMES"
+          node --test tests/vulkan-probe-native.cjs
       - name: Install Android ARM64 build tools
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865" "cmake;3.31.6"'
+      - uses: actions/download-artifact@v4
+        if: env.CALENDAR_ANDROID_BETA == '6'
+        with:
+          repository: vex2137/Kalendarz-private-builds
+          github-token: ${{ github.token }}
+          run-id: 42416579533
+          name: Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64-7c4785c10cbcabd64a545754d3cfb184870ba2ba
+          path: source/build/verified-beta5
+      - name: Reuse only verified Beta 5 CPU binary and build the separate ARM64 diagnostic
+        if: env.CALENDAR_ANDROID_BETA == '6'
+        run: |
+          python3 scripts/reuse-beta5-android-cpu.py build/verified-beta5/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk
+          python3 scripts/build-android-vulkan-probe.py
+          "$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h -l -d build/android-jni/arm64-v8a/libcalendar_gpu_probe.so > build/android-probe-elf.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('build/android-probe-elf.txt').read_text()
+          assert 'AArch64' in text and '/system/bin/linker64' in text
+          needed=re.findall(r'Shared library: \[(.*?)\]',text)
+          assert needed and set(needed)<= {'libc.so','libm.so','libdl.so','liblog.so','libandroid.so'},needed
+          assert 'libvulkan.so' not in needed,'Vulkan discovery must survive a missing loader'
+          print('Independent Android AArch64 Vulkan helper; system dependencies:',needed)
+          PY
       - name: Fresh Android b12189 CPU build, never Linux x86_64 binaries or a stale cache
+        if: env.CALENDAR_ANDROID_BETA == '5'
         run: |
           test ! -e build/android-b12189-cpu
           python3 scripts/build-android-native.py --profile beta5 --jobs 3
@@ -103,30 +153,31 @@ jobs:
           set -euo pipefail
           trap 'rm -f "$CALENDAR_KEYSTORE_PATH"' EXIT
           cd android
-          bash ./gradlew :app:testDiagnosticsUnitTest :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarPart2Beta=true -PcalendarPart2BetaNumber=5 -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
+          bash ./gradlew :app:testDiagnosticsUnitTest :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarPart2Beta=true -PcalendarPart2BetaNumber="$CALENDAR_ANDROID_BETA" -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
       - name: Verify update signature, source, runtime hash, ABI, ZIP and absence of weights
         run: |
           mkdir private-android
-          cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk private-android/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk
-          python3 scripts/android_beta5_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote --apk private-android/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk
+          cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk "private-android/Kalendarz-1.5.0-Part-2-Beta-${CALENDAR_ANDROID_BETA}-Android-arm64.apk"
+          python3 "scripts/android_beta${CALENDAR_ANDROID_BETA}_guard.py" --source "$CALENDAR_EXPECTED_COMMIT" --check-remote --apk "private-android/Kalendarz-1.5.0-Part-2-Beta-${CALENDAR_ANDROID_BETA}-Android-arm64.apk"
           python3 - <<'PY'
           from pathlib import Path
           import json,xml.etree.ElementTree as ET
           tests=[c for p in Path('android/app/build/test-results/testDiagnosticsUnitTest').glob('*.xml') for c in ET.parse(p).getroot().iter('testcase')]
           assert tests and all(c.find('failure') is None and c.find('error') is None for c in tests)
-          p=Path('private-android/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk.json')
-          report=json.loads(p.read_text());report['androidJvmTests']=len(tests);report['physicalInferenceTested']=False;report['deviceInstrumentationExecuted']=False
+          import os
+          p=Path('private-android')/('Kalendarz-1.5.0-Part-2-Beta-'+os.environ['CALENDAR_ANDROID_BETA']+'-Android-arm64.apk.json')
+          report=json.loads(p.read_text());report['androidJvmTests']=len(tests);report['physicalInferenceTested']=False;report['deviceInstrumentationExecuted']=False;report['phoneGpuComputeTested']=False;report['vulkanHostComputeVerified']=os.environ['CALENDAR_ANDROID_BETA']=='6';report['cpuEngineReusedFromBeta5']=os.environ['CALENDAR_ANDROID_BETA']=='6'
           p.write_text(json.dumps(report,indent=2)+'\n')
           print('Android JVM tests passed:',len(tests))
           PY
           "$ANDROID_HOME/platform-tools/adb" devices -l
           echo 'No ARM64 device/system image is provided by this runner. Device tests compiled; installation, WebView lifecycle and inference require POCO validation.' >> "$GITHUB_STEP_SUMMARY"
       - name: Final current-source guard
-        run: python3 scripts/android_beta5_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+        run: python3 "scripts/android_beta${CALENDAR_ANDROID_BETA}_guard.py" --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         id: artifact
         with:
-          name: Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64-${{ inputs.source_commit }}
+          name: Kalendarz-1.5.0-Part-2-Beta-${{ env.CALENDAR_ANDROID_BETA }}-Android-arm64-${{ inputs.source_commit }}
           path: source/private-android/
           if-no-files-found: error
           retention-days: 30

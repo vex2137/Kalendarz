@@ -110,6 +110,15 @@ export async function encodeSync(payload: SyncPayload, password: string) {
   const frames = parts <= 256 ? Array.from({ length: parts }, (_, i) => `KAL3P:${id}:${i}:${parts}:${data.slice(i * 1000, (i + 1) * 1000)}`) : [];
   return { code: `KAL3:${id}:${data}`, frames };
 }
+// Explicit opt-in only. The password-protected encoder keeps its old contract.
+export async function encodeUnprotectedSync(payload: SyncPayload) {
+  validateSync(payload);
+  const json = JSON.stringify(payload), bytes = strToU8(json);
+  if (bytes.length > MAX_IMPORT_BYTES) throw new Error('Sync too large: use a file / Użyj pliku');
+  const compressed = await new Promise<Uint8Array>((resolve, reject) => gzip(bytes, (error, result) => error ? reject(error) : resolve(result)));
+  const data = toBase64(compressed), id = await checksum(json), parts = Math.ceil(data.length / 1000);
+  return { code: `KAL2:${id}:${data}`, frames: parts <= 256 ? Array.from({length: parts}, (_,i) => `KAL2P:${id}:${i}:${parts}:${data.slice(i*1000,(i+1)*1000)}`) : [] };
+}
 export async function decodeSync(code: string, password?: string): Promise<SyncPayload> {
   if (code.length > MAX_IMPORT_BYTES * 2) throw new Error('Sync too large');
   if (isEncryptedSync(code)) {

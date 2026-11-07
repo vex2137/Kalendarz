@@ -48,6 +48,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(CalendarDevicePlugin.class);
+        if (android.os.Build.VERSION.SDK_INT >= 28) registerPlugin(CalendarGpuDiagnosticsPlugin.class);
         registerPlugin(CalendarModelImportPlugin.class);
         if (android.os.Build.VERSION.SDK_INT >= 28) registerPlugin(CalendarModelTransferPlugin.class);
         if (android.os.Build.VERSION.SDK_INT >= 28) registerPlugin(CalendarNativeAIPlugin.class);

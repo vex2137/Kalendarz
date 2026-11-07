@@ -29,7 +29,7 @@ export function BackendSettings({language,busy,model=activeModel()}:{language:Ap
   const memory=(bytes?:number)=>bytes===undefined?text.unknown:`${(bytes/1048576).toFixed(1)} MiB`;
   const reason=status.fallbackReason as keyof typeof text.reasons|undefined;
   const gpuError=status.errorCode?.startsWith('model-gpu');
-  const metrics={en:{layers:'GPU layers',load:'Load time',speed:'Tokens/s',failure:'GPU unavailable'},pl:{layers:'Warstwy GPU',load:'Czas ładowania',speed:'Tokeny/s',failure:'GPU niedostępne'},de:{layers:'GPU-Schichten',load:'Ladezeit',speed:'Token/s',failure:'GPU nicht verfügbar'},ru:{layers:'Слои GPU',load:'Время загрузки',speed:'Токены/с',failure:'GPU недоступен'}}[language];
+  const metrics={en:{layers:'GPU layers',load:'Load time',speed:'Tokens/s',failure:'GPU inference unavailable'},pl:{layers:'Warstwy GPU',load:'Czas ładowania',speed:'Tokeny/s',failure:'Inferencja GPU niedostępna'},de:{layers:'GPU-Schichten',load:'Ladezeit',speed:'Token/s',failure:'GPU-Inferenz nicht verfügbar'},ru:{layers:'Слои GPU',load:'Время загрузки',speed:'Токены/с',failure:'GPU-инференс недоступен'}}[language];
   return <section className="theme-border border rounded-xl p-3 space-y-2 text-xs" data-testid="backend-settings">
     <h4 className="font-semibold">{text.title}</h4>
     <div role="group" aria-label={text.mode} className="flex flex-wrap gap-2">

@@ -1,5 +1,6 @@
 import { diagnosticActionText } from '../utils/diagnosticActionText';
 import { exportDiagnosticsJson } from '../utils/diagnosticExport';
+import { AndroidGpuDiagnostics } from './AndroidGpuDiagnostics';
 import { BackendSettings } from './BackendSettings';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { AppLanguage } from '../utils/i18n';
@@ -94,6 +95,7 @@ export function ModelDiagnostics({ language, enabled }: { language: AppLanguage;
     {status.error && <p role="alert" className="break-words">{status.error}{status.errorDetail ? ': '+status.errorDetail : ''}</p>}
     <p className="mt-2 break-all" data-build-commit={BUILD_INFO.commit}>Commit: {BUILD_INFO.commit}{BUILD_INFO.dirty ? ' (modified)' : ''}</p>
     <p data-assistant-route={turns.at(-1)?.route || 'none'}>{({ en: 'Last message path', pl: 'Ścieżka ostatniej wiadomości', ru: 'Путь последнего сообщения', de: 'Pfad der letzten Nachricht' })[language]}: {turns.at(-1)?.route || '—'} {turns.at(-1) ? `(${turns.at(-1)!.language}, ${Math.round(turns.at(-1)!.totalMs)} ms)` : ''}</p>
+    <AndroidGpuDiagnostics language={language}/>
     <BackendSettings language={language} busy={testing||Boolean(actionState?.pending)||['running','verifying','downloading'].includes(status.phase)}/>
     {last && <dl className="grid grid-cols-2 gap-x-3 gap-y-1 my-3" data-testid="inference-metrics">{labels.map((label,i)=><div key={label} className="contents"><dt className="theme-muted">{label}</dt><dd>{values[i]}</dd></div>)}</dl>}
     {last && <p data-testid="metric-backend">{({en:'Backend of last model attempt',pl:'Backend ostatniej próby modelu',de:'Backend des letzten Modellversuchs',ru:'Бэкенд последнего вызова модели'})[language]}: {last.backend||missing}{last.backend==='vulkan'&&last.gpuActive!==true?' (GPU ?)':''}</p>}

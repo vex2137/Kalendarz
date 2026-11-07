@@ -13,6 +13,7 @@ import type { CalendarEvent, AppTheme, CustomTheme } from '../types';
 import type { Deletion } from '../utils/calendarStore';
 import {
   encodeSync,
+  encodeUnprotectedSync,
   decodeSync,
   QRAssembler,
   isEncryptedSync,
@@ -58,6 +59,7 @@ export function SyncModal({
   const receiving = useRef(false);
   useEffect(() => { alive.current = true; return () => { alive.current = false; ++generation.current; }; }, []);
   const errorText = (error: unknown) => error instanceof SyncCryptoError ? ft(language, error.message as Parameters<typeof ft>[1]) : String(error);
+  const [protectWithPassword, setProtectWithPassword] = useState(true);
   const [tab, setTab] = useState<'show' | 'scan' | 'code' | 'file'>('show');
   const [includeHolidays, setIncludeHolidays] = useState(false);
   const [encoded, setEncoded] = useState<{
@@ -93,13 +95,13 @@ export function SyncModal({
   useEffect(() => {
     ++generation.current;
     setEncoded(null); setQr(''); setGenerating(false); setAuto(false);
-  }, [payload]);
+  }, [payload,protectWithPassword]);
   async function generate() {
     if (generating) return;
     const token = ++generation.current;
     setGenerating(true); setEncoded(null); setQr(''); setStatus('');
     try {
-      const result = await encodeSync(payload, sendPassword);
+      const result = protectWithPassword ? await encodeSync(payload, sendPassword) : await encodeUnprotectedSync(payload);
       if (alive.current && generation.current === token) { setEncoded(result); setFrame(0); setSendPassword(''); }
     } catch (error) {
       if (alive.current && generation.current === token) setStatus(errorText(error));
@@ -348,7 +350,7 @@ export function SyncModal({
           </button>
         </div>
         <p className="text-xs theme-muted">
-          {ft(language, 'QR sync is encrypted. Share the password separately. Plain JSON file exports are not encrypted.')}
+          {ft(language, 'Password protection is optional. Share protected-code passwords separately. JSON exports are not encrypted.')}
         </p>
         <div className="grid grid-cols-4 gap-1">
           {tabs.map(([id, label]) => (
@@ -373,7 +375,7 @@ export function SyncModal({
           {pendingEncrypted ? <label className="block text-xs">{ft(language, 'Sender’s password')}
             <input type="password" autoComplete="off" spellCheck={false} value={receivePassword} disabled={busy} maxLength={256}
               onChange={event => setReceivePassword(event.target.value)} className="theme-input w-full rounded p-2 mt-1" />
-          </label> : <p className="text-xs">{ft(language, 'Legacy unencrypted data. Merge only if you trust the sender.')}</p>}
+          </label> : <p className="text-xs">{ft(language, 'Unprotected code: anyone holding it can read the transferred data.')}</p>}
           <div className="flex flex-wrap gap-2">
             <button type="button" className="theme-primary bg-blue-600 text-white rounded p-2 text-xs" disabled={busy || Boolean(pendingEncrypted && !receivePassword)} onClick={() => void mergeIncoming()}>
               {busy ? ft(language, 'Decrypting…') : pendingEncrypted ? ft(language, 'Decrypt and merge') : ft(language, 'Merge unencrypted data')}
@@ -384,13 +386,18 @@ export function SyncModal({
           </div>
         </div>}
         {(tab === 'show' || tab === 'code') && <div className="space-y-2">
-          <label className="block text-xs">{ft(language, 'Sync password')}
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" data-testid="qr-password-protection" checked={protectWithPassword} disabled={generating} onChange={e=>{setProtectWithPassword(e.target.checked);setSendPassword('');}} />
+            {ft(language, 'Protect with password')}
+          </label>
+          {!protectWithPassword && <p role="note" className="text-xs">{ft(language, 'Unprotected code: anyone holding it can read the transferred data.')}</p>}
+          {protectWithPassword && <><label className="block text-xs">{ft(language, 'Sync password')}
             <input type="password" autoComplete="new-password" spellCheck={false} value={sendPassword} maxLength={256} disabled={generating}
               onChange={event => { setSendPassword(event.target.value); setEncoded(null); setQr(''); }} className="theme-input w-full rounded p-2 mt-1" />
           </label>
-          <p className="text-xs theme-muted">{ft(language, 'Use at least 12 characters. The password is not saved.')}</p>
-          <button type="button" className="theme-primary bg-blue-600 text-white rounded p-2 text-xs" disabled={generating || sendPassword.length < 12} onClick={() => void generate()}>
-            {ft(language, generating ? 'Encrypting…' : 'Generate encrypted code')}
+          <p className="text-xs theme-muted">{ft(language, 'Use at least 12 characters. The password is not saved.')}</p></>}
+          <button type="button" className="theme-primary bg-blue-600 text-white rounded p-2 text-xs" disabled={generating || (protectWithPassword && sendPassword.length < 12)} onClick={() => void generate()}>
+            {ft(language, generating ? (protectWithPassword ? 'Encrypting…' : 'Generating…') : protectWithPassword ? 'Generate encrypted code' : 'Generate unprotected code')}
           </button>
         </div>}
         {(tab === 'show' || tab === 'code') && (
@@ -417,7 +424,7 @@ export function SyncModal({
               <p>
                 {encoded && !encoded.frames.length
                   ? tr(language, 'Zbyt dużo danych na QR — użyj pliku.', 'Too much data for QR — use a file.')
-                  : ft(language, generating ? 'Encrypting…' : 'Enter a password to generate encrypted QR codes.')}
+                  : ft(language, generating ? 'Generating…' : 'Generate a QR code above.')}
               </p>
             )}
             {!!encoded?.frames.length && (

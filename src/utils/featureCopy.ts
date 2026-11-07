@@ -1,5 +1,11 @@
 import type { AppLanguage } from './i18n';
 const copy = {
+  'Protect with password': ['Zabezpiecz hasłem', 'Защитить паролем', 'Mit Passwort schützen'],
+  'Unprotected code: anyone holding it can read the transferred data.': ['Niezabezpieczony kod: każda osoba posiadająca kod może odczytać przenoszone dane.', 'Незащищённый код: любой владелец кода может прочитать данные.', 'Ungeschützter Code: Jeder mit diesem Code kann die Daten lesen.'],
+  'Password protection is optional. Share protected-code passwords separately. JSON exports are not encrypted.': ['Hasło jest opcjonalne. Hasło zabezpieczonego kodu przekaż osobno. Eksport JSON nie jest szyfrowany.', 'Пароль необязателен. Передавайте пароль отдельно. Экспорт JSON не зашифрован.', 'Passwortschutz ist optional. Passwörter separat weitergeben. JSON-Exporte sind unverschlüsselt.'],
+  'Generate unprotected code': ['Generuj kod bez hasła', 'Создать код без пароля', 'Code ohne Passwort erstellen'],
+  'Generating…': ['Generowanie…', 'Создание…', 'Wird erstellt…'],
+  'Generate a QR code above.': ['Wygeneruj kod QR powyżej.', 'Создайте QR-код выше.', 'Oben einen QR-Code erstellen.'],
   'Custom themes': ['Własne motywy', 'Свои темы', 'Eigene Designs'],
   'Create theme': ['Utwórz motyw', 'Создать тему', 'Design erstellen'],
   'Edit theme': ['Edytuj motyw', 'Изменить тему', 'Design bearbeiten'],

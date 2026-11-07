@@ -1,3 +1,4 @@
+import { gpuDiagnosticsSnapshot } from './androidGpuDiagnostics';
 import { backendMode, backendGpuLayers, backendStatus } from './nativeDesktopAI';
 import { BUILD_INFO } from './buildInfo';
 import type { AppLanguage } from './i18n';
@@ -106,5 +107,5 @@ export function recordDiagnosticAction(action:DiagnosticAction,stage:DiagnosticS
   listeners.forEach(fn=>fn());
 }
 export function diagnosticsReport() {
-  return { version: 4, actions, build: BUILD_INFO, nativeBuild, buildMismatch: nativeBuild ? nativeBuild.commit !== BUILD_INFO.commit : undefined, capabilities: runtimeCapabilities(), backend:{...backendStatus(),requestedMode:backendMode(),requestedGpuLayers:backendGpuLayers()}, runtime:runtimeState, session, turns, metrics };
+  return { version: 5, androidGpu:gpuDiagnosticsSnapshot(), actions, build: BUILD_INFO, nativeBuild, buildMismatch: nativeBuild ? nativeBuild.commit !== BUILD_INFO.commit : undefined, capabilities: runtimeCapabilities(), backend:{...backendStatus(),requestedMode:backendMode(),requestedGpuLayers:backendGpuLayers()}, runtime:runtimeState, session, turns, metrics };
 }
