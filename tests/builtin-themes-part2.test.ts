@@ -1,0 +1,26 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import spec from '../src/utils/builtinThemes.json';
+import { builtinThemeColors, THEME_VARIABLES } from '../src/utils/themes';
+
+const expected: Record<string, string> = {
+  dark:'#0B0D12 #191D27 #121620 #222735 #30384A #363E50 #F3F5FA #A4ADBE #438BFF #FFFFFF #2563EB #1D4ED8 #FFFFFF',
+  light:'#F5F7FB #FFFFFF #EDF2F8 #F0F3F8 #E1E9F5 #CFD8E5 #172334 #5D6B7D #2563EB #FFFFFF #2563EB #1D4ED8 #FFFFFF',
+  contrast:'#000000 #000000 #000000 #080808 #202020 #FFFFFF #FFFFFF #D0D0D0 #3B82F6 #000000 #2563EB #1D4ED8 #000000',
+  ocean:'#061725 #102B3D #0A2235 #17394D #23536A #32647A #EAF8FF #A1C6D5 #38C9E8 #05202D #087FA3 #0B9CC2 #FFFFFF',
+  nature:'#0C1811 #192B20 #122419 #243A2B #34543B #45634B #EDF8ED #A8C4A9 #9BDB70 #10200F #397D46 #4B9959 #FFFFFF',
+  scifi:'#0D1020 #1D2236 #151A30 #292F49 #3C4566 #505A7B #F0F1FF #A9B2D1 #A076FF #FFFFFF #555CE8 #747AFF #FFFFFF',
+  sunset:'#1B1412 #30221D #261B17 #402D25 #594034 #765344 #FFF1E3 #D0AD97 #F2A65A #24140A #B96335 #D77B43 #FFFFFF',
+  inferno:'#09090B #1B1014 #120B0E #29151B #43212B #71303D #FFF1F2 #C9A5AC #FF4655 #1A0508 #B91C32 #DC2941 #FFFFFF',
+};
+
+test('approved eight palettes contain all 104 exact HEX values in field order', () => {
+  assert.deepEqual(spec.fields, ['background','surface','header','subtle','hover','border','text','muted','accent','accentText','button','buttonHover','buttonText']);
+  assert.deepEqual(Object.keys(THEME_VARIABLES), spec.fields);
+  assert.deepEqual(spec.themes.map(theme => theme.id), Object.keys(expected));
+  assert.equal(spec.themes.flatMap(theme => theme.colors).length, 104);
+  for (const theme of spec.themes) {
+    assert.deepEqual(theme.colors, expected[theme.id].split(' '));
+    assert.deepEqual(Object.values(builtinThemeColors(theme.id)!), expected[theme.id].split(' '));
+  }
+});

@@ -103,6 +103,9 @@ public class CalendarSmokeTest {
         if (document == null) throw new AssertionError("Cannot create Downloads document");
         byte[] chunk = new byte[65536];
         for (int i=0;i<chunk.length;i++) chunk[i]=(byte)(i%251);
+        // The picker now opens and validates its reader before returning a token.
+        // Keep the 8 MiB/checksum/release assertions, using a valid GGUF header.
+        chunk[0]='G';chunk[1]='G';chunk[2]='U';chunk[3]='F';chunk[4]=3;chunk[5]=0;chunk[6]=0;chunk[7]=0;
         java.security.MessageDigest hash = java.security.MessageDigest.getInstance("SHA-256");
         try (java.io.OutputStream stream=resolver.openOutputStream(document)) {
             for (int i=0;i<128;i++) { stream.write(chunk); hash.update(chunk); }

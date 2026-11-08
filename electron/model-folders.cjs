@@ -1,3 +1,4 @@
+const {hybridKvLayout}=require('./gguf-memory.cjs');
 // Desktop-only, read-only access to explicitly selected model directories.
 const fs=require('node:fs/promises');
 const path=require('node:path');
@@ -22,16 +23,24 @@ async function readGGUF(file){
     const sizes={0:1,1:1,2:2,3:2,4:4,5:4,6:4,7:1,10:8,11:8,12:8};
     const value=(type,keep=false)=>{
       if(type===8){if(keep)return string();take(u64());return;}
-      if(type===9){const subtype=u32(),length=u64();if(length>1000000||subtype===9)throw Error('model-gguf-invalid');if(sizes[subtype])take(length*sizes[subtype]);else if(subtype===8){for(let i=0;i<length;i++)take(u64());}else throw Error('model-gguf-invalid');return;}
+      if(type===9){const subtype=u32(),length=u64();if(length>1000000||subtype===9)throw Error('model-gguf-invalid');if(keep&&length<=4096&&[4,5,7].includes(subtype))return Array.from({length},()=>{const b=take(sizes[subtype]);return subtype===4?b.readUInt32LE():subtype===5?b.readInt32LE():b.readUInt8();});if(sizes[subtype])take(length*sizes[subtype]);else if(subtype===8){for(let i=0;i<length;i++)take(u64());}else throw Error('model-gguf-invalid');return;}
       if(!sizes[type])throw Error('model-gguf-invalid');const b=take(sizes[type]);
-      if(keep&&type===4)return b.readUInt32LE();if(keep&&type===10)return Number(b.readBigUInt64LE());return;
+      if(keep&&type===4)return b.readUInt32LE();if(keep&&type===5)return b.readInt32LE();if(keep&&(type===10||type===11)){const n=Number(type===10?b.readBigUInt64LE():b.readBigInt64LE());return Number.isSafeInteger(n)&&n>=0?n:undefined;}return;
     };
     const metadata={};
-    for(let i=0;i<count;i++){const key=string(),type=u32();const keep=/^general\.(?:architecture|name|file_type)$|\.context_length$|^split\.(?:count|no)$/.test(key);const v=value(type,keep);if(keep)metadata[key]=v;}
+    for(let i=0;i<count;i++){const key=string(),type=u32();const keep=/^general\.(?:architecture|name|file_type)$|\.(?:context_length|block_count|embedding_length|attention\.head_count|attention\.head_count_kv|attention\.key_length|attention\.value_length|attention\.sliding_window|attention\.sliding_window_pattern|shortconv\.l_cache)$|^split\.(?:count|no)$/.test(key);const v=value(type,keep);if(keep)metadata[key]=v;}
     const architecture=metadata['general.architecture'];if(typeof architecture!=='string'||!architecture||architecture.length>100)throw Error('model-gguf-invalid');
     if(metadata['split.count']>1)throw Error('model-gguf-split');
-    if(!Number.isFinite(metadata[architecture+'.context_length'])||metadata[architecture+'.context_length']<1)throw Error('model-gguf-unsupported');
-    return {stat,architecture,name:typeof metadata['general.name']==='string'?metadata['general.name'].slice(0,200):path.basename(file),maxContext:Math.min(2048,Math.max(512,metadata[architecture+'.context_length'])),quantization:'GGUF'};
+    if(!Number.isSafeInteger(metadata[architecture+'.context_length'])||metadata[architecture+'.context_length']<1)throw Error('model-gguf-unsupported');
+    const blockCount=metadata[architecture+'.block_count'];
+    // Standard attention only. Recurrent/hybrid layouts (Qwen3.5/LFM3) keep an
+    // explicitly approximate allowance instead of pretending their KV is known.
+    const get=key=>metadata[architecture+'.'+key],heads=get('attention.head_count'),kvHeads=get('attention.head_count_kv'),embedding=get('embedding_length');
+    const keyLength=get('attention.key_length')||(embedding/heads),valueLength=get('attention.value_length')||(embedding/heads);
+    const kv=2*blockCount*kvHeads*(keyLength+valueLength);
+    const kvLayout=hybridKvLayout(architecture,metadata,blockCount);
+    const kvBytesPerToken=['llama','qwen2','gemma','gemma2','mistral'].includes(architecture)&&Number.isSafeInteger(kv)&&kv>0?kv:undefined;
+    return {stat,...(kvLayout?{kvLayout}:{}),...(kvBytesPerToken?{kvBytesPerToken}:{}),architecture,name:typeof metadata['general.name']==='string'?metadata['general.name'].slice(0,200):path.basename(file),maxContext:Math.min(2048,Math.max(512,metadata[architecture+'.context_length'])),contextLength:metadata[architecture+'.context_length'],...(Number.isSafeInteger(blockCount)&&blockCount>0&&blockCount<=1000000?{blockCount}:{}),contextIdentity:idFor('file-',`${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`),quantization:'GGUF'};
   }finally{await handle.close();}
 }
 
@@ -42,9 +51,10 @@ class ModelFolders{
   }
   async initialize(){
     try{
-      const content=await fs.readFile(this.configFile,'utf8');if(content.length>128*1024)throw Error('model-folder-config');const config=JSON.parse(content);
+      const content=await fs.readFile(this.configFile,'utf8');if(content.length>8*1024*1024)throw Error('model-folder-config');const config=JSON.parse(content);
       if(config.version!==1||!Array.isArray(config.folders)||config.folders.length>32||config.folders.some(f=>typeof f.path!=='string'||!path.isAbsolute(f.path)||f.id!==idFor('folder-',f.path)))throw Error('model-folder-config');
       this.folders=config.folders;
+      for(const model of (Array.isArray(config.models)?config.models:[]).slice(0,this.maxModels))if(model.external&&/^external-[a-f0-9]{32}$/.test(model.id)&&typeof model.file==='string')this.models.set(model.id,{...model,available:false});
     }catch(error){if(error.code!=='ENOENT')throw Error('model-folder-config');}
     await this.scan();
   }
@@ -53,7 +63,8 @@ class ModelFolders{
   async save(folders){
     await fs.mkdir(path.dirname(this.configFile),{recursive:true,mode:0o700});
     const temporary=this.configFile+'.'+crypto.randomBytes(8).toString('hex')+'.tmp';
-    try{await fs.writeFile(temporary,JSON.stringify({version:1,folders})+'\n',{mode:0o600,flag:'wx'});await fs.rename(temporary,this.configFile);}finally{await fs.rm(temporary,{force:true});}
+    const data=JSON.stringify({version:1,folders,models:[...this.models.values()]});if(data.length>8*1024*1024)throw Error('model-folder-limit');
+    try{await fs.writeFile(temporary,data+'\n',{mode:0o600,flag:'wx'});await fs.rename(temporary,this.configFile);}finally{await fs.rm(temporary,{force:true});}
     this.folders=folders;
   }
   async add(directory){
@@ -70,6 +81,7 @@ class ModelFolders{
     await this.save(this.folders.filter(f=>f.id!==id));return this.scan();});
   }
   async edit(action){await this.ready;if(this.mutating||this.scanning)throw Error('model-busy');this.mutating=true;try{return await action();}finally{this.mutating=false;}}
+  async forget(id){return this.edit(async()=>{const m=this.models.get(id);if(!m||m.available!==false)throw Error('model-input');this.models.delete(id);await this.save(this.folders);return this.snapshot();});}
   async refresh(){return this.edit(()=>this.scan());}
   async scan(){
     this.scanning=true;const models=new Map(),identities=new Map(),candidates=new Map(),hashes=new Map(),warnings=[];let entries=0;
@@ -95,8 +107,8 @@ class ModelFolders{
                 let duplicate;
                 if(possible.length){const current=await digest(file);for(const candidate of possible){if(!hashes.has(candidate))hashes.set(candidate,await digest(models.get(candidate).file));if(hashes.get(candidate)===current){duplicate=candidate;break;}}}
                 if(duplicate){const previous=models.get(duplicate);if(!previous.folderIds.includes(folder.id))previous.folderIds.push(folder.id);identities.set(identity,duplicate);continue;}
-                const id=idFor('external-',file);identities.set(identity,id);
-                models.set(id,{...meta,id,file,identity,mtimeMs:stat.mtimeMs,bytes:stat.size,folderIds:[folder.id],external:true,experimental:true,bundled:false,sha256:'',revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(stat.size/1048576*1.5)+512});
+                const known=[...this.models.values()].find(m=>m.identity===identity&&m.bytes===stat.size&&m.mtimeMs===stat.mtimeMs);const id=known?.id||idFor('external-',file);identities.set(identity,id);
+                models.set(id,{...meta,id,available:true,file,identity,mtimeMs:stat.mtimeMs,bytes:stat.size,folderIds:[folder.id],external:true,experimental:true,bundled:false,sha256:'',revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(stat.size/1048576*1.5)+512});
                 possible.push(id);candidates.set(key,possible);
               }catch(error){if(warnings.length<100)warnings.push({folderId:folder.id,file:entry.name,code:error.code==='EACCES'?'model-folder-permission':error.message.startsWith('model-')?error.message:'model-folder-read'});}
             }
@@ -105,12 +117,13 @@ class ModelFolders{
         }
         if(limited)warnings.push({folderId:folder.id,code:'model-folder-limit'});
       }
-      this.models=models;this.warnings=warnings;return this.snapshot();
+      for(const [id,old] of this.models)if(!models.has(id))models.set(id,{...old,available:false});
+      this.models=models;this.warnings=warnings;await this.save(this.folders);return this.snapshot();
     }finally{this.scanning=false;}
   }
   descriptor(id){const descriptor=this.models.get(id);if(!descriptor)throw Error('model-unknown');return descriptor;}
   async verifiedPath(id,signal){
-    await this.ready;signal?.throwIfAborted();const d=this.descriptor(id),canonical=await fs.realpath(d.file);
+    await this.ready;signal?.throwIfAborted();const d=this.descriptor(id);if(d.available===false)throw Error('model-folder-unavailable');const canonical=await fs.realpath(d.file);
     // Refuse replacement by a symlink or a changed file; an explicit refresh is required.
     const stat=await fs.lstat(d.file);if(canonical!==d.file||!stat.isFile()||stat.size!==d.bytes||stat.mtimeMs!==d.mtimeMs||(stat.ino&&`${stat.dev}:${stat.ino}`!==d.identity))throw Error('model-folder-changed');
     await readGGUF(d.file);signal?.throwIfAborted();return d.file;

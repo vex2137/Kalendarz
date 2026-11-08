@@ -25,7 +25,6 @@ const quantization=id.endsWith('iq4-xs')?'IQ4_XS':'Q4_K_M';
     await page.getByRole('button',{name:'Find models',exact:true}).click();
     assert.equal(await page.locator('[data-model-id]').count(),1);
     const row=page.locator(`[data-model-id="${id}"]`);
-    await row.getByRole('button',{name:'Use model',exact:true}).click();
     await row.getByRole('button',{name:'Download',exact:true}).click();await terminal();
     report.downloaded=true;await close();
     // Block every external request after installation; inference must use disk.

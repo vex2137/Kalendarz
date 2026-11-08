@@ -5,14 +5,24 @@ const { execFileSync } = require('node:child_process');
 const model = require('../src/utils/localModelManifest.json');
 // electron-builder hook: direct packaging must not silently omit the bundled model.
 module.exports = async function(context) {
-  execFileSync(process.platform === 'win32' ? 'python' : 'python3', ['scripts/prepare-native.py','--platform',context.electronPlatformName,'--arch',({1:'x64',3:'arm64'})[context.arch]||String(context.arch)], {cwd:context.packager.info.appDir,stdio:'inherit'});
   const root=context.packager.info.appDir;
+  if (process.env.CALENDAR_PART2_BETA === 'true' || process.env.CALENDAR_EXPECTED_COMMIT) {
+    execFileSync(process.platform === 'win32' ? 'python' : 'python3', [
+      process.env.CALENDAR_PART2_STABLE==='true'?'scripts/part2_stable_guard.py':'scripts/part2_artifact_guard.py', '--source', process.env.CALENDAR_EXPECTED_COMMIT || '',
+      '--check-remote', '--info', 'dist/build-info.json', '--platform', 'desktop',
+    ], {cwd:root,stdio:'inherit'});
+  }
+  execFileSync(process.platform === 'win32' ? 'python' : 'python3', ['scripts/prepare-native.py','--platform',context.electronPlatformName,'--arch',({1:'x64',3:'arm64'})[context.arch]||String(context.arch)], {cwd:context.packager.info.appDir,stdio:'inherit'});
+  if (process.env.CALENDAR_INCLUDE_CUDA === 'true') {
+    if (context.electronPlatformName !== 'linux' || context.arch !== 1) throw Error('CUDA packaging currently requires Linux x64');
+    execFileSync('python3', ['scripts/stage-cuda-runtime.py', '--target', 'linux-x64'], {cwd:context.packager.info.appDir,stdio:'inherit'});
+  }
   const info=require('node:fs').readFileSync(join(root,'dist/build-info.json'),'utf8');
   const build=JSON.parse(info);
   if(process.env.CALENDAR_MODEL_FREE==='true'){
     if(build.distribution!=='model-free'||build.bundledModel!==false||build.version!==require('../package.json').version)throw Error('Rebuild the explicit model-free distribution');
     const catalogue=JSON.parse(require('node:fs').readFileSync(join(root,'dist/models/catalogue.json'),'utf8'));
-    if(JSON.stringify(catalogue)!==JSON.stringify([model,...require('../src/utils/optionalModels.json')]))throw Error('Incorrect model catalogue');
+    if(JSON.stringify(catalogue)!==JSON.stringify([{...model,...require('../src/utils/defaultModelSource.json')},...require('../src/utils/optionalModels.json')]))throw Error('Incorrect model catalogue');
     console.log('Explicit model-free package: existing models retained; import/download required on new installations.');
     return;
   }

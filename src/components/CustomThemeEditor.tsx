@@ -19,6 +19,8 @@ export function CustomThemeEditor({ settings, onUpdateSettings }: {
   const language = settings.language || 'en';
   const themes = settings.customThemes || [];
   const [draft, setDraft] = useState<CustomTheme | null>(null);
+  const [hexDraft, setHexDraft] = useState<Record<ThemeColorKey, string>>({ ...DEFAULT_THEME_COLORS });
+  const [initialColors, setInitialColors] = useState<Record<ThemeColorKey, string>>({ ...DEFAULT_THEME_COLORS });
   const [remove, setRemove] = useState<string | null>(null);
   const [error, setError] = useState('');
   function create() {
@@ -30,10 +32,12 @@ export function CustomThemeEditor({ settings, onUpdateSettings }: {
       if (/^#[a-fA-F0-9]{6}$/.test(value)) colors[key as ThemeColorKey] = value;
     }
     setDraft({ id: `custom:${crypto.randomUUID()}`, name: ft(language, 'New theme'), colors });
+    setHexDraft({ ...colors }); setInitialColors({ ...colors });
     setError('');
   }
   function save() {
     if (!draft) return;
+    if (Object.values(hexDraft).some(value => !/^#[a-fA-F0-9]{6}$/.test(value))) { setError('HEX: #RRGGBB'); return; }
     const value = { ...draft, name: draft.name.trim() };
     if (!isCustomTheme(value)) { setError(ft(language, 'Enter a name of up to 50 characters.')); return; }
     const customThemes = [...themes.filter(theme => theme.id !== value.id), value];
@@ -54,7 +58,7 @@ export function CustomThemeEditor({ settings, onUpdateSettings }: {
         <button type="button" aria-pressed={settings.theme === theme.id} className="flex-1 min-w-0 text-left break-words rounded p-2"
           style={{ backgroundColor: theme.colors.background, color: theme.colors.text, border: `2px solid ${theme.colors.accent}` }}
           onClick={() => onUpdateSettings({ ...settings, theme: theme.id })}>{theme.name}</button>
-        <button type="button" className="text-xs underline" aria-label={`${ft(language, 'Edit theme')}: ${theme.name}`} onClick={() => { setDraft(structuredClone(theme)); setError(''); }}>{ft(language, 'Edit theme')}</button>
+        <button type="button" className="text-xs underline" aria-label={`${ft(language, 'Edit theme')}: ${theme.name}`} onClick={() => { setDraft(structuredClone(theme)); setHexDraft({ ...theme.colors }); setInitialColors({ ...theme.colors }); setError(''); }}>{ft(language, 'Edit theme')}</button>
         <button type="button" className="text-xs underline" aria-label={`${ft(language, 'Delete theme')}: ${theme.name}`} onClick={() => setRemove(theme.id)}>{ft(language, 'Delete theme')}</button>
         {remove === theme.id && <div className="w-full flex flex-wrap gap-2 text-xs">
           <p>{ft(language, 'Delete this theme?')}</p>
@@ -70,8 +74,9 @@ export function CustomThemeEditor({ settings, onUpdateSettings }: {
       <div className="space-y-3 theme-border border rounded-xl p-3">
         <label className="block text-xs">{ft(language, 'Theme name')}<input className="theme-input w-full rounded p-2 mt-1" maxLength={50} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></label>
         <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
-          {(Object.keys(fields) as ThemeColorKey[]).map(key => <label key={key} className="flex items-center justify-between gap-2 text-xs">
-            <span>{ft(language, fields[key])}</span><input type="color" className="w-10 h-9 shrink-0" value={draft.colors[key]} onChange={e => setDraft({ ...draft, colors: { ...draft.colors, [key]: e.target.value } })} />
+          {(Object.keys(fields) as ThemeColorKey[]).map(key => <label key={key} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="w-full">{ft(language, fields[key])}</span><input type="color" aria-label={ft(language, fields[key])} className="w-10 h-9 shrink-0" value={draft.colors[key]} onChange={e => { setHexDraft({ ...hexDraft, [key]: e.target.value }); setDraft({ ...draft, colors: { ...draft.colors, [key]: e.target.value } }); }} />
+            <input type="text" aria-label={`${ft(language, fields[key])} HEX`} className="theme-input min-w-0 flex-1 rounded p-2" maxLength={7} value={hexDraft[key]} onChange={e => { const value = e.target.value; setHexDraft({ ...hexDraft, [key]: value }); if (/^#[a-fA-F0-9]{6}$/.test(value)) setDraft({ ...draft, colors: { ...draft.colors, [key]: value } }); }} />
           </label>)}
         </div>
         <div aria-label={ft(language, 'Theme preview')} className="rounded-xl border p-3 space-y-2" style={{ backgroundColor: draft.colors.background, color: draft.colors.text, borderColor: draft.colors.border }}>
@@ -81,6 +86,7 @@ export function CustomThemeEditor({ settings, onUpdateSettings }: {
         </div>
         {contrast < 4.5 && <p className="text-xs" role="status">{ft(language, 'Low text contrast: adjust the text or background colors.')}</p>}
         <div className="flex gap-2"><button type="button" className="theme-primary bg-blue-600 text-white text-xs rounded p-2" onClick={save}>{ft(language, 'Save theme')}</button>
+          <button type="button" className="theme-input text-xs rounded p-2" onClick={() => { setDraft({ ...draft, colors: { ...initialColors } }); setHexDraft({ ...initialColors }); }}>{language === 'pl' ? 'Przywróć kolory' : 'Restore colors'}</button>
           <button type="button" className="theme-input text-xs rounded p-2" onClick={() => { setDraft(null); setError(''); }}>{ft(language, 'Cancel')}</button></div>
       </div>}
     {error && <p role="alert" className="text-xs">{error}</p>}

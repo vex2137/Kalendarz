@@ -100,8 +100,22 @@ export interface SecuritySettings {
   pinCode: string; // legacy value, migrated to a salted hash
   pinHash?: string;
   pinSalt?: string;
+  pinLength?: number;
+  authenticationMethod?: 'pin' | 'password';
+  passwordHash?: string;
+  passwordSalt?: string;
+  biometricEnabled?: boolean;
   autoLockMinutes: number;
   isLocked: boolean;
+}
+
+export interface AnimationSettings {
+  level: 'off' | 'subtle' | 'full';
+  speed: number;
+  confetti: boolean;
+  pinUnlock: boolean;
+  transitions: boolean;
+  buttons: boolean;
 }
 
 export type BuiltinTheme =
@@ -110,6 +124,11 @@ export type BuiltinTheme =
   | 'nord'
   | 'emerald'
   | 'sunset'
+  | 'contrast'
+  | 'ocean'
+  | 'nature'
+  | 'scifi'
+  | 'inferno'
   | 'lavender'
   | 'moka';
 
@@ -127,6 +146,7 @@ export interface AppSettings {
   language?: AppLanguage;
   ai: AiSettings;
   security: SecuritySettings;
+  animations?: AnimationSettings;
   soundEnabled: boolean;
   vibrationEnabled: boolean;
   startOfWeek: 1; // 1 = Monday
@@ -141,6 +161,7 @@ export interface AppSettings {
 }
 
 export interface AiChatMessage {
+  completion?: 'streaming' | 'cancelled' | 'error';
   proposalSummary?: string;
   sequence?: number;
   modelId?: string;

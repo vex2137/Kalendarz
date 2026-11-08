@@ -1,6 +1,7 @@
 // GGUF metadata is walked with a bounded window. Large tokenizer tables are
 // skipped rather than decoded or buffered; tensor support is an engine check.
-export async function ggufMetadata(blob: Blob) {
+type MetadataSource = {size:number;read:(offset:number,length:number)=>Promise<ArrayBuffer>};
+export async function ggufMetadata(blob: Blob | MetadataSource) {
   const decoder=new TextDecoder('utf-8',{fatal:true});
   let offset=0,base=-1,buffer=new ArrayBuffer(0),view=new DataView(buffer);
   const bound=(n:number)=>{
@@ -10,7 +11,7 @@ export async function ggufMetadata(blob: Blob) {
   const ensure=async(n:number)=>{
     bound(n);
     if(base<0||offset<base||offset+n>base+buffer.byteLength){
-      base=offset;buffer=await blob.slice(base,Math.min(blob.size,base+Math.max(64*1024,n))).arrayBuffer();view=new DataView(buffer);
+      base=offset;const length=Math.min(blob.size-base,Math.max(64*1024,n));buffer='read' in blob?await blob.read(base,length):await blob.slice(base,base+length).arrayBuffer();view=new DataView(buffer);
       if(buffer.byteLength<n)throw Error('model-gguf-invalid');
     }
     const start=offset-base;offset+=n;return start;
@@ -28,7 +29,7 @@ export async function ggufMetadata(blob: Blob) {
   const metadata:Record<string,string|number>={};
   for(let i=0;i<count;i++){
     const key=await string(),type=await read32();
-    const keep=/^general\.(architecture|name|file_type)$|\.context_length$|^split\.count$/.test(key);
+    const keep=/^general\.(architecture|name|file_type)$|\.(context_length|block_count)$|^split\.count$/.test(key);
     if(type===8){if(keep)metadata[key]=await string();else skip(await u64());}
     else if(type===9){
       const subtype=await read32(),length=await u64();
@@ -53,7 +54,27 @@ export async function ggufMetadata(blob: Blob) {
   if(!Number.isSafeInteger(context)||context<1)throw Error('model-gguf-unsupported');
   const quants:Record<number,string>={0:'F32',1:'F16',2:'Q4_0',3:'Q4_1',7:'Q8_0',8:'Q5_0',9:'Q5_1',10:'Q2_K',11:'Q3_K_S',12:'Q3_K_M',13:'Q3_K_L',14:'Q4_K_S',15:'Q4_K_M',16:'Q5_K_S',17:'Q5_K_M',18:'Q6_K',25:'IQ4_NL',30:'IQ4_XS',32:'BF16'};
   const type=Number(metadata['general.file_type']);
-  return {architecture,name:String(metadata['general.name']||architecture).slice(0,200),quantization:quants[type]||(Number.isFinite(type)?`GGUF type ${type}`:'GGUF'),maxContext:Math.min(2048,context)};
+  const blocks=metadata[architecture+'.block_count'];
+  return {architecture,name:String(metadata['general.name']||architecture).slice(0,200),quantization:quants[type]||(Number.isFinite(type)?`GGUF type ${type}`:'GGUF'),maxContext:Math.min(2048,context),contextLength:context,...(typeof blocks==='number'&&Number.isSafeInteger(blocks)&&blocks>0&&blocks<=1_000_000?{blockCount:blocks}:{})};
+}
+
+// Native files are exposed as streams, not whole response.blob() allocations.
+// Discard skipped tokenizer bytes and cancel immediately after metadata ends.
+export async function ggufStreamMetadata(response:Response,size:number) {
+  if(!response.ok||!response.body)throw Error('model-storage');
+  const reader=response.body.getReader();let offset=0,chunk=new Uint8Array(0),position=0,cached=new Uint8Array(0),cachedStart=0;
+  try{return await ggufMetadata({size,read:async(start,length)=>{
+    const output=new Uint8Array(length);let written=0;
+    // A scalar/string can straddle the previous window; retain that small tail.
+    if(start<offset){if(start<cachedStart)throw Error('model-gguf-invalid');written=Math.min(length,offset-start);output.set(cached.subarray(start-cachedStart,start-cachedStart+written));}
+    while(offset<start+length){
+      if(position===chunk.length){const next=await reader.read();if(next.done)break;chunk=next.value;position=0;}
+      const count=Math.min(chunk.length-position,offset<start?start-offset:length-written);
+      if(offset>=start){output.set(chunk.subarray(position,position+count),written);written+=count;}
+      position+=count;offset+=count;
+    }
+    cached=output.subarray(0,written);cachedStart=start;return output.buffer.slice(0,written);
+  }});}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
 }
 
 export function ggufLoadError(error:unknown,notes:string) {

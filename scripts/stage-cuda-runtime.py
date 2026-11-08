@@ -7,16 +7,16 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser();parser.add_argument('--target',choices=['linux-x64','win-x64'],required=True);args=parser.parse_args()
 assets={
- 'linux-x64':[
-  ('llama-b11669-bin-ubuntu-cuda-12.8-x64.tar.gz','4703ed1a3cd6e8504affb6cb9866f501e96d634d68a002dc9a8251c9e2819b49'),
-  ('cudart-llama-b11669-bin-ubuntu-cuda-12.8-x64.tar.gz','ab3eda89a82096bcba00b6448218c3c11eec2016b0f38d64884dc29736549f26')],
  'win-x64':[
   ('llama-b11669-bin-win-cuda-12.4-x64.zip','c2da1f73ed176ae093ac5aceb978a7b167a16113f6d74c6789eeaee2135cb8dc'),
   ('cudart-llama-bin-win-cuda-12.4-x64.zip','8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6')]}
 root=ROOT/'native'/args.target;manifest=root/'runtime-manifest.json'
 if not manifest.is_file():raise SystemExit('Run scripts/prepare-native.py for the target first')
 meta=json.loads(manifest.read_text())
-if meta.get('commit')!='620d2225cc436ab0b001e3200e590e3b286ef9ab':raise SystemExit('CUDA and CPU/Vulkan must use the same pinned llama.cpp commit')
+pins=json.loads((ROOT/'scripts/native-runtime-manifest.json').read_text())
+pin={**pins,**pins.get('overrides',{}).get(args.target,{})}
+if args.target in pins.get('cuda',{}):assets[args.target]=[(a['file'],a['sha256']) for a in pins['cuda'][args.target]]
+if meta.get('commit')!=pin['commit']:raise SystemExit('CUDA and CPU/Vulkan must use the same pinned llama.cpp commit')
 cache=ROOT/'native/downloads';cache.mkdir(parents=True,exist_ok=True)
 # Build a separate directory and update the manifest last; failed downloads cannot
 # invalidate an already staged CUDA runtime or a working CPU/Vulkan installation.
@@ -36,7 +36,7 @@ def target_name(name,archive):
 for name,expected in assets[args.target]:
  archive=cache/name
  if not archive.exists() or digest(archive)!=expected:
-  part=cache/(name+'.partial');subprocess.run(['curl','--fail','--location','--retry','2','--max-time','600','--output',str(part),'https://github.com/ggml-org/llama.cpp/releases/download/b11669/'+name],check=True)
+  part=cache/(name+'.partial');subprocess.run(['curl','--fail','--location','--retry','2','--max-time','600','--output',str(part),'https://github.com/ggml-org/llama.cpp/releases/download/'+pin['version']+'/'+name],check=True)
   if digest(part)!=expected:raise SystemExit('CUDA archive checksum mismatch: '+name)
   part.replace(archive)
  if name.endswith('.zip'):

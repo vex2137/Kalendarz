@@ -1,4 +1,5 @@
 import fallback from './localModelManifest.json';
+import defaultModelSource from './defaultModelSource.json';
 import optionalModels from './optionalModels.json';
 import fineTunedModels from './fineTunedModels.json';
 import { BUILD_INFO } from './buildInfo';
@@ -6,11 +7,12 @@ import { BUILD_INFO } from './buildInfo';
 export interface ModelDescriptor {
   id: string; name: string; file: string; bytes: number; sha256: string; revision: string;
   url: string; license: string; licenseName: string; architecture: string; quantization: string;
-  estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean; imported?: boolean;
+  available?: boolean; retired?:boolean; estimatedRamMB: number; maxContext: number; bundled?: boolean; experimental?: boolean; external?: boolean; imported?: boolean;
+  contextLength?:number; blockCount?:number; contextIdentity?:string;
 }
-export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, bundled: BUILD_INFO.bundledModel !== false };
-// The private bundled model has no download URL; optional catalogue entries remain available.
-export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, ...optionalModels, ...fineTunedModels];
+export const DEFAULT_MODEL: ModelDescriptor = { ...fallback, ...defaultModelSource, bundled: BUILD_INFO.bundledModel !== false };
+// The default has a checksum-pinned public source as well as optional bundled assets.
+export const AI_MODELS: readonly ModelDescriptor[] = [DEFAULT_MODEL, ...optionalModels.map(m=>({...m,retired:['qwen3.5-0.8b-q4-k-m','qwen3.5-0.8b-iq4-xs'].includes(m.id)})), ...fineTunedModels];
 export const OPTIONAL_FALLBACK = AI_MODELS.find(model => model.id === 'lfm2.5-350m-q4-k-m')!;
 const externalKey='calendar_external_ai_models_v1';
 let externalModels:ModelDescriptor[]=[];

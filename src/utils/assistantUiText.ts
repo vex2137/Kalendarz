@@ -1,7 +1,7 @@
 const en = {
   models: "AI models",
   select: "Use model",
-  selected: "Active",
+  selected: "Selected",
   download: "Download",
   import: "Import GGUF",
   remove: "Remove download",
@@ -43,7 +43,7 @@ const en = {
 const pl: typeof en = {
   models: "Modele AI",
   select: "Użyj modelu",
-  selected: "Aktywny",
+  selected: "Wybrany",
   download: "Pobierz",
   import: "Importuj GGUF",
   remove: "Usuń pobrane wagi",
@@ -85,7 +85,7 @@ const pl: typeof en = {
 const de: typeof en = {
   models: "KI-Modelle",
   select: "Modell verwenden",
-  selected: "Aktiv",
+  selected: "Ausgewählt",
   download: "Herunterladen",
   import: "GGUF importieren",
   remove: "Download entfernen",
@@ -125,7 +125,7 @@ const de: typeof en = {
 const ru: typeof en = {
   models: "Модели ИИ",
   select: "Использовать модель",
-  selected: "Активна",
+  selected: "Выбрана",
   download: "Скачать",
   import: "Импорт GGUF",
   remove: "Удалить загрузку",

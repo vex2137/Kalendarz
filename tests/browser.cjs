@@ -182,6 +182,7 @@ async function until(fn) {
     }
     await page.locator('#btn-open-settings').click();
     await page.getByRole('textbox', { name: 'PIN', exact: true }).fill('1234');
+    await page.getByLabel('Potwierdź nowy PIN', { exact: true }).fill('1234');
     await page.getByRole('button', { name: 'Zapisz PIN' }).click();
     await until(() =>
       page.evaluate(

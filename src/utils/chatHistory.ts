@@ -15,7 +15,7 @@ export interface ChatRecord {
 }
 export type StoredChatMessage = Pick<
   AiChatMessage,
-  "id" | "role" | "content" | "timestamp" | "modelId" | "route" | "sequence" | "proposalSummary"
+  "id" | "role" | "content" | "timestamp" | "modelId" | "route" | "sequence" | "proposalSummary" | "completion"
 > & { chatId: string };
 const db = () =>
   openDB("calendar-ai-chats", 1, {
@@ -50,6 +50,7 @@ const cleanMessage = (
   id: message.id,
   role: message.role,
   content: message.content,
+  ...(['streaming','cancelled','error'].includes(message.completion||'') ? {completion:message.completion==='streaming'?'cancelled' as const:message.completion} : {}),
   proposalSummary: message.proposalSummary || (message.suggestedPlan?.events || (message.suggestedEvent ? [message.suggestedEvent] : [])).map(event => [event.title, event.startDate, event.startTime, event.endDate, event.endTime].filter(Boolean).join(' · ')).join('\n') || undefined,
   timestamp: message.timestamp,
   ...(message.modelId ? { modelId: message.modelId } : {}),
@@ -158,6 +159,7 @@ export async function saveChat(
     chat.context = structuredClone(context);
     // Live proposals are not restored after a restart or chat switch.
     delete chat.context.proposal;
+    delete chat.context.pendingChoice;
     await tx.objectStore("chats").put(chat);
     await tx.done;
   } finally {

@@ -96,11 +96,13 @@ app.whenReady().then(() => {
   handle('upload-finish',token=>nativeModels.finish(token));
   handle('upload-abort',token=>nativeModels.abort(token));
   handle('model-remove',id=>{if(nativeAI.operation||nativeAI.loading)throw Error('model-busy');return nativeModels.remove(id);});
-  handle('prepare',async id=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.prepare(id);});
-  handle('complete',async(id,request)=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.complete(id,request);});
+  handle('prepare',async(id,contextSize)=>{if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.prepare(id,contextSize);});
+  handle('complete',async(id,request,requestId)=>{if(requestId!==undefined&&!/^[a-f0-9-]{36}$/i.test(requestId))throw Error('model-input');if(id?.startsWith('external-'))await modelFolders.ready;return nativeAI.complete(id,request,chunk=>{if(requestId&&!mainWindow.webContents.isDestroyed())mainWindow.webContents.send('calendar-ai:chunk',{...chunk,requestId});});});
+  handle('cancel-generation',()=>nativeAI.cancelGeneration());
   handle('stop',()=>nativeAI.cancel());
-  handle('mode',(mode,layers)=>nativeAI.setMode(mode,layers));
+  handle('mode',(mode,layers,automatic)=>nativeAI.setMode(mode,layers,automatic));
   handle('status',()=>nativeAI.snapshot());
+  handle('folders-forget',async id=>{foldersIdle();return modelFolders.forget(id);});
   handle('folders-list',()=>modelFolders.list());
   const foldersIdle=()=>{if(nativeAI.operation||nativeAI.loading)throw Error('model-busy');};
   handle('folders-add',async()=>{

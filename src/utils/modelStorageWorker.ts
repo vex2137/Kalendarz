@@ -11,6 +11,8 @@ self.onmessage = async ({ data }) => {
       directory = await (await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models', { create: true });
       name = data.name;
       file = await (await directory.getFileHandle(name, { create: true })).createSyncAccessHandle();
+      offset = data.offset || 0;
+      if (!offset) file.truncate(0);
     } else if (data.action === 'write') {
       const bytes = new Uint8Array(data.bytes);
       let written = 0;
@@ -23,6 +25,10 @@ self.onmessage = async ({ data }) => {
     } else if (data.action === 'close') {
       file!.flush(); file!.close(); file = undefined;
     } else if (data.action === 'abort') {
+      if (data.offset > 0 && file) {
+        file.truncate(data.offset); file.flush(); file.close(); file = undefined;
+        self.postMessage({ id: data.id }); return;
+      }
       file?.close(); file = undefined;
       await directory?.removeEntry(name).catch(() => {});
     }

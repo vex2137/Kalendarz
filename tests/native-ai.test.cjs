@@ -92,12 +92,12 @@ test('CPU bypasses device probing; Auto handles absent GPUs and insufficient VRA
   }
 });
 test('Auto makes one CPU attempt after Vulkan initialization, memory, driver or runtime failure',async()=>{
-  for(const log of ['GPU startup failed','VK_ERROR_OUT_OF_DEVICE_MEMORY','VK_ERROR_DEVICE_LOST']){
+  for(const log of ['GPU startup failed','VK_ERROR_OUT_OF_DEVICE_MEMORY','VK_ERROR_OUT_OF_HOST_MEMORY','ErrorOutOfDeviceMemory','ErrorOutOfHostMemory','VK_ERROR_DEVICE_LOST']){
     const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({estimatedRamMB:100})}});
     ai.probe=async()=>[{id:'Vulkan0'}];const calls=[];
     ai.start=async(id,backend)=>{calls.push(backend);if(backend==='vulkan'){ai.log=log;throw Error('native-start-failed');}return ai.snapshot();};
     await ai.prepare('known');assert.deepEqual(calls,['vulkan','cpu']);
-    assert.equal(ai.snapshot().fallbackReason,log.includes('MEMORY')?'insufficient-vram':log.includes('VK_ERROR')?'gpu-driver-failed':'gpu-start-failed');
+    assert.equal(ai.snapshot().fallbackReason,/MEMORY|ErrorOutOf/.test(log)?'insufficient-vram':log.includes('VK_ERROR')?'gpu-driver-failed':'gpu-start-failed');
   }
   const ai=new NativeAI({runtimeRoot:'/definitely-missing-runtime',store:{descriptor:()=>({})}});const calls=[];
   ai.start=async(id,backend)=>{calls.push(backend);throw Error('native-runtime-missing');};
@@ -183,10 +183,11 @@ test('shutdown retains ownership of a live process after the termination deadlin
 
 test('GPU layer limits are validated and retained; changing mode clears an old failure',async()=>{
  const ai=new NativeAI({runtimeRoot:'/unused',store:{descriptor:()=>({})}});ai.cancel=async()=>{};
- for(const value of [0,-1,1000,1.5,'8',NaN])await assert.rejects(ai.setMode('gpu',value),/model-input/);
+ for(const value of [0,-1,1000002,1.5,'8',NaN])await assert.rejects(ai.setMode('gpu',value),/model-input/);
  ai.state.errorCode='model-gpu-unavailable';await ai.setMode('gpu',8);
  assert.equal(ai.snapshot().gpuLayers,8);assert.equal(ai.snapshot().mode,'gpu');assert.equal(ai.snapshot().errorCode,undefined);
- ai.probe=async()=>[{backend:'vulkan',id:'Vulkan0',freeBytes:1}];let selected;
+ ai.store.descriptor=()=>({bytes:5*1024**3,blockCount:40,maxContext:2048});
+ ai.probe=async()=>[{backend:'vulkan',id:'Vulkan0',freeBytes:2*1024**3}];let selected;
  ai.start=async(id,backend)=>{selected=backend;return ai.snapshot();};await ai.prepare('known');
- assert.equal(selected,'vulkan','Partial offload is measured by native allocation rather than rejected using full-model RAM');
+ assert.equal(selected,'vulkan','A partial model fits even when the full model exceeds available VRAM');
 });

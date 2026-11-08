@@ -1,3 +1,7 @@
+import { MessageCopy } from './MessageCopy';
+import { backendStatus,subscribeBackend,desktopAI,updateBackend } from '../utils/nativeDesktopAI';
+import { useAnimatedClose } from '../hooks/useAnimatedClose';
+import type { AnimationSettings } from '../types';
 import { tr } from '../utils/i18n';
 import type { AssistantPlan } from '../utils/assistantPlanning';
 import { planningPreferences } from '../utils/assistantPlanning';
@@ -5,7 +9,7 @@ import { Dialog } from './Dialog';
 import React, { useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import { CalendarEvent, AiChatMessage, AiSettings } from '../types';
 import { runModelAssistant, type ModelConversation } from '../utils/modelAssistant';
-import { cancelModelOperation, checkLocalModel, modelStatus, subscribeModel, setAssistantActive } from '../utils/localModelRuntime';
+import { cancelModelInference, checkLocalModel, modelStatus, subscribeModel, setAssistantActive,observeNativeGeneration } from '../utils/localModelRuntime';
 import { localModelText } from '../utils/localModelText';
 import { AiSettingsPanel } from './AiSettingsPanel';
 import { aiSettingsText } from '../utils/aiSettingsText';
@@ -17,13 +21,12 @@ import { findModel } from '../utils/modelRegistry';
 import { chatMessages, createOrReuseEmptyChat, getChat, rememberChat, resolveActiveChat, saveChat } from '../utils/chatHistory';
 import { ChatHistoryPanel } from './ChatHistoryPanel';
 import { aiInterfaceText } from '../utils/aiInterfaceText';
-import { useAssistantBackground } from '../utils/assistantBackground';
+import { useAssistantBackground, assistantBackgroundEnabled } from '../utils/assistantBackground';
 import { QuickModelMenu } from './QuickModelMenu';
 import { MarkdownMessage } from './MarkdownMessage';
 import { getTranslation, AppLanguage } from '../utils/i18n';
 import {
   X,
-  Minus,
   Sparkles,
   Send,
   Cpu,
@@ -36,6 +39,7 @@ import {
 } from 'lucide-react';
 
 interface AiAssistantDrawerProps {
+  animations: AnimationSettings;
   isOpen: boolean;
   onClose: () => void;
   events: CalendarEvent[];
@@ -54,11 +58,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   onUndo,
   canUndo,
   aiSettings,
+  animations,
   language = 'en',
 }) => {
   const t = getTranslation(language);
   const view = aiInterfaceText(language);
   const background = useAssistantBackground();
+  const activeBackend=useSyncExternalStore(subscribeBackend,backendStatus);
   const minimized = useRef(false);
   const savedScroll = useRef<number | undefined>(undefined);
   const historyInitialized = useRef(false);
@@ -91,6 +97,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [addedEventsIds, setAddedEventsIds] = useState<string[]>([]);
   const operationRef = useRef(false);
+  const recoveryRef=useRef(false);
+  const messagesRef=useRef(messages);messagesRef.current=messages;
   const conversationRef = useRef<ModelConversation>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -169,8 +177,26 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     if (isOpen) void checkLocalModel();
     setAssistantActive(aiSettings.enabled && (isOpen || minimized.current && background && isProcessing));
   }, [isOpen, aiSettings.enabled, background, isProcessing]);
-  useEffect(() => () => { cancelModelOperation(); setAssistantActive(false); }, []);
+  useEffect(() => () => { if(!assistantBackgroundEnabled())cancelModelInference(); setAssistantActive(false); }, []);
 
+  useEffect(()=>{
+    const bridge=desktopAI();if(!isOpen||!historyReady||!bridge?.generation)return;
+    let active=true,reading=false,previous='';
+    const poll=async()=>{if(reading||operationRef.current&&!recoveryRef.current)return;reading=true;const owner=chatIdRef.current;
+      try{const g=await bridge.generation!();if(!active||owner!==chatIdRef.current||!g.id||!messagesRef.current.some(m=>m.id===g.id&&m.completion))return;
+        const signature=`${g.id}:${g.status}:${g.text}`;if(previous===signature)return;previous=signature;
+        if(g.status==='running'){recoveryRef.current=true;operationRef.current=true;setIsProcessing(true);}else{recoveryRef.current=false;operationRef.current=false;setIsProcessing(false);}
+        updateBackend(await bridge.status());observeNativeGeneration(g);
+        const existing=messagesRef.current.find(m=>m.id===g.id)!;const recovered=g.status!=='complete'&&existing.content.length>g.text.length&&existing.content.startsWith(g.text)?existing.content:g.text;
+        const next=messagesRef.current.map(m=>m.id===g.id?{...m,content:g.structured?(g.status==='running'?m.content:({en:'Request interrupted. Please send it again.',pl:'Żądanie przerwano. Wyślij je ponownie.',de:'Anfrage unterbrochen. Bitte erneut senden.',ru:'Запрос прерван. Отправьте его снова.'})[language]):recovered,completion:g.status==='running'?'streaming' as const:g.status==='complete'&&!g.structured?undefined:g.status==='error'?'error' as const:'cancelled' as const}:m);
+        if(g.status==='complete'&&!g.structured){const turns=next.filter(m=>m.id!=='msg-welcome'&&(m.role==='user'||m.role==='assistant')).slice(-2).map(m=>({role:m.role as 'user'|'assistant',content:m.content}));conversationRef.current={...conversationRef.current,turns};}
+        messagesRef.current=next;setMessages(next);await persist(next);
+      }catch{/* An unavailable native process leaves the persisted partial response intact. */}finally{reading=false;}};
+    void poll();const timer=setInterval(()=>void poll(),500);return()=>{active=false;clearInterval(timer);};
+  },[isOpen,historyReady]);
+
+  const closeHistory = useAnimatedClose(`${isOpen}:${historyOpen}`, () => { returnFocus.current = 'btn-ai-chat-history'; setHistoryOpen(false); }, animations, '#ai-history-overlay');
+  const closeSettings = useAnimatedClose(`${isOpen}:${settingsOpen}`, () => { returnFocus.current = 'btn-ai-settings'; setSettingsOpen(false); }, animations, '#ai-settings-panel');
   if (!isOpen) return null;
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -191,14 +217,18 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setInputQuery('');
     setIsProcessing(true);
 
+    const draft:AiChatMessage={id:crypto.randomUUID(),role:'assistant',content:'',timestamp:Date.now(),modelId:model.modelId,route:'model',completion:'streaming'};
+    let partial='',frame=0,checkpoint=0;
+    const onText=(value:string)=>{partial=value;if(!frame)frame=requestAnimationFrame(()=>{frame=0;setMessages([...withUser,{...draft,content:partial}]);});if(Date.now()-checkpoint>1500){checkpoint=Date.now();void persist([...withUser,{...draft,content:value}]);}};
     try {
-      await persist(withUser);
-      const response = await runModelAssistant(text, events, language, new Date(), conversationRef.current, planningPreferences(aiSettings.planning));
+      await persist([...withUser,draft]);
+      const response = await runModelAssistant(text, events, language, new Date(), conversationRef.current, planningPreferences(aiSettings.planning),{onText,requestId:draft.id});
+      cancelAnimationFrame(frame);frame=0;
       presentationRef.current = response.traceId;
       conversationRef.current = response.context || {};
       setMessages(prev => prev.map(message => ({ ...message, suggestedEvent: undefined, suggestedPlan: undefined })));
       const assistantMessage: AiChatMessage = {
-        id: crypto.randomUUID(),
+        id: draft.id,
         role: 'assistant',
         content: response.text,
         timestamp: Date.now(),
@@ -212,12 +242,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       setMessages(next);
       await persist(next);
     } catch (error) {
+      cancelAnimationFrame(frame);frame=0;
       const current = modelStatus();
+      if(partial){const next=[...withUser,{...draft,content:partial,completion:error instanceof Error&&error.message==='model-cancelled'?'cancelled' as const:'error' as const}];setMessages(next);await persist(next);return;}
       const replyLanguage = detectAssistantLanguage(text,conversationRef.current.language || language);
       const next: AiChatMessage[] = [
         ...withUser,
         {
-          id: crypto.randomUUID(),
+          id: draft.id,
           role: 'assistant',
           content:
             current.error === 'model-missing' || current.phase === 'missing' ? assistantUiText(replyLanguage).modelMissing : error instanceof Error && error.message.startsWith('model-') ? modelErrorText(error.message,replyLanguage) : localModelText(replyLanguage).inputError,
@@ -231,6 +263,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       ];
       setMessages(next); await persist(next);
     } finally {
+      cancelAnimationFrame(frame);
       operationRef.current = false;
       setIsProcessing(false);
     }
@@ -269,7 +302,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     try {
       setIsProcessing(true);
       await onApplyPlan(plan);
-      conversationRef.current = { ...conversationRef.current, pending: undefined, proposal: undefined, lastConfirmedAction: {kind:plan.kind,title:plan.events[0].title!,date:plan.events[0].startDate!}, reference: plan.kind === 'delete' ? undefined : { title: plan.events[0].title!, date: plan.events[0].startDate! } };
+      conversationRef.current = { ...conversationRef.current, pending: undefined, proposal: undefined, lastConfirmedAction: {kind:plan.kind,title:plan.events[0].title!,date:plan.events[0].startDate!}, reference: plan.kind === 'delete' ? undefined : { title: plan.events[0].title!, date: plan.events[0].startDate!,...(plan.originals[0]?{id:plan.originals[0].id}:{}) } };
       setAddedEventsIds(prev => [...prev, msgId]);
       const next: AiChatMessage[] = [...messages, { id: crypto.randomUUID(), role: 'assistant', content: tr(language, 'Zapisano zmiany.', 'Changes saved.'), timestamp: Date.now() }];
       setMessages(next); await persist(next);
@@ -282,8 +315,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
-  const closeHistory = () => { returnFocus.current = 'btn-ai-chat-history'; setHistoryOpen(false); };
-  const closeSettings = () => { returnFocus.current = 'btn-ai-settings'; setSettingsOpen(false); };
+  const discardProposal=(msgId:string)=>{
+    if(operationRef.current)return;
+    conversationRef.current={...conversationRef.current,proposal:undefined,pending:undefined,pendingChoice:undefined};
+    const next=messages.map(m=>m.id===msgId?{...m,suggestedPlan:undefined,suggestedEvent:undefined,content:tr(language,'Anulowano propozycję. Nie zmieniono kalendarza.','Proposal cancelled. The calendar was not changed.')}:m);
+    setMessages(next);void persist(next).catch(()=>setHistoryError(true));
+  };
   const handleUndo = async () => {
     if (operationRef.current || !canUndo) return;
     operationRef.current = true;
@@ -306,12 +343,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     savedScroll.current = document.getElementById('ai-chat-messages')?.scrollTop;
     minimized.current = minimize;
     setQuickModelOpen(false);
-    if (!minimize || !background) cancelModelOperation();
+    if (!minimize || !background) cancelModelInference();
     onClose();
   };
   return (
     <Dialog
-      onClose={settingsOpen ? closeSettings : historyOpen ? closeHistory : () => hideAssistant(false)}
+      onClose={settingsOpen ? closeSettings : historyOpen ? closeHistory : () => hideAssistant(true)}
       label={settingsOpen ? aiSettingsText(language).settings : historyOpen ? ui.conversations : t.aiAssistantTitle}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end"
     >
@@ -319,35 +356,18 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         id="drawer-ai-assistant"
         inert={historyOpen || settingsOpen}
         aria-hidden={historyOpen || settingsOpen || undefined}
-        className={`theme-surface w-full sm:max-w-3xl h-full shadow-2xl flex flex-col motion-safe:animate-in motion-safe:slide-in-from-right duration-200 theme-border border-l ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
+        className={`theme-surface w-full min-w-0 sm:max-w-3xl h-full shadow-2xl flex flex-col motion-safe:animate-in motion-safe:slide-in-from-right duration-200 theme-border border-l ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
       >
         {/* Header */}
-        <div id="ai-assistant-header" className="px-3 py-2 theme-border border-b theme-subtle flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-52">
-            <div className="w-11 h-11 rounded-xl ai-primary flex items-center justify-center shadow-xs shrink-0">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-sm font-bold theme-text">
-                  {t.aiAssistantTitle}
-                </h3>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] theme-muted">
-                <Cpu className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span data-testid="model-header-name" className="truncate">{findModel(model.modelId).name}</span>
-                <span className="shrink-0">· Offline</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1 ml-auto">
-            <button type="button" id="btn-ai-settings" aria-label={aiSettingsText(language).settings} title={aiSettingsText(language).settings} onClick={() => setSettingsOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><Settings className="w-6 h-6"/></button>
-            <button type="button" id="btn-ai-chat-history" aria-label={ui.conversations} title={ui.conversations} disabled={isProcessing || !historyReady} onClick={() => setHistoryOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><History className="w-6 h-6"/></button>
+        <div id="ai-assistant-header" className="px-3 py-2 theme-border border-b theme-subtle shrink-0 space-y-2">
+          <div className="flex items-center gap-2 min-w-0"><Sparkles className="w-5 h-5 shrink-0"/><div className="min-w-0 flex-1"><h3 className="text-sm font-bold theme-text">{t.aiAssistantTitle}</h3><p className="text-xs theme-muted break-words"><span data-testid="model-header-name">{findModel(model.modelId).name}</span>{activeBackend.loaded&&<> · {activeBackend.gpuActive?'GPU':activeBackend.backend==='cpu-native'||activeBackend.backend==='cpu-wasm'?'CPU':activeBackend.backend}</>}</p></div></div>
+          <div className="grid grid-cols-5 gap-1 w-full" role="toolbar" aria-label={t.aiAssistantTitle}>
+            <button type="button" id="btn-ai-settings" aria-label={aiSettingsText(language).settings} title={aiSettingsText(language).settings} onClick={() => setSettingsOpen(true)} className="w-full min-w-0 min-h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><Settings className="w-6 h-6"/></button>
+            <button type="button" id="btn-ai-chat-history" aria-label={ui.conversations} title={ui.conversations} disabled={isProcessing || !historyReady} onClick={() => setHistoryOpen(true)} className="w-full min-w-0 min-h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><History className="w-6 h-6"/></button>
             <button
               type="button"
               onClick={handleClearChat}
-              className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover transition-colors"
+              className="w-full min-w-0 min-h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover transition-colors"
               id="btn-new-ai-chat"
               title={ui.newChat}
               aria-label={ui.newChat}
@@ -355,13 +375,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             >
               <MessageSquarePlus className="w-6 h-6" />
             </button>
-            <button type="button" id="btn-ai-quick-model" aria-label={view.switch} title={view.switch} aria-expanded={quickModelOpen} onClick={() => setQuickModelOpen(value => !value)} disabled={isProcessing} className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><Cpu className="w-6 h-6"/></button>
-            <button type="button" id="btn-minimize-ai-drawer" aria-label={view.minimize} title={view.minimize} onClick={() => hideAssistant(true)} className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><Minus className="w-6 h-6"/></button>
+            <button type="button" id="btn-ai-quick-model" aria-label={view.switch} title={view.switch} aria-expanded={quickModelOpen} onClick={() => setQuickModelOpen(value => !value)} disabled={isProcessing} className="w-full min-w-0 min-h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover"><Cpu className="w-6 h-6"/></button>
             <button
               id="btn-close-ai-drawer"
               aria-label={t.close}
-              onClick={() => hideAssistant(false)}
-              className="w-11 h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover transition-colors"
+              onClick={() => hideAssistant(true)}
+              className="w-full min-w-0 min-h-11 flex items-center justify-center rounded-xl border theme-border theme-subtle theme-muted theme-hover transition-colors"
               title={tr(language, 'Zamknij asystenta', 'Close assistant')}
             >
               <X className="w-6 h-6" />
@@ -371,7 +390,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
         {quickModelOpen && <div className="px-3 py-2"><QuickModelMenu language={language} onClose={() => setQuickModelOpen(false)}/></div>}
         {historyError && <p role="alert" className="p-2 text-xs">{ui.historyError}</p>}
-        {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelOperation}>{ui.cancel}</button></div>}
+        {isProcessing && <div role="status" className="p-2 text-xs flex justify-between gap-2"><span>{model.phase === 'running' ? ui.generating : modelText[model.phase]}</span><button type="button" id="btn-stop-ai-generation" className="underline" onClick={cancelModelInference}>{ui.cancel}</button></div>}
 
         {canUndo && <button id="btn-undo-ai" type="button" onClick={handleUndo} disabled={isProcessing || !aiSettings.enabled} className="m-2 min-h-11 px-3 py-2 flex items-center justify-center gap-2 rounded theme-surface theme-text theme-border border text-sm">
           <Undo2 className="w-6 h-6 shrink-0"/>
@@ -470,7 +489,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   }`}
                 >
                   {/* Markdown Renderer */}
-                  <MarkdownMessage content={msg.content} isUser={isUser} />
+                  <MessageCopy text={msg.content} language={language}><MarkdownMessage content={msg.content} isUser={isUser} /></MessageCopy>{msg.completion&&<p className="text-xs theme-muted" data-completion={msg.completion}>{msg.completion==='streaming'?ui.generating:({en:'Partial response',pl:'Odpowiedź częściowa',de:'Teilantwort',ru:'Частичный ответ'})[language]}</p>}
                   {msg.proposalSummary && <p className="mt-2 whitespace-pre-wrap theme-muted">{msg.proposalSummary}</p>}
 
                   {plan && (
@@ -479,7 +498,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       {plan.events.map((draft, index) => (
                         <div key={index} className="space-y-1 theme-border border-b pb-2">
                           <p className="font-semibold">{draft.title}</p>
-                          {plan.originals[index] && <p className="theme-muted">{tr(language, 'Przed:', 'Before:')} {plan.originals[index].startDate} {plan.originals[index].startTime} – {plan.originals[index].endDate} {plan.originals[index].endTime}</p>}
+                          {plan.kind === 'move' && plan.originals[index] && <p className="theme-muted">{tr(language, 'Przed:', 'Before:')} {plan.originals[index].startDate} {plan.originals[index].startTime} – {plan.originals[index].endDate} {plan.originals[index].endTime}</p>}
                           <p>{plan.kind === 'move' ? (tr(language, 'Po:', 'After:')) : ''} {draft.startDate} {draft.startTime || (tr(language, 'Cały dzień', 'All day'))} – {draft.endDate} {draft.endTime}</p>
                           {draft.location && <p>{tr(language, 'Miejsce:', 'Location:')} {draft.location}</p>}
                           {draft.recurrence && draft.recurrence !== 'NONE' && <p>{tr(language, 'Powtarzanie:', 'Repeats:')} {({ DAILY: tr(language, 'codziennie', 'daily'), WEEKLY: tr(language, 'co tydzień', 'weekly'), MONTHLY: tr(language, 'co miesiąc', 'monthly') } as Record<string, string>)[draft.recurrence] || draft.recurrence}</p>}
@@ -488,6 +507,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       {isAdded ? <p role="status">{tr(language, 'Zapisano zmiany.', 'Changes saved.')}</p> : <button type="button" id={`btn-confirm-ai-event-${msg.id}`} disabled={isProcessing || !aiSettings.enabled} onClick={() => handleConfirm(msg.id, plan)} className="w-full py-2 px-3 ai-primary rounded-xl disabled:opacity-50">
                         {plan.kind === 'delete' ? modelText.delete : tr(language, 'Zatwierdź wszystkie zmiany', 'Confirm all changes')}
                       </button>}
+                      {!isAdded&&<button type="button" disabled={isProcessing} data-testid="cancel-ai-proposal" className="w-full p-2 theme-border border rounded-lg" onClick={()=>discardProposal(msg.id)}>{tr(language,'Anuluj całą propozycję','Cancel entire proposal')}</button>}
                     </div>
                   )}
                 </div>
@@ -537,21 +557,21 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             placeholder={
               tr(language, 'Napisz np. Trening jutro o 18 na 1h...', 'Type e.g. Workout tomorrow at 6pm for 1h...')
             }
-            disabled={isProcessing || !aiSettings.enabled || !historyReady}
+            disabled={isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyOpen}
             maxLength={1000}
-            className="flex-1 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="flex-1 min-w-0 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
           <button
             id="btn-send-ai-message"
             onClick={() => handleSendMessage()}
-            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady}
-            className="p-2.5 ai-primary disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
+            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyOpen}
+            className="shrink-0 min-w-11 min-h-11 p-2.5 ai-primary disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
       </div>
-      {historyOpen && <div className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
+      {historyOpen && <div id="ai-history-overlay" className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
       {settingsOpen && <AiSettingsPanel language={language} enabled={aiSettings.enabled} onClose={closeSettings}/>}
     </Dialog>
   );

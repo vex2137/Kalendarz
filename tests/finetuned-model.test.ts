@@ -24,6 +24,8 @@ test('a separately imported tuned variant preserves original choices and convers
  persistModelSelection(OPTIONAL_FALLBACK);assert.equal(activeModel().id,OPTIONAL_FALLBACK.id);
 });
 test('shared conversation prompt retains current-language and confirmation requirements',()=>{
- assert.match(naturalChatSystemPrompt('pl'),/user's actual language/);
+ assert.match(naturalChatSystemPrompt('pl'),/Reply in the user's language/);
+ assert.match(naturalChatSystemPrompt('pl'),/honoring explicit language requests/);
+ assert.match(naturalChatSystemPrompt('pl'),/correct Polish/);
  assert.match(naturalChatSystemPrompt('en',{kind:'create',title:'Test'}),/only last confirmed calendar action.*Test/);
 });

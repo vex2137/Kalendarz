@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
     for (const size of [{width: 320, height: 800}, {width: 390, height: 844}, {width: 844, height: 390}]) {
       const context = await browser.newContext({ viewport: size, serviceWorkers: 'block' });
       const page = await context.newPage();
-      await page.goto('http://127.0.0.1:4176');
+      await page.goto(process.env.CALENDAR_TEST_URL || 'http://127.0.0.1:4176');
       const nav = page.getByRole('navigation', {name: 'Calendar views', exact: true});
       for (const [index, expected] of [[3, 0], [2, 7]]) {
         await nav.getByRole('button').nth(index).click();

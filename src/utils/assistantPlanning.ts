@@ -26,6 +26,9 @@ export const minutes = (time: string) => {
   return h * 60 + m;
 };
 export function requestedDuration(text: string): number | undefined {
+  const words:Record<string,number>={one:1,two:2,three:3,fifteen:15,thirty:30,jedna:1,jeden:1,dwie:2,dwa:2,trzy:3,pietnascie:15,trzydziesci:30};
+  const named=normalize(text).match(/\b(one|two|three|fifteen|thirty|jedna|jeden|dwie|dwa|trzy|pietnascie|trzydziesci)\s+(?:meeting-free\s+)?(hours?|godzin(?:a|e|y)?|minutes?|minut(?:a|e|y)?)\b/u);
+  if(named)return words[named[1]]*(/^min/.test(named[2])?1:60);
   const m = text.match(/(\d+(?:[.,]\d+)?)\s*[- ]?\s*(minut\p{L}*|minutes?|mins?|godzin(?:a|ę|e|y)?|hours?|h)(?!\p{L})/iu);
   if (m) return Math.round(Number(m[1].replace(',', '.')) * (/^min/i.test(m[2]) ? 1 : 60));
   if (/pół godziny|pol godziny|half an hour/i.test(text)) return 30;
@@ -69,7 +72,7 @@ export function matchesCalendarText(text: string, query: string) {
   return terms.every(t => words.includes(t));
 }
 export function searchCalendar(events: CalendarEvent[], query: string) {
-  return events.filter(e => matchesCalendarText([e.title, e.location, e.description].filter(Boolean).join(' '), query))
+  return events.filter(e => normalize(e.title)===normalize(query)||(normalize(query).length>=3&&normalize(e.title).includes(normalize(query)))||matchesCalendarText([e.title, e.location, e.description].filter(Boolean).join(' '), query))
     .sort((a, b) => a.startDate.localeCompare(b.startDate) || (a.startTime || '').localeCompare(b.startTime || ''));
 }
 export function planningRange(text: string, now: Date): [string, string] {

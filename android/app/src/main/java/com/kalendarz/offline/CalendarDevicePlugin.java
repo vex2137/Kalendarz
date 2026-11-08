@@ -35,6 +35,119 @@ public class CalendarDevicePlugin extends Plugin {
     }
     private final ExecutorService diagnosticIo = Executors.newSingleThreadExecutor();
     private boolean exportingDiagnostics;
+    private final BiometricSessionState biometricSession = new BiometricSessionState();
+    private PluginCall biometricCall;
+    private android.os.CancellationSignal biometricCancellation;
+
+    @PluginMethod
+    public void setSystemBarColors(PluginCall call) {
+        String value = call.getString("background", "");
+        if (!value.matches("#[0-9a-fA-F]{6}")) { call.reject("invalid-color"); return; }
+        boolean darkIcons = Boolean.TRUE.equals(call.getBoolean("darkIcons", false));
+        getActivity().runOnUiThread(() -> {
+            try {
+                android.view.Window window = getActivity().getWindow();
+                int color = android.graphics.Color.parseColor(value);
+                window.setStatusBarColor(color);
+                window.setNavigationBarColor(color);
+                android.view.View decor = window.getDecorView();
+                int flags = decor.getSystemUiVisibility();
+                flags = darkIcons ? flags | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : flags & ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                if (Build.VERSION.SDK_INT >= 26)
+                    flags = darkIcons ? flags | android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR : flags & ~android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                decor.setSystemUiVisibility(flags);
+                call.resolve();
+            } catch (Exception error) { call.reject("system-bars-unavailable"); }
+        });
+    }
+
+    private boolean biometricAvailable() {
+        // API 30+ lets us explicitly require a strong biometric. Older systems
+        // retain PIN/password fallback instead of silently accepting weak face unlock.
+        if (Build.VERSION.SDK_INT < 30) return false;
+        try {
+            android.hardware.biometrics.BiometricManager manager = getContext().getSystemService(android.hardware.biometrics.BiometricManager.class);
+            return manager != null && manager.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG) == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS;
+        } catch (Exception error) { return false; }
+    }
+
+    private boolean biometricReady() {
+        Activity activity = getActivity();
+        if (!biometricSession.ready() || activity == null || activity.isFinishing() || activity.isDestroyed()) return false;
+        android.os.PowerManager power = getContext().getSystemService(android.os.PowerManager.class);
+        android.app.KeyguardManager keyguard = getContext().getSystemService(android.app.KeyguardManager.class);
+        return power != null && power.isInteractive() && (keyguard == null || !keyguard.isDeviceLocked());
+    }
+
+    @PluginMethod
+    public void biometricStatus(PluginCall call) {
+        JSObject response = new JSObject();
+        response.put("available", biometricAvailable());
+        response.put("ready", biometricReady());
+        call.resolve(response);
+    }
+
+    @PluginMethod
+    public void authenticateBiometric(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity == null) { call.reject("biometric-not-ready"); return; }
+        activity.runOnUiThread(() -> {
+            if (!biometricReady()) { call.reject("biometric-not-ready"); return; }
+            if (!biometricAvailable()) { call.reject("biometric-unavailable"); return; }
+            final long request;
+            try { request = biometricSession.begin(); }
+            catch (IllegalStateException error) { call.reject(error.getMessage()); return; }
+            biometricCall = call;
+            try {
+                android.hardware.biometrics.BiometricPrompt.Builder builder = new android.hardware.biometrics.BiometricPrompt.Builder(activity)
+                    .setTitle(call.getString("title", "Unlock Calendar"))
+                    .setNegativeButton(call.getString("cancel", "Cancel"), getContext().getMainExecutor(), (dialog, which) -> {
+                        if (!finishBiometric(request)) return;
+                        call.reject("biometric-cancelled");
+                    });
+                if (Build.VERSION.SDK_INT >= 30) builder.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG);
+                biometricCancellation = new android.os.CancellationSignal();
+                builder.build().authenticate(biometricCancellation, getContext().getMainExecutor(),
+                    new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                        @Override public void onAuthenticationSucceeded(android.hardware.biometrics.BiometricPrompt.AuthenticationResult result) {
+                            if (!finishBiometric(request)) return;
+                            if (!biometricReady()) { call.reject("biometric-not-ready"); return; }
+                            JSObject response = new JSObject(); response.put("authenticated", true); call.resolve(response);
+                        }
+                        @Override public void onAuthenticationError(int code, CharSequence message) {
+                            if (!finishBiometric(request)) return;
+                            call.reject("biometric-cancelled-or-unavailable");
+                        }
+                    });
+            } catch (Exception error) {
+                if (!finishBiometric(request)) return;
+                call.reject("biometric-unavailable");
+            }
+        });
+    }
+
+    private boolean finishBiometric(long request) {
+        if (!biometricSession.finish(request)) return false;
+        biometricCall = null;
+        biometricCancellation = null;
+        return true;
+    }
+
+    private void pauseBiometric() {
+        long cancelled = biometricSession.pause();
+        PluginCall call = biometricCall;
+        android.os.CancellationSignal cancellation = biometricCancellation;
+        biometricCall = null;
+        biometricCancellation = null;
+        // Retire the request before cancellation can deliver a stale success/error.
+        if (cancellation != null) cancellation.cancel();
+        if (cancelled != 0 && call != null) call.reject("biometric-backgrounded");
+    }
+
+    @Override protected void handleOnPause() {
+        pauseBiometric();
+        notifyListeners("biometricStateChanged", new JSObject());
+    }
 
     @PluginMethod
     public void exportDiagnostics(PluginCall call) {
@@ -79,7 +192,10 @@ public class CalendarDevicePlugin extends Plugin {
         });
     }
     private synchronized void finishDiagnosticExport() { exportingDiagnostics=false; }
-    @Override protected void handleOnDestroy() { diagnosticIo.shutdown(); }
+    @Override protected void handleOnDestroy() {
+        pauseBiometric();
+        diagnosticIo.shutdown();
+    }
 
     // Keep the existing notification channel: never bypass a user's mute choice.
     private static final String REMINDER_CHANNEL = "default";
@@ -88,6 +204,8 @@ public class CalendarDevicePlugin extends Plugin {
 
     @Override
     protected void handleOnResume() {
+        biometricSession.resume();
+        notifyListeners("biometricStateChanged", new JSObject());
         notifyListeners("notificationSettingsChanged", new JSObject());
     }
 

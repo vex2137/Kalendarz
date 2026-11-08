@@ -1,38 +1,55 @@
 import { tr } from '../utils/i18n';
-import React, { useState } from 'react';
+import { BiometricUnlockButton } from './BiometricUnlockButton';
+import React, { useEffect, useRef, useState } from 'react';
 import { Shield, Delete } from 'lucide-react';
 import { AppLanguage, getTranslation } from '../utils/i18n';
-import type { SecuritySettings } from '../types';
+import type { AnimationSettings, SecuritySettings } from '../types';
 import { verifyPin } from '../utils/security';
+import { reducedMotion } from '../utils/animations';
 
 interface PinLockScreenProps {
   security: SecuritySettings;
+  animations: AnimationSettings;
   onUnlock: () => void;
   language?: AppLanguage;
 }
 
 export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   security,
+  animations,
   onUnlock,
   language = 'pl',
 }) => {
   const t = getTranslation(language);
+  const pinLength = Number.isInteger(security.pinLength) && security.pinLength! >= 4 && security.pinLength! <= 16 ? security.pinLength! : 4;
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; if (unlockTimer.current) clearTimeout(unlockTimer.current); }; }, []);
   const [blockedUntil, setBlockedUntil] = useState(() =>
     Number(localStorage.getItem('pin-blocked-until') || 0),
   );
 
   const handleDigit = async (digit: string) => {
     if (busy || Date.now() < blockedUntil) return;
-    if (pin.length < 4) {
+    if (pin.length < pinLength) {
       const next = pin + digit;
       setPin(next);
-      if (next.length === 4) {
+      if (next.length === pinLength) {
         setBusy(true);
-        if (await verifyPin(next, security)) {
+        const verified = await verifyPin(next, security);
+        if (!active.current) return;
+        if (verified) {
           localStorage.removeItem('pin-failures');
+          localStorage.removeItem('pin-blocked-until');
+          if (animations.level !== 'off' && animations.pinUnlock && !reducedMotion()) {
+            setSuccess(true);
+            unlockTimer.current = setTimeout(onUnlock, 500 * 100 / animations.speed);
+            return;
+          }
           onUnlock();
         } else {
           const failures =
@@ -55,6 +72,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   };
 
   const handleDelete = () => {
+    if (busy) return;
     setPin((prev) => prev.slice(0, -1));
   };
 
@@ -71,8 +89,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
         </div>
 
         {/* Dots */}
-        <div className="flex items-center gap-4 py-2">
-          {[0, 1, 2, 3].map((i) => (
+        <div className={`flex flex-wrap justify-center items-center gap-3 py-2 pin-dots ${success ? 'pin-dots-success' : ''}`}>
+          {Array.from({ length: pinLength }, (_, i) => (
             <div
               key={i}
               className={`w-4 h-4 rounded-full transition-all duration-150 ${
@@ -86,6 +104,12 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
           ))}
         </div>
 
+        {success && <div className="pin-success" role="status" aria-label={tr(language, 'Odblokowano', 'Unlocked')}>
+          <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="16" className="pin-success-track"/><circle cx="20" cy="20" r="16" pathLength="100" className="pin-success-ring"/></svg>
+          <span className="pin-success-check" aria-hidden="true">✓</span>
+          {animations.level === 'full' && animations.confetti && <span className="pin-confetti" aria-hidden="true">✦ · ✧</span>}
+        </div>}
+
         {error && (
           <p role="alert" className="text-xs text-rose-400 font-semibold">
             {Date.now() < blockedUntil
@@ -93,6 +117,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
               : t.pinIncorrect}
           </p>
         )}
+
+        <BiometricUnlockButton enabled={!!security.biometricEnabled} disabled={busy} language={language} onUnlock={onUnlock} />
 
         {/* Numpad */}
         <div className="grid grid-cols-3 gap-3 w-full pt-4">
@@ -118,6 +144,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={handleDelete}
             aria-label={tr(language, 'Usuń cyfrę', 'Delete digit')}
             className="h-14 rounded-2xl bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 flex items-center justify-center border border-neutral-800 transition-colors shadow-xs"

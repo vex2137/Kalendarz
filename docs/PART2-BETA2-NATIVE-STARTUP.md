@@ -1,0 +1,19 @@
+# Native startup: confirmed integration failures and remaining hardware evidence
+
+The supplied CachyOS evidence confirms CUDA/Vulkan discovery and working Qwen3.5 4B CPU inference. It does not include native GPU stderr, so the actual RTX 4060 startup failure cannot yet be attributed to a driver, library, allocation or kernel. There is no NVIDIA device/nvidia-smi in this Cloud host. No GPU hardware success is claimed.
+
+Three targeted regressions failed on the previous code and passed after correction:
+
+- Health readiness could precede delivery of the stderr offload line. Desktop startup immediately rejected a healthy process as native-offload-unconfirmed. It now waits up to one second for actual offload evidence, checks cancellation/process ownership and still fails explicitly if evidence never arrives. This matches the existing bounded Android approach; it does not fake offload.
+- The generic text "failed to load model" incorrectly became model-gguf-unsupported, including a reproducible permission-denied error. Only explicit unsupported architecture/GGUF version evidence now receives that code; memory, file-access, corrupt GGUF and native runtime failures are distinct. Delayed output callbacks from replaced processes cannot contaminate a subsequent model's log/offload counters. The underlying cause of the user's intermittent load failure still needs their native trace.
+- A second explicit prepare for the same model/context was rejected while loading. Compatible prepare/chat calls now join one initialization; a conflicting model/context remains busy. Existing loaded-process reuse, cancellation, mode changes and per-model contexts are preserved.
+
+Each bounded startup history record identifies backend, runtime-relative executable, failure stage, exit/signal/native code, health status, requested context/layers, observed offload and reason. Startup-only stderr is allowlisted, redacted and capped at 4 KiB per record (four records). Raw server logs, API keys, model paths and conversation contents are not exported. Late events retain process ownership boundaries. The existing diagnostic export and settings display the records; CPU fallback does not erase preceding GPU failures.
+
+The GPU process still receives its selected CUDA/Vulkan binary, device and --n-gpu-layers. Five-layer requests were not rejected by the full-model VRAM estimate in the original code, and remain subject to actual native allocation. Full-offload memory checks and CPU fallback are unchanged; no VRAM limit was increased. Existing AppImage runtime hashes/packaging validation from dc2c086 remains relevant because no native binary, archive, library-path policy or dependency changed.
+
+Chromium Ozone/MESA warnings are from the Electron graphics process. Native inference uses a separate explicitly selected executable/argument list. The supplied warnings do not establish the cause of CUDA startup failure; no graphics/driver/kernel workarounds were added. Genuine unsupported architectures (including a future LFM variant if reported by the pinned engine) remain errors, not forced retries or claimed support.
+
+Validation: ten new focused native tests plus existing native request/fallback/context/environment regressions (32 total), TypeScript and a narrow-viewport settings/export browser test. Fault-injected local executables test real process flags/health/props/log delivery but are not llama.cpp or GPU inference. No APK/AppImage was built; no Release or merge.
+
+Next RTX 4060 acceptance: use the same GGUF, 2048 context and five layers in GPU then Auto; inspect nativeAttempts for CUDA and Vulkan executable/stage/exit/stderr. Require generated tokens, actual nonzero offload and gpuActive=true for GPU inference. Compare CPU loading/reloading and concurrent requests. A new AppImage is required later to exercise these source changes; the dc2c086 package predates them.

@@ -1,7 +1,9 @@
+import { useAnimatedClose } from './hooks/useAnimatedClose';
 import { CalendarNavigation } from './components/CalendarNavigation';
+import { animationPreferences } from './utils/animations';
 import { applyTheme } from './utils/themes';
 import { tr } from './utils/i18n';
-import { updateNativeAppName } from './utils/nativeDevice';
+import { updateNativeAppName, updateNativeSystemBars } from './utils/nativeDevice';
 import { applyAssistantChanges, signalCalendarChange, type AssistantChange } from './utils/calendarStore';
 import { changesForPlan } from './utils/assistantChanges';
 import type { AssistantPlan } from './utils/assistantPlanning';
@@ -37,6 +39,7 @@ import { YearView } from './components/YearView';
 import { AgendaView } from './components/AgendaView';
 import { BottomNavMobile } from './components/BottomNavMobile';
 import { PinLockScreen } from './components/PinLockScreen';
+import { PasswordLockScreen } from './components/PasswordLockScreen';
 import { NotificationBanner } from './components/NotificationBanner';
 import { Plus } from 'lucide-react';
 import { AppUpdate } from './components/AppUpdate';
@@ -184,6 +187,7 @@ export default function App() {
   } | null>(null);
   const now = useNow();
   const language = settings.language || 'en';
+  const animations = animationPreferences(settings.animations);
   const [assistantUndo, setAssistantUndo] = useState<AssistantChange[] | null>(null);
   const updateSettings = useCallback((next: AppSettings) => {
     try {
@@ -231,6 +235,8 @@ export default function App() {
     document.querySelector('meta[property="og:title"]')?.setAttribute('content', document.title);
     document.documentElement.lang = language;
     applyTheme(document.documentElement, settings);
+    const background = getComputedStyle(document.documentElement).getPropertyValue('--bg-main').trim();
+    void updateNativeSystemBars(background).catch(() => {});
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute(
@@ -243,6 +249,13 @@ export default function App() {
   useEffect(() => {
     void updateNativeAppName(language).catch(error => setSettingsError(String(error)));
   }, [language]);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.dataset.motion = animations.level;
+    root.dataset.motionButtons = animations.buttons ? 'on' : 'off';
+    root.dataset.motionTransitions = animations.transitions ? 'on' : 'off';
+    root.style.setProperty('--motion-speed', String(100 / animations.speed));
+  }, [animations.level, animations.speed, animations.buttons, animations.transitions]);
   const lock = useCallback(() => {
     setModal(null);
     setIsPinLocked(true);
@@ -386,20 +399,20 @@ export default function App() {
     (date: string, hour: number) => create(date, `${pad2(hour)}:00`),
     [create],
   );
-  const close = useCallback(() => setModal(null), []);
+  const close = useAnimatedClose(`${modal}:${isPinLocked}`, () => setModal(null), animations);
   const save = useCallback(
     async (event: CalendarEvent) => {
       await saveRecords([event]);
-      setModal(null);
+      close();
     },
-    [saveRecords],
+    [saveRecords, close],
   );
   const deleteEvent = useCallback(
     async (id: string) => {
       await remove([id]);
-      setModal(null);
+      close();
     },
-    [remove],
+    [remove, close],
   );
   const applyAiPlan = useCallback(async (plan: AssistantPlan) => {
     const inverse = await applyAssistantChanges(changesForPlan(plan));
@@ -414,10 +427,13 @@ export default function App() {
     signalCalendarChange();
     await refresh();
   }, [assistantUndo, refresh]);
+  if (isPinLocked && settings.security.pinEnabled && settings.security.authenticationMethod === 'password')
+    return <PasswordLockScreen security={settings.security} animations={animations} onUnlock={() => setIsPinLocked(false)} language={language} />;
   if (isPinLocked && settings.security.pinEnabled)
     return (
       <PinLockScreen
         security={settings.security}
+        animations={animations}
         onUnlock={() => setIsPinLocked(false)}
         language={language}
       />
@@ -464,7 +480,7 @@ export default function App() {
             onDismiss={() => setActiveNotification(null)}
             onOpenEvent={select}
           />
-          <CalendarNavigation enabled={ready && !isPinLocked && !modal} allowHorizontalScroll={viewMode === 'week'} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
+          <CalendarNavigation enabled={ready && !isPinLocked && !modal} animations={animations} allowHorizontalScroll={viewMode === 'week'} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
           <CalendarPanel
             {...{
               currentDate,
@@ -550,6 +566,7 @@ export default function App() {
                 onUndo={undoAiPlan}
                 canUndo={Boolean(assistantUndo)}
                 aiSettings={settings.ai}
+                animations={animations}
                 language={language}
               />
             )}

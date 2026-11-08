@@ -28,8 +28,40 @@ installer = load('installer_v142_test', 'scripts/install-android-v142.py')
 
 
 class ReleaseTests(unittest.TestCase):
+    def pinned_release_model(self):
+        # Exercise the real 1.4.2 guard with the current model manifest and a
+        # release-specific package fixture, independently of the branch version.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'src/utils').mkdir(parents=True)
+            shutil.copyfile(ROOT / 'src/utils/localModelManifest.json', root / 'src/utils/localModelManifest.json')
+            (root / 'package.json').write_text(json.dumps({'version': '1.4.2'}))
+            with patch.object(verify, 'ROOT', root):
+                return verify.release_model()
+
     def test_pinned_release_manifest(self):
-        self.assertEqual(verify.release_model()['id'], verify.MODEL_ID)
+        self.assertEqual(self.pinned_release_model()['id'], verify.MODEL_ID)
+
+    def test_release_guard_rejects_other_package_versions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'src/utils').mkdir(parents=True)
+            shutil.copyfile(ROOT / 'src/utils/localModelManifest.json', root / 'src/utils/localModelManifest.json')
+            with patch.object(verify, 'ROOT', root):
+                for version in ['1.4.1', '1.5.0', '1.4.2-beta']:
+                    (root / 'package.json').write_text(json.dumps({'version': version}))
+                    with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'Unexpected package version'):
+                        verify.release_model()
+                (root / 'package.json').write_text(json.dumps({'version': '1.4.2'}))
+                self.assertEqual(verify.release_model()['id'], verify.MODEL_ID)
+
+    def test_current_checkout_must_match_release_version(self):
+        version = json.loads((ROOT / 'package.json').read_text())['version']
+        if version == '1.4.2':
+            self.assertEqual(verify.release_model()['id'], verify.MODEL_ID)
+        else:
+            with self.assertRaisesRegex(ValueError, 'Unexpected package version'):
+                verify.release_model()
 
     def test_update_identity_and_certificate(self):
         badging = "package: name='com.kalendarz.offline.diagnostics' versionCode='10407' versionName='1.4.2'"
@@ -45,7 +77,7 @@ class ReleaseTests(unittest.TestCase):
     def fixture(self):
         weights = b'GGUF' + b'fixture' * 16
         license_data = b'fixture-license'
-        model = {**verify.release_model(), 'bytes': len(weights), 'sha256': hashlib.sha256(weights).hexdigest(),
+        model = {**self.pinned_release_model(), 'bytes': len(weights), 'sha256': hashlib.sha256(weights).hexdigest(),
                  'licenseSha256': hashlib.sha256(license_data).hexdigest()}
         binary = bytearray(64); binary[:6] = b'\x7fELF\x02\x01'; struct.pack_into('<H', binary, 18, 183)
         data = {

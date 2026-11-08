@@ -1,3 +1,5 @@
+import { GOOGLE_CALENDAR_COLORS } from './constants';
+import { requestedReminderMinutes } from './calendarReminder';
 import type { AppLanguage } from './i18n';
 import { addDays, isValidDate, localDate, timeString } from './dates';
 import { parseModelCommand, type ModelCommand } from './modelCommand';
@@ -6,22 +8,40 @@ import { isReminderEventRequest } from './calendarReminder';
 // Normalize matching only. Names and optional text always come from the original input.
 export const fold = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
 const quoted = /"[^"]*"|„[^”]*”|“[^”]*”|«[^»]*»/gu;
-const unquote = (value: string) => value.trim().replace(/^["„“«]|["”»]$/gu, '');
+const unquote = (value: string) => clean(value).replace(/^["„“«]|["”»]$/gu, '');
 const clean = (value: string) => value.replace(/^[\s,;:?!]+|[\s,;:.?!]+$/g, '').replace(/\s+/g, ' ').trim();
 const words: Record<string, number> = { jeden: 1, jedna: 1, one: 1, dwa: 2, dwie: 2, two: 2, trzy: 3, three: 3, cztery: 4, four: 4, piec: 5, five: 5 };
 const count = (value: string) => words[value] ?? Number(value.replace(',', '.'));
 const days = ['niedziel\\p{L}*|sunday', 'poniedzial\\p{L}*|monday', 'wtor\\p{L}*|tuesday', 'srod\\p{L}*|wednesday', 'czwart\\p{L}*|thursday', 'piat\\p{L}*|friday', 'sobot\\p{L}*|saturday'];
 const months = ['stycz\\p{L}*|january', 'lut\\p{L}*|february', 'marc\\p{L}*|march', 'kwiet\\p{L}*|april', 'maj\\p{L}*|may', 'czerw\\p{L}*|june', 'lip\\p{L}*|july', 'sierp\\p{L}*|august', 'wrzes\\p{L}*|september', 'pazdzier\\p{L}*|october', 'listop\\p{L}*|november', 'grud\\p{L}*|december'];
+const ordinalDays:Record<string,number>={};
+const plDays=['pierwszego','drugiego','trzeciego','czwartego','piatego','szostego','siodmego','osmego','dziewiatego','dziesiatego','jedenastego','dwunastego','trzynastego','czternastego','pietnastego','szesnastego','siedemnastego','osiemnastego','dziewietnastego','dwudziestego'];
+const enDays=['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth','eleventh','twelfth','thirteenth','fourteenth','fifteenth','sixteenth','seventeenth','eighteenth','nineteenth','twentieth'];
+for(let i=0;i<20;i++){ordinalDays[plDays[i]]=i+1;ordinalDays[enDays[i]]=i+1;}
+for(let i=0;i<9;i++){ordinalDays['dwudziestego '+plDays[i]]=21+i;ordinalDays['twenty-'+enDays[i]]=21+i;}
+ordinalDays.trzydziestego=30;ordinalDays.thirtieth=30;ordinalDays['trzydziestego pierwszego']=31;ordinalDays['thirty-first']=31;
+const dayAtom='(?:\\d{1,2}|'+Object.keys(ordinalDays).sort((a,b)=>b.length-a.length).map(s=>s.replace(/ /g,'\\s+').replace(/-/g,'[- ]')).join('|')+')';
 const monthPattern = months.join('|');
-const datePattern = new RegExp(`(?<![\\p{L}\\d])(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\.\\d{1,2}(?:\\.\\d{4})?|\\d{1,2}\\s+(?:${monthPattern})(?:\\s+\\d{4})?|(?:${monthPattern})\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?|(?:za|in)\\s+(?:\\d+|jeden|one|dwa|dwie|two|trzy|three|cztery|four|piec|five)\\s+(?:dni|dzien|days?|tygodnie|tygodni|tydzien|weeks?)|the day after tomorrow|day after tomorrow|pojutrze|jutro|tomorrow|dzisiaj|dzis|today|(?:(?:w|we|on)\\s+)?(?:(?:te[nęa]?|ta|ten|this|przyszl\\p{L}*|nastepn\\p{L}*|next)\\s+)?(?:${days.join('|')}))(?![\\p{L}\\d])`, 'giu');
+const datePattern = new RegExp(`(?<![\\p{L}\\d])(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\.\\d{1,2}(?:\\.\\d{4})?|${dayAtom}\\s+(?:${monthPattern})(?:\\s+\\d{4})?|(?:${monthPattern})\\s+${dayAtom}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?|(?:za|in)\\s+(?:\\d+|jeden|one|dwa|dwie|two|trzy|three|cztery|four|piec|five)\\s+(?:dni|dzien|days?|tygodnie|tygodni|tydzien|weeks?)|the day after tomorrow|day after tomorrow|pojutrze|jutro|tomorrow|dzisiaj|dzis|today|(?:(?:w|we|on)\\s+)?(?:(?:te[nęa]?|ta|ten|this|przyszl\\p{L}*|nastepn\\p{L}*|next)\\s+)?(?:${days.join('|')}))(?![\\p{L}\\d])`, 'giu');
+
+export function requestedEventColor(input:string){
+ const name=input.match(/\b(?:kolor|color|colour)\s*:?\s*([\p{L}-]+)/iu)?.[1];
+ if(!name)return;
+ return Object.values(GOOGLE_CALENDAR_COLORS).find(c=>fold(c.id)===fold(name)||fold(c.name)===fold(name))?.id;
+}
+
+export function calendarDateMentions(input:string,now:Date):string[]{
+ return [...fold(input).replace(quoted,m=>' '.repeat(m.length)).matchAll(datePattern)].filter(m=>!/^\d{1,2}\.\d{1,2}$/.test(m[0])||!/\b(?:o|at|od|from|do|to|until)\s*$/iu.test(input.slice(0,m.index))).map(m=>calendarDate(m[0],now)).filter((s):s is string=>Boolean(s));
+}
 
 export function calendarDate(text: string, now: Date): string | undefined {
   const value = fold(text).replace(/^(?:w|we|on)\s+/, '').replace(/^(?:te[nęa]?|ta|ten|this)\s+/, '');
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return isValidDate(value) ? value : undefined;
   const dot = value.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
-  const named = value.match(new RegExp(`^(?:(\\d{1,2})\\s+(${monthPattern})|(${monthPattern})\\s+(\\d{1,2})(?:st|nd|rd|th)?)(?:,?\\s+(\\d{4}))?$`, 'iu'));
+  const named = value.match(new RegExp(`^(?:(${dayAtom})\\s+(${monthPattern})|(${monthPattern})\\s+(${dayAtom})(?:st|nd|rd|th)?)(?:,?\\s+(\\d{4}))?$`, 'iu'));
   if (dot || named) {
-    const day = Number(dot?.[1] || named?.[1] || named?.[4]);
+    const dayText=dot?.[1]||named?.[1]||named?.[4]||'';
+    const day = ordinalDays[dayText.replace(/\s+/g,' ').replace(/(?<=twenty|thirty) /g,'-')]||Number(dayText);
     const month = dot ? Number(dot[2]) : months.findIndex(p => new RegExp(`^(?:${p})$`, 'iu').test(named![2] || named![3])) + 1;
     const year = Number(dot?.[3] || named?.[5] || now.getFullYear());
     const result = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -59,7 +79,7 @@ export function calendarFields(input: string, now: Date): CalendarFields {
   // A Polish dotted clock after an explicit time marker is not a DD.MM date.
   const dates = [...masked.matchAll(datePattern)].filter(m => !/^\d{1,2}\.\d{1,2}$/.test(m[0]) || !/\b(?:o(?:\s+godzinie)?|at|od|from|do|to|until)\s*$/iu.test(masked.slice(0, m.index)));
   if (dates.length > 1) result.invalid = true;
-  if (dates[0]) { result.date = calendarDate(dates[0][0], now); result.invalid ||= !result.date; erase(dates[0].index!, dates[0][0].length); }
+  if (dates[0]) { result.date = calendarDate(dates[0][0], now); result.invalid ||= !result.date; for(const date of dates)erase(date.index!,date[0].length); }
   const relative = masked.match(/\b(?:za|in)\s+(\d+|jedna|jeden|one|dwie|dwa|two)\s+(godzine|godziny|godzin|hours?|minut\p{L}*|minutes?)\b/iu);
   if (relative) {
     if (result.date) result.invalid = true;
@@ -92,14 +112,14 @@ export function calendarFields(input: string, now: Date): CalendarFields {
     if (first !== undefined) result.time = timeString(first);
     erase(range.index!, range[0].length + (uncertain ? trailing[0].length : 0));
   }
-  const clocks = [...masked.matchAll(/\b(o(?:\s+godzinie)?|at|od|from|do|until|to)\s+(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.])/giu)];
+  const clocks = [...masked.matchAll(/\b(o(?:\s+godzinie)?|at|od(?:\s+godzin[yie]+)?|from|do(?:\s+godzin[yie]+)?|until|to)\s+(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?)(?![\p{L}\d:.])/giu)];
   for (const m of clocks) {
     const trailing = masked.slice(m.index! + m[0].length).match(/^\s*([a-z]{2})(?!\p{L})/iu);
     const uncertain = trailing && !/^(?:am|pm|do|to|od|at|on|in|na|we)$/iu.test(trailing[1]);
     if (uncertain) result.unresolvedTime = {text:input.slice(m.index!,m.index!+m[0].length+trailing[0].length),start:m[2].trim()};
     const value = clock(m[2]);
     result.invalid ||= value === undefined;
-    if (/^(do|until|to)$/.test(m[1])) { if (end !== undefined) result.invalid = true; end = value; result.explicitEnd = true; }
+    if (/^(?:do(?:\s|$)|until$|to$)/.test(m[1])) { if (end !== undefined) result.invalid = true; end = value; result.explicitEnd = true; }
     else { if (result.time) result.invalid = true; if (value !== undefined) result.time = timeString(value); }
     erase(m.index!, m[0].length + (uncertain ? trailing[0].length : 0));
   }
@@ -122,14 +142,27 @@ export function calendarFields(input: string, now: Date): CalendarFields {
 
 export interface PendingCalendarCommand { command: ModelCommand; request: string; unresolvedTime?: UnresolvedTime }
 export interface ParsedCalendarCommand extends PendingCalendarCommand { incomplete?: boolean }
+export interface CalendarValidationTrace {
+ stage:string; code?:string; field?:string; expectedType?:string; receivedType?:string; operationCount:number;
+}
 export function parseCalendarCommand(input: string, language: AppLanguage, now: Date, pending?: PendingCalendarCommand): ParsedCalendarCommand | undefined {
   if (language !== 'pl' && language !== 'en') return;
-  input = input.normalize('NFC');
+  const editSentence=input.match(/^(?:edytuj|edit) (?:wydarzenie |event )?(.+?) (?:z dnia|from|on) (.+?)\. *(?:zmie[ńn] godzin[ęe] rozpocz[ęe]cia na|change (?:the )?start time to) (\d{1,2}:\d{2}),?\s*(?:a zako[ńn]czenia na|and (?:the )?end time to)\s*(\d{1,2}:\d{2})[.!]?$/iu);
+  if(editSentence){
+    const source=calendarDate(fold(editSentence[2]),now);if(!source)return;
+    return parseCalendarCommand(`Move event ${JSON.stringify(unquote(editSentence[1]))} from ${source} to ${editSentence[3]}–${editSentence[4]}`,language,now);
+  }
+  const limited=input.match(/^(?:Nie zmieniaj tytu[łl]u|Keep the title)\s+(.+?),?\s+(?:tylko godzin[ęe] na|only change its time to)\s+(\d{1,2}[:.]\d{2})[.!]?$/iu);
+  if(limited)return parseCalendarCommand('Move '+limited[1].replace(/,$/u,'')+' at '+limited[2],language,now);
+  input=input.replace(/,?\s+(?:ale zachowaj czas trwania|but keep its duration)[.!]?$/iu,'');
+  input = input.normalize('NFC').replace(/^dodja\b/iu,'Dodaj').replace(/^ad\s+(?=a |an |event )/iu,'Add ').replace(/^przes[oó]n\b/iu,'Przesuń').replace(/^reshedule\b/iu,'Reschedule').replace(/^skas[oó]j\b/iu,'Skasuj').replace(/^deleet\b/iu,'Delete');
   if (pending?.unresolvedTime && /^(?:am|pm)\s*[.!?]?$/iu.test(input.trim())) {
     const marker = input.trim().slice(0,2);
     return parseCalendarCommand(`at ${pending.unresolvedTime.start}${pending.unresolvedTime.end ? '-'+pending.unresolvedTime.end : ''} ${marker}`,language,now,{...pending,unresolvedTime:undefined});
   }
   if (pending) input = input.replace(/^(?:actually|i meant|i mean|jednak|chodzi mi o|chodziło mi o)\s+/iu,'');
+  const completeRequest=input,reminder=requestedReminderMinutes(input);
+  if(reminder!==undefined)input=input.replace(/[,;]?\s+(?:z przypomnieniem|with (?:a )?reminder)\s+(?:\d+\s+\p{L}+\s+(?:przed|wcześniej|before|earlier)).*$/iu,'');
   const text = clean(input), normalized = fold(text);
   // Unsupported scope, constraints and corrections go to the real extractor. Avoid partial parsing.
   const outsideQuotes = normalized.replace(quoted, '').replace(/[,;]\s*(?:opis|description|miejsce|location):[\s\S]*$/iu, '').replace(/\b(?:the )?day after tomorrow\b/giu, ' ').replace(/^(?:przypomnij\s+mi\s+o|remind\s+me\s+(?:about|to))\s+/iu,'');
@@ -137,7 +170,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
   let body = text.replace(/^(?:prosz[eę][,\s]+|please\s+|(?:czy\s+)?mo[zż]esz\s+|(?:czy\s+)?m[oó]g[łl]by[sś]\s+|could you\s+)/iu, '');
   body = body.replace(/^(?:(?:o|oh|ok|okay|tak|yes|jak|how|super|great|dobrze|świetnie|swietnie|thanks|dzięki|dzieki)[,!\s]+)+(?=(?:dodaj|utw[oó]rz|add|create|wpisz|zapisz)\s)/iu, '');
   const n = fold(body);
-  const make = (command: Partial<ModelCommand>, request = input): ParsedCalendarCommand => ({ command: parseModelCommand(JSON.stringify(command)), request });
+  const make = (command: Partial<ModelCommand>, request = completeRequest): ParsedCalendarCommand => ({ command: parseModelCommand(JSON.stringify(command)), request });
   const tool = n.match(/^(co mam|pokaz (?:mi )?plan|jak wyglada|what is on|show my schedule|(?:kiedy mam|czy mam) woln\p{L}*|znajdz wolny czas|when am i free|am i free|find free time)\s*(.*)$/iu);
   if (tool) {
     const fields = calendarFields(body.slice(tool[1].length), now);
@@ -152,7 +185,7 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
     const offset = n.indexOf(rename[2], n.indexOf(rename[1]) + rename[1].length);
     return make({ action: 'update', query: unquote(body.slice(n.indexOf(rename[1]), n.indexOf(rename[1]) + rename[1].length)), title: unquote(body.slice(offset)) });
   }
-  const prefix = n.match(/^(dodaj|dodac|utworz(?:yc)?(?: wydarzenie)?|wpisz(?: do kalendarza)?|wpisac(?: do kalendarza)?|wrzuc(?:ic)?|zapisz|zapisac|dopisz|dopisac|wstaw(?:ic)?|add|create(?: event)?|zaplanuj|przypomnij mi o|remind me about|remind me to|schedule|put|przenies(?:c)?|przesun(?:ac)?|zmien(?:ic)? godzine|move|reschedule|change the time of|usun(?:ac)?|skasuj|skasowac|wykresl(?:ic)?|odwolaj|odwolac|delete|remove|cancel|znajdz|znalezc|wyszukaj|wyszukac|szukaj|pokaz(?:ac)? wydarzenia|find|search(?: for)?|show events for)\s+/iu);
+  const prefix = n.match(/^(dodaj|dodac|utworz(?:yc)?(?: wydarzenie)?|wpisz(?: do kalendarza)?|wpisac(?: do kalendarza)?|wrzuc(?:ic)?|zapisz|zapisac|dopisz|dopisac|wstaw(?:ic)?|add|create(?: event)?|zaplanuj|przypomnij mi o|remind me about|remind me to|schedule|put|przenies(?:c)?|przesun(?:ac)?|przeloz|zmien(?:ic)? godzine|move|reschedule|change (?:the )?time(?: of)?|usun(?:ac)?|skasuj|skasowac|wykresl(?:ic)?|odwolaj|odwolac|delete|remove|cancel|znajdz|znalezc|wyszukaj|wyszukac|szukaj|pokaz(?:ac)? wydarzenia|find|search(?: for)?|show events for)\s+/iu);
   if (!prefix) {
     if (!pending) return;
     const fields = calendarFields(body, now);
@@ -164,27 +197,43 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
     const request = `Add event "${merged.title || ''}" ${merged.date || ''}${merged.allDay ? ' all day' : merged.time ? ` at ${merged.time}${fields.explicitEnd && merged.endTime ? ' to '+merged.endTime : ''}` : ''}${pendingDuration ? ' for '+pendingDuration+' minutes' : ''}${merged.location ? '; location: "'+merged.location+'"' : ''}${merged.description ? '; description: "'+merged.description+'"' : ''}`;
     return { ...make(merged, request), incomplete: !merged.title || !merged.date || (!merged.time && !merged.allDay) };
   }
-  const action = /^(przenies|przesun|zmien|move|reschedule|change)/.test(prefix[1]) ? 'update' : /^(usun|skas|wykres|odwol|delete|remove|cancel)/.test(prefix[1]) ? 'delete' : /^(znajdz|znalezc|wyszuk|szuk|pokaz|find|search|show)/.test(prefix[1]) ? 'search' : 'create';
-  body = body.slice(prefix[0].length).replace(/^(?:mi\s+|(?:(?:(?:a|an)\s+)?(?:new\s+)?event|(?:nowe\s+)?(?:wydarzenie|wydarzenia))\s+)/iu, '').replace(/\s+(?:in my calendar|to my calendar)$/iu, '');
+  const action = /^(przenies|przesun|przeloz|zmien|move|reschedule|change)/.test(prefix[1]) ? 'update' : /^(usun|skas|wykres|odwol|delete|remove|cancel)/.test(prefix[1]) ? 'delete' : /^(znajdz|znalezc|wyszuk|szuk|pokaz|find|search|show)/.test(prefix[1]) ? 'search' : 'create';
+  body = body.slice(prefix[0].length).replace(/^(?:mi\s+|(?:(?:(?:a|an)\s+)?(?:new\s+)?event|(?:nowe\s+)?(?:wyda(?:rz|ż)enie|wydarzenia))\s+)/iu, '').replace(/\s+(?:in my calendar|to my calendar)$/iu, '');
   body = body.replace(/^(?:called|named|o nazwie|pod tytu[łl]em)\s+/iu,'');
+  body = body.replace(/\bdnia\s+(?=\d)/giu,'');
   let explicitTitle: string | undefined;
   if (action === 'create') body = body.replace(/\s+(?:called|named|o nazwie|pod tytu[łl]em)\s+(.+)$/iu, (_, title: string) => { explicitTitle=unquote(title); return ''; });
   // English calendar placement may occur before the date.
   body = body.replace(/\s+(?:in my calendar|to my calendar)(?=\s)/iu, '');
+  const color=requestedEventColor(body);
+  body=body.replace(/[,;]\s*(?:kolor|color|colour):?\s*([\p{L}-]+)/giu,(full)=>color?'':full);
   let location: string | undefined, description: string | undefined;
   body = body.replace(/[,;]\s*(miejsce|location|opis|description):\s*([^,;]+)(?=[,;]|$)/giu, (_, key: string, value: string) => { if (/miejsce|location/i.test(key)) location = value.trim(); else description = value.trim(); return ''; });
   // An unlabelled place is accepted only after an explicit clock, preserving its exact spelling.
   body = body.replace(/(?<=(?:\d|am|pm))\s+(?:w|we|in|at)\s+([^\d,;]+)$/iu, (_, place: string) => { location = place.trim(); return ''; });
   let sourceDate: string | undefined;
   if (action === 'update') {
+    const split=fold(body).match(/\s+(?:na|to)\s+/iu);
+    if(split){
+      const before=calendarFields(body.slice(0,split.index),now);
+      const tail=body.slice(split.index!+split[0].length).replace(/^(?:godzin[ęea]|the time)\s+(?=\d)/iu,'').replace(/\s+(?:tego samego dnia|on the same day)[.!]?$/iu,'').trim();
+      if(before.invalid)return;
+      sourceDate=before.date;
+      body=before.rest.replace(/\s+(?:z|from|on|w|dnia)$/iu,'')+' '+(/^\d{1,2}(?:[:.]\d{2})?(?:\s*(?:am|pm))?(?:$|[–—-]|\s+(?:do|to|until)\s)/iu.test(tail)?'at ':'')+tail;
+    }
     const source = fold(body).match(/\s+(?:z|from)\s+(\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}(?:\.\d{4})?)\s+(?:na|to)\s+/iu);
     if (source) { sourceDate = calendarDate(source[1], now); if (!sourceDate) return; body = body.slice(0, source.index) + ' ' + body.slice(source.index! + source[0].length); }
     if (/^(zmien(?:ic)? godzine|change the time of)/.test(prefix[1])) body = body.replace(/\s+(?:na|to)\s+(?=\d)/iu, ' at ');
   }
   const fields = calendarFields(body, now);
   if (fields.invalid) return;
-  if (action === 'create' && fields.fragments.length > 1) return;
-  let name = fields.rest.replace(/^(?:wydarzeni\p{L}*|event|mi)\s+/iu, '').replace(/\s+(?:z|na|to|on)$/iu, '').trim();
+  if(action==='update'&&!sourceDate&&fields.date&&(fields.time||fields.explicitEnd)&&!/\s+(?:na|to)\s+/iu.test(input)) {sourceDate=fields.date;fields.date=undefined;}
+  if (action === 'create' && fields.fragments.length > 1) {
+    const names=[...fields.rest.matchAll(quoted)];
+    if(names.length!==1||clean(fields.rest.replace(quoted,'').replace(/\b(?:na|w|we|on|for)\b/giu,'')))return;
+    fields.rest=names[0][0];
+  }
+  let name = fields.rest.replace(/^(?:wydarzeni\p{L}*|event|mi)\s+/iu, '').replace(/\s+(?:z|na|to|on|from|w|we|dnia)$/iu, '').trim();
   if (explicitTitle) { if (name) return; name=explicitTitle; }
   // A complete, single-event phrase uses the same parser as add/create.
   // Counts, incomplete scheduling and broader plans still reach model extraction.
@@ -195,8 +244,57 @@ export function parseCalendarCommand(input: string, language: AppLanguage, now: 
   if (!name && action !== 'create' && action !== 'search') return;
   // Leave unsupported trailing clauses to LFM rather than silently interpreting them as names.
   if (/\b(?:ale|but|oraz|and then|z opisem|with description|od|from|until)\b/iu.test(fold(name).replace(quoted, ''))) return;
-  const command = make({ action, ...(action === 'create' ? { title: unquote(name) || null } : { query: unquote(name) || null }), date: fields.date, time: fields.unresolvedTime ? null : fields.time, allDay: fields.allDay, ...(action === 'create' || fields.duration !== undefined || fields.explicitEnd ? { endTime: fields.unresolvedTime ? null : fields.endTime, endDate: fields.unresolvedTime ? null : fields.endDate } : {}), sourceDate: sourceDate || (action === 'delete' ? fields.date : undefined), location, description });
+  const command = make({ action, ...(action === 'create' ? { title: unquote(name) || null } : { query: unquote(name) || null }), date: fields.date, time: fields.unresolvedTime ? null : fields.time, allDay: fields.allDay, ...(action === 'create' || fields.duration !== undefined || fields.explicitEnd ? { endTime: fields.unresolvedTime ? null : fields.endTime, endDate: fields.unresolvedTime ? null : fields.endDate } : {}), ...(color?{color}:{}),...(reminder!==undefined?{reminderMinutes:reminder}:{}),sourceDate: sourceDate || (action === 'delete' ? fields.date : undefined), location, description });
   if (fields.unresolvedTime) command.unresolvedTime = fields.unresolvedTime;
   command.incomplete = action === 'create' && (Boolean(fields.unresolvedTime) || !command.command.title || !fields.date || (!fields.time && !fields.allDay));
   return command;
+}
+
+// An explicit batch is validated as a whole; an incomplete member never becomes
+// a partially executable proposal. Optional semicolon fields are not batches.
+export function parseCalendarBatch(input:string,language:AppLanguage,now:Date,diagnostic?:CalendarValidationTrace):ParsedCalendarCommand[]|undefined {
+ if(language!=='pl'&&language!=='en')return;
+ const verb=/^(?:dodaj|utworz|zaplanuj|add|create|schedule)\b/iu;
+ const text=fold(input.trim());if(!verb.test(text))return;
+ const header=text.match(/^(?:dodaj|utworz|zaplanuj|add|create|schedule)\s+(?:(\d+|dwa|dwie|trzy|cztery|piec|two|three|four|five|kilka|multiple)\s+)?(?:wydarzenia|wydarzen|events)\s*:\s*/u);
+ const counts:Record<string,number>={dwa:2,dwie:2,trzy:3,cztery:4,piec:5,two:2,three:3,four:4,five:5};
+ const expected=header?.[1]?(counts[header[1]]||Number(header[1])||undefined):undefined;
+ const body=input.trim().slice(header?.[0].length||0),mask=fold(body).replace(quoted,m=>' '.repeat(m.length));
+ const repeated=[...mask.matchAll(/\b(?:dodaj|utworz|zaplanuj|add|create|schedule)\s+(?:wydarzenie|event)\b/giu)].length>1;
+ const separators=[...mask.matchAll(/[,;\n]+|\b(?:oraz|and|i)\b|\.(?=\s*(?:dodaj|utworz|zaplanuj|add|create|schedule)\s)/giu)];
+ if(!header&&!repeated){
+   // Preserve the existing repeated-verb semicolon syntax.
+   if(!/[;\n]/.test(mask)||[...mask.matchAll(/(?:^|[;\n])\s*(?:dodaj|utworz|zaplanuj|add|create|schedule)\b/giu)].length<2)return;
+ }
+ if(diagnostic){diagnostic.stage='batch-segmentation';diagnostic.operationCount=0;}
+ const invalid=()=>{if(diagnostic){diagnostic.code='batch-incomplete-or-ambiguous';diagnostic.field='operations';diagnostic.expectedType='complete-event-list';diagnostic.receivedType='text';}return [];};
+ if(separators.length>64||expected!==undefined&&(expected<2||expected>20))return invalid();
+ const positions=[{end:0,next:0},...separators.map(m=>({end:m.index!,next:m.index!+m[0].length})),{end:body.length,next:body.length}];
+ const memo=new Map<number,ParsedCalendarCommand[][]>();
+ function solve(at:number):ParsedCalendarCommand[][] {
+  if(at===positions.length-1)return [[]];
+  if(memo.has(at))return memo.get(at)!;
+  const solutions:ParsedCalendarCommand[][]=[];
+  for(let stop=at+1;stop<positions.length;stop++){
+   const part=body.slice(positions[at].next,positions[stop].end).trim().replace(at>0?/^(?:oraz|and|i)\s+/iu:/$^/u,'');
+   if(/^(?:delete|remove|move|reschedule|rename|usun|przesun|przenies|zmien|skasuj)\b/iu.test(fold(part)))continue;
+   if(!part||/^(?:opis|description|miejsce|location|kolor|colou?r)\s*:/iu.test(part)||!header&&!verb.test(fold(part)))continue;
+   // Every candidate retains its verbatim title/date/clock clause. Only a
+   // missing repeated imperative is supplied, not any calendar field.
+   const parsed=parseCalendarCommand(verb.test(fold(part))?part:'Add event '+part,language,now);
+   if(!parsed||parsed.command.action!=='create'||parsed.incomplete)continue;
+   for(const tail of solve(stop)){
+    if(tail.length>=20)continue;
+    const list=[parsed,...tail],identity=JSON.stringify(list.map(p=>p.command));
+    if(solutions.some(s=>JSON.stringify(s.map(p=>p.command))===identity))continue;
+    solutions.push(list);if(solutions.length===2)break;
+   }
+   if(solutions.length===2)break;
+  }
+  memo.set(at,solutions);return solutions;
+ }
+ const extracted=solve(0);if(diagnostic)diagnostic.operationCount=extracted.length===1?extracted[0].length:0;
+ const solutions=extracted.filter(list=>list.length>=2&&(!expected||list.length===expected));
+ if(solutions.length!==1)return invalid();
+ const result=solutions[0];if(diagnostic){diagnostic.operationCount=result.length;diagnostic.stage='batch-extracted';}return result;
 }
