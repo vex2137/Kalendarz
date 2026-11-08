@@ -137,7 +137,7 @@ async function until(fn) {
     console.log(
       'PASS create/edit/persist, local default date, validation and zero-minute reminder',
     );
-    await page.locator('#btn-open-settings').click();
+    await page.locator('#btn-open-settings').click();await require('./settings-navigation.cjs')(page,'data');
     await page.locator('#modal-settings input[type=file][accept*=".ics"]').setInputFiles({
       name: 'calendar.ics',
       mimeType: 'text/calendar',
@@ -151,6 +151,7 @@ async function until(fn) {
     assert.ok(
       (await records(page)).some((r) => r.event?.title === 'Existing event'),
     );
+    await require('./settings-navigation.cjs')(page,'calendar');
     await page.getByRole('button', { name: /Dodaj polskie święta/ }).click();
     await until(async () =>
       (await records(page)).some((r) => r.id.startsWith('pl-holiday-')),
@@ -180,7 +181,7 @@ async function until(fn) {
       await page.locator('#btn-view-' + view).click();
       assert.ok((await page.locator('main').innerText()).length > 0);
     }
-    await page.locator('#btn-open-settings').click();
+    await page.locator('#btn-open-settings').click();await require('./settings-navigation.cjs')(page,'security');
     await page.getByRole('textbox', { name: 'PIN', exact: true }).fill('1234');
     await page.getByLabel('Potwierdź nowy PIN', { exact: true }).fill('1234');
     await page.getByRole('button', { name: 'Zapisz PIN' }).click();
@@ -272,7 +273,7 @@ async function until(fn) {
         }),
       ),
     });
-    await a.getByRole('button', { name: 'Scal nieszyfrowane dane', exact: true }).click();
+    await a.getByRole('button', { name: 'Potwierdź import', exact: true }).click();
     await a
       .getByRole('status')
       .filter({ hasText: 'Zapisano i scalono dane.' })
@@ -378,7 +379,7 @@ async function until(fn) {
         `outer page overflow at ${width}px`,
       );
       await p.locator('#btn-open-settings').click();
-      await p.locator('#modal-settings').waitFor();
+      await p.locator('#modal-settings').waitFor();await require('./settings-navigation.cjs')(p,'security');
       await mobile.close();
     }
     console.log('PASS responsive controls at 320/390/768px');

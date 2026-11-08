@@ -31,7 +31,9 @@ export function useCalendar() {
           ? previous
           : data.events,
       );
-      setDeletions(data.deletions);
+      setDeletions(previous => previous.length===data.deletions.length &&
+        previous.every((entry,i)=>entry.id===data.deletions[i].id&&entry.updatedAt===data.deletions[i].updatedAt)
+        ? previous : data.deletions);
       setReady(true);
     } catch (e) {
       setError(String(e));

@@ -22,7 +22,7 @@ export function CalendarNavigation({ enabled, dateKey, onNavigate, children, ani
       if (!enabled || event.defaultPrevented || event.isComposing || event.repeat ||
         event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || editing(event.target) ||
         document.querySelector('[role="dialog"]') || window.getSelection()?.isCollapsed === false) return;
-      const delta = ({ ArrowLeft: -1, ArrowRight: 1, a: -1, d: 1 })[event.key.length === 1 ? event.key.toLowerCase() : event.key];
+      const delta = ({ ArrowLeft: -1, ArrowRight: 1 })[event.key.length === 1 ? event.key.toLowerCase() : event.key];
       if (delta) { event.preventDefault(); navigateRef.current(delta); }
     };
     window.addEventListener('keydown', key);

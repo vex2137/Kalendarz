@@ -143,6 +143,9 @@ export interface CustomTheme {
 import { AppLanguage } from './utils/i18n';
 
 export interface AppSettings {
+  keyboardShortcuts?: import('./utils/shortcuts').ShortcutMap;
+  desktop?: { sidebar: boolean; width: number };
+  lastSettingsCategory?: string;
   language?: AppLanguage;
   ai: AiSettings;
   security: SecuritySettings;

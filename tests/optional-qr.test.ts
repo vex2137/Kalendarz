@@ -5,7 +5,7 @@ import {serializeICS,parseICSToEvents} from '../src/utils/storage';
 import {event} from './fixtures';
 const payload=(n:number)=>({v:2 as const,app:'cal-offline' as const,events:Array.from({length:n},(_,i)=>event({id:`qr-${i}`,title:`Żółć i gęślą jaźń ${i}`,description:'Opis\nĆwiczenia, „tekst”',location:'Łódź',reminders:[5,15],timeZone:'Europe/Warsaw'})),deletions:[]});
 test('explicit unprotected KAL2 round trip preserves empty/many events and fields without password',async()=>{
- for(const n of [0,1,100]){const p=payload(n),encoded=await encodeUnprotectedSync(p);assert.equal(isEncryptedSync(encoded.code),false);assert.match(encoded.code,/^KAL2:/);assert.deepEqual(await decodeSync(encoded.code),p);const a=new QRAssembler();let code='';for(const frame of [...encoded.frames].reverse())code=a.add(frame).code||code;assert.deepEqual(await decodeSync(code),p);}
+ for(const n of [0,1,100]){const p=payload(n),encoded=await encodeUnprotectedSync(p);assert.equal(isEncryptedSync(encoded.code),false);assert.match(encoded.code,/^KAL2:/);assert.deepEqual(await decodeSync(encoded.code),p);const a=new QRAssembler();let code='';for(const frame of [...encoded.frames].reverse())code=(await a.add(frame)).code||code;assert.deepEqual(await decodeSync(code),p);}
 });
 test('password protection can be enabled again; no implicit downgrade for empty/short password',async()=>{
  const p=payload(2);await assert.rejects(encodeSync(p,''));await assert.rejects(encodeSync(p,'short'));

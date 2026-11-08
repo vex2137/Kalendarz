@@ -1,3 +1,9 @@
+import { SettingsLayout, SettingsOption } from './SettingsLayout';
+import { ShortcutEditor } from './ShortcutEditor';
+import { UpdateSettings } from './UpdateSettings';
+import { DEFAULT_APP_SETTINGS } from '../utils/constants';
+import { p3 } from '../utils/part3Text';
+import { featureText } from '../utils/featureCopy';
 import { CustomThemeEditor } from './CustomThemeEditor';
 import { AnimationSettingsPanel } from './AnimationSettingsPanel';
 import { OFFICIAL_THEMES } from '../utils/themes';
@@ -51,6 +57,9 @@ import {
 } from 'lucide-react';
 
 interface SettingsModalProps {
+  initialCategory?: string;
+  onOpenSync?: () => void;
+  onOpenAi?: () => void;
   isOpen: boolean;
   onClose: () => void;
   settings: AppSettings;
@@ -66,14 +75,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   settings,
-  onUpdateSettings,
+  onUpdateSettings: persistSettings,
   events,
   onImportEvents,
   onRemoveHolidays,
   onClearAllEvents,
   onLockApp,
+  initialCategory, onOpenSync, onOpenAi,
 }) => {
   const lang: AppLanguage = settings.language || 'en';
+  const settingsBack=useRef<()=>boolean>(()=>false);
+  const [saveError,setSaveError]=useState(false);
+  const onUpdateSettings=(next:AppSettings)=>{
+    try{const success=persistSettings(next)!==false;setSaveError(!success);return success;}
+    catch{setSaveError(true);return false;}
+  };
   const t = getTranslation(lang);
   const planning = planningPreferences(settings.ai.planning);
   const updatePlanning = (patch: Partial<typeof planning>) => onUpdateSettings({ ...settings, ai: { ...settings.ai, planning: { ...planning, ...patch } } });
@@ -279,15 +295,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <Dialog
       onClose={onClose}
+      onBack={()=>{if(!settingsBack.current())onClose();}}
       label={t.settingsTitle}
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
     >
       <div
         id="modal-settings"
-        className="theme-surface theme-text rounded-3xl max-w-lg w-full shadow-2xl theme-border border flex flex-col max-h-[90vh] overflow-hidden"
+        className="theme-surface theme-text rounded-3xl max-w-6xl w-full shadow-2xl theme-border border flex flex-col max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <SystemNotificationSettings language={lang} events={events} />
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 theme-border border-b theme-subtle">
           <h3 className="text-base font-bold theme-text">{t.settingsTitle}</h3>
@@ -301,8 +317,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
+        {saveError&&<p role="alert" className="px-4 py-2" data-testid="settings-save-error">{p3(lang,'Could not save')}</p>}
         {/* Content */}
-        <div className="p-5 space-y-6 overflow-y-auto max-h-[80vh] divide-y theme-border">
+        <SettingsLayout settings={settings} onUpdateSettings={onUpdateSettings} language={lang} initialCategory={initialCategory} backRef={settingsBack}>
+<SettingsOption id="language" category="general" title={t.language}>
           {/* Section 0: Wybór języka (Language Selector) */}
           <div className="space-y-3 pt-1">
             <div className="flex items-center gap-2">
@@ -337,6 +355,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+</SettingsOption>
+<SettingsOption id="themes" category="appearance" title={t.theme}>
           {/* Section 1: Motyw kolorystyczny */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
@@ -369,8 +389,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           <CustomThemeEditor settings={settings} onUpdateSettings={onUpdateSettings} />
+<button type="button" className="theme-input rounded p-2" onClick={()=>{if(window.confirm(p3(lang,'Reset these preferences? Saved themes and all other data will remain.')))onUpdateSettings({...settings,theme: DEFAULT_APP_SETTINGS.theme});}}>{p3(lang,'Reset category')}</button>
+</SettingsOption>
+<SettingsOption id="motion" category="animations" title={p3(lang,'Animations')}>
           <AnimationSettingsPanel settings={settings} onUpdateSettings={onUpdateSettings} language={lang} />
 
+<button type="button" className="theme-input rounded p-2" onClick={()=>{if(window.confirm(p3(lang,'Reset these preferences? Saved themes and all other data will remain.')))onUpdateSettings({...settings,animations: DEFAULT_APP_SETTINGS.animations});}}>{p3(lang,'Reset category')}</button>
+</SettingsOption>
+<SettingsOption id="calendar" category="calendar" title={p3(lang,'Calendar')}>
           {/* Section 2: Domyślne parametry nowych wydarzeń */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
@@ -509,6 +535,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+</SettingsOption>
+<SettingsOption id="notifications" category="calendar" title={tr(lang,'Powiadomienia','Notifications')}>
           {/* Section 3: Dźwięki i wibracje powiadomień */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
@@ -584,6 +612,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+<SystemNotificationSettings language={lang} events={events}/>
+</SettingsOption>
+<SettingsOption id="assistant" category="ai" title={p3(lang,'AI assistant')}>
           <p className="text-xs theme-muted">{({en:'Manage models and diagnostics in Assistant → AI settings.',pl:'Zarządzaj modelami i diagnostyką w Asystent → Ustawienia AI.',de:'Modelle und Diagnose unter Assistent → KI-Einstellungen verwalten.',ru:'Управляйте моделями и диагностикой в Ассистент → Настройки ИИ.'})[lang]}</p>
 
           {/* Section 4: Lokalny Asystent Kalendarza (Offline NLP) */}
@@ -646,6 +677,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <p className="text-xs theme-muted">{tr(lang, 'Dotyczy propozycji asystenta i wolnych okienek. Nie zmienia istniejących wydarzeń.', 'Used for assistant suggestions and free slots. Existing events are not changed.')}</p>
           </fieldset>
 
+<button type="button" className="theme-primary rounded p-3" onClick={onOpenAi}>{p3(lang,'AI assistant')}</button>
+</SettingsOption>
+<SettingsOption id="credentials" category="security" title={p3(lang,'Security')}>
           {/* Section 5: Blokada kodem PIN */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center justify-between">
@@ -756,6 +790,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
           </div>
 
+</SettingsOption>
+<SettingsOption id="holidays" category="calendar" title={t.holidaysSection}>
           {/* Section 6: Polskie święta i dni ustawowo wolne od pracy */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
@@ -822,6 +858,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+</SettingsOption>
+<SettingsOption id="autolock" category="security" title={p3(lang,'Security')}>
           <label className="block text-xs theme-muted">
             {tr(lang, 'Automatyczna blokada po minutach bezczynności', 'Auto-lock after minutes of inactivity')}{' '}
             <input
@@ -845,6 +883,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               }
             />
           </label>
+</SettingsOption>
+<SettingsOption id="backup" category="data" title={t.backupAndData}>
           {/* Section 7: Kopia zapasowa i zarządzanie danymi */}
           <div className="space-y-3 pt-5">
             <div className="flex items-center gap-2">
@@ -957,8 +997,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </div><button type="button" className="theme-primary rounded p-3" onClick={onOpenSync}>{p3(lang,'Data and sync')}</button>
+</SettingsOption>
+<SettingsOption id="desktop" category="general" title={p3(lang,'Desktop sidebar')}>
+<label className="flex gap-2 items-center"><input type="checkbox" checked={settings.desktop?.sidebar??false} onChange={e=>onUpdateSettings({...settings,desktop:{sidebar:e.target.checked,width:settings.desktop?.width??256}})}/>{p3(lang,'Desktop sidebar')}</label>
+<label className="block">{p3(lang,'Panel width')}<input aria-label={p3(lang,'Panel width')} type="range" min="220" max="360" step="10" value={settings.desktop?.width??256} onChange={e=>onUpdateSettings({...settings,desktop:{sidebar:settings.desktop?.sidebar??false,width:Number(e.target.value)}})}/></label>
+</SettingsOption>
+<SettingsOption id="shortcuts" category="shortcuts" title={p3(lang,'Keyboard shortcuts')}><ShortcutEditor settings={settings} onUpdateSettings={onUpdateSettings} language={lang}/></SettingsOption>
+<SettingsOption id="sync-security" category="security" title={featureText(lang,'Protect with password')}><p className="text-xs theme-muted">{featureText(lang,'Password protection is optional. Share protected-code passwords separately. JSON exports are not encrypted.')}</p><button type="button" className="theme-input rounded p-3" onClick={onOpenSync}>{featureText(lang,'Protect with password')}</button></SettingsOption>
+<SettingsOption id="updates" category="updates" title={p3(lang,'Updates and about')}><UpdateSettings language={lang} autoCheck={initialCategory==='updates'}/></SettingsOption>
+        </SettingsLayout>
 
         {/* Footer */}
         <div className="px-5 py-3 theme-subtle theme-border border-t flex justify-end">

@@ -1,6 +1,7 @@
 import { MessageCopy } from './MessageCopy';
 import { backendStatus,subscribeBackend,desktopAI,updateBackend } from '../utils/nativeDesktopAI';
 import { useAnimatedClose } from '../hooks/useAnimatedClose';
+import { AssistantWindow } from './AssistantWindow';
 import type { AnimationSettings } from '../types';
 import { tr } from '../utils/i18n';
 import type { AssistantPlan } from '../utils/assistantPlanning';
@@ -352,11 +353,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       label={settingsOpen ? aiSettingsText(language).settings : historyOpen ? ui.conversations : t.aiAssistantTitle}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end"
     >
-      <div
+      <AssistantWindow><div
         id="drawer-ai-assistant"
         inert={historyOpen || settingsOpen}
         aria-hidden={historyOpen || settingsOpen || undefined}
-        className={`theme-surface w-full min-w-0 sm:max-w-3xl h-full shadow-2xl flex flex-col motion-safe:animate-in motion-safe:slide-in-from-right duration-200 theme-border border-l ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
+        className={`theme-surface w-full min-w-0 h-full shadow-2xl flex flex-col theme-border border assistant-surface ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
       >
         {/* Header */}
         <div id="ai-assistant-header" className="px-3 py-2 theme-border border-b theme-subtle shrink-0 space-y-2">
@@ -573,6 +574,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       </div>
       {historyOpen && <div id="ai-history-overlay" className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
       {settingsOpen && <AiSettingsPanel language={language} enabled={aiSettings.enabled} onClose={closeSettings}/>}
+      </AssistantWindow>
     </Dialog>
   );
 };

@@ -1,13 +1,15 @@
 import React, { useLayoutEffect, useRef } from 'react';
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   onClose: () => void;
+  onBack?: () => void;
   label: string;
 }
 const dialogs: HTMLElement[] = [];
-export function Dialog({ onClose, label, children, ...props }: Props) {
+export function Dialog({ onClose, onBack, label, children, ...props }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
+  const backAction=useRef(onBack);backAction.current=onBack;
   useLayoutEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const bodyOverflow = document.body.style.overflow;
@@ -36,7 +38,7 @@ export function Dialog({ onClose, label, children, ...props }: Props) {
     ).focus();
     const keydown = (e: KeyboardEvent) => {
       if (dialogs.at(-1) !== root) return;
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !(e.target instanceof Element && e.target.closest('[data-shortcut-capture]'))) {
         e.preventDefault();
         e.stopPropagation();
         close.current();
@@ -70,7 +72,7 @@ export function Dialog({ onClose, label, children, ...props }: Props) {
       if (!root.contains(e.target as Node)) (focusable()[0] || root).focus();
     };
     document.addEventListener('keydown', keydown, true);
-    const back = (event: Event) => { if (dialogs.at(-1) === root) { event.preventDefault(); close.current(); } };
+    const back = (event: Event) => { if (dialogs.at(-1) === root && !event.defaultPrevented) { event.preventDefault(); (backAction.current||close.current)(); } };
     window.addEventListener('calendar-back', back);
     document.addEventListener('focusin', contain);
     return () => {

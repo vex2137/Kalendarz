@@ -22,7 +22,7 @@ const { chromium } = require('playwright');
         assert.equal(await page.getByRole('heading', {name:'Calendar Locked'}).count(), 1);
       }
       await page.locator('#btn-open-settings').waitFor();
-      await page.locator('#btn-open-settings').click();
+      await page.locator('#btn-open-settings').click();await require('./settings-navigation.cjs')(page,'animations');
       await page.getByLabel('Animation level').selectOption('off');
       assert.equal(await page.locator('html').getAttribute('data-motion'), 'off');
       await page.getByLabel('Animation level').selectOption('subtle');
@@ -38,7 +38,7 @@ const { chromium } = require('playwright');
       await page.reload();
       for (const digit of '1234') await page.getByRole('button', {name:digit,exact:true}).click();
       await page.locator('#btn-open-settings').waitFor();
-      await page.locator('#btn-open-settings').click();
+      await page.locator('#btn-open-settings').click();await require('./settings-navigation.cjs')(page,'animations');
       assert.equal(await page.getByLabel('Animation level').inputValue(), 'full');
       assert.equal(await page.getByLabel(/Animation speed/).inputValue(), '150');
       assert.equal(await page.getByLabel('PIN unlock animation').isChecked(), false);
