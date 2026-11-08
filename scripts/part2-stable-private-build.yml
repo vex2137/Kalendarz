@@ -251,6 +251,12 @@ jobs:
     if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    # GitHub draft-release assets require push access, even for an octet-stream
+    # GET. This trusted private job only reads the existing acceptance model;
+    # it never creates or publishes a Release.
+    permissions:
+      contents: write
+      actions: read
     steps:
     - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
     - name: Require a private repository and immutable application source
