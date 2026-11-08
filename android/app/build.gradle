@@ -10,7 +10,7 @@ def calendarStableUpdate = providers.gradleProperty('calendarStableUpdate').orEl
 def calendarQwenV2Update = providers.gradleProperty('calendarQwenV2Update').orElse('false').get().toBoolean()
 def calendarPart2Beta = providers.gradleProperty('calendarPart2Beta').orElse('false').get().toBoolean()
 def calendarPart2BetaNumber = providers.gradleProperty('calendarPart2BetaNumber').orElse('2').get()
-if (!(calendarPart2BetaNumber in ['2','5','6']) || (calendarPart2BetaNumber != '2' && !calendarPart2Beta)) throw new GradleException('Unsupported Part 2 Android beta profile')
+if (!(calendarPart2BetaNumber in ['2','5','6','7']) || (calendarPart2BetaNumber != '2' && !calendarPart2Beta)) throw new GradleException('Unsupported Part 2 Android beta profile')
 def calendarModelFreeTests = providers.gradleProperty('calendarModelFreeTests').orElse('false').get().toBoolean()
 if (calendarModelFreeTests && (calendarPart2Beta || calendarStableUpdate || calendarQwenV2Update || calendarVulkanDiagnostics ||
     !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['testDebugUnitTest','assembleDebug','assembleDebugAndroidTest','connectedDebugAndroidTest'] })) {
@@ -28,7 +28,7 @@ if (calendarBeta && !gradle.startParameter.taskNames.every { it.tokenize(':').la
 def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
 def calendarPart2VersionCode = null
 if (calendarPart2Beta) {
-    def guard = new ProcessBuilder('python3', calendarPart2BetaNumber in ['5','6'] ? 'scripts/android_beta' + calendarPart2BetaNumber + '_guard.py' : 'scripts/part2_artifact_guard.py',
+    def guard = new ProcessBuilder('python3', calendarPart2BetaNumber in ['5','6','7'] ? 'scripts/android_beta' + calendarPart2BetaNumber + '_guard.py' : 'scripts/part2_artifact_guard.py',
         '--source', System.getenv('CALENDAR_EXPECTED_COMMIT') ?: '', '--check-remote',
         '--info', 'dist/build-info.json', '--platform', 'android')
         .directory(rootProject.file('..')).redirectErrorStream(true).start()

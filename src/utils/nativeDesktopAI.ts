@@ -17,13 +17,18 @@ interface NativeResult {text:string;finish:string;usage:{prompt_tokens?:number;c
 export interface DesktopBridge {
   platform?: 'android';
   registerImported?(model:import('./modelRegistry').ModelDescriptor):Promise<void>;
+  relinkModel?(id:string):Promise<ModelFolderSnapshot>;
+  forgetModel?(id:string):Promise<ModelFolderSnapshot>;
   folders():Promise<ModelFolderSnapshot>;addFolder():Promise<ModelFolderSnapshot>;
   refreshFolders():Promise<ModelFolderSnapshot>;removeFolder(id:string):Promise<ModelFolderSnapshot>;
   info(id:string):Promise<{installed:boolean;verified?:boolean;bytes?:number}>;
   begin(id:string):Promise<{exists?:boolean;token?:string}>;
   write(token:string,chunk:Uint8Array):Promise<number>;finish(token:string):Promise<{installed:boolean}>;
   abortUpload(token:string):Promise<void>;remove(id:string):Promise<void>;
-  prepare(id:string,contextSize?:number):Promise<BackendInfo>;complete(id:string,request:unknown):Promise<NativeResult>;
+  prepare(id:string,contextSize?:number):Promise<BackendInfo>;complete(id:string,request:unknown,onChunk?:(chunk:{text?:string;reset?:boolean})=>void,requestId?:string):Promise<NativeResult>;
+  generation?():Promise<{id?:string;text:string;status:'running'|'complete'|'cancelled'|'error';modelId?:string;structured?:boolean}>;
+  configureResidency?(background:boolean,keepLoaded:boolean):Promise<void>;
+  cancelGeneration?():Promise<void>;
   stop():Promise<void>;setMode(mode:BackendMode,gpuLayers?:number,automaticLayers?:boolean):Promise<BackendInfo>;status():Promise<BackendInfo>;
 }
 export interface ModelFolderSnapshot {

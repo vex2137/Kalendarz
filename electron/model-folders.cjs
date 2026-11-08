@@ -51,9 +51,10 @@ class ModelFolders{
   }
   async initialize(){
     try{
-      const content=await fs.readFile(this.configFile,'utf8');if(content.length>128*1024)throw Error('model-folder-config');const config=JSON.parse(content);
+      const content=await fs.readFile(this.configFile,'utf8');if(content.length>8*1024*1024)throw Error('model-folder-config');const config=JSON.parse(content);
       if(config.version!==1||!Array.isArray(config.folders)||config.folders.length>32||config.folders.some(f=>typeof f.path!=='string'||!path.isAbsolute(f.path)||f.id!==idFor('folder-',f.path)))throw Error('model-folder-config');
       this.folders=config.folders;
+      for(const model of (Array.isArray(config.models)?config.models:[]).slice(0,this.maxModels))if(model.external&&/^external-[a-f0-9]{32}$/.test(model.id)&&typeof model.file==='string')this.models.set(model.id,{...model,available:false});
     }catch(error){if(error.code!=='ENOENT')throw Error('model-folder-config');}
     await this.scan();
   }
@@ -62,7 +63,8 @@ class ModelFolders{
   async save(folders){
     await fs.mkdir(path.dirname(this.configFile),{recursive:true,mode:0o700});
     const temporary=this.configFile+'.'+crypto.randomBytes(8).toString('hex')+'.tmp';
-    try{await fs.writeFile(temporary,JSON.stringify({version:1,folders})+'\n',{mode:0o600,flag:'wx'});await fs.rename(temporary,this.configFile);}finally{await fs.rm(temporary,{force:true});}
+    const data=JSON.stringify({version:1,folders,models:[...this.models.values()]});if(data.length>8*1024*1024)throw Error('model-folder-limit');
+    try{await fs.writeFile(temporary,data+'\n',{mode:0o600,flag:'wx'});await fs.rename(temporary,this.configFile);}finally{await fs.rm(temporary,{force:true});}
     this.folders=folders;
   }
   async add(directory){
@@ -79,6 +81,7 @@ class ModelFolders{
     await this.save(this.folders.filter(f=>f.id!==id));return this.scan();});
   }
   async edit(action){await this.ready;if(this.mutating||this.scanning)throw Error('model-busy');this.mutating=true;try{return await action();}finally{this.mutating=false;}}
+  async forget(id){return this.edit(async()=>{const m=this.models.get(id);if(!m||m.available!==false)throw Error('model-input');this.models.delete(id);await this.save(this.folders);return this.snapshot();});}
   async refresh(){return this.edit(()=>this.scan());}
   async scan(){
     this.scanning=true;const models=new Map(),identities=new Map(),candidates=new Map(),hashes=new Map(),warnings=[];let entries=0;
@@ -104,8 +107,8 @@ class ModelFolders{
                 let duplicate;
                 if(possible.length){const current=await digest(file);for(const candidate of possible){if(!hashes.has(candidate))hashes.set(candidate,await digest(models.get(candidate).file));if(hashes.get(candidate)===current){duplicate=candidate;break;}}}
                 if(duplicate){const previous=models.get(duplicate);if(!previous.folderIds.includes(folder.id))previous.folderIds.push(folder.id);identities.set(identity,duplicate);continue;}
-                const id=idFor('external-',file);identities.set(identity,id);
-                models.set(id,{...meta,id,file,identity,mtimeMs:stat.mtimeMs,bytes:stat.size,folderIds:[folder.id],external:true,experimental:true,bundled:false,sha256:'',revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(stat.size/1048576*1.5)+512});
+                const known=[...this.models.values()].find(m=>m.identity===identity&&m.bytes===stat.size&&m.mtimeMs===stat.mtimeMs);const id=known?.id||idFor('external-',file);identities.set(identity,id);
+                models.set(id,{...meta,id,available:true,file,identity,mtimeMs:stat.mtimeMs,bytes:stat.size,folderIds:[folder.id],external:true,experimental:true,bundled:false,sha256:'',revision:'local',url:'',license:'',licenseName:'Local file',estimatedRamMB:Math.ceil(stat.size/1048576*1.5)+512});
                 possible.push(id);candidates.set(key,possible);
               }catch(error){if(warnings.length<100)warnings.push({folderId:folder.id,file:entry.name,code:error.code==='EACCES'?'model-folder-permission':error.message.startsWith('model-')?error.message:'model-folder-read'});}
             }
@@ -114,12 +117,13 @@ class ModelFolders{
         }
         if(limited)warnings.push({folderId:folder.id,code:'model-folder-limit'});
       }
-      this.models=models;this.warnings=warnings;return this.snapshot();
+      for(const [id,old] of this.models)if(!models.has(id))models.set(id,{...old,available:false});
+      this.models=models;this.warnings=warnings;await this.save(this.folders);return this.snapshot();
     }finally{this.scanning=false;}
   }
   descriptor(id){const descriptor=this.models.get(id);if(!descriptor)throw Error('model-unknown');return descriptor;}
   async verifiedPath(id,signal){
-    await this.ready;signal?.throwIfAborted();const d=this.descriptor(id),canonical=await fs.realpath(d.file);
+    await this.ready;signal?.throwIfAborted();const d=this.descriptor(id);if(d.available===false)throw Error('model-folder-unavailable');const canonical=await fs.realpath(d.file);
     // Refuse replacement by a symlink or a changed file; an explicit refresh is required.
     const stat=await fs.lstat(d.file);if(canonical!==d.file||!stat.isFile()||stat.size!==d.bytes||stat.mtimeMs!==d.mtimeMs||(stat.ino&&`${stat.dev}:${stat.ino}`!==d.identity))throw Error('model-folder-changed');
     await readGGUF(d.file);signal?.throwIfAborted();return d.file;

@@ -48,7 +48,7 @@ test('several folders deduplicate hardlinks and overlapping roots; removal never
   assert.equal(snapshot.models.length,1);assert.equal(snapshot.models[0].folderIds.length,2);
   snapshot=await folders.add(root);assert.equal(snapshot.models.length,1);assert.equal(snapshot.models[0].folderIds.length,3);
   for(const folder of snapshot.folders)await folders.remove(folder.id);
-  assert.deepEqual((await folders.list()).models,[]);assert.deepEqual(await fs.readFile(file),data);assert.deepEqual(await fs.readFile(path.join(second,'b.gguf')),data);
+  assert.equal((await folders.list()).models.length,1);assert.equal((await folders.list()).models[0].available,false);const reopened=new ModelFolders({configFile:configFile(root)});assert.equal((await reopened.list()).models[0].available,false);assert.deepEqual(await fs.readFile(file),data);assert.deepEqual(await fs.readFile(path.join(second,'b.gguf')),data);
 }));
 test('independent byte-identical copies are deduplicated while same-name different weights remain selectable',()=>workspace(async root=>{
   const directory=path.join(root,'models');await fs.mkdir(directory);const bytes=fixture();
@@ -75,7 +75,7 @@ test('changed or replaced models require an explicit refresh; external deletion/
   await assert.rejects(store.remove(id),/model-external-readonly/);await assert.rejects(store.begin(id),/model-external-readonly/);assert.equal(await store.verifiedPath(id),file);
   await fs.writeFile(file,fixture('Changed model name'));await assert.rejects(folders.verifiedPath(id),/model-folder-changed/);assert.equal((await store.info(id)).installed,false);
   assert.equal((await folders.refresh()).models[0].name,'Changed model name');assert.equal(await store.verifiedPath(id),file);
-  await folders.remove(snapshot.folders[0].id);await assert.rejects(store.verifiedPath(id),/model-unknown/);assert.ok((await fs.stat(file)).size>0);
+  await folders.remove(snapshot.folders[0].id);await assert.rejects(store.verifiedPath(id),/model-folder-unavailable/);assert.equal((await folders.list()).models[0].available,false);await folders.add(directory);assert.equal((await folders.list()).models[0].available,true);assert.ok((await fs.stat(file)).size>0);
 }));
 test('GGUF metadata rejects unsafe counts, versions and tensorless documents',()=>workspace(async root=>{
   const file=path.join(root,'bad.gguf');

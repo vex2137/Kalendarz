@@ -88,6 +88,7 @@ class NativeAI {
     if(child&&child.exitCode===null&&child.signalCode===null){this.stopping=new Promise((resolve,reject)=>{let kill,deadline;const finish=error=>{clearTimeout(kill);clearTimeout(deadline);child.removeListener('exit',exited);child.removeListener('error',failed);error?reject(error):resolve();};const exited=()=>finish();const failed=error=>finish(error);child.once('exit',exited);child.once('error',failed);kill=setTimeout(()=>child.kill('SIGKILL'),1500);deadline=setTimeout(()=>finish(Error('model-stop-timeout')),5000);child.kill();});try{await this.stopping;}finally{this.stopping=undefined;}}
     if(this.child===child)this.child=undefined;
   }
+  async cancelGeneration(){if(!this.operation||this.loading)return this.cancel();this.retainAfterCancel=true;try{this.operation.abort();await this.operationDone;}finally{this.retainAfterCancel=false;}}
   async cancel(){
     if(this.cancelling)return this.cancelling;
     this.cancelling=(async()=>{this.operation?.abort();this.startController?.abort();await this.stop();await this.loading?.catch(()=>{});await this.operationDone;await this.stop();})();
@@ -169,11 +170,11 @@ class NativeAI {
     })();
     try{return await this.loading;}finally{this.loading=undefined;this.loadingId=undefined;this.loadingContext=undefined;this.startController=undefined;}
   }
-  async stream(request,signal){
+  async stream(request,signal,onChunk){
     const started=performance.now();const response=await fetch(this.endpoint+'/v1/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+this.key,'Content-Type':'application/json'},body:JSON.stringify(request),signal});
     if(!response.ok||!response.body)throw Error('native-inference');
     const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',text='',finish=null,usage={},timings={},firstTokenMs;
-    try{while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});let split;while((split=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,split).trim();buffer=buffer.slice(split+1);if(!line.startsWith('data:')||line==='data: [DONE]')continue;const chunk=JSON.parse(line.slice(5));const choice=chunk.choices?.[0],content=choice?.delta?.content;if(content){firstTokenMs??=performance.now()-started;text+=content;if(text.length>24000)throw Error('model-response');}if(choice?.finish_reason)finish=choice.finish_reason;if(chunk.usage)usage=chunk.usage;if(chunk.timings)timings=chunk.timings;}}}
+    try{while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});let split;while((split=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,split).trim();buffer=buffer.slice(split+1);if(!line.startsWith('data:')||line==='data: [DONE]')continue;const chunk=JSON.parse(line.slice(5));const choice=chunk.choices?.[0],content=choice?.delta?.content;if(content){firstTokenMs??=performance.now()-started;text+=content;onChunk?.({text:content});if(text.length>24000)throw Error('model-response');}if(choice?.finish_reason)finish=choice.finish_reason;if(chunk.usage)usage=chunk.usage;if(chunk.timings)timings=chunk.timings;}}}
     finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
     if(!text||!finish)throw Error('model-response');await this.memory();const tokens=usage.completion_tokens||timings.predicted_n||0;
     this.state.gpuActive=['vulkan','cuda','metal'].includes(this.backend)&&this.offloaded>0&&tokens>0;
@@ -182,15 +183,15 @@ class NativeAI {
     this.state.tokensPerSecond=Number.isFinite(timings.predicted_per_second)?timings.predicted_per_second:undefined;
     return {text,finish,usage,timings,firstTokenMs,backend:this.snapshot()};
   }
-  async complete(id,input){
+  async complete(id,input,onChunk){
     if(this.operation||this.cancelling)throw Error('model-busy');const request=validateRequest(input);this.store.descriptor(id);
     let finished;this.operationDone=new Promise(resolve=>{finished=resolve;});
     const controller=this.operation=new AbortController();this.operationId=id;const abortLoad=()=>this.startController?.abort();controller.signal.addEventListener('abort',abortLoad,{once:true});const timeout=setTimeout(()=>controller.abort(),180000);
     try{
       await this.prepare(id);controller.signal.throwIfAborted();
-      try{return await this.stream(request,controller.signal);}
-      catch(error){if(controller.signal.aborted||!['vulkan','cuda','metal'].includes(this.backend))throw error;this.state.fallbackReason='gpu-inference-failed';if(this.currentAttempt){this.currentAttempt.stage='inference';this.currentAttempt.status='failed';this.currentAttempt.reason='gpu-inference-failed';}if(this.mode==='gpu'){this.state.errorCode='model-gpu-inference';throw Error('model-gpu-inference');}await this.start(id,'cpu',undefined,controller.signal);return await this.stream(request,controller.signal);}
-    }catch(error){await this.stop();throw error;}
+      try{return await this.stream(request,controller.signal,onChunk);}
+      catch(error){if(controller.signal.aborted||!['vulkan','cuda','metal'].includes(this.backend))throw error;this.state.fallbackReason='gpu-inference-failed';if(this.currentAttempt){this.currentAttempt.stage='inference';this.currentAttempt.status='failed';this.currentAttempt.reason='gpu-inference-failed';}if(this.mode==='gpu'){this.state.errorCode='model-gpu-inference';throw Error('model-gpu-inference');}onChunk?.({reset:true});await this.start(id,'cpu',undefined,controller.signal);return await this.stream(request,controller.signal,onChunk);}
+    }catch(error){if(!controller.signal.aborted||!this.retainAfterCancel)await this.stop();throw error;}
     finally{clearTimeout(timeout);controller.signal.removeEventListener('abort',abortLoad);this.operation=undefined;this.operationId=undefined;this.operationDone=undefined;finished();}
   }
 }

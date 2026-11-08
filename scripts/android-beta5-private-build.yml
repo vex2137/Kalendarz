@@ -11,8 +11,8 @@ on:
         description: Android candidate profile (CPU remains the verified b12189 engine)
         required: true
         type: choice
-        default: '6'
-        options: ['5', '6']
+        default: '7'
+        options: ['5', '6', '7']
 permissions:
   contents: read
 concurrency:
@@ -78,14 +78,15 @@ jobs:
           node tests/assistant-beta5-browser.cjs
           node tests/android-beta5-browser.cjs
       - name: Beta 6 QR/import/export and GPU separation regressions
-        if: env.CALENDAR_ANDROID_BETA == '6'
+        if: (env.CALENDAR_ANDROID_BETA == '6' || env.CALENDAR_ANDROID_BETA == '7')
         run: |
           python3 -m unittest discover -s tests -p test_android_beta6.py
+          if [ "$CALENDAR_ANDROID_BETA" = 7 ]; then python3 -m unittest discover -s tests -p test_android_beta7.py; fi
           node --import tsx --test tests/optional-qr.test.ts tests/encrypted-sync.test.ts tests/sync.test.ts tests/calendar.test.ts tests/android-gpu-diagnostics.test.ts tests/assistant-actions.test.ts tests/assistant-beta4.test.ts tests/assistant-beta5.test.ts tests/model-command.test.ts tests/native-model-import.test.ts tests/gguf-import.test.ts tests/diagnostic-actions.test.ts
           node tests/beta6-gpu-browser.cjs
           node tests/beta6-sync-browser.cjs
       - name: Native Vulkan diagnostic on software ICD (not phone GPU or inference)
-        if: env.CALENDAR_ANDROID_BETA == '6'
+        if: (env.CALENDAR_ANDROID_BETA == '6' || env.CALENDAR_ANDROID_BETA == '7')
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y libvulkan-dev glslc mesa-vulkan-drivers
@@ -97,7 +98,7 @@ jobs:
       - name: Install Android ARM64 build tools
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865" "cmake;3.31.6"'
       - uses: actions/download-artifact@v4
-        if: env.CALENDAR_ANDROID_BETA == '6'
+        if: (env.CALENDAR_ANDROID_BETA == '6' || env.CALENDAR_ANDROID_BETA == '7')
         with:
           repository: vex2137/Kalendarz-private-builds
           github-token: ${{ github.token }}
@@ -105,7 +106,7 @@ jobs:
           name: Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64-7c4785c10cbcabd64a545754d3cfb184870ba2ba
           path: source/build/verified-beta5
       - name: Reuse only verified Beta 5 CPU binary and build the separate ARM64 diagnostic
-        if: env.CALENDAR_ANDROID_BETA == '6'
+        if: (env.CALENDAR_ANDROID_BETA == '6' || env.CALENDAR_ANDROID_BETA == '7')
         run: |
           python3 scripts/reuse-beta5-android-cpu.py build/verified-beta5/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk
           python3 scripts/build-android-vulkan-probe.py
@@ -120,6 +121,25 @@ jobs:
           assert 'libvulkan.so' not in needed,'Vulkan discovery must survive a missing loader'
           print('Independent Android AArch64 Vulkan helper; system dependencies:',needed)
           PY
+      - uses: actions/download-artifact@v4
+        if: env.CALENDAR_ANDROID_BETA == '7'
+        with:
+          repository: vex2137/Kalendarz-private-builds
+          github-token: ${{ github.token }}
+          run-id: 42430844303
+          name: Android-b12189-Vulkan-fb82ba22746f3966145d32aab6f126a4cd56ec6f
+          path: source/build/verified-beta7
+      - name: Verify and stage separate Vulkan inference executable
+        if: env.CALENDAR_ANDROID_BETA == '7'
+        run: |
+          python3 scripts/stage-beta7-vulkan.py build/verified-beta7
+      - name: Beta 7 streaming, lifecycle and model registry regressions
+        if: env.CALENDAR_ANDROID_BETA == '7'
+        run: |
+          node --test tests/beta7-stream.test.cjs tests/model-folders.test.cjs tests/native-ai.test.cjs
+          node --import tsx --test tests/chat-history.test.ts tests/completion-metrics.test.ts tests/assistant-beta5.test.ts tests/beta7-preferences.test.ts
+          node tests/beta7-browser.cjs
+          node tests/model-transfer-lifecycle-browser.cjs
       - name: Fresh Android b12189 CPU build, never Linux x86_64 binaries or a stale cache
         if: env.CALENDAR_ANDROID_BETA == '5'
         run: |
@@ -167,7 +187,7 @@ jobs:
           assert tests and all(c.find('failure') is None and c.find('error') is None for c in tests)
           import os
           p=Path('private-android')/('Kalendarz-1.5.0-Part-2-Beta-'+os.environ['CALENDAR_ANDROID_BETA']+'-Android-arm64.apk.json')
-          report=json.loads(p.read_text());report['androidJvmTests']=len(tests);report['physicalInferenceTested']=False;report['deviceInstrumentationExecuted']=False;report['phoneGpuComputeTested']=False;report['vulkanHostComputeVerified']=os.environ['CALENDAR_ANDROID_BETA']=='6';report['cpuEngineReusedFromBeta5']=os.environ['CALENDAR_ANDROID_BETA']=='6'
+          report=json.loads(p.read_text());report['androidJvmTests']=len(tests);report['physicalInferenceTested']=False;report['deviceInstrumentationExecuted']=False;report['phoneGpuComputeTested']=False;report['vulkanHostComputeVerified']=os.environ['CALENDAR_ANDROID_BETA'] in ['6','7'];report['cpuEngineReusedFromBeta5']=os.environ['CALENDAR_ANDROID_BETA'] in ['6','7']
           p.write_text(json.dumps(report,indent=2)+'\n')
           print('Android JVM tests passed:',len(tests))
           PY
@@ -187,6 +207,21 @@ jobs:
         env:
           ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: printf 'Private APK artifact (owner login required, retained 30 days)\n\n%s\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Save verified metadata in the private repository
+        if: env.CALENDAR_ANDROID_BETA == '7'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: |
+          python3 - <<'PYREPORT'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          p=Path('private-android/Kalendarz-1.5.0-Part-2-Beta-7-Android-arm64.apk.json')
+          report=json.loads(p.read_text());report['artifactUrl']=os.environ['ARTIFACT_URL'];report['runId']=os.environ['GITHUB_RUN_ID']
+          data={'branch':'main','message':'Record verified Beta 7 APK metadata [skip ci]','content':base64.b64encode(json.dumps(report,indent=2).encode()).decode()}
+          endpoint='repos/'+os.environ['GITHUB_REPOSITORY']+'/contents/reports/android-beta7-'+os.environ['CALENDAR_EXPECTED_COMMIT']+'.json'
+          subprocess.run(['gh','api','--method','PUT',endpoint,'--input','-'],input=json.dumps(data),text=True,stdout=subprocess.DEVNULL,check=True)
+          PYREPORT
       - name: Remove signing material even after failure
         if: always()
         run: rm -f "$RUNNER_TEMP/calendar-release.p12"

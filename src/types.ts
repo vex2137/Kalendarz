@@ -161,6 +161,7 @@ export interface AppSettings {
 }
 
 export interface AiChatMessage {
+  completion?: 'streaming' | 'cancelled' | 'error';
   proposalSummary?: string;
   sequence?: number;
   modelId?: string;

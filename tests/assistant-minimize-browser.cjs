@@ -9,10 +9,10 @@ const {chromium}=require('playwright');
   browser=await chromium.launch({headless:true,...(existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});
   const context=await browser.newContext({viewport:{width:393,height:851},serviceWorkers:'block'});const page=await context.newPage();page.setDefaultTimeout(120000);
   await page.goto('http://127.0.0.1:4190');await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();
-  await page.getByRole('switch').click();assert.equal(await page.getByRole('switch').getAttribute('aria-checked'),'true');await page.locator('#ai-settings-panel header button').click();
+  await page.locator('#ai-background-work').click();assert.equal(await page.locator('#ai-background-work').getAttribute('aria-checked'),'true');await page.locator('#ai-settings-panel header button').click();
   const input=page.locator('#drawer-ai-assistant input[type=text]');await page.waitForFunction(()=>!document.querySelector('#drawer-ai-assistant input[type=text]')?.disabled);
   await input.fill('Why are calendars useful? Answer in one sentence.');await page.locator('#btn-send-ai-message').click();
-  await page.locator('#btn-stop-ai-generation').waitFor();await page.locator('#btn-minimize-ai-drawer').click();await page.locator('#drawer-ai-assistant').waitFor({state:'detached'});
+  await page.locator('#btn-stop-ai-generation').waitFor();await page.locator('#btn-close-ai-drawer').click();await page.locator('#drawer-ai-assistant').waitFor({state:'detached'});
   // Use another calendar dialog while the same native request runs.
   await page.locator('#btn-open-settings').click();await page.keyboard.press('Escape');
   await page.locator('#btn-open-ai-assistant').click();await page.waitForFunction(()=>!document.querySelector('#drawer-ai-assistant input[type=text]')?.disabled);

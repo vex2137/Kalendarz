@@ -1,5 +1,6 @@
 import { generationPlan } from './generationSettings';
 import { modelTransferBytes } from './resumableModelTransfer';
+import { assistantBackgroundEnabled,keepModelLoaded } from './assistantBackground';
 import { hasNativeTransfers, nativeTransferStatus, nativeTransferRunning, runNativeTransfer, type NativeTransferStatus } from './nativeModelTransfer';
 import { downloadMeter, type DownloadProgress } from './downloadProgress';
 import { androidAIReady } from './nativeAndroidAI';
@@ -24,10 +25,17 @@ const clearModelOperation = (id: string) => { try { if(localStorage.getItem(oper
 let status: ModelStatus = { phase: 'checking', progress: 0, installed: false, loaded: false, modelId: initialModelId, ...(recoveryRequired ? {error:'model-previous-operation'} : {}) };
 const listeners = new Set<() => void>();
 export const modelStatus = () => status;
+export function observeNativeGeneration(generation:{status:string;modelId?:string}){
+  if(generation.status==='running'){
+    if(!operation){nativeRecovery=true;operation=new AbortController();operationKind='inference';update({phase:'running',loaded:true,installed:true,modelId:generation.modelId||status.modelId});}
+  }else if(nativeRecovery){nativeRecovery=false;operation=undefined;operationKind=undefined;update({phase:backendStatus().loaded?'ready':'installed',loaded:backendStatus().loaded});scheduleRelease();}
+}
+
 export const subscribeModel = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 const update = (patch: Partial<ModelStatus>) => { status = { ...status, ...patch }; recordModelState({...status,quantization:findModel(status.modelId).quantization,architecture:findModel(status.modelId).architecture}); listeners.forEach(l => l()); };
 let engine: RuntimeEngine | undefined;
 let operation: AbortController | undefined;
+let nativeRecovery=false;
 let operationKind: 'download'|'import'|'inference'|undefined;
 let idleTimer: ReturnType<typeof setTimeout> | undefined;
 let preloadTimer: ReturnType<typeof setTimeout> | undefined;
@@ -86,13 +94,14 @@ export async function retryLocalModel() {
   await checkLocalModel();
   await prepareLocalModel();
 }
-export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); if((operation||loadController)&&desktopAI())void desktopAI()!.stop().catch(error=>recordDiagnosticAction('release-memory','error',error)); };
+export const cancelModelOperation = () => { operation?.abort(); loadController?.abort(); if((operation||loadController)&&desktopAI())void (operationKind==='inference'&&(engine||backendStatus().loaded)&&keepModelLoaded()&&desktopAI()!.cancelGeneration?desktopAI()!.cancelGeneration!():desktopAI()!.stop()).catch(error=>recordDiagnosticAction('release-memory','error',error)); };
 // Navigation and inference residency do not own an installation. Only an
 // explicit transfer cancellation may pause persistent model I/O.
 export const cancelModelInference = () => { if (operationKind !== 'download' && operationKind !== 'import') cancelModelOperation(); };
 const idleDelay = () => assistantActive && !document.hidden ? 5 * 60_000 : 30_000;
 function scheduleRelease() {
   clearTimeout(idleTimer);
+  if(keepModelLoaded()||operationKind==='inference'&&assistantBackgroundEnabled())return;
   idleTimer = setTimeout(() => { void unloadLocalModel().catch(error=>recordDiagnosticAction('release-memory','error',error)); }, idleDelay());
 }
 export function touchLocalModel() { if ((engine || loading) && !operation) scheduleRelease(); }
@@ -112,16 +121,18 @@ export function setAssistantActive(active: boolean) {
   if (!lifecycleInstalled) {
     lifecycleInstalled = true;
     const resume = () => {
-      if (document.hidden) { cancelModelInference(); scheduleRelease(); }
+      if (document.hidden) { if(!assistantBackgroundEnabled())cancelModelInference(); scheduleRelease(); }
       else if (assistantActive) { clearTimeout(preloadTimer); preloadTimer = setTimeout(() => { void prepareLocalModel(); }, 300); }
     };
     document.addEventListener('visibilitychange', resume);
     window.addEventListener('calendar-app-resume', resume);
-    window.addEventListener('calendar-memory-pressure', () => { void unloadLocalModel().catch(error=>recordDiagnosticAction('release-memory','error',error)); });
-    window.addEventListener('pagehide', () => { void unloadLocalModel().catch(error=>recordDiagnosticAction('release-memory','error',error)); });
+    window.addEventListener('calendar-memory-pressure', () => { manualRelease=true;void unloadLocalModel().catch(error=>recordDiagnosticAction('release-memory','error',error)); });
+    window.addEventListener('pagehide', () => { if(!assistantBackgroundEnabled())void unloadLocalModel().catch(error=>recordDiagnosticAction('release-memory','error',error)); });
+    window.addEventListener('calendar-ai-background-setting',()=>{void desktopAI()?.configureResidency?.(assistantBackgroundEnabled(),keepModelLoaded());if(document.hidden&&!assistantBackgroundEnabled())cancelModelInference();scheduleRelease();});
   }
   if (active && !document.hidden) preloadTimer = setTimeout(() => { void prepareLocalModel(); }, 300);
-  else { cancelModelInference(); scheduleRelease(); }
+  else { if(!assistantBackgroundEnabled())cancelModelInference(); scheduleRelease(); }
+  void desktopAI()?.configureResidency?.(assistantBackgroundEnabled(),keepModelLoaded());
 }
 
 export async function checkLocalModel() {
@@ -328,6 +339,7 @@ export async function changeLocalBackend(mode:BackendMode,layers?:number|'auto')
 
 async function disposeEngine() {
   const current = engine;
+  if(!current&&desktopAI()&&backendStatus().loaded){await desktopAI()!.stop();updateBackend({loaded:false,gpuActive:false});}
   if (current && disposingEngine!==current) {
     disposingEngine=current;
     // Keep the handle and residency state if shutdown fails; a later retry must
@@ -493,7 +505,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
   try { return await loading; } finally { loading = undefined; loadController = undefined; }
 }
 
-export interface InferenceOptions { maxTokens?: number; threads?: 1; timeoutMs?: number }
+export interface InferenceOptions { maxTokens?: number; threads?: 1; timeoutMs?: number; onText?: (text:string)=>void; requestId?:string }
 export const inferCalendarJson = (system: string, prompt: string, schema: unknown, history: { role: 'user' | 'assistant'; content: string }[] = [], options: InferenceOptions = {}) => inferLocalCompletion(system, prompt, schema, history, options);
 export const inferLocalText = (system: string, prompt: string, history: { role: 'user' | 'assistant'; content: string }[] = [], options: InferenceOptions = {}) => inferLocalCompletion(system, prompt, undefined, history, options);
 async function inferLocalCompletion(system: string, prompt: string, schema: unknown, history: { role: 'user' | 'assistant'; content: string }[] = [], options: InferenceOptions = {}): Promise<string> {
@@ -531,18 +543,20 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
       max_tokens: budget.maxOutputTokens, temperature: 0, top_k: 50, penalty_repeat: 1.05,
       ...(schema ? { response_format: { type: 'json_schema' as const, json_schema: { name: 'calendar_command', schema, strict: true } } } : {}),
       ...(descriptor.architecture === 'qwen35' ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+      ...(metric.backend!=='cpu-wasm'&&options.requestId?{calendarRequestId:options.requestId}:{}),
       abortSignal: controller.signal,
       stream: true,
     });
     let text = '', finish: string | null = null;
     for await (const chunk of result) {
+      if((chunk as unknown as {calendarReset?:boolean}).calendarReset){text='';metric.firstTokenMs=undefined;metric.firstAnswerTokenMs=undefined;if(schema===undefined)options.onText?.('');continue;}
       const native=(chunk as unknown as {calendarNative?:{firstTokenMs?:number;backend:BackendInfo}}).calendarNative;
       if(native){const first=typeof native.firstTokenMs==='number'&&Number.isFinite(native.firstTokenMs)&&native.firstTokenMs>=0?(metric.loadMs||0)+native.firstTokenMs:undefined;Object.assign(metric,{firstTokenMs:first,firstAnswerTokenMs:first,backend:native.backend.backend,gpuActive:native.backend.gpuActive,deviceName:native.backend.deviceName,ramBytes:native.backend.ramBytes,vramBytes:native.backend.vramBytes,fallbackReason:native.backend.fallbackReason});}
       const choice = chunk.choices[0];
       const content = choice?.delta?.content;
       const delta = choice?.delta as { reasoning_content?: string; reasoning?: string } | undefined;
       if (!native && (content || delta?.reasoning_content || delta?.reasoning)) metric.firstTokenMs ??= performance.now() - started;
-      if (content) { if(!native)metric.firstAnswerTokenMs ??= performance.now() - started; text += content; }
+      if (content) { if(!native)metric.firstAnswerTokenMs ??= performance.now() - started; text += content;if(schema===undefined)options.onText?.(text); }
       if (choice?.finish_reason) finish = choice.finish_reason;
       applyCompletionMetrics(metric,chunk.usage,chunk.timings);
       if(chunk.usage?.prompt_tokens!==undefined&&chunk.usage?.completion_tokens!==undefined)updateBackend({contextUsed:chunk.usage.prompt_tokens+chunk.usage.completion_tokens});
@@ -565,8 +579,10 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     console.warn('Local model operation failed', { modelId: status.modelId, cancelled: controller.signal.aborted, outputLimit: error instanceof Error && error.message === 'model-incomplete' });
     const code = controller.signal.aborted ? controller.signal.reason === 'model-timeout' ? 'model-timeout' : 'model-cancelled' : runtimeError(error);
     recordModelMetric({ ...metric,finishReason:code==='model-cancelled'?'cancelled':metric.finishReason??'error',errorCode:code, failureReason: error instanceof Error && error.message === 'model-incomplete' ? 'output-limit' : 'engine', totalMs: performance.now() - started, error: code === 'model-cancelled' ? 'cancelled' : 'inference' });
-    await disposeEngine();
-    update({ phase: code === 'model-cancelled' ? (status.installed?'installed':'missing') : 'error', loaded:false, error:code === 'model-cancelled' ? undefined : code });
+    let retained=code==='model-cancelled'&&keepModelLoaded()&&Boolean(engine)&&Boolean(desktopAI()?.cancelGeneration);
+    if(retained){try{const live=await desktopAI()!.status();updateBackend(live);retained=live.loaded&&(!live.modelId||live.modelId===descriptor.id);}catch{retained=false;}}
+    if(!retained)await disposeEngine();
+    update({ phase:retained?'ready':code === 'model-cancelled' ? (status.installed?'installed':'missing') : 'error', loaded:retained, error:code === 'model-cancelled' ? undefined : code });
     throw new Error(code);
   } finally { clearModelOperation(descriptor.id); clearTimeout(timeout); controller.signal.removeEventListener('abort', abortLoad); operation = undefined; operationKind = undefined; if (releaseRequested) await disposeEngine(); else scheduleRelease(); }
 }
