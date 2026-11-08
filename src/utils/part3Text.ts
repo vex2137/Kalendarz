@@ -1,5 +1,20 @@
 import type { AppLanguage } from './i18n';
 const text = {
+ 'Open synchronization':['Otwórz synchronizację','Открыть синхронизацию','Synchronisierung öffnen'],
+ 'Backups: full JSON or ICS. Import merges events without replacing the calendar. Synchronization below also transfers theme and deletion metadata.':['Kopie zapasowe: pełny JSON lub ICS. Import scala wydarzenia bez zastępowania kalendarza. Synchronizacja poniżej przenosi także motyw i metadane usunięć.','Резервные копии: полный JSON или ICS. Импорт объединяет события без замены календаря. Синхронизация ниже также переносит тему и метаданные удалений.','Sicherungen: vollständiges JSON oder ICS. Import führt Termine zusammen, ohne den Kalender zu ersetzen. Die Synchronisierung unten überträgt auch Design und Löschmetadaten.'],
+
+ 'Model reply, not a save confirmation':['Odpowiedź modelu, nie potwierdzenie zapisu','Ответ модели, не подтверждение сохранения','Modellantwort, keine Speicherbestätigung'],
+
+ 'Public stable channel':['Publiczny kanał stabilny','Публичный стабильный канал','Öffentlicher stabiler Kanal'],
+ 'No newer public stable release':['Brak nowszego publicznego wydania stabilnego','Нет более нового публичного стабильного выпуска','Keine neuere öffentliche stabile Version'],
+ 'Update available':['Dostępna aktualizacja','Доступно обновление','Update verfügbar'],
+ 'No public stable release is available':['Brak dostępnego publicznego wydania stabilnego','Публичный стабильный выпуск недоступен','Keine öffentliche stabile Version verfügbar'],
+ 'Last successful public check':['Ostatnie udane sprawdzenie publicznego kanału','Последняя успешная публичная проверка','Letzte erfolgreiche öffentliche Prüfung'],
+ 'Private beta updates cannot be checked without authorized access. Public releases are checked separately.':['Prywatnych bet nie można sprawdzić bez autoryzacji. Wydania publiczne są sprawdzane osobno.','Для проверки частных бета-версий нужна авторизация. Публичные выпуски проверяются отдельно.','Private Betas erfordern autorisierten Zugriff. Öffentliche Versionen werden separat geprüft.'],
+ 'Open release':['Otwórz wydanie','Открыть выпуск','Version öffnen'],
+
+ 'Export package':['Eksportuj pakiet','Экспорт пакета','Paket exportieren'], 'Import package':['Importuj pakiet','Импорт пакета','Paket importieren'],
+
  'Scan session expired. Reset scanning to start again.':['Sesja skanowania wygasła. Wyzeruj skanowanie, aby zacząć ponownie.','Сеанс сканирования истёк. Сбросьте сканирование.','Scan-Sitzung abgelaufen. Scannen zurücksetzen.'],
  'Data changed. Generate a new code.':['Dane się zmieniły. Wygeneruj nowy kod.','Данные изменились. Создайте новый код.','Daten wurden geändert. Neuen Code erzeugen.'],
  'Language and desktop layout':['Język i układ komputerowy','Язык и расположение панелей','Sprache und Desktop-Layout'],
@@ -19,7 +34,7 @@ const text = {
  'Security':['Bezpieczeństwo','Безопасность','Sicherheit'], 'Data and sync':['Dane i synchronizacja','Данные и синхронизация','Daten und Synchronisierung'],
  'Keyboard shortcuts':['Skróty klawiaturowe','Горячие клавиши','Tastenkürzel'], 'Updates and about':['Aktualizacje i informacje','Обновления и информация','Updates und Info'],
  'All categories':['Wszystkie kategorie','Все категории','Alle Kategorien'], 'Search settings':['Szukaj ustawień','Поиск настроек','Einstellungen suchen'], 'No results':['Brak wyników','Нет результатов','Keine Ergebnisse'],
- 'Desktop sidebar':['Komputerowy panel boczny','Боковая панель','Desktop-Seitenleiste'], 'Upcoming events':['Najbliższe wydarzenia','Ближайшие события','Anstehende Termine'], 'Panel width':['Szerokość panelu','Ширина панели','Seitenleistenbreite'],
+ 'Desktop sidebar':['Przegląd','Обзор','Übersicht'], 'Upcoming events':['Najbliższe wydarzenia','Ближайшие события','Anstehende Termine'], 'Panel width':['Szerokość panelu','Ширина панели','Seitenleistenbreite'],
  'Reset category':['Resetuj kategorię','Сбросить категорию','Kategorie zurücksetzen'], 'Reset these preferences? Saved themes and all other data will remain.':['Przywrócić preferencje? Zapisane motywy i pozostałe dane pozostaną.','Сбросить настройки? Темы и остальные данные сохранятся.','Einstellungen zurücksetzen? Gespeicherte Designs und andere Daten bleiben erhalten.'],
  'Save shortcuts':['Zapisz skróty','Сохранить сочетания','Tastenkürzel speichern'], 'Press a new shortcut':['Naciśnij nowy skrót','Нажмите новое сочетание','Neues Tastenkürzel drücken'],
  'Add binding':['Dodaj przypisanie','Добавить сочетание','Belegung hinzufügen'], 'Disable':['Wyłącz','Отключить','Deaktivieren'], 'Reset':['Przywróć','Сбросить','Zurücksetzen'], 'Saved':['Zapisano','Сохранено','Gespeichert'], 'Could not save':['Nie zapisano','Не удалось сохранить','Speichern fehlgeschlagen'],
@@ -36,5 +51,5 @@ const text = {
 } as const;
 export function p3(lang: AppLanguage, key: string): string {
  const row=text[key as keyof typeof text];
- return lang==='en' ? ({year:'Year view',month:'Month view',week:'Week view',day:'Day view',agenda:'Schedule',settings:'Context settings',assistant:'Open AI assistant',search:'Search',updates:'Check updates',import:'Import data',export:'Export data',today:'Today',create:'Add event'} as Record<string,string>)[key]||key : row?.[lang==='pl'?0:lang==='ru'?1:2]||key;
+ return lang==='en' ? ({year:'Year view',month:'Month view',week:'Week view',day:'Day view',agenda:'Schedule',settings:'Context settings',assistant:'Open AI assistant',search:'Search',updates:'Check updates',import:'Import data',export:'Export data',today:'Today',create:'Add event','Desktop sidebar':'Overview'} as Record<string,string>)[key]||key : row?.[lang==='pl'?0:lang==='ru'?1:2]||key;
 }

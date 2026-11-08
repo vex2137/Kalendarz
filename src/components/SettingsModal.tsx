@@ -903,7 +903,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <p className="text-xs theme-muted">
-              {tr(lang, 'Import scala wydarzenia z obecnym kalendarzem. JSON zachowuje wszystkie dane wydarzeń.', 'Import merges events with your calendar. JSON preserves all event fields.')}
+              {p3(lang,'Backups: full JSON or ICS. Import merges events without replacing the calendar. Synchronization below also transfers theme and deletion metadata.')}
             </p>
             <button
               className="theme-input rounded-lg p-2 text-xs"
@@ -997,7 +997,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               )}
             </div>
-          </div><button type="button" className="theme-primary rounded p-3" onClick={onOpenSync}>{p3(lang,'Data and sync')}</button>
+          </div><button type="button" className="theme-primary rounded p-3" onClick={onOpenSync}>{p3(lang,'Open synchronization')}</button>
 </SettingsOption>
 <SettingsOption id="desktop" category="general" title={p3(lang,'Desktop sidebar')}>
 <label className="flex gap-2 items-center"><input type="checkbox" checked={settings.desktop?.sidebar??false} onChange={e=>onUpdateSettings({...settings,desktop:{sidebar:e.target.checked,width:settings.desktop?.width??256}})}/>{p3(lang,'Desktop sidebar')}</label>

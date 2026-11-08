@@ -1,5 +1,5 @@
 # Install only in vex2137/Kalendarz-private-builds. No tags, merges or Releases.
-name: Build private Kalendarz Part 3 Beta 1 candidates
+name: Build private Kalendarz Part 3 Beta 2 candidates
 'on':
   workflow_dispatch:
     inputs:
@@ -11,7 +11,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: private-part3-beta1
+  group: private-part3-beta2
   cancel-in-progress: false
 defaults:
   run:
@@ -79,6 +79,7 @@ jobs:
         node tests/assistant-beta5-browser.cjs
         node tests/beta7-browser.cjs
         node tests/part3-browser.cjs
+        node tests/part3-beta2-browser.cjs
         node tests/part3-qr-browser.cjs
         node tests/android-beta5-browser.cjs
         node tests/beta6-gpu-browser.cjs
@@ -214,15 +215,15 @@ jobs:
     - name: Verify update signature, source, runtime hash, ABI, ZIP and absence of weights
       run: |
         mkdir -p part3-artifacts/android
-        cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk "part3-artifacts/android/Kalendarz-1.5.0-Part-3-Beta-1-Android-arm64.apk"
-        python3 scripts/part3_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote --apk "part3-artifacts/android/Kalendarz-1.5.0-Part-3-Beta-1-Android-arm64.apk"
+        cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk "part3-artifacts/android/Kalendarz-1.5.0-Part-3-Beta-2-Android-arm64.apk"
+        python3 scripts/part3_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote --apk "part3-artifacts/android/Kalendarz-1.5.0-Part-3-Beta-2-Android-arm64.apk"
         python3 - <<'PY'
         from pathlib import Path
         import json,xml.etree.ElementTree as ET
         tests=[c for p in Path('android/app/build/test-results/testDiagnosticsUnitTest').glob('*.xml') for c in ET.parse(p).getroot().iter('testcase')]
         assert tests and all(c.find('failure') is None and c.find('error') is None for c in tests)
         import os
-        p=Path('part3-artifacts/android/Kalendarz-1.5.0-Part-3-Beta-1-Android-arm64.apk.json')
+        p=Path('part3-artifacts/android/Kalendarz-1.5.0-Part-3-Beta-2-Android-arm64.apk.json')
         report=json.loads(p.read_text());report['androidJvmTests']=len(tests);report['physicalInferenceTested']=False;report['deviceInstrumentationExecuted']=False;report['phoneGpuComputeTested']=False;report['vulkanHostComputeVerified']=False;report['vulkanHostComputeBaselineRun']=42477584263;report['cpuEngineReusedFromBeta5']=True
         p.write_text(json.dumps(report,indent=2)+'\n')
         print('Android JVM tests passed:',len(tests))
@@ -233,7 +234,7 @@ jobs:
       run: python3 scripts/part3_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
-        name: Kalendarz-Part-3-Beta-1-android-${{ inputs.source_commit }}
+        name: Kalendarz-Part-3-Beta-2-android-${{ inputs.source_commit }}
         path: source/part3-artifacts/android/
         if-no-files-found: error
         retention-days: 30
@@ -293,13 +294,13 @@ jobs:
         test ! -e native/linux-x64/runtime-manifest.json
         node scripts/prepare-model-free.cjs
         node node_modules/vite/bin/vite.js build --mode production
-        npx --no-install electron-builder --linux AppImage --x64 --publish never --config.publish.provider=github --config.publish.owner=vex2137 --config.publish.repo=Kalendarz --config.linux.artifactName=Kalendarz-1.5.0-Part-3-Beta-1-x86_64.AppImage
+        npx --no-install electron-builder --linux AppImage --x64 --publish never --config.publish.provider=github --config.publish.owner=vex2137 --config.publish.repo=Kalendarz --config.linux.artifactName=Kalendarz-1.5.0-Part-3-Beta-2-x86_64.AppImage
     - name: Verify actual AppImage source, complete native libraries and no GGUF/Android binaries
       run: |-
         python3 scripts/check-part3-appimage.py
         python3 scripts/check-built-native-runtime.py
         CALENDAR_TEST_LLAMA_SERVER="$PWD/build/checked-appimage/squashfs-root/resources/native/cpu/llama-server" node --test tests/native-architectures.test.cjs
-        CALENDAR_APPIMAGE_EXECUTABLE="$PWD/release/Kalendarz-1.5.0-Part-3-Beta-1-x86_64.AppImage" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a node tests/appimage-startup-smoke.cjs
+        CALENDAR_APPIMAGE_EXECUTABLE="$PWD/release/Kalendarz-1.5.0-Part-3-Beta-2-x86_64.AppImage" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a node tests/appimage-startup-smoke.cjs
     - name: Use the already-private Qwen v2 only for package acceptance, never packaging
       env:
         GH_TOKEN: ${{ github.token }}
@@ -321,7 +322,7 @@ jobs:
         python3 scripts/part3_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
-        name: Kalendarz-Part-3-Beta-1-linux-${{ inputs.source_commit }}
+        name: Kalendarz-Part-3-Beta-2-linux-${{ inputs.source_commit }}
         path: source/part3-artifacts/linux/
         if-no-files-found: error
         retention-days: 30
@@ -360,11 +361,11 @@ jobs:
         python3 scripts/part3_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - uses: actions/download-artifact@v4
       with:
-        name: Kalendarz-Part-3-Beta-1-android-${{ inputs.source_commit }}
+        name: Kalendarz-Part-3-Beta-2-android-${{ inputs.source_commit }}
         path: source/downloaded/android
     - uses: actions/download-artifact@v4
       with:
-        name: Kalendarz-Part-3-Beta-1-linux-${{ inputs.source_commit }}
+        name: Kalendarz-Part-3-Beta-2-linux-${{ inputs.source_commit }}
         path: source/downloaded/linux
     - name: Verify downloaded bytes and equal source, then record private artifact URLs
       env:
@@ -374,7 +375,7 @@ jobs:
         python3 scripts/part3_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
-        name: Kalendarz-Part-3-Beta-1-manifest-${{ inputs.source_commit }}
+        name: Kalendarz-Part-3-Beta-2-manifest-${{ inputs.source_commit }}
         path: source/part3-delivery/
         if-no-files-found: error
         retention-days: 30

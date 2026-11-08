@@ -437,14 +437,14 @@ body {
   .calendar-global-actions .calendar-primary { min-height: 44px; white-space: nowrap; }
 }
 
-/* Compact ink, accessible transparent hit target; shared by both chat roles. */
-.message-copy-action { display: inline-flex; align-items: center; justify-content: center; position: relative; width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 0; background: transparent; border: 0; border-radius: 6px; }
-.message-copy-visual { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 5px; color: var(--text-muted); }
-.message-copy-visual svg { width: 14px; height: 14px; flex-shrink: 0; }
-.message-copy-action:is(:hover, :focus-visible) .message-copy-visual { background: var(--bg-hover); color: var(--text-main); }
-
-.message-copy-tools { display:flex; justify-content:flex-end; align-items:center; gap:6px; min-height:28px; margin-top:2px; }
-@media (pointer:coarse) { .message-copy-tools { min-height:32px; margin-top:6px; margin-bottom:6px; } .message-copy-action { width:32px; min-width:32px; height:32px; min-height:32px; } .message-copy-action::before { content:""; position:absolute; inset:-6px; } }
+/* Share the last text line instead of reserving a footer row. */
+.message-copy { position:relative; padding-inline-end:30px; min-height:20px; }
+.message-copy-action { display:inline-flex; align-items:center; justify-content:center; position:relative; width:20px; min-width:20px; height:20px; min-height:20px; padding:0; background:transparent; border:0; border-radius:5px; }
+.message-copy-visual { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:4px; color:var(--text-muted); }
+.message-copy-visual svg { width:14px; height:14px; flex-shrink:0; }
+.message-copy-action:is(:hover,:focus-visible) .message-copy-visual { background:var(--bg-hover); color:var(--text-main); }
+.message-copy-tools { position:absolute; inset-inline-end:0; bottom:0; display:flex; align-items:center; height:20px; }
+@media(pointer:coarse) { .message-copy { padding-inline-end:36px; } .message-copy-action::before { content:""; position:absolute; inset:-12px; } }
 .assistant-window { position:absolute; inset:0; min-width:0; }
 @media (min-width:768px) { .assistant-window { inset:auto; width:min(920px,calc(100% - 32px)); height:calc(100% - 32px); max-height:960px; left:max(16px,calc((100% - 920px)/2)); top:max(16px,calc((100% - 960px)/2)); } .assistant-surface { border-radius:18px; overflow:hidden; } #ai-assistant-header { cursor:move; } #ai-assistant-header button { cursor:pointer; } }
 .desktop-sidebar { display:none; position:relative; flex-shrink:0; min-width:220px; max-width:360px; padding:16px; overflow-y:auto; border-right-width:1px; }
@@ -462,3 +462,9 @@ button:not(:disabled),summary { cursor:pointer; }
 .settings-category-content { scroll-margin-top:12px; }
 .settings-category-body section { scroll-margin:12px; }
 @media(max-width:767px) { .settings-category-grid { grid-template-columns:1fr; } .settings-category-nav { display:none; } }
+
+@media(min-width:1100px) {
+ .assistant-window.assistant-with-history { width:min(1252px,calc(100% - 32px)); left:max(16px,calc((100% - 1252px)/2)); display:flex; gap:12px; }
+ .assistant-with-history > .assistant-surface { flex:1; width:0; }
+ .assistant-history-side { position:relative; width:320px; flex-shrink:0; height:100%; border-radius:18px; overflow:hidden; }
+}

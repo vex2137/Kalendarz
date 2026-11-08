@@ -1,4 +1,4 @@
-"""Part 3 Beta 1 APK guard; historical beta policies stay intact."""
+"""Part 3 Beta 2 APK guard; historical beta policies stay intact."""
 import argparse
 import hashlib
 import json
@@ -14,7 +14,7 @@ CPU_SHA256 = '83949aeb80b5f899e3b6297df2b547379e63570bffe8eb5276bc44516e034ed5'
 CERT = 'ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143'
 RUNTIME_COMMIT = '80d2c0c2c56e4a1bbf74be98f64b99927bf230bc'
 SOURCE_SHA256 = 'e9bf2b83a13e14b5577dcdb65bb18ff8c049143caab22106547d37ef8c54fbf3'
-NAME = 'Kalendarz-1.5.0-Part-3-Beta-1-Android-arm64.apk'
+NAME = 'Kalendarz-1.5.0-Part-3-Beta-2-Android-arm64.apk'
 
 
 def expected_android_source(source,check_remote=False):
@@ -38,19 +38,19 @@ def expected_android_source(source,check_remote=False):
 
 
 def policy():
-    value=json.loads((ROOT/'scripts/part3-beta1-version.json').read_text())
-    if (value.get('version')!='1.5.0' or value.get('channel')!='part3-beta1' or
-            value.get('versionName')!='1.5.0-part3-beta.1' or
-            type(value.get('lastTestedVersionCode')) is not int or value['lastTestedVersionCode']<10519 or
+    value=json.loads((ROOT/'scripts/part3-beta2-version.json').read_text())
+    if (value.get('version')!='1.5.0' or value.get('channel')!='part3-beta2' or
+            value.get('versionName')!='1.5.0-part3-beta.2' or
+            type(value.get('lastTestedVersionCode')) is not int or value['lastTestedVersionCode']<10520 or
             type(value.get('versionCode')) is not int or value['versionCode']<=value['lastTestedVersionCode']):
-        raise ValueError('Part 3 Beta 1 must preserve 1.5.0 and increase the accepted Part 2 Stable versionCode')
+        raise ValueError('Part 3 Beta 2 must preserve 1.5.0 and increase the accepted Part 3 Beta 1 versionCode')
     return value
 
 
 def verify_candidate_info(info,source,android):
     verify_info(info,source,android)
-    if info.get('releaseChannel')!='part3-beta1' or info.get('branch')!=BRANCH:
-        raise ValueError('Missing Part 3 Beta 1 channel/application branch')
+    if info.get('releaseChannel')!='part3-beta2' or info.get('branch')!=BRANCH:
+        raise ValueError('Missing Part 3 Beta 2 channel/application branch')
     if os.environ.get('GITHUB_REPOSITORY')=='vex2137/Kalendarz-private-builds' and info.get('workflowCommit')!=os.environ.get('GITHUB_SHA'):
         raise ValueError('Private workflow provenance mismatch')
 
@@ -107,7 +107,7 @@ def verify_apk(apk, source, tools):
         checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
     return dict(file=apk.name, bytes=apk.stat().st_size, sha256=checksum, source=source,
                 package='com.kalendarz.offline.diagnostics', versionCode=policy()['versionCode'],
-                certificateSha256=CERT, runtime=runtime, vulkanDiagnostics=diag, channel='part3-beta1', versionName=policy()['versionName'])
+                certificateSha256=CERT, runtime=runtime, vulkanDiagnostics=diag, channel='part3-beta2', versionName=policy()['versionName'])
 
 
 def main():

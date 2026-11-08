@@ -62,6 +62,11 @@ export async function runModelAssistant(query: string, events: CalendarEvent[], 
 async function runDetectedAssistant(query: string, events: CalendarEvent[], language: AppLanguage, now: Date, context: ModelConversation, preferences: PlanningPreferences, trace: AssistantTurnMetric, inferenceOptions:import('./localModelRuntime').InferenceOptions): Promise<AiResponseResult & {context:ModelConversation;route:'quick'|'rules'|'model'}> {
   const started = performance.now();
   if (!query.trim() || query.length > 1000) throw new Error('model-input');
+  // A quantity request is not an executable list of complete event proposals.
+  // Keep the established 20-operation ceiling; never let free text claim writes.
+  const quantity=query.normalize('NFD').replace(/\p{M}/gu,'').match(/\b(?:utworz|stworz|dodaj|zaplanuj|create|add|schedule)\s+(\d+)\s+(?:wydarzen|wydarzenia|events?|appointments?)(?!\p{L})/iu);
+  if(quantity&&Number(quantity[1])>20){trace.route='rules';trace.rulesMatched=true;return {route:'rules',context,text:({en:'At most 20 complete event proposals can be reviewed at once. No events were saved. Split this request into smaller lists with titles, dates and times.',pl:'Jednocześnie można sprawdzić do 20 kompletnych propozycji wydarzeń. Niczego nie zapisano. Podziel polecenie na mniejsze listy z tytułami, datami i godzinami.',de:'Höchstens 20 vollständige Terminvorschläge können gleichzeitig geprüft werden. Es wurde nichts gespeichert. Teile die Anfrage in kleinere Listen mit Titel, Datum und Uhrzeit.',ru:'Можно проверить не более 20 полных предложений событий за раз. Ничего не сохранено. Разделите запрос на списки с названиями, датами и временем.'})[language]};}
+
   touchLocalModel();
   trace.quickChecked = true;
   const quick = await assistantQuickReply(query, events, language, now, preferences);
@@ -113,7 +118,7 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   if (!needsCalendarExtraction(query, now, context, language)) {
     trace.route = 'model'; trace.commandAction = 'chat';
     const chatTurns = turns.filter(turn => turn.role === 'user' || !turn.content.trim().startsWith('{'));
-    let text = await inferLocalText(naturalChatSystemPrompt(language, context.lastConfirmedAction)+(/^(?:continue|kontynuuj|dalej|go on)\b/iu.test(query)?' Continue the previous answer from its end without restarting or repeating it.':''), query, chatTurns, inferenceOptions);
+    let text = await inferLocalText(naturalChatSystemPrompt(language, context.lastConfirmedAction)+(/^(?:continue|kontynuuj|dalej|go on)\b/iu.test(query)?' Continue the previous answer from its end without restarting or repeating it.':''), query, chatTurns, {...inferenceOptions,onText:inferenceOptions.onText?value=>inferenceOptions.onText!(guardCalendarWriteClaim(value,language)):undefined});
     text = guardCalendarWriteClaim(text,language);
     const modelText=text;
     if (modelMetrics().at(-1)?.outputTruncated) text += '\n\n' + ({en:'Response length limit reached. You can ask me to continue.',pl:'Osiągnięto limit długości odpowiedzi. Możesz poprosić o kontynuację.',de:'Die Antwortlänge wurde begrenzt. Du kannst um Fortsetzung bitten.',ru:'Достигнут предел длины ответа. Можно попросить продолжить.'}[language]);

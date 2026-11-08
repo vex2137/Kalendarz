@@ -8,6 +8,7 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
+import { Download, Upload } from 'lucide-react';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import type { CalendarEvent, AppTheme, CustomTheme } from '../types';
@@ -53,6 +54,7 @@ export function SyncModal({
   onSyncTheme,
   language = 'pl',
 }: Props) {
+  const packageFile=useRef<HTMLInputElement>(null);
   const [sendPassword, setSendPassword] = useState('');
   const [receivePassword, setReceivePassword] = useState('');
   const [pendingEncrypted, setPendingEncrypted] = useState('');
@@ -567,23 +569,14 @@ export function SyncModal({
           </div>
         )}
         {tab === 'file' && (
-          <div className="space-y-3">
-            <button
-              onClick={() =>
-                downloadFile(JSON.stringify(payload), 'kalendarz-sync.json')
-              }
-              className="theme-input p-2 rounded"
-            >
-              {tr(language, 'Eksportuj pełny pakiet', 'Export full package')}
+          <div className="grid grid-cols-2 gap-3" data-testid="sync-file-tiles">
+            <button type="button" onClick={()=>downloadFile(JSON.stringify(payload),'kalendarz-sync.json')} className="theme-input theme-hover theme-border border rounded-xl p-4 flex flex-col items-center justify-center gap-3 text-sm text-center min-w-0">
+              <Download size={22} aria-hidden="true"/>{p3(language,'Export package')}
             </button>
-            <label className="block text-sm">
-              {tr(language, 'Importuj JSON lub ICS (scalanie)', 'Import JSON or ICS (merge)')}
-              <input
-                type="file"
-                accept=".json,.ics"
-                onChange={(e) => void readFile(e.target.files?.[0])}
-              />
-            </label>
+            <button type="button" onClick={()=>packageFile.current?.click()} className="theme-input theme-hover theme-border border rounded-xl p-4 flex flex-col items-center justify-center gap-3 text-sm text-center min-w-0">
+              <Upload size={22} aria-hidden="true"/>{p3(language,'Import package')}
+            </button>
+            <input ref={packageFile} hidden type="file" accept=".json,.ics" aria-label={tr(language,'Importuj JSON lub ICS (scalanie)','Import JSON or ICS (merge)')} onChange={e=>{void readFile(e.target.files?.[0]);e.currentTarget.value='';}}/>
           </div>
         )}
       </div>

@@ -22,7 +22,7 @@ def main():
  out=ROOT/'part3-artifacts/linux';out.mkdir(parents=True,exist_ok=True);target=out/name
  try:os.link(package,target)
  except OSError:shutil.copy2(package,target)
- result=dict(file=name,bytes=target.stat().st_size,sha256=checksum,source=source,channel='part3-beta1',nativeFilesVerified=count,desktopBaseline='e83a268f11cb50143bb599f2401384b92cf927c6',androidNativeLibrariesPackaged=False,physicalGpuVerified=False)
+ result=dict(file=name,bytes=target.stat().st_size,sha256=checksum,source=source,channel='part3-beta2',nativeFilesVerified=count,desktopBaseline='e83a268f11cb50143bb599f2401384b92cf927c6',androidNativeLibrariesPackaged=False,physicalGpuVerified=False)
  (out/(name+'.sha256')).write_text(checksum+'  '+name+'\n');(out/(name+'.json')).write_text(json.dumps(result,indent=2)+'\n')
  (ROOT/'manual-test-assets/appimage').mkdir(parents=True,exist_ok=True)
  print(json.dumps(result))

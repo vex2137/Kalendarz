@@ -1,3 +1,5 @@
+import { p3 } from '../utils/part3Text';
+import { guardCalendarWriteClaim } from '../utils/calendarWriteClaim';
 import { MessageCopy } from './MessageCopy';
 import { backendStatus,subscribeBackend,desktopAI,updateBackend } from '../utils/nativeDesktopAI';
 import { useAnimatedClose } from '../hooks/useAnimatedClose';
@@ -108,6 +110,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const [historyReady, setHistoryReady] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [wideHistory,setWideHistory]=useState(()=>matchMedia('(min-width:1100px)').matches);
+  useEffect(()=>{const media=matchMedia('(min-width:1100px)'),change=()=>setWideHistory(media.matches);media.addEventListener('change',change);return()=>media.removeEventListener('change',change);},[]);
+  const historyModal=historyOpen&&!wideHistory;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const returnFocus = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
@@ -190,7 +195,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         if(g.status==='running'){recoveryRef.current=true;operationRef.current=true;setIsProcessing(true);}else{recoveryRef.current=false;operationRef.current=false;setIsProcessing(false);}
         updateBackend(await bridge.status());observeNativeGeneration(g);
         const existing=messagesRef.current.find(m=>m.id===g.id)!;const recovered=g.status!=='complete'&&existing.content.length>g.text.length&&existing.content.startsWith(g.text)?existing.content:g.text;
-        const next=messagesRef.current.map(m=>m.id===g.id?{...m,content:g.structured?(g.status==='running'?m.content:({en:'Request interrupted. Please send it again.',pl:'Żądanie przerwano. Wyślij je ponownie.',de:'Anfrage unterbrochen. Bitte erneut senden.',ru:'Запрос прерван. Отправьте его снова.'})[language]):recovered,completion:g.status==='running'?'streaming' as const:g.status==='complete'&&!g.structured?undefined:g.status==='error'?'error' as const:'cancelled' as const}:m);
+        const next=messagesRef.current.map(m=>m.id===g.id?{...m,content:g.structured?(g.status==='running'?m.content:({en:'Request interrupted. Please send it again.',pl:'Żądanie przerwano. Wyślij je ponownie.',de:'Anfrage unterbrochen. Bitte erneut senden.',ru:'Запрос прерван. Отправьте его снова.'})[language]):guardCalendarWriteClaim(recovered,language),completion:g.status==='running'?'streaming' as const:g.status==='complete'&&!g.structured?undefined:g.status==='error'?'error' as const:'cancelled' as const}:m);
         if(g.status==='complete'&&!g.structured){const turns=next.filter(m=>m.id!=='msg-welcome'&&(m.role==='user'||m.role==='assistant')).slice(-2).map(m=>({role:m.role as 'user'|'assistant',content:m.content}));conversationRef.current={...conversationRef.current,turns};}
         messagesRef.current=next;setMessages(next);await persist(next);
       }catch{/* An unavailable native process leaves the persisted partial response intact. */}finally{reading=false;}};
@@ -354,11 +359,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       label={settingsOpen ? aiSettingsText(language).settings : historyOpen ? ui.conversations : t.aiAssistantTitle}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end"
     >
-      <AssistantWindow><div
+      <AssistantWindow expanded={historyOpen&&wideHistory}><div
         id="drawer-ai-assistant"
-        inert={historyOpen || settingsOpen}
-        aria-hidden={historyOpen || settingsOpen || undefined}
-        className={`theme-surface w-full min-w-0 h-full shadow-2xl flex flex-col theme-border border assistant-surface ${historyOpen || settingsOpen ? 'invisible pointer-events-none' : ''}`}
+        inert={historyModal || settingsOpen}
+        aria-hidden={historyModal || settingsOpen || undefined}
+        className={`theme-surface w-full min-w-0 h-full shadow-2xl flex flex-col theme-border border assistant-surface ${historyModal || settingsOpen ? 'invisible pointer-events-none' : ''}`}
       >
         {/* Header */}
         <div id="ai-assistant-header" className="px-3 py-2 theme-border border-b theme-subtle shrink-0 space-y-2">
@@ -492,6 +497,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 >
                   {/* Markdown Renderer */}
                   <MessageCopy text={msg.content} language={language}><MarkdownMessage content={msg.content} isUser={isUser} /></MessageCopy>{msg.completion&&<p className="text-xs theme-muted" data-completion={msg.completion}>{msg.completion==='streaming'?ui.generating:({en:'Partial response',pl:'Odpowiedź częściowa',de:'Teilantwort',ru:'Частичный ответ'})[language]}</p>}
+                  {msg.route==='model'&&!plan&&!isAdded&&<p className="text-[11px] theme-muted mt-1">{p3(language,'Model reply, not a save confirmation')}</p>}
                   {msg.proposalSummary && <p className="mt-2 whitespace-pre-wrap theme-muted">{msg.proposalSummary}</p>}
 
                   {plan && (
@@ -559,21 +565,21 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             placeholder={
               tr(language, 'Napisz np. Trening jutro o 18 na 1h...', 'Type e.g. Workout tomorrow at 6pm for 1h...')
             }
-            disabled={isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyOpen}
+            disabled={isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyModal}
             maxLength={1000}
             className="flex-1 min-w-0 px-3.5 py-2.5 text-xs rounded-xl theme-input focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
           <button
             id="btn-send-ai-message"
             onClick={() => handleSendMessage()}
-            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyOpen}
+            disabled={!inputQuery.trim() || isProcessing || !aiSettings.enabled || !historyReady || settingsOpen || historyModal}
             className="shrink-0 min-w-11 min-h-11 p-2.5 ai-primary disabled:opacity-40 text-white rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
       </div>
-      {historyOpen && <div id="ai-history-overlay" className="absolute inset-y-0 right-0 w-full max-w-md"><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
+      {historyOpen && <div id="ai-history-overlay" className={wideHistory?"assistant-history-side":"absolute inset-y-0 right-0 w-full max-w-md"}><ChatHistoryPanel language={language} onClose={closeHistory} onSelect={id => { void selectChat(id); }} onNew={handleClearChat} onDeleted={id => { if (!id || id === chatIdRef.current) void startNewChat(); }}/></div>}
       {settingsOpen && <AiSettingsPanel language={language} enabled={aiSettings.enabled} onClose={closeSettings}/>}
       </AssistantWindow>
     </Dialog>

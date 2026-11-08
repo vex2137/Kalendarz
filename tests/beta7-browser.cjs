@@ -13,7 +13,7 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
     prepare:async()=>{window.fixture.loaded=true;return window.calendarNativeAI.status();},setMode:async()=>window.calendarNativeAI.status(),configureResidency:async(background,keep)=>{window.fixture.residency={background,keep};},
     cancelGeneration:async()=>{window.fixture.cancelOnly=(window.fixture.cancelOnly||0)+1;window.fixture.cancel=true;},
     stop:async()=>{window.fixture.stops++;window.fixture.loaded=false;window.fixture.cancel=true;},folders:async()=>({folders:[],models:[],warnings:[]}),
-    complete:async(id,request,onChunk)=>{window.fixture.cancel=false;window.fixture.complete=false;let text='';for(const part of ['Zażółć ','gęślą ','jaźń.']){await new Promise(r=>setTimeout(r,250));if(window.fixture.cancel)throw Error('model-cancelled');text+=part;onChunk?.({text:part});window.fixture.streaming=true;while(window.fixture.hold&&!window.fixture.cancel)await new Promise(r=>setTimeout(r,20));}window.fixture.complete=true;return {text,finish:'stop',usage:{prompt_tokens:10,completion_tokens:6},timings:{predicted_per_second:24,predicted_ms:750},firstTokenMs:250,backend:await window.calendarNativeAI.status()};},
+    complete:async(id,request,onChunk)=>{window.fixture.cancel=false;window.fixture.complete=false;let text='';for(const part of (window.fixture.parts||['Zażółć ','gęślą ','jaźń.'])){await new Promise(r=>setTimeout(r,250));if(window.fixture.cancel)throw Error('model-cancelled');text+=part;onChunk?.({text:part});window.fixture.streaming=true;while(window.fixture.hold&&!window.fixture.cancel)await new Promise(r=>setTimeout(r,20));}window.fixture.complete=true;return {text,finish:'stop',usage:{prompt_tokens:10,completion_tokens:6},timings:{predicted_per_second:24,predicted_ms:750},firstTokenMs:250,backend:await window.calendarNativeAI.status()};},
    };
   });
   const page=await context.newPage(),errors=[];page.setDefaultTimeout(8000);page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:4197');
@@ -26,7 +26,7 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   for(const roleText of ['Opowiedz krótko o przyrodzie','Zażółć']){
     const row=page.getByTestId('message-copy').filter({hasText:roleText}).last(),button=row.getByTestId('copy-message');
     const dimensions=await button.evaluate(b=>{const icon=b.querySelector('svg').getBoundingClientRect(),ink=b.querySelector('.message-copy-visual').getBoundingClientRect(),hit=b.getBoundingClientRect();return {icon:[icon.width,icon.height],ink:[ink.width,ink.height],hit:[hit.width,hit.height],background:getComputedStyle(b).backgroundColor};});
-    assert.deepEqual(dimensions.icon,[14,14]);assert.deepEqual(dimensions.ink,[20,20]);assert.ok(dimensions.hit.every(n=>n===28));assert.equal(dimensions.background,'rgba(0, 0, 0, 0)');
+    assert.deepEqual(dimensions.icon,[14,14]);assert.deepEqual(dimensions.ink,[16,16]);assert.ok(dimensions.hit.every(n=>n===20));assert.equal(dimensions.background,'rgba(0, 0, 0, 0)');
     const writeCount=await page.evaluate(()=>window.__clipboardWrites.length);await button.click();await page.waitForFunction(n=>window.__clipboardWrites.length>n,writeCount);await page.waitForFunction(async expected=>(await navigator.clipboard.readText()).startsWith(expected),roleText);{const actual=await page.evaluate(()=>navigator.clipboard.readText());assert.ok(actual.startsWith(roleText),JSON.stringify({expected:roleText,actual,writes:await page.evaluate(()=>window.__clipboardWrites)}));}
   }
 
@@ -39,6 +39,13 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
     writeCount=await page.evaluate(()=>window.__clipboardWrites.length);await message.dispatchEvent('contextmenu',{clientX:100,clientY:300});await page.getByRole('menuitem',{name:'Copy',exact:true}).click();await page.waitForFunction(n=>window.__clipboardWrites.length>n,writeCount);await page.waitForFunction(async expected=>(await navigator.clipboard.readText()).startsWith(expected),roleText);{const actual=await page.evaluate(()=>navigator.clipboard.readText());assert.ok(actual.startsWith(roleText),JSON.stringify({expected:roleText,actual,writes:await page.evaluate(()=>window.__clipboardWrites)}));}
   }
   await page.getByTestId('message-copy').last().dispatchEvent('contextmenu',{clientX:100,clientY:300});await page.getByRole('menuitem',{name:'Copy',exact:true}).waitFor();await page.keyboard.press('Escape');await page.getByRole('menuitem',{name:'Copy',exact:true}).waitFor({state:'hidden'});assert.equal(await page.locator('#drawer-ai-assistant').isVisible(),true);
+  await page.evaluate(()=>{window.fixture.parts=['Utworzono 500 wydarzeń.',' Gotowe.'];window.fixture.hold=true;});
+  await input.fill('Opowiedz krótko o świecie');await page.locator('#btn-send-ai-message').click();
+  await page.getByTestId('message-copy').filter({hasText:'Ta odpowiedź nie zmieniła kalendarza.'}).waitFor();
+  assert.doesNotMatch(await page.locator('#ai-chat-messages').innerText(),/Utworzono 500/);
+  await page.locator('#btn-stop-ai-generation').click();await page.waitForFunction(()=>!document.querySelector('#btn-stop-ai-generation'));
+  assert.ok(await page.evaluate(async()=>{const h=await import('/src/utils/chatHistory.ts');return (await h.chatMessages(h.activeChatId())).at(-1).content.includes('Ta odpowiedź nie zmieniła kalendarza.');}));
+  await page.evaluate(()=>{delete window.fixture.parts;window.fixture.hold=false;});
   await page.evaluate(()=>{document.documentElement.style.fontSize='24px';});await page.setViewportSize({width:320,height:700});assert.equal(await page.getByTestId('copy-message').first().locator('svg').evaluate(e=>e.getBoundingClientRect().width),14);assert.ok(await page.locator('#ai-assistant-header').evaluate(e=>e.scrollWidth<=e.clientWidth&&e.getBoundingClientRect().right<=innerWidth+1));
   await page.evaluate(async()=>{const prefs=await import('/src/utils/assistantBackground.ts');prefs.setAssistantBackground(true);prefs.setKeepModelLoaded(true);});
   await page.evaluate(()=>window.fixture.hold=true);await input.fill('Tell me about nature');await page.locator('#btn-send-ai-message').click();await streamVisible();await page.locator('#btn-close-ai-drawer').click();

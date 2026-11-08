@@ -115,7 +115,7 @@ export function ChatHistoryPanel({
         {chats.map((chat) => (
           <article
             key={chat.id}
-            className="theme-border border rounded-lg p-3"
+            className="theme-border border rounded-lg p-2 relative min-w-0"
             data-chat-id={chat.id}
           >
             {editing === chat.id ? (
@@ -130,6 +130,7 @@ export function ChatHistoryPanel({
               >
                 <input
                   aria-label={text.rename}
+                  autoFocus
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   maxLength={120}
@@ -149,13 +150,14 @@ export function ChatHistoryPanel({
             ) : (
               <button
                 type="button"
-                className="font-semibold text-left break-words w-full"
+                className="font-semibold text-left truncate w-full pe-7 text-sm"
+                title={chat.title}
                 onClick={() => onSelect(chat.id)}
               >
                 {chat.title}
               </button>
             )}
-            <p className="text-xs theme-muted">
+            <p className="text-xs theme-muted truncate pe-6">
               {new Date(chat.updatedAt).toLocaleString(language)} ·{" "}
               {chat.modelIds.length
                 ? chat.modelIds
@@ -166,7 +168,7 @@ export function ChatHistoryPanel({
                     .join(", ")
                 : text.noModel}
             </p>
-            <div className="flex gap-3 mt-2 text-xs">
+            <details hidden={editing===chat.id} className="absolute right-2 top-2 text-xs"><summary aria-label={text.rename+' / '+text.delete} className="list-none px-2 rounded theme-hover">⋯</summary><div className="absolute right-0 z-10 theme-surface theme-border border shadow-lg p-2 rounded-lg flex flex-col gap-3 min-w-24">
               <button
                 type="button"
                 onClick={() => {
@@ -190,7 +192,7 @@ export function ChatHistoryPanel({
               >
                 {text.delete}
               </button>
-            </div>
+            </div></details>
           </article>
         ))}
         {chats.length === limit && (
