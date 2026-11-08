@@ -282,12 +282,14 @@ jobs:
             target=Path(os.environ['RUNNER_TEMP'])/'calendar-existing-update-check.p12'
             try:
               if not all(values[k] for k in ['STORE','PASSWORD','ALIAS']):
-                print(profile+': existing signing profile is not configured');continue
+                print('::notice title=Android update signing::'+profile+': existing signing profile is not configured');continue
               target.write_bytes(base64.b64decode(values['STORE']));target.chmod(0o600)
               env={**os.environ,'CALENDAR_KEYSTORE_PATH':str(target),'CALENDAR_KEYSTORE_PASSWORD':values['PASSWORD'],'CALENDAR_KEY_ALIAS':values['ALIAS'],'CALENDAR_KEY_PASSWORD':values['KEY_PASSWORD'] or values['PASSWORD'],'EXPECTED_ANDROID_CERTIFICATE':'ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143'}
               checked=subprocess.run(['java','.github/scripts/VerifyAndroidSigning.java'],env=env,capture_output=True,text=True)
               valid=checked.returncode==0;matching=matching or valid
-              print(profile+': matching update certificate='+str(valid))
+              print('::notice title=Android update signing::'+profile+': matching update certificate='+str(valid))
+            except Exception:
+              print('::notice title=Android update signing::'+profile+': existing signing profile could not be verified')
             finally:
               target.unlink(missing_ok=True)
           if not matching:raise SystemExit('Existing Beta 6 update key is unavailable through the configured signing profiles')
