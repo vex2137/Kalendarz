@@ -36,6 +36,9 @@ const {chromium}=require('playwright');
     await page.goto(base);await unlock();await page.locator('#btn-open-ai-assistant').click();await page.locator('#drawer-ai-assistant').waitFor();
     // Wait for the old application to initialize its real history schema.
     await page.waitForFunction(async()=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('calendar-ai-chats');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const ready=db.objectStoreNames.contains('messages');db.close();return ready;});
+    // Schema creation precedes resolveActiveChat/rememberChat. Seed only after
+    // that real initialization finishes, otherwise it can overwrite our active ID.
+    await page.waitForFunction(()=>{const history=document.getElementById('btn-ai-chat-history');return history&&!history.disabled;});
     await page.evaluate(async()=>{
       const open=async name=>new Promise((resolve,reject)=>{const r=indexedDB.open(name);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
       const db=await open('calendar-ai-chats'),tx=db.transaction(['chats','messages'],'readwrite');
