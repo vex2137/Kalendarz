@@ -49,7 +49,13 @@ function fixture(name,context,blocks){const fields=[['general.architecture','qwe
   await page.locator(`[data-model-id="${a}"]`).getByRole('button',{name:'Use',exact:true}).click();await page.waitForFunction(()=>window.__runtime.modelStatus().modelId===window.__registry.findModel(window.__runtime.modelStatus().modelId).id&&window.__native.contextRequested===8193);
   assert.equal(await number.inputValue(),'8193');assert.match(await page.locator('[data-testid=model-layer-counts]:visible').innerText(),/Transformer blocks: 24/);assert.match(await page.locator('[data-testid=model-layer-counts]:visible').innerText(),/Confirmed GPU offload: Unknown/);
   for(const width of [1280,768,390]){await page.setViewportSize({width,height:900});const rows=page.locator('[data-model-id]:visible');for(let i=0;i<await rows.count();i++){const row=rows.nth(i);assert.ok(await row.evaluate(e=>e.scrollWidth<=e.clientWidth+1));assert.ok((await row.boundingBox()).height<150);}}
-  const rowB=page.locator(`[data-model-id="${b}"]`);await rowB.locator('summary').click();await rowB.getByRole('button',{name:/Remove/}).click();await page.waitForFunction(id=>!JSON.parse(localStorage.getItem('test-native-installed')).includes(id),b);
+  const rowB=page.locator(`[data-model-id="${b}"]`);await rowB.locator('summary').click();
+  const remove=rowB.getByRole('button',{name:/Remove/});
+  // Beta 7 deliberately requires confirmation; verify both branches of the real UI.
+  page.once('dialog',dialog=>dialog.dismiss());await remove.click();
+  assert.ok(await page.evaluate(id=>JSON.parse(localStorage.getItem('test-native-installed')).includes(id),b));
+  page.once('dialog',dialog=>dialog.accept());await remove.click();
+  await page.waitForFunction(id=>!JSON.parse(localStorage.getItem('test-native-installed')).includes(id),b);
   await importModel(fixture('Compact Qwen B',65536,32));assert.equal(await number.inputValue(),'16384');
   await panel.getByRole('button',{name:'Revert previous setting',exact:true}).click();await panel.getByRole('checkbox').waitFor();assert.equal(await panel.getByRole('checkbox').isChecked(),true);
   assert.deepEqual(errors,[]);console.log('PASS context slider/exact input, validation, per-model restart/reimport, applied capacity/usage, busy safety, compact 1280/768/390 rows and secondary deletion. Native boundary simulated.');
