@@ -11,7 +11,7 @@ export default defineConfig(() => {
   const modelFree = process.env.CALENDAR_MODEL_FREE === 'true';
   if(betaApk&&modelFree)throw Error('Choose one distribution variant');
   const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
-  const buildInfo = { ...(process.env.CALENDAR_PART2_STABLE==='true'?{releaseChannel:'part2-stable'}:{}), commit: git('rev-parse', 'HEAD'), branch: process.env.CALENDAR_APPLICATION_BRANCH || process.env.GITHUB_REF_NAME || git('branch', '--show-current'),
+  const buildInfo = { ...(process.env.CALENDAR_PART3_BETA==='true'?{releaseChannel:'part3-beta1'}:process.env.CALENDAR_PART2_STABLE==='true'?{releaseChannel:'part2-stable'}:{}), commit: git('rev-parse', 'HEAD'), branch: process.env.CALENDAR_APPLICATION_BRANCH || process.env.GITHUB_REF_NAME || git('branch', '--show-current'),
     workflowCommit: process.env.GITHUB_SHA, workflowRepository: process.env.GITHUB_REPOSITORY,
     version: JSON.parse(readFileSync('package.json', 'utf8')).version + (betaApk ? ' beta 3' : ''), ...((betaApk||modelFree) ? {bundledModel:false} : {}), ...(modelFree ? {distribution:'model-free'} : {}), androidNative: process.env.CALENDAR_ANDROID_NATIVE === 'true', dirty: Boolean(git('status', '--porcelain', '--untracked-files=no')), builtAt: new Date().toISOString() };
   const modelHeaders = {

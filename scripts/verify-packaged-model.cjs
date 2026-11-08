@@ -8,7 +8,7 @@ module.exports = async function(context) {
   const root=context.packager.info.appDir;
   if (process.env.CALENDAR_PART2_BETA === 'true' || process.env.CALENDAR_EXPECTED_COMMIT) {
     execFileSync(process.platform === 'win32' ? 'python' : 'python3', [
-      process.env.CALENDAR_PART2_STABLE==='true'?'scripts/part2_stable_guard.py':'scripts/part2_artifact_guard.py', '--source', process.env.CALENDAR_EXPECTED_COMMIT || '',
+      process.env.CALENDAR_PART3_BETA==='true'?'scripts/part3_beta_guard.py':process.env.CALENDAR_PART2_STABLE==='true'?'scripts/part2_stable_guard.py':'scripts/part2_artifact_guard.py', '--source', process.env.CALENDAR_EXPECTED_COMMIT || '',
       '--check-remote', '--info', 'dist/build-info.json', '--platform', 'desktop',
     ], {cwd:root,stdio:'inherit'});
   }

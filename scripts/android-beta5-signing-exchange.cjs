@@ -12,7 +12,7 @@ function api(method,endpoint,data,optional=false){
 }
 function trustedWorkflowPath(repository,workflowPath){
  return repository==='vex2137/Kalendarz-private-builds'
-  ? ['.github/workflows/build-android-beta5.yml','.github/workflows/build-part2-stable.yml'].includes(workflowPath)
+  ? ['.github/workflows/build-android-beta5.yml','.github/workflows/build-part2-stable.yml','.github/workflows/build-part3-beta1.yml'].includes(workflowPath)
   : repository==='vex2137/Kalendarz' && workflowPath==='.github/workflows/publish-142.yml';
 }
 module.exports={trustedWorkflowPath};

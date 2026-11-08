@@ -8,9 +8,11 @@ def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse
 def calendarVulkanDiagnostics = providers.gradleProperty('calendarVulkanDiagnostics').orElse('false').get().toBoolean()
 def calendarStableUpdate = providers.gradleProperty('calendarStableUpdate').orElse('false').get().toBoolean()
 def calendarQwenV2Update = providers.gradleProperty('calendarQwenV2Update').orElse('false').get().toBoolean()
-def calendarPart2Beta = providers.gradleProperty('calendarPart2Beta').orElse('false').get().toBoolean()
-def calendarPart2BetaNumber = providers.gradleProperty('calendarPart2BetaNumber').orElse('2').get()
-if (!(calendarPart2BetaNumber in ['2','5','6','7','stable']) || (calendarPart2BetaNumber != '2' && !calendarPart2Beta)) throw new GradleException('Unsupported Part 2 Android beta profile')
+def calendarPart3Beta = providers.gradleProperty('calendarPart3Beta').orElse('false').get().toBoolean()
+if (calendarPart3Beta && providers.gradleProperty('calendarPart2Beta').orElse('false').get().toBoolean()) throw new GradleException('Choose one Part 2 or Part 3 profile')
+def calendarPart2Beta = calendarPart3Beta || providers.gradleProperty('calendarPart2Beta').orElse('false').get().toBoolean()
+def calendarPart2BetaNumber = calendarPart3Beta ? 'part3-1' : providers.gradleProperty('calendarPart2BetaNumber').orElse('2').get()
+if (!(calendarPart2BetaNumber in ['2','5','6','7','stable','part3-1']) || (calendarPart2BetaNumber != '2' && !calendarPart2Beta)) throw new GradleException('Unsupported Part 2 Android beta profile')
 def calendarModelFreeTests = providers.gradleProperty('calendarModelFreeTests').orElse('false').get().toBoolean()
 if (calendarModelFreeTests && (calendarPart2Beta || calendarStableUpdate || calendarQwenV2Update || calendarVulkanDiagnostics ||
     !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['testDebugUnitTest','assembleDebug','assembleDebugAndroidTest','connectedDebugAndroidTest'] })) {
@@ -28,7 +30,7 @@ if (calendarBeta && !gradle.startParameter.taskNames.every { it.tokenize(':').la
 def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
 def calendarPart2VersionCode = null
 if (calendarPart2Beta) {
-    def guard = new ProcessBuilder('python3', calendarPart2BetaNumber == 'stable' ? 'scripts/part2_stable_guard.py' : calendarPart2BetaNumber in ['5','6','7'] ? 'scripts/android_beta' + calendarPart2BetaNumber + '_guard.py' : 'scripts/part2_artifact_guard.py',
+    def guard = new ProcessBuilder('python3', calendarPart3Beta ? 'scripts/part3_beta_guard.py' : calendarPart2BetaNumber == 'stable' ? 'scripts/part2_stable_guard.py' : calendarPart2BetaNumber in ['5','6','7'] ? 'scripts/android_beta' + calendarPart2BetaNumber + '_guard.py' : 'scripts/part2_artifact_guard.py',
         '--source', System.getenv('CALENDAR_EXPECTED_COMMIT') ?: '', '--check-remote',
         '--info', 'dist/build-info.json', '--platform', 'android')
         .directory(rootProject.file('..')).redirectErrorStream(true).start()
@@ -112,7 +114,7 @@ android {
         diagnostics {
             initWith debug
             applicationIdSuffix '.diagnostics'
-            versionNameSuffix (calendarPart2Beta ? (calendarPart2BetaNumber == 'stable' ? '-part2-stable' : '-part2-beta.' + calendarPart2BetaNumber) : (calendarStableUpdate || calendarQwenV2Update) ? '' : calendarBeta ? ' beta 3' : '-diagnostics')
+            versionNameSuffix (calendarPart2Beta ? (calendarPart3Beta ? '-part3-beta.1' : calendarPart2BetaNumber == 'stable' ? '-part2-stable' : '-part2-beta.' + calendarPart2BetaNumber) : (calendarStableUpdate || calendarQwenV2Update) ? '' : calendarBeta ? ' beta 3' : '-diagnostics')
             matchingFallbacks = ['debug']
             signingConfig signingConfigs.debug
             if (calendarQwenV2Update || calendarPart2Beta) signingConfig signingConfigs.stableRelease
