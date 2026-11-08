@@ -12,5 +12,5 @@ test('background generation and RAM residency remain independent and preserve th
  finally{if(oldStorage)Object.defineProperty(globalThis,'localStorage',oldStorage);else Reflect.deleteProperty(globalThis,'localStorage');if(oldWindow)Object.defineProperty(globalThis,'window',oldWindow);else Reflect.deleteProperty(globalThis,'window');}
 });
 test('Polish and English prompts constrain verbosity and unavailable integrations without claiming a model quality score',()=>{
- for(const language of ['pl','en'] as const){const prompt=naturalChatSystemPrompt(language);assert.ok(prompt.includes(`(${language} is a hint)`));assert.ok(prompt.includes('1–3 sentences'));assert.ok(prompt.includes('Do not claim Google, Outlook, Apple'));assert.ok(prompt.includes('explicit confirmation'));assert.ok(prompt.includes('correct Polish'));}
+ for(const language of ['pl','en'] as const){const prompt=naturalChatSystemPrompt(language);assert.ok(prompt.includes(`(${language} is a hint)`));assert.ok(prompt.includes('1–3 sentences'));assert.ok(prompt.includes('Do not claim Google, Outlook, Apple'));assert.ok(prompt.includes('explicit confirmation'));assert.ok(prompt.includes('correct Polish'));assert.ok(prompt.length<600,'Keep the small-model system prompt bounded and avoid repeated instructions');}
 });

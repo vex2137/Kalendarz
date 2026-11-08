@@ -215,11 +215,11 @@ final class NativeInferenceEngine {
         final Integer requested;
         try{requested=call.getData().has("contextSize")&&!call.getData().isNull("contextSize")?NativeContextConfig.validate(call.getData().optDouble("contextSize",Double.NaN)):null;}catch(Exception error){call.reject("model-context-range");return;}
         long version=epoch.get();submit(call,()->{try{JSONObject m=descriptor(call);if(requested!=null){if(!requested.equals(contexts.get(m.getString("id")))&&loadedId!=null)stopProcess();contexts.put(m.getString("id"),requested);}prepare(m,version);return snapshot();}catch(Exception e){stopProcess();throw e;}});}
-    private JSONObject validateRequest(JSONObject input)throws Exception{
+    static JSONObject validateRequest(JSONObject input)throws Exception{
         if(input==null||input.toString().length()>60000)throw new Exception("model-input");
         JSONArray messages=input.getJSONArray("messages");int max=NativeContextConfig.validateOutputTokens(input.getDouble("max_tokens")),length=0;if(messages.length()>7||max<1||max>4096)throw new Exception("model-input");
         for(int i=0;i<messages.length();i++){JSONObject message=messages.getJSONObject(i);if(!Arrays.asList("user","assistant","system").contains(message.getString("role")))throw new Exception("model-input");length+=message.getString("content").length();}if(length>20000)throw new Exception("model-input");
-        JSONObject out=new JSONObject();out.put("messages",messages);out.put("max_tokens",max);out.put("temperature",0);out.put("stream",true);out.put("stream_options",new JSONObject().put("include_usage",true));out.put("chat_template_kwargs",new JSONObject().put("enable_thinking",false));if(input.has("response_format"))out.put("response_format",input.get("response_format"));return out;
+        JSONObject out=new JSONObject();out.put("messages",messages);out.put("max_tokens",max);out.put("temperature",0);out.put("top_k",50);out.put("repeat_penalty",1.05);out.put("stream",true);out.put("stream_options",new JSONObject().put("include_usage",true));out.put("chat_template_kwargs",new JSONObject().put("enable_thinking",false));if(input.has("response_format"))out.put("response_format",input.get("response_format"));return out;
     }
     public void generation(PluginCall call){call.resolve(generationSnapshot());}
     private JSObject generationSnapshot(){JSObject out=new JSObject();out.put("id",generationId);out.put("text",generationText);out.put("status",generationState);out.put("modelId",generationModel);out.put("structured",generationStructured);return out;}
