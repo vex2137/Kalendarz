@@ -551,7 +551,7 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     for await (const chunk of result) {
       if((chunk as unknown as {calendarReset?:boolean}).calendarReset){text='';metric.firstTokenMs=undefined;metric.firstAnswerTokenMs=undefined;if(schema===undefined)options.onText?.('');continue;}
       const native=(chunk as unknown as {calendarNative?:{firstTokenMs?:number;backend:BackendInfo}}).calendarNative;
-      if(native){const first=typeof native.firstTokenMs==='number'&&Number.isFinite(native.firstTokenMs)&&native.firstTokenMs>=0?(metric.loadMs||0)+native.firstTokenMs:undefined;Object.assign(metric,{firstTokenMs:first,firstAnswerTokenMs:first,backend:native.backend.backend,gpuActive:native.backend.gpuActive,deviceName:native.backend.deviceName,ramBytes:native.backend.ramBytes,vramBytes:native.backend.vramBytes,fallbackReason:native.backend.fallbackReason});}
+      if(native){const first=metric.firstTokenMs??(typeof native.firstTokenMs==='number'&&Number.isFinite(native.firstTokenMs)&&native.firstTokenMs>=0?(metric.loadMs||0)+native.firstTokenMs:undefined);Object.assign(metric,{firstTokenMs:first,firstAnswerTokenMs:metric.firstAnswerTokenMs??first,backend:native.backend.backend,gpuActive:native.backend.gpuActive,deviceName:native.backend.deviceName,ramBytes:native.backend.ramBytes,vramBytes:native.backend.vramBytes,fallbackReason:native.backend.fallbackReason});}
       const choice = chunk.choices[0];
       const content = choice?.delta?.content;
       const delta = choice?.delta as { reasoning_content?: string; reasoning?: string } | undefined;
