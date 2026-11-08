@@ -1,0 +1,37 @@
+name: Build Android ARM64 Vulkan inference runtime
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  vulkan:
+    if: github.repository == 'vex2137/Kalendarz-private-builds'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: vex2137/Kalendarz
+          ref: ${{ inputs.source_commit }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.14206865" "cmake;3.31.6"'
+      - run: python3 scripts/build-android-native.py --profile beta7 --jobs 3
+      - name: Record immutable recipe and ELF dependencies
+        run: |
+          sha256sum scripts/build-android-native.py > build/android-native-assets/vulkan-build-recipe.sha256
+          "$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h -l -d build/android-jni/arm64-v8a/libcalendar_llama_vulkan.so > build/android-native-assets/vulkan-elf.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-b12189-Vulkan-${{ inputs.source_commit }}
+          path: |
+            build/android-jni/arm64-v8a/libcalendar_llama_vulkan.so
+            build/android-native-assets
+          retention-days: 30
+          if-no-files-found: error
