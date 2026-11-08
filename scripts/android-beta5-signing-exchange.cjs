@@ -10,13 +10,19 @@ function api(method,endpoint,data,optional=false){
  if(result.status!==0){if(optional&&/HTTP 404/.test(result.stderr))return;throw Error('Signing transport request failed: '+method+' '+endpoint.split('?')[0]+' '+(result.stderr.match(/HTTP \d+/)?.[0]||'CLI failure')); }
  return result.stdout.trim()?JSON.parse(result.stdout):undefined;
 }
+function trustedWorkflowPath(repository,workflowPath){
+ return repository==='vex2137/Kalendarz-private-builds'
+  ? ['.github/workflows/build-android-beta5.yml','.github/workflows/build-part2-stable.yml'].includes(workflowPath)
+  : repository==='vex2137/Kalendarz' && workflowPath==='.github/workflows/publish-142.yml';
+}
+module.exports={trustedWorkflowPath};
 async function main(){
  const [mode,runId,directory,source]=process.argv.slice(2);
  const privateBuilder=repo==='vex2137/Kalendarz-private-builds';
  if(!["vex2137/Kalendarz","vex2137/Kalendarz-private-builds"].includes(repo))throw Error('Untrusted builder repository');
  if(!['send','receive'].includes(mode)||!/^\d+$/.test(runId)||!directory||!/^[a-f0-9]{40}$/.test(source))throw Error('Invalid exchange arguments');
  const run=api('GET',`repos/${repo}/actions/runs/${runId}`);
- if(run.event!=='workflow_dispatch'||run.path!==(privateBuilder?'.github/workflows/build-android-beta5.yml':'.github/workflows/publish-142.yml')||run.status!=='in_progress'||(!privateBuilder&&run.head_sha!==source)||run.head_branch!==(privateBuilder?'main':'feat/1.5.0-part2'))throw Error('Refusing untrusted workflow/source');
+ if(run.event!=='workflow_dispatch'||!trustedWorkflowPath(repo,run.path)||run.status!=='in_progress'||(!privateBuilder&&run.head_sha!==source)||run.head_branch!==(privateBuilder?'main':'feat/1.5.0-part2'))throw Error('Refusing untrusted workflow/source');
  const branch=`android-beta5-signing-${runId}-${run.run_attempt}`,endpoint=`repos/${repo}/contents/${prefix}`;
  const binding=JSON.stringify({repository:repo,runId,attempt:run.run_attempt,workflowSource:run.head_sha,source});
  if(mode==='send'){

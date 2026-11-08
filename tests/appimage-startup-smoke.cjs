@@ -3,7 +3,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),asse
 (async()=>{
  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'calendar-actions-smoke-'));let application;
  try{
-  application=await _electron.launch({executablePath:path.resolve('build/checked-appimage/squashfs-root/calendar'),env:{...process.env,XDG_CONFIG_HOME:profile,XDG_CACHE_HOME:path.join(profile,'cache')},args:['--no-sandbox','--disable-gpu','--user-data-dir='+path.join(profile,'data')],timeout:30000});
+  application=await _electron.launch({executablePath:process.env.CALENDAR_APPIMAGE_EXECUTABLE||path.resolve('build/checked-appimage/squashfs-root/calendar'),env:{...process.env,XDG_CONFIG_HOME:profile,XDG_CACHE_HOME:path.join(profile,'cache')},args:['--no-sandbox','--disable-gpu','--user-data-dir='+path.join(profile,'data')],timeout:process.env.CALENDAR_APPIMAGE_EXECUTABLE?120000:30000});
   const page=await application.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.locator('#btn-create-event-top').waitFor();
   await page.locator('#btn-view-month').click();assert.ok((await page.locator('main').innerText()).length);
   const native=await page.evaluate(()=>window.calendarNativeAI.status());

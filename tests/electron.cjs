@@ -106,6 +106,30 @@ const { _electron } = require('playwright');
     assert.match(proposal, /16:00/);
     assert.deepEqual(external, []);
     console.log(`PASS actual packaged GGUF probe and reviewed rule proposal with HTTP blocked; rule response: ${((performance.now() - started) / 1000).toFixed(2)}s`);
+    if(process.env.CALENDAR_EXTERNAL_MODEL){
+      // No rule or mock can satisfy this: use the real selected GGUF through the packaged bridge.
+      await page.getByTestId('cancel-ai-proposal').last().click();
+      const request='Tell me a long detailed story about a forest, in several paragraphs.';
+      await composer.fill(request);await page.locator('#btn-send-ai-message').click();
+      const streamed=page.locator('[data-testid=message-copy]').last();
+      await page.waitForFunction(()=>{const e=document.querySelector('[data-completion=streaming]');return e&&e.parentElement.querySelector('[data-testid=message-copy]')?.innerText.trim().length>10;},{},{timeout:180000});
+      await page.locator('#btn-stop-ai-generation').click();await page.locator('[data-completion=cancelled]').waitFor();
+      const partialHandle=await page.waitForFunction(async()=>{
+        const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('calendar-ai-chats');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+        const rows=await new Promise((resolve,reject)=>{const r=db.transaction('messages').objectStore('messages').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});db.close();
+        return rows.filter(m=>m.chatId===localStorage.getItem('calendar_active_chat_v1')&&m.role==='assistant'&&m.completion==='cancelled').sort((a,b)=>a.sequence-b.sequence).at(-1)?.content||false;
+      });
+      const partial=await partialHandle.jsonValue();await partialHandle.dispose();assert.ok(partial.trim().length>10);
+      await streamed.getByTestId('copy-message').click();await streamed.getByRole('status').filter({hasText:'Copied'}).waitFor();
+      assert.equal(await application.evaluate(({clipboard})=>clipboard.readText()),partial);
+      await page.reload();await page.locator('#btn-open-ai-assistant').click();await page.locator('[data-completion=cancelled]').waitFor();
+      await page.getByTestId('message-copy').last().getByTestId('copy-message').click();await page.getByTestId('message-copy').last().getByRole('status').filter({hasText:'Copied'}).waitFor();assert.equal(await application.evaluate(({clipboard})=>clipboard.readText()),partial);
+      const user=page.getByTestId('message-copy').filter({hasText:request}).last();
+      await user.dispatchEvent('contextmenu',{clientX:120,clientY:300});await page.getByRole('menuitem',{name:'Copy',exact:true}).click();
+      await user.getByRole('status').filter({hasText:'Copied'}).waitFor();
+      assert.equal(await application.evaluate(({clipboard})=>clipboard.readText()),request);
+      console.log('PASS actual packaged CPU chat streaming, Stop with retained partial history, restart and native clipboard/button/context menu.');
+    }
     assert.deepEqual(errors, []);
     console.log(
       'PASS packaged Electron: file-origin startup, IndexedDB persistence, keyboard navigation and encrypted QR generation',

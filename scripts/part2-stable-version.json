@@ -1,0 +1,10 @@
+{
+  "version": "1.5.0",
+  "channel": "part2-stable",
+  "label": "Kalendarz 1.5.0 Part 2 Stable",
+  "lastTestedVersionCode": 10518,
+  "versionCode": 10519,
+  "versionName": "1.5.0-part2-stable",
+  "androidFile": "Kalendarz-1.5.0-Part-2-Stable-Android-arm64.apk",
+  "linuxFile": "Kalendarz-1.5.0-Part-2-Stable-x86_64.AppImage"
+}
