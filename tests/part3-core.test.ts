@@ -6,6 +6,8 @@ import { event } from './fixtures';
 import { gzipSync } from 'fflate';
 import { applySyncPayload } from '../src/utils/syncImport';
 import { DEFAULT_APP_SETTINGS } from '../src/utils/constants';
+import { DEFAULT_THEME_COLORS } from '../src/utils/themes';
+import type { AppSettings } from '../src/types';
 test('13 actions/14 bindings, normalization, disabled actions, modifiers and conflicts',()=>{
  assert.ok(shortcutContexts('search').includes('assistant-history'));assert.ok(shortcutContexts('settings').includes('assistant-history'));assert.deepEqual(shortcutContexts('year'),['calendar']);
  const map=defaultShortcuts();assert.equal(Object.keys(map).length,13);assert.equal(Object.values(map).flat().length,14);assert.deepEqual(map.search,['q','/']);assert.deepEqual(normalizedShortcuts({...map,assistant:[]}).assistant,[]);
@@ -47,4 +49,20 @@ test('sync import preflights preference writes and compensates a failed atomic c
  assert.equal(saved.length,2);assert.equal(saved[0].theme,'ocean');assert.deepEqual(saved[1],previous);
  const next=await applySyncPayload(payload,previous,()=>{},async value=>{assert.deepEqual(value.events,payload.events);commits++;});
  assert.equal(commits,1);assert.equal(next.theme,'ocean');assert.deepEqual(next.security,previous.security);assert.deepEqual(next.ai,previous.ai);assert.deepEqual(next.customThemes,previous.customThemes);
+});
+test('import failure compensation preserves concurrent credentials, preferences and custom themes',async()=>{
+ const imported={id:'custom:incoming' as const,name:'Incoming',colors:{...DEFAULT_THEME_COLORS}},other={...imported,id:'custom:other' as const,name:'Other window'};
+ const previous:AppSettings={...structuredClone(DEFAULT_APP_SETTINGS),customThemes:[]};let latest=previous;
+ const payload={v:2 as const,app:'cal-offline' as const,events:[event()],deletions:[],theme:imported.id,customTheme:imported};
+ await assert.rejects(applySyncPayload(payload,previous,value=>{latest=value as typeof previous;},async()=>{
+  latest={...latest,language:'de',security:{...latest.security,pinEnabled:true,autoLockMinutes:2},customThemes:[...(latest.customThemes||[]),other]};throw Error('atomic transaction failed');
+ },()=>latest),/atomic transaction failed/);
+ assert.equal(latest.language,'de');assert.equal(latest.security.pinEnabled,true);assert.equal(latest.security.autoLockMinutes,2);assert.equal(latest.theme,previous.theme);assert.deepEqual(latest.customThemes,[other]);
+ latest=previous;
+ const revised={...imported,name:'Edited in other window'};
+ await assert.rejects(applySyncPayload(payload,previous,value=>{latest=value;},async()=>{latest={...latest,customThemes:[revised]};throw Error('transaction failed');},()=>latest));
+ assert.equal(latest.theme,imported.id);assert.deepEqual(latest.customThemes,[revised]);
+ latest=previous;
+ const successful=await applySyncPayload(payload,previous,value=>{latest=value;},async()=>{latest={...latest,language:'ru'};},()=>latest);
+ assert.equal(successful.language,'ru');assert.equal(successful.theme,imported.id);
 });

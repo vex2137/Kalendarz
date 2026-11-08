@@ -423,7 +423,7 @@ export default function App() {
     await refresh();
   }, [assistantUndo, refresh]);
   const importSync = useCallback(async (payload:SyncPayload)=>{
-    const next=await applySyncPayload(payload,settings,saveStoredSettings,value=>commit(value.events,value.deletions));
+    const next=await applySyncPayload(payload,settings,saveStoredSettings,value=>commit(value.events,value.deletions),loadStoredSettings);
     if(next!==settings)setSettings(next);
   },[settings,commit]);
   useEffect(() => {

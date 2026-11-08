@@ -34,7 +34,8 @@ Branch: `feat/1.5.0-part3`. Part 2 PR #20 stays Draft; no merge or Release.
 - Encrypted input is authenticated/decrypted before preview; all import variants
   show counts/range/duplicate IDs before explicit confirmation. Calendar writes
   use the existing atomic transaction. A shared-theme preference is preflighted
-  and compensated if the transaction fails; localStorage and IndexedDB do not
+  and selectively compensated if the transaction fails, preserving concurrent
+  credentials, preferences and theme edits; localStorage and IndexedDB do not
   constitute a crash-atomic distributed transaction.
 - Text export now renders the actual copyable code. Unchanged tombstones retain
   identity on calendar focus refresh, avoiding accidental generation/output reset.
@@ -44,7 +45,7 @@ Branch: `feat/1.5.0-part3`. Part 2 PR #20 stays Draft; no merge or Release.
 ## Validation
 
 Local unit baseline: 247 passing cases, plus the new preference-persistence/quota
-case passing separately. TypeScript passes. Four new release-policy boundary
+case and concurrent-import compensation case passing separately. TypeScript passes. Four new release-policy boundary
 cases pass; 57 historical Python policy cases passed in the combined run (one
 new fixture's wrong version-string replacement was corrected and rerun).
 
