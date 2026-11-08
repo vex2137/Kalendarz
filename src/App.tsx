@@ -429,14 +429,14 @@ export default function App() {
   useEffect(() => {
     const key=(event:KeyboardEvent)=>{
       if(isPinLocked||!ready)return;
-      const context=modal==='ai'&&!document.getElementById('ai-settings-panel')&&!document.getElementById('ai-history-overlay')?'assistant':modal==='settings'?'settings':!modal?'calendar':undefined;
+      const context=modal==='ai'&&!document.getElementById('ai-settings-panel')?(document.getElementById('ai-history-overlay')?'assistant-history':'assistant'):modal==='settings'?'settings':!modal?'calendar':undefined;
       const action=resolveShortcut(event,normalizedShortcuts(settings.keyboardShortcuts),context);if(!action)return;
       if(action==='assistant'&&!settings.ai.enabled)return;
       event.preventDefault();
       if(['year','month','week','day','agenda'].includes(action))changeView(action as CalendarViewMode);
-      else if(action==='settings'){if(context==='assistant')document.getElementById('btn-ai-settings')?.click();else{setSettingsSection(undefined);setModal('settings');}}
+      else if(action==='settings'){if(context==='assistant'||context==='assistant-history')window.dispatchEvent(new Event('calendar-open-ai-settings'));else{setSettingsSection(undefined);setModal('settings');}}
       else if(action==='assistant')setModal('ai');
-      else if(action==='search'){if(context==='settings')document.getElementById('settings-search')?.focus();else setModal('search');}
+      else if(action==='search'){if(context==='settings')document.getElementById('settings-search')?.focus();else if(context==='assistant-history')document.querySelector<HTMLInputElement>('#ai-history-overlay input[type=search]')?.focus();else setModal('search');}
       else if(action==='today')today();
       else if(action==='create')create();
       else {setSettingsSection(action==='updates'?'updates':'data');setModal('settings');}
@@ -501,7 +501,7 @@ export default function App() {
           />
           <div className="flex flex-1 min-h-0 min-w-0">
           {settings.desktop?.sidebar&&<DesktopSidebar settings={settings} onUpdateSettings={updateSettings} date={currentDate} events={events} language={language} onDate={selectDay} onEvent={select}/>}
-          <CalendarNavigation enabled={ready && !isPinLocked && !modal} animations={animations} allowHorizontalScroll={viewMode === 'week'} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
+          <CalendarNavigation shortcuts={settings.keyboardShortcuts} enabled={ready && !isPinLocked && !modal} animations={animations} allowHorizontalScroll={viewMode === 'week'} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
           <CalendarPanel
             {...{
               currentDate,

@@ -5,9 +5,9 @@ export const shortcutActions = {
 } as const;
 export type ShortcutAction = keyof typeof shortcutActions;
 export type ShortcutMap = Record<ShortcutAction, string[]>;
-export type ShortcutContext = 'calendar' | 'assistant' | 'settings';
+export type ShortcutContext = 'calendar' | 'assistant' | 'assistant-history' | 'settings';
 export const shortcutContexts = (action: ShortcutAction): ShortcutContext[] => action === 'settings'
-  ? ['calendar', 'assistant'] : action === 'search' ? ['calendar', 'settings'] : ['calendar'];
+  ? ['calendar', 'assistant', 'assistant-history'] : action === 'search' ? ['calendar', 'settings', 'assistant-history'] : ['calendar'];
 export const defaultShortcuts = (): ShortcutMap => Object.fromEntries(Object.entries(shortcutActions).map(([key, values]) => [key, [...values]])) as ShortcutMap;
 export function shortcutKey(e: Pick<KeyboardEvent,'key'|'ctrlKey'|'altKey'|'shiftKey'|'metaKey'>): string | undefined {
   if (['Control','Shift','Alt','Meta','OS','Super','AltGraph','CapsLock','Dead','Process','Unidentified'].includes(e.key)) return;
@@ -38,6 +38,7 @@ export function shortcutInput(target: EventTarget | null): boolean {
 }
 export function resolveShortcut(event: KeyboardEvent, map: ShortcutMap, context: ShortcutContext | undefined): ShortcutAction | undefined {
   if (!context || event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229 || shortcutInput(event.target) || window.getSelection()?.isCollapsed === false) return;
+  if(['Enter',' '].includes(event.key)&&event.target instanceof Element&&event.target.closest('button,a[href],[role="button"]'))return;
   const key = shortcutKey(event);
   if (!key || reservedShortcut(key)) return;
   return (Object.keys(map) as ShortcutAction[]).find(action => shortcutContexts(action).includes(context) && map[action].includes(key));

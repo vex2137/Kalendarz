@@ -137,6 +137,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   };
 
   useEffect(() => { if (isOpen) return observeAssistantSession(); }, [isOpen]);
+  useEffect(()=>{if(!isOpen)return;const open=()=>{setHistoryOpen(false);setSettingsOpen(true);};window.addEventListener('calendar-open-ai-settings',open);return()=>window.removeEventListener('calendar-open-ai-settings',open);},[isOpen]);
   useEffect(() => { if (isOpen && model.installed) markAssistantInputReady(); }, [isOpen, model.installed]);
   useEffect(() => {
     if (isOpen && presentationRef.current !== undefined) {

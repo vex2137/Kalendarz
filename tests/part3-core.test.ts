@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultShortcuts, shortcutConflicts, normalizedShortcuts, reservedShortcut, shortcutKey } from '../src/utils/shortcuts';
+import { defaultShortcuts, shortcutContexts, shortcutConflicts, normalizedShortcuts, reservedShortcut, shortcutKey } from '../src/utils/shortcuts';
 import { encodeUnprotectedSync, encodeSync, decodeSync, QRAssembler, syncPreview } from '../src/utils/sync';
 import { event } from './fixtures';
 import { gzipSync } from 'fflate';
 import { applySyncPayload } from '../src/utils/syncImport';
 import { DEFAULT_APP_SETTINGS } from '../src/utils/constants';
 test('13 actions/14 bindings, normalization, disabled actions, modifiers and conflicts',()=>{
+ assert.ok(shortcutContexts('search').includes('assistant-history'));assert.ok(shortcutContexts('settings').includes('assistant-history'));assert.deepEqual(shortcutContexts('year'),['calendar']);
  const map=defaultShortcuts();assert.equal(Object.keys(map).length,13);assert.equal(Object.values(map).flat().length,14);assert.deepEqual(map.search,['q','/']);assert.deepEqual(normalizedShortcuts({...map,assistant:[]}).assistant,[]);
  assert.match(shortcutConflicts({...map,create:['a']})[0],/assistant.*create/);assert.deepEqual(normalizedShortcuts({...map,create:['a']}),map);
  assert.equal(shortcutKey({key:'K',ctrlKey:true,shiftKey:true,altKey:false,metaKey:false}),'Ctrl+Shift+k');
