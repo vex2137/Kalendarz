@@ -23,7 +23,7 @@ const bridge:DesktopBridge={
   },
   configureResidency:async(background,keepLoaded)=>{await plugin.configureResidency({background,keepLoaded});},
   cancelGeneration:async()=>{await plugin.cancelGeneration();},
-  stop:()=>plugin.stop(),setMode:(mode:BackendMode,gpuLayers?:number)=>plugin.setMode({mode,gpuLayers}),status:()=>plugin.status(),
+  stop:()=>plugin.stop(),setMode:(mode:BackendMode,gpuLayers?:number,automaticLayers?:boolean)=>plugin.setMode({mode,gpuLayers,automaticLayers}),status:()=>plugin.status(),
 };
 let available=false;
 export const androidAIReady = Capacitor.getPlatform()==='android' && BUILD_INFO.androidNative===true && Capacitor.isPluginAvailable('CalendarNativeAI')

@@ -17,6 +17,7 @@ public final class CalendarInferenceService extends Service {
     static void finish(Context context){cancel=null;context.stopService(new Intent(context,CalendarInferenceService.class));}
     @Override public int onStartCommand(Intent intent,int flags,int startId){
         if(intent!=null&&"stop".equals(intent.getAction())){Runnable action=cancel;if(action!=null)action.run();stopSelf();return START_NOT_STICKY;}
+        if(cancel==null){stopSelf();return START_NOT_STICKY;}
         NotificationManager manager=getSystemService(NotificationManager.class);
         manager.createNotificationChannel(new NotificationChannel("calendar-inference","Local AI generation",NotificationManager.IMPORTANCE_LOW));
         PendingIntent stop=PendingIntent.getService(this,0,new Intent(this,CalendarInferenceService.class).setAction("stop"),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);

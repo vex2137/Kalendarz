@@ -34,6 +34,8 @@ final class NativeInferenceEngine {
     private boolean gpu, confirmed;
     private volatile int layers;
     private int gpuLayerLimit=999;
+    private boolean automaticLayers=true;
+    private volatile boolean serviceRequested;
     private boolean vulkanDetected;
     private final Set<String> gpuFailures=new HashSet<>();
     private String modelName;
@@ -89,7 +91,7 @@ final class NativeInferenceEngine {
     private File binary(){return new File(getContext().getApplicationInfo().nativeLibraryDir,"libcalendar_llama.so");}
     private JSObject snapshot(){
         JSObject s=new JSObject();s.put("system","Android "+android.os.Build.VERSION.RELEASE);s.put("cpuArchitecture",android.os.Build.SUPPORTED_ABIS.length>0?android.os.Build.SUPPORTED_ABIS[0]:"unknown");s.put("gpuLayers",gpuLayerLimit);s.put("packagedBackends",new JSArray(binary().isFile()?(hasVulkan()?Arrays.asList("cpu-native","vulkan"):Arrays.asList("cpu-native")):Collections.emptyList()));s.put("availableBackends",new JSArray(vulkanDetected?Arrays.asList("vulkan"):Collections.emptyList()));s.put("mode",mode);s.put("backend",gpu?"vulkan":"cpu-native");s.put("available",binary().isFile()&&binary().canExecute()&&android.os.Build.VERSION.SDK_INT>=28);s.put("loaded",process!=null&&process.isAlive()&&loadedId!=null);s.put("gpuActive",confirmed&&process!=null&&process.isAlive()&&loadedId!=null);s.put("offloadedLayers",layers);s.put("threads",Math.min(4,Runtime.getRuntime().availableProcessors()));s.put("loadMs",loadMs);
-        s.put("contextLimit",NativeContextConfig.MAX_CONTEXT);
+        s.put("automaticLayers",automaticLayers);s.put("contextLimit",NativeContextConfig.MAX_CONTEXT);
         android.app.ActivityManager manager=(android.app.ActivityManager)getContext().getSystemService(android.content.Context.ACTIVITY_SERVICE);
         if(manager!=null){android.app.ActivityManager.MemoryInfo memory=new android.app.ActivityManager.MemoryInfo();manager.getMemoryInfo(memory);s.put("availableMemoryBytes",memory.availMem);}
         if(contextRequested!=null)s.put("contextRequested",contextRequested);if(contextApplied!=null)s.put("contextApplied",contextApplied);if(contextUsed!=null)s.put("contextUsed",contextUsed);
@@ -125,7 +127,7 @@ final class NativeInferenceEngine {
     private void kill(Process p)throws Exception{if(p==null)return;p.destroy();if(!p.waitFor(1500,TimeUnit.MILLISECONDS)){p.destroyForcibly();if(!p.waitFor(3500,TimeUnit.MILLISECONDS))throw new Exception("model-stop-timeout");}}
     private void stopProcess()throws Exception{Process p=process;captureGpuStartup=false;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;contextApplied=null;contextUsed=null;contextRequested=null;kill(p);if(process==p)process=null;if(externalModelFd!=null){externalModelFd.close();externalModelFd=null;}}
     public void stop(PluginCall call){interrupt();submit(call,()->{stopProcess();return new JSObject();});}
-    public void setMode(PluginCall call){String next=call.getString("mode","");Integer limit=call.getInt("gpuLayers",999);if(!Arrays.asList("auto","gpu","cpu").contains(next)||limit==null||limit<1||limit>999){call.reject("model-input");return;}interrupt();submit(call,()->{stopProcess();gpuFailures.clear();mode=next;gpuLayerLimit=limit;fallback=null;lastError=null;return snapshot();});}
+    public void setMode(PluginCall call){String next=call.getString("mode","");Integer limit=call.getInt("gpuLayers",999);if(!Arrays.asList("auto","gpu","cpu").contains(next)||limit==null||limit<1||limit>999){call.reject("model-input");return;}interrupt();submit(call,()->{stopProcess();gpuFailures.clear();mode=next;gpuLayerLimit=limit;automaticLayers=Boolean.TRUE.equals(call.getBoolean("automaticLayers",true));fallback=null;lastError=null;return snapshot();});}
     private Process spawn(List<String> args,boolean useGpu)throws Exception{
         return nativeProcessBuilder(useGpu?vulkanBinary():binary(),args).start();
     }
@@ -235,18 +237,25 @@ final class NativeInferenceEngine {
             JSObject out=new JSObject();out.put("text",text.toString());out.put("finish",finish);out.put("usage",usage);out.put("timings",timings);if(first!=null)out.put("firstTokenMs",first);out.put("backend",snapshot());return out;
         }finally{completing=false;c.disconnect();if(connection==c)connection=null;}
     }
-    public void configureResidency(PluginCall call){getContext().getSharedPreferences("calendar-ai-residency",0).edit().putBoolean("background",Boolean.TRUE.equals(call.getBoolean("background"))).putBoolean("keepLoaded",Boolean.TRUE.equals(call.getBoolean("keepLoaded"))).apply();call.resolve();}
+    private synchronized void protectGeneration(boolean background){
+        if(background&&completionRequest.get()&&!serviceRequested)try{CalendarInferenceService.begin(getContext(),this::interruptGeneration);serviceRequested=true;backgroundProtection="requested";}catch(RuntimeException error){backgroundProtection="unavailable";}
+        if(!background&&serviceRequested){CalendarInferenceService.finish(getContext());serviceRequested=false;}
+    }
+    public void configureResidency(PluginCall call){
+        boolean background=Boolean.TRUE.equals(call.getBoolean("background"));
+        getContext().getSharedPreferences("calendar-ai-residency",0).edit().putBoolean("background",background).putBoolean("keepLoaded",Boolean.TRUE.equals(call.getBoolean("keepLoaded"))).apply();
+        protectGeneration(background);call.resolve();
+    }
     public void complete(PluginCall call){
         if(!completionRequest.compareAndSet(false,true)){call.reject("model-busy");return;}
         boolean background=getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("background",false);
         backgroundProtection=background?"requested":"disabled";
-        if(background)try{CalendarInferenceService.begin(getContext(),this::interruptGeneration);}catch(RuntimeException error){background=false;backgroundProtection="unavailable";}
-        final boolean protectedGeneration=background;
+        protectGeneration(background);
         long version=epoch.get();submit(call,()->{boolean started=false;try{
         JSONObject m=descriptor(call),request=validateRequest(call.getObject("request"));String requestId=call.getString("requestId");if(requestId!=null&&!requestId.matches("[a-fA-F0-9-]{36}"))throw new Exception("model-input");generationId=requestId;generationText="";generationState="running";generationModel=m.getString("id");generationStructured=request.has("response_format");started=true;generationCheckpoint=0;saveGeneration();
         try{prepare(m,version);check(version);try{return complete(request,version,requestId);}catch(Exception e){check(version);if(!gpu)throw e;if(gpuDiagnostics!=null){if(!captureGpuStartup)gpuDiagnostics.stage("inference");gpuDiagnostics.fail(e,process==null||process.isAlive()?null:process.exitValue());}gpuFailures.add(m.getString("id")+":"+contexts.get(m.getString("id"))+":"+gpuLayerLimit);stopProcess();fallback="gpu-inference-failed";if(mode.equals("gpu"))throw new Exception("model-gpu-inference");streamChunk(requestId,"",true);start(m,null,version);return complete(request,version,requestId);}}
         catch(Exception e){generationState="error";if(epoch.get()==version||!getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false)||process==null||!process.isAlive()||loadedId==null)stopProcess();throw e;}
-        }finally{if(started){generationState=epoch.get()!=version?"cancelled":"error".equals(generationState)?"error":"complete";saveGeneration();}completionRequest.set(false);if(protectedGeneration)CalendarInferenceService.finish(getContext());if(!bridgeAlive.getAsBoolean()&&!getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false))stopProcess();}
+        }finally{if(started){generationState=epoch.get()!=version?"cancelled":"error".equals(generationState)?"error":"complete";saveGeneration();}completionRequest.set(false);protectGeneration(false);if(!bridgeAlive.getAsBoolean()&&!getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false))stopProcess();}
     });}
     static WebResourceResponse intercept(android.content.Context context,Uri url){
         if(!"https".equals(url.getScheme())||!"localhost".equals(url.getHost())||url.getPort()!=-1||!url.getPath().startsWith("/_calendar_native_model/"))return null;
