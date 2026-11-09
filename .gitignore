@@ -56,3 +56,6 @@ training/exports/
 
 /native-backend-benchmark.json
 /model-download-diagnostics.json
+
+# Part 4 generated upgrade and performance evidence (private Actions artifacts).
+/manual-test-assets/part4/
