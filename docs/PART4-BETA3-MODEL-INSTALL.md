@@ -62,3 +62,9 @@ This was real CPU inference through a controller native bridge, not packaged
 Electron IPC or a physical GPU test. The temporary extracted model was removed;
 the original APK and signing backup were not changed. Final packages still
 require their own real import/download/inference/restart acceptance.
+
+Flatpak package acceptance additionally logs each default-model phase and bounds
+CPU completion (120s), local test-server shutdown (5s), CDP shutdown (15s) and
+the isolated sandbox test process (600s). Errors are printed before cleanup, so
+a failed operation cannot be hidden by an unbounded test teardown. A timeout
+is a failed test, never a skipped assertion or successful inference.

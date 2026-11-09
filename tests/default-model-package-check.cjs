@@ -6,7 +6,10 @@ async function infer(page){
  await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').click();await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
  const row=page.locator(`[data-model-id="${model.id}"]`);await row.getByRole('button',{name:'Load',exact:true}).click();await row.locator('[data-testid=model-in-use]').waitFor({timeout:180000});
  const info=await page.evaluate(id=>window.calendarNativeAI.info(id),model.id);assert.equal(info.installed,true);assert.equal(info.verified,true);assert.equal(info.bytes,model.bytes);
- const result=await page.evaluate(async id=>{return window.calendarNativeAI.complete(id,{messages:[{role:'system',content:'Reply briefly without reasoning.'},{role:'user',content:'Say hello briefly.'}],max_tokens:64});},model.id);
+ console.log('Default model: native CPU completion start');let timer;
+ const pending=page.evaluate(async id=>window.calendarNativeAI.complete(id,{messages:[{role:'system',content:'Reply briefly without reasoning.'},{role:'user',content:'Say hello briefly.'}],max_tokens:64}),model.id);
+ let result;try{result=await Promise.race([pending,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('default-model-cpu-completion-timeout')),120000)})]);}finally{clearTimeout(timer);}
+ console.log('Default model: native CPU completion finished');
  assert.ok(result.text.trim());assert.ok(result.usage.completion_tokens>0);assert.equal(result.backend.backend,'cpu-native');assert.equal(result.backend.gpuActive,false);return{installed:true,verified:true,completionTokens:result.usage.completion_tokens,backend:result.backend.backend};
 }
 async function installed(page,wanted=true){
@@ -25,15 +28,17 @@ async function cycle(page,file){
  const route=route=>route.continue({url:'https://127.0.0.1:'+server.address().port+'/model.gguf'});
  try{
   const row=page.locator(`[data-model-id="${model.id}"]`);await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').click();await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
+  console.log('Default model: verified empty profile; starting download');
   // A fresh profile proves a real download; retained verified bytes should be recovered.
   assert.equal((await page.evaluate(id=>window.calendarNativeAI.info(id),model.id)).installed,false);
-  await page.route(source.url,route);await row.getByRole('button',{name:'Download',exact:true}).click();await installed(page);assert.ok(requests>0,'The real catalogue download must reach the local HTTP server');
+  await page.route(source.url,route);await row.getByRole('button',{name:'Download',exact:true}).click();await installed(page);assert.ok(requests>0,'The real catalogue download must reach the local HTTP server');console.log('Default model: download committed and verified');
   const downloadInference=await infer(page);
-  await row.locator('details').evaluate(e=>{e.open=true});page.once('dialog',d=>d.accept());await row.getByRole('button',{name:'Remove download',exact:true}).click();await installed(page,false);
+  await row.locator('details').evaluate(e=>{e.open=true});page.once('dialog',d=>d.accept());await row.getByRole('button',{name:'Remove download',exact:true}).click();await installed(page,false);console.log('Default model: removed test download; starting file import');
   await page.getByLabel('Import GGUF',{exact:true}).setInputFiles(file);await installed(page);
-  const importInference=await infer(page);
+  console.log('Default model: file import committed and verified');const importInference=await infer(page);
   await page.getByLabel('Import GGUF',{exact:true}).setInputFiles(file);await installed(page);await page.waitForFunction(()=>{const input=document.querySelector('input[aria-label="Import GGUF"]');return input&&!input.disabled;});
+  console.log('Default model: duplicate import finished');
   return{source:process.env.CALENDAR_EXPECTED_COMMIT,modelId:model.id,sha256:model.sha256,bytes:model.bytes,blockCount:metadata.blockCount,contextLength:metadata.contextLength,import:'PASS actual pinned default file, duplicate and native load',download:'PASS actual HTTP to OPFS to native commit and load',importInference,downloadInference,networkRequests:requests,physicalGpuTested:false};
- }finally{await page.unroute(source.url,route);server.closeAllConnections();await new Promise(r=>server.close(r));await fsp.rm(certDirectory,{recursive:true,force:true});}
+ }finally{console.log('Default model: closing local HTTPS server');await page.unroute(source.url,route);server.closeAllConnections();let timer;try{await Promise.race([new Promise(r=>server.close(r)),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('default-model-test-server-close-timeout')),5000)})]);}finally{clearTimeout(timer);await fsp.rm(certDirectory,{recursive:true,force:true});}}
 }
 module.exports={cycle,infer,model};

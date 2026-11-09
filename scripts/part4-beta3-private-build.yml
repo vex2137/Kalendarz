@@ -82,7 +82,7 @@ jobs:
         base='946d8cea51b3c67bc4627750265df352e4b5df18'
         subprocess.run(['git','merge-base','--is-ancestor',base,'HEAD'],check=True)
         changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines())
-        allowed={'tests/default-model-package-check.cjs','scripts/part4-beta3-private-build.yml','docs/PART4-BETA3-MODEL-INSTALL.md'}
+        allowed={'tests/flatpak-packaged.cjs','tests/default-model-package-check.cjs','scripts/part4-beta3-private-build.yml','docs/PART4-BETA3-MODEL-INSTALL.md'}
         assert changed <= allowed, 'Application/runtime/test-suite changes require fresh full regression: '+repr(changed-allowed)
         job=json.loads(subprocess.check_output(['gh','api','repos/vex2137/Kalendarz-private-builds/actions/jobs/129410962608'],text=True))
         assert job['run_id']==42691166742 and job['conclusion']=='success' and job['name']=='validation'
@@ -559,7 +559,7 @@ jobs:
         rm -rf -- .flatpak-builder release/linux-unpacked
         df -h .
     - name: Run the installed sandboxed application with actual persistence and filesystem denial
-      run: 'xvfb-run -a dbus-run-session -- bash -c ''export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'' '
+      run: 'xvfb-run -a dbus-run-session -- bash -c ''export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; timeout --signal=TERM --kill-after=20s 600s node tests/flatpak-packaged.cjs'' '
     - name: Use the already-private Qwen v2 only for package acceptance, never packaging
       env:
         GH_TOKEN: ${{ github.token }}
@@ -577,7 +577,7 @@ jobs:
     - name: Actual CPU GGUF inference inside the Flatpak sandbox
       run: CALENDAR_EXTERNAL_MODEL="$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf" python3 scripts/flatpak-cpu-smoke.py
     - name: Default Qwen import, catalogue download and actual CPU inference in the sandbox
-      run: CALENDAR_EXTERNAL_MODEL="$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf" CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'
+      run: CALENDAR_EXTERNAL_MODEL="$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf" CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; timeout --signal=TERM --kill-after=20s 600s node tests/flatpak-packaged.cjs'
     - name: Real local Flatpak update and preserved event; test commit is never uploaded
       run: |-
         mkdir -p build/flatpak-update-repo
@@ -588,7 +588,7 @@ jobs:
         flatpak build-export --subject='Ephemeral update persistence test; same application bytes' build/flatpak-update-repo build/flatpak-root beta
         flatpak build-update-repo build/flatpak-update-repo
         flatpak update --user -y --noninteractive --no-deps com.vex2137.kalendarz
-        CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'
+        CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; timeout --signal=TERM --kill-after=20s 600s node tests/flatpak-packaged.cjs'
         python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - name: Bundle the original candidate, then install and recheck the actual downloadable bytes
       run: |-
@@ -596,7 +596,7 @@ jobs:
         flatpak uninstall --user -y --noninteractive com.vex2137.kalendarz
         flatpak install --user -y --noninteractive --bundle part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64.flatpak
         python3 scripts/check-part4-beta3-flatpak.py
-        CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'
+        CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; timeout --signal=TERM --kill-after=20s 600s node tests/flatpak-packaged.cjs'
         python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:

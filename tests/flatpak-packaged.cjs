@@ -1,6 +1,7 @@
 // Real installed Flatpak under D-Bus/Xvfb; do not launch the extracted host executable.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{spawn,execFileSync}=require('node:child_process'),{chromium}=require('playwright');
 const APP='com.vex2137.kalendarz',pause=ms=>new Promise(r=>setTimeout(r,ms));
+async function closeBrowser(browser){if(!browser)return;let timer;try{await Promise.race([browser.close(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('flatpak-test-browser-close-timeout')),15000)})]);}finally{clearTimeout(timer);}}
 (async()=>{
  const out='part4-artifacts/flatpak';fs.mkdirSync(out,{recursive:true});const port=19676;let browser,child,acceptance;
  const marker=path.join(process.env.HOME,'calendar-host-private-marker');fs.writeFileSync(marker,'must not be readable inside the sandbox');
@@ -20,11 +21,12 @@ const APP='com.vex2137.kalendarz',pause=ms=>new Promise(r=>setTimeout(r,ms));
    if(process.env.CALENDAR_EXTERNAL_MODEL){
     // Input copied into the app's existing sandbox-owned XDG data; no filesystem grant.
     const directory=path.join(process.env.HOME,'.var/app',APP,'data/default-acceptance');fs.mkdirSync(directory,{recursive:true});acceptance=path.join(directory,'model.gguf');fs.copyFileSync(process.env.CALENDAR_EXTERNAL_MODEL,acceptance);
-    const report=await check.cycle(page,acceptance);fs.writeFileSync(path.join(out,'default-model.json'),JSON.stringify(report,null,2));console.log(report);
+    console.log('Flatpak: starting real default model cycle in sandbox');const report=await check.cycle(page,acceptance);fs.writeFileSync(path.join(out,'default-model.json'),JSON.stringify(report,null,2));console.log(report);
    }else{const report=await check.infer(page);fs.writeFileSync(path.join(out,'default-model-restart.json'),JSON.stringify(report,null,2));console.log('PASS managed default model after actual Flatpak restart/update',report);}
   }
   const result={source:process.env.CALENDAR_EXPECTED_COMMIT,startup:'PASS installed Flatpak via Zypak in sandbox',calendar:'PASS event write, reload and native AI bridge',hostFilesystem:'PASS ungranted home marker denied',restart:process.env.CALENDAR_FLATPAK_REOPEN==='true'?'PASS preserved data after update':'pending update',portalFileChooser:'NOT TESTED: requires manual portal selection',physicalGpu:'NOT TESTED',packagedBackends:native.packagedBackends};fs.writeFileSync(path.join(out,'flatpak-smoke.json'),JSON.stringify(result,null,2));console.log(result);
-  await page.evaluate(()=>window.close()).catch(e=>{if(!/closed|destroyed/i.test(e.message))throw e;});await browser.close();browser=undefined;
+  await page.evaluate(()=>window.close()).catch(e=>{if(!/closed|destroyed/i.test(e.message))throw e;});console.log('Flatpak: closing verified application');await closeBrowser(browser);browser=undefined;
   await Promise.race([new Promise(r=>child.once('exit',r)),pause(15000)]);if(child.exitCode===null)throw Error('Flatpak failed to close');
- }finally{await browser?.close();if(child&&child.exitCode===null)child.kill();fs.rmSync(marker,{force:true});if(acceptance)fs.rmSync(acceptance,{force:true});}
+ }catch(error){console.error('Flatpak test failed:',error);throw error;}
+ finally{try{await closeBrowser(browser);}catch(error){console.error('Flatpak cleanup:',error);}if(child&&child.exitCode===null){execFileSync('flatpak',['kill',APP],{stdio:'ignore'});child.kill();}fs.rmSync(marker,{force:true});if(acceptance)fs.rmSync(acceptance,{force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});
