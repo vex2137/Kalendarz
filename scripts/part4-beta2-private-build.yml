@@ -82,7 +82,7 @@ jobs:
         base='1e8deb2debf9776b5bff1a14a33b11c2bb0f4d41'
         subprocess.run(['git','merge-base','--is-ancestor',base,'HEAD'],check=True)
         changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines())
-        allowed={'scripts/check-part4-beta2-flatpak.py','tests/test_part4_beta2_policy.py','scripts/part4-beta2-private-build.yml','com.vex2137.kalendarz.yml','docs/PART4-BETA2-PACKAGING.md'}
+        allowed={'scripts/check-part4-beta2-flatpak.py','tests/test_part4_beta2_policy.py','scripts/part4-beta2-private-build.yml','com.vex2137.kalendarz.yml','docs/PART4-BETA2-PACKAGING.md','scripts/flatpak-cpu-smoke.py','tests/flatpak-packaged.cjs'}
         assert changed <= allowed, 'Browser/application changes forbid reusing the previous validation: '+repr(changed-allowed)
         # The sole manifest change retains locale files; all other packaging inputs are exact.
         old=json.loads(subprocess.check_output(['git','show',base+':com.vex2137.kalendarz.yml'],text=True));new=json.loads(Path('com.vex2137.kalendarz.yml').read_text());new.pop('separate-locales',None);assert old==new
@@ -504,6 +504,10 @@ jobs:
       with:
         bun-version: 1.4.3
     - run: bun install --frozen-lockfile
+    - name: Use supported Python for hashlib.file_digest and package checks
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
     - uses: actions/download-artifact@v4
       with:
         name: Kalendarz-Part-4-Beta-2-payload-${{ inputs.source_commit }}

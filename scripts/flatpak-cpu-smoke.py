@@ -22,7 +22,7 @@ try:
    except Exception:pass
    if time.monotonic()>deadline:raise TimeoutError('Sandboxed CPU health timeout')
    time.sleep(.3)
-  body=json.dumps({'messages':[{'role':'user','content':'Say hello briefly.'}],'max_tokens':24,'temperature':0}).encode()
+  body=json.dumps({'messages':[{'role':'user','content':'Say hello briefly.'}],'max_tokens':64,'temperature':0,'chat_template_kwargs':{'enable_thinking':False}}).encode()
   with urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:19677/v1/chat/completions',data=body,headers={'Content-Type':'application/json'}),timeout=120)as r:result=json.load(r)
   assert result['usage']['completion_tokens']>0 and result['choices'][0]['message'].get('content')
   report=dict(source=os.environ['CALENDAR_EXPECTED_COMMIT'],status='PASS',test='real CPU GGUF inference inside installed Flatpak sandbox',completionTokens=result['usage']['completion_tokens'],gpuVerified=False)

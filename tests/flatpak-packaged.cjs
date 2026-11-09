@@ -16,7 +16,7 @@ const APP='com.vex2137.kalendarz',pause=ms=>new Promise(r=>setTimeout(r,ms));
   await page.locator('#btn-ai-settings').click();await page.getByTestId('model-folders').waitFor();
   const data=await page.evaluate(()=>({origin:location.origin,crypto:!!crypto.subtle}));assert.equal(data.crypto,true);
   const result={source:process.env.CALENDAR_EXPECTED_COMMIT,startup:'PASS installed Flatpak via Zypak in sandbox',calendar:'PASS event write, reload and native AI bridge',hostFilesystem:'PASS ungranted home marker denied',restart:process.env.CALENDAR_FLATPAK_REOPEN==='true'?'PASS preserved data after update':'pending update',portalFileChooser:'NOT TESTED: requires manual portal selection',physicalGpu:'NOT TESTED',packagedBackends:native.packagedBackends};fs.writeFileSync(path.join(out,'flatpak-smoke.json'),JSON.stringify(result,null,2));console.log(result);
-  await page.evaluate(()=>window.close());await browser.close();browser=undefined;
+  await page.evaluate(()=>window.close()).catch(e=>{if(!/closed|destroyed/i.test(e.message))throw e;});await browser.close();browser=undefined;
   await Promise.race([new Promise(r=>child.once('exit',r)),pause(15000)]);if(child.exitCode===null)throw Error('Flatpak failed to close');
  }finally{await browser?.close();if(child&&child.exitCode===null)child.kill();fs.rmSync(marker,{force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});
