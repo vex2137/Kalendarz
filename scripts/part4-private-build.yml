@@ -122,7 +122,7 @@ jobs:
     - name: Published 1.4.2 same-origin upgrade and deterministic performance evidence
       run: |-
         mkdir -p build/source142
-        curl --fail --location --retry 2 https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WEB.zip -o build/source142/web.zip
+        python3 scripts/release_download.py https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WEB.zip build/source142/web.zip --bytes 6955172 --sha256 2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676
         python3 - <<'PY142'
         import hashlib,zipfile
         from pathlib import Path
