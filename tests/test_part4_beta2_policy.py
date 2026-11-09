@@ -23,4 +23,11 @@ class Beta2PolicyTest(unittest.TestCase):
   guard.verify_candidate_info(info,'a'*40,False)
   for bad in [{**info,'releaseChannel':'part4-beta1'},{**info,'dirty':True},{**info,'commit':'b'*40}]:
    with self.assertRaises(ValueError):guard.verify_candidate_info(bad,'a'*40,False)
+class FlatpakPermissionsTest(unittest.TestCase):
+ def test_semantic_fallback_flags_and_minimal_grants(self):
+  spec=importlib.util.spec_from_file_location('flatpak_checker',guard.ROOT/'scripts/check-part4-beta2-flatpak.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+  base=dict(devices='dri;',shared='network;ipc;',sockets='wayland;x11;fallback-x11;')
+  m.verify_permissions(base);m.verify_permissions({**base,'sockets':'fallback-x11;wayland;x11;'})
+  for bad in [{**base,'filesystems':'home;'},{**base,'devices':'all;'},{**base,'sockets':'wayland;x11;'},{**base,'sockets':base['sockets']+'system-bus;'}]:
+   with self.assertRaises(AssertionError):m.verify_permissions(bad)
 if __name__=='__main__':unittest.main()

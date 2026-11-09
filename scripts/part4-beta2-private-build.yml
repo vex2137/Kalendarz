@@ -4,7 +4,7 @@ name: Build private Kalendarz Part 4 Beta 2 five-format candidates
   workflow_dispatch:
     inputs:
       source_commit:
-        description: Exact current application SHA; both platforms use this same source
+        description: Exact current application SHA; all five packages use this same source
         required: true
         type: string
 permissions:
@@ -65,87 +65,40 @@ jobs:
         npm run test:native
         node --test tests/beta7-stream.test.cjs
         python3 -m unittest discover -s tests -p 'test_*.py'
-    - name: Install the pinned browser/Xvfb dependencies
-      run: |-
-        npx --no-install playwright install --with-deps chromium
-        if [ ! -e /usr/bin/chromium ]; then sudo ln -s "$(node -p 'require("playwright").chromium.executablePath()')" /usr/bin/chromium; fi
-    - name: Build current model-free web assets for production browser regressions
-      run: |-
-        node scripts/prepare-model-free.cjs
-        node node_modules/vite/bin/vite.js build --mode production
-    - name: Calendar, assistant, copy, history, models and transfer browser regressions
-      run: |-
-        node tests/browser.cjs
-        node tests/diagnostics-actions-browser.cjs
-        node tests/part4-recovery-browser.cjs
-        node tests/assistant-beta4-browser.cjs
-        node tests/assistant-beta5-browser.cjs
-        node tests/beta7-browser.cjs
-        node tests/part3-browser.cjs
-        node tests/part3-beta2-browser.cjs
-        node tests/part3-qr-browser.cjs
-        node tests/android-beta5-browser.cjs
-        node tests/beta6-gpu-browser.cjs
-        node tests/beta6-sync-browser.cjs
-        node tests/model-context-browser.cjs
-        node tests/native-startup-browser.cjs
-        node tests/model-transfer-lifecycle-browser.cjs
-    - name: Part 2 themes, calendar, security and motion browser regressions
-      run: |-
-        node node_modules/vite/bin/vite.js --host=127.0.0.1 --port=4179 --strictPort > "$RUNNER_TEMP/stable-ui-server.log" 2>&1 &
-        server_pid=$!
-        trap 'kill "$server_pid"' EXIT
-        for i in {1..50}; do curl -fsS http://127.0.0.1:4179 >/dev/null && break; sleep 0.2; done
-        for file in themes pin password biometric animations dialog-motion month; do node "tests/${file}-part2-browser.cjs"; done
     - uses: actions/download-artifact@v4
       with:
         repository: vex2137/Kalendarz-private-builds
         github-token: ${{ github.token }}
-        run-id: 42563978670
-        name: Kalendarz-Part-3-Beta-2-android-5e4ed1718cc40c2c57d44e437fa23ac9cc48d643
-        path: source/build/accepted-part2
-    - name: Verify accepted Part 3 Beta 2 assets and actual same-origin data upgrade
+        run-id: 42630115724
+        name: Kalendarz-Part-4-Beta-2-validation-1e8deb2debf9776b5bff1a14a33b11c2bb0f4d41
+        path: source/manual-test-assets/part4/
+    - name: Require actual successful browser/migration baseline and unchanged runtime before reusing its evidence
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |-
-        python3 - <<'PYUPGRADE'
-        import hashlib,json,zipfile
+        python3 - <<'PYREUSE'
+        import json,os,subprocess
         from pathlib import Path
-        p=Path('build/accepted-part2/Kalendarz-1.5.0-Part-3-Beta-2-Android-arm64.apk')
-        with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='83d4eb3cb76b46565a2ab345675eeb716b179c09f6b312e26ac1e9855e4715a9'
-        root=Path('build/accepted-part2-web');root.mkdir()
-        with zipfile.ZipFile(p) as z:
-            info=json.loads(z.read('assets/public/build-info.json'));assert info['commit']=='5e4ed1718cc40c2c57d44e437fa23ac9cc48d643'
-            for name in z.namelist():
-                if name.startswith('assets/public/') and not name.endswith('/'):
-                    target=root/name.removeprefix('assets/public/');assert target.resolve().is_relative_to(root.resolve())
-                    target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(z.read(name))
-        PYUPGRADE
-        CALENDAR_140_WEB_DIR="$PWD/build/accepted-part2-web" CALENDAR_UPGRADE_SOURCE_VERSION=1.5.0 node tests/upgrade-part2-browser.cjs
-    - name: Published 1.4.2 same-origin upgrade and deterministic performance evidence
-      run: |-
-        mkdir -p build/source142
-        python3 scripts/release_download.py https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WEB.zip build/source142/web.zip --bytes 6955172 --sha256 2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676
-        python3 - <<'PY142'
-        import hashlib,zipfile
-        from pathlib import Path
-        p=Path('build/source142/web.zip')
-        assert hashlib.sha256(p.read_bytes()).hexdigest()=='2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676'
-        root=Path('build/source142/web');root.mkdir()
-        with zipfile.ZipFile(p) as z:
-            for name in z.namelist():assert not Path(name).is_absolute() and '..' not in Path(name).parts
-            z.extractall(root)
-        PY142
-        CALENDAR_140_WEB_DIR="$PWD/build/source142/web" node tests/upgrade-part4-browser.cjs
-        node tests/part4-performance.cjs
+        base='1e8deb2debf9776b5bff1a14a33b11c2bb0f4d41'
+        subprocess.run(['git','merge-base','--is-ancestor',base,'HEAD'],check=True)
+        changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines())
+        allowed={'scripts/check-part4-beta2-flatpak.py','tests/test_part4_beta2_policy.py','scripts/part4-beta2-private-build.yml','com.vex2137.kalendarz.yml','docs/PART4-BETA2-PACKAGING.md'}
+        assert changed <= allowed, 'Browser/application changes forbid reusing the previous validation: '+repr(changed-allowed)
+        # The sole manifest change retains locale files; all other packaging inputs are exact.
+        old=json.loads(subprocess.check_output(['git','show',base+':com.vex2137.kalendarz.yml'],text=True));new=json.loads(Path('com.vex2137.kalendarz.yml').read_text());new.pop('separate-locales',None);assert old==new
+        job=json.loads(subprocess.check_output(['gh','api','repos/vex2137/Kalendarz-private-builds/actions/jobs/129203942821'],text=True));assert job['run_id']==42630115724 and job['conclusion']=='success' and job['name']=='validation'
+        run=json.loads(subprocess.check_output(['gh','api','repos/vex2137/Kalendarz-private-builds/actions/runs/42630115724'],text=True));assert run['head_sha']=='6e65b6e2f6a5d18f358f4fe12e1b4154bfa8fce4' and run['path']=='.github/workflows/build-part4-beta2.yml' and run['event']=='workflow_dispatch'
+        p=Path('manual-test-assets/part4');upgrade=json.loads((p/'upgrade-142.json').read_text());assert upgrade['status']=='PASS' and upgrade['target']['commit']==base and upgrade['before']==upgrade['after']
+        report={'source':os.environ['CALENDAR_EXPECTED_COMMIT'],'baseline':base,'baselineJob':job['id'],'browserAndMigration':'PASS reused completed real tests of byte-identical application/runtime code','changedPackagingChecks':sorted(changed),'packagesRequireFreshTests':True}
+        (p/'validation-reuse.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
+        PYREUSE
+        python3 scripts/part4_beta2_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: Kalendarz-Part-4-Beta-2-validation-${{ inputs.source_commit }}
         path: source/manual-test-assets/part4/
         if-no-files-found: error
         retention-days: 30
-    - name: Real sandboxed Electron preload/IPC streaming and cancellation
-      run: xvfb-run -a node tests/beta7-electron-stream.cjs
-    - name: Final live-head guard
-      run: python3 scripts/part4_beta2_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
   android:
     if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -574,13 +527,14 @@ jobs:
         sudo apt-get install -y flatpak flatpak-builder ostree xvfb xdotool desktop-file-utils dbus-x11 xdg-desktop-portal xdg-desktop-portal-gtk
         flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
         flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 org.electronjs.Electron2.BaseApp//25.08
-    - name: Build and install the actual Flatpak bundle with minimal permissions
+    - name: Build/export and install the actual sandboxed candidate before costly bundle compression
       run: |-
         mkdir -p part4-artifacts/flatpak
         flatpak-builder --user --force-clean --repo=build/flatpak-repo --default-branch=beta build/flatpak-root com.vex2137.kalendarz.yml
-        flatpak build-bundle build/flatpak-repo part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-2-Linux-x86_64.flatpak com.vex2137.kalendarz beta --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
-        flatpak install --user -y --noninteractive --bundle part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-2-Linux-x86_64.flatpak
-        python3 scripts/check-part4-beta2-flatpak.py
+        flatpak build-update-repo build/flatpak-repo
+        flatpak remote-add --user --no-gpg-verify local-candidate "file://$PWD/build/flatpak-repo"
+        flatpak install --user -y --noninteractive local-candidate com.vex2137.kalendarz//beta
+        python3 scripts/check-part4-beta2-flatpak.py --installed-only
         desktop-file-validate build/flatpak-root/files/share/applications/com.vex2137.kalendarz.desktop
     - name: Run the installed sandboxed application with actual persistence and filesystem denial
       run: 'xvfb-run -a dbus-run-session -- bash -c ''export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'' '
@@ -602,11 +556,22 @@ jobs:
       run: CALENDAR_EXTERNAL_MODEL="$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf" python3 scripts/flatpak-cpu-smoke.py
     - name: Real local Flatpak update and preserved event; test commit is never uploaded
       run: |-
+        mkdir -p build/flatpak-update-repo
+        ostree --repo=build/flatpak-update-repo init --mode=archive-z2
+        ostree --repo=build/flatpak-update-repo pull-local build/flatpak-repo app/com.vex2137.kalendarz/x86_64/beta
         origin=$(flatpak info --user --show-origin com.vex2137.kalendarz)
-        flatpak remote-modify --user --no-gpg-verify --url="file://$PWD/build/flatpak-repo" "$origin"
-        flatpak build-export --subject='Ephemeral update persistence test; same application bytes' build/flatpak-repo build/flatpak-root beta
-        flatpak build-update-repo build/flatpak-repo
+        flatpak remote-modify --user --no-gpg-verify --url="file://$PWD/build/flatpak-update-repo" "$origin"
+        flatpak build-export --subject='Ephemeral update persistence test; same application bytes' build/flatpak-update-repo build/flatpak-root beta
+        flatpak build-update-repo build/flatpak-update-repo
         flatpak update --user -y --noninteractive --no-deps com.vex2137.kalendarz
+        CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'
+        python3 scripts/part4_beta2_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - name: Bundle the original candidate, then install and recheck the actual downloadable bytes
+      run: |-
+        flatpak build-bundle build/flatpak-repo part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-2-Linux-x86_64.flatpak com.vex2137.kalendarz beta --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
+        flatpak uninstall --user -y --noninteractive com.vex2137.kalendarz
+        flatpak install --user -y --noninteractive --bundle part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-2-Linux-x86_64.flatpak
+        python3 scripts/check-part4-beta2-flatpak.py
         CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'
         python3 scripts/part4_beta2_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -619,3 +584,17 @@ jobs:
     - name: Remove acceptance-only private GGUF
       if: always()
       run: rm -f "$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf"
+    - name: Preserve sandbox diagnostics after a failed attempt
+      if: failure()
+      run: |-
+        mkdir -p part4-artifacts/flatpak
+        flatpak info --user --show-metadata com.vex2137.kalendarz > part4-artifacts/flatpak/installed-metadata.txt || true
+        if [ -f build/flatpak-root/metadata ]; then cp build/flatpak-root/metadata part4-artifacts/flatpak/build-metadata.txt; fi
+    - if: failure()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: Kalendarz-Part-4-Beta-2-flatpak-diagnostics-${{ inputs.source_commit }}
+        path: source/part4-artifacts/flatpak/
+        if-no-files-found: warn
+        retention-days: 7
+        compression-level: 0
