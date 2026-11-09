@@ -105,3 +105,5 @@ NOT TESTED — FINAL_CI_PENDING: final APK/AppImage bytes, certificate, runtime 
 NOT TESTED — POCO installation/data update, actual biometrics/enrollment changes, native picker/camera, background Android memory pressure and hardware Vulkan; CachyOS/RTX CUDA/Vulkan offload; native Windows. Existing accepted hardware behavior is retained, not claimed retested.
 
 NOT APPLICABLE — stable 1.5.0 publication: this is Part 4 Beta 1 only. No public Release or automatic merge. No package may be described ready if a critical test or integrity gate fails.
+
+Workflow preflight correction: the first private validation attempt stopped before packaging because the copied template accidentally renamed the existing Part 3 Beta 2 UI regression path. Only that path was restored; referenced test-file existence is now checked before redeployment. One public desktop job also hit an HTTP 504 during packaging; its failed job was retried without a code change. These are not application-data test failures.

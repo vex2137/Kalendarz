@@ -81,7 +81,7 @@ jobs:
         node tests/assistant-beta5-browser.cjs
         node tests/beta7-browser.cjs
         node tests/part3-browser.cjs
-        node tests/part4-beta1-browser.cjs
+        node tests/part3-beta2-browser.cjs
         node tests/part3-qr-browser.cjs
         node tests/android-beta5-browser.cjs
         node tests/beta6-gpu-browser.cjs
