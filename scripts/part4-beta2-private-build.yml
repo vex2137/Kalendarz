@@ -604,7 +604,7 @@ jobs:
       run: |-
         origin=$(flatpak info --user --show-origin com.vex2137.kalendarz)
         flatpak remote-modify --user --no-gpg-verify --url="file://$PWD/build/flatpak-repo" "$origin"
-        ostree --repo=build/flatpak-repo commit --branch=app/com.vex2137.kalendarz/x86_64/beta --tree=ref=app/com.vex2137.kalendarz/x86_64/beta --subject='Ephemeral update persistence test; same application bytes'
+        flatpak build-export --subject='Ephemeral update persistence test; same application bytes' build/flatpak-repo build/flatpak-root beta
         flatpak build-update-repo build/flatpak-repo
         flatpak update --user -y --noninteractive --no-deps com.vex2137.kalendarz
         CALENDAR_FLATPAK_REOPEN=true xvfb-run -a dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'
