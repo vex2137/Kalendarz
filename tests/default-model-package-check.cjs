@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),https=require('node:https'),fs=requir
 const model=require('../src/utils/localModelManifest.json'),source=require('../src/utils/defaultModelSource.json');
 async function infer(page){
  const info=await page.evaluate(id=>window.calendarNativeAI.info(id),model.id);assert.equal(info.installed,true);assert.equal(info.verified,true);assert.equal(info.bytes,model.bytes);
- const result=await page.evaluate(async id=>{await window.calendarNativeAI.setMode('cpu',0,false);return window.calendarNativeAI.complete(id,{messages:[{role:'system',content:'Reply briefly without reasoning.'},{role:'user',content:'Say hello briefly.'}],max_tokens:64});},model.id);
+ const result=await page.evaluate(async id=>{await window.calendarNativeAI.setMode('cpu',1,false);return window.calendarNativeAI.complete(id,{messages:[{role:'system',content:'Reply briefly without reasoning.'},{role:'user',content:'Say hello briefly.'}],max_tokens:64});},model.id);
  assert.ok(result.text.trim());assert.ok(result.usage.completion_tokens>0);assert.equal(result.backend.backend,'cpu-native');assert.equal(result.backend.gpuActive,false);return{installed:true,verified:true,completionTokens:result.usage.completion_tokens,backend:result.backend.backend};
 }
 async function installed(page){await page.waitForFunction(async id=>{try{const r=await window.calendarNativeAI.info(id);return r.installed&&r.verified;}catch{return false;}},model.id,{timeout:180000});}
