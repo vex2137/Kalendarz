@@ -3,12 +3,19 @@ const { createHash } = require('node:crypto');
 const { join } = require('node:path');
 const { execFileSync } = require('node:child_process');
 const model = require('../src/utils/localModelManifest.json');
+function candidatePolicy(env=process.env) {
+  if(env.CALENDAR_PART4_BETA==='true')return 'scripts/part4_beta_guard.py';
+  if(env.CALENDAR_PART3_BETA==='true')return 'scripts/part3_beta_guard.py';
+  if(env.CALENDAR_PART2_STABLE==='true')return 'scripts/part2_stable_guard.py';
+  if(env.CALENDAR_PART2_BETA==='true'||env.CALENDAR_EXPECTED_COMMIT)return 'scripts/part2_artifact_guard.py';
+}
 // electron-builder hook: direct packaging must not silently omit the bundled model.
 module.exports = async function(context) {
   const root=context.packager.info.appDir;
-  if (process.env.CALENDAR_PART2_BETA === 'true' || process.env.CALENDAR_EXPECTED_COMMIT) {
+  const guard=candidatePolicy();
+  if (guard) {
     execFileSync(process.platform === 'win32' ? 'python' : 'python3', [
-      process.env.CALENDAR_PART3_BETA==='true'?'scripts/part3_beta_guard.py':process.env.CALENDAR_PART2_STABLE==='true'?'scripts/part2_stable_guard.py':'scripts/part2_artifact_guard.py', '--source', process.env.CALENDAR_EXPECTED_COMMIT || '',
+      guard, '--source', process.env.CALENDAR_EXPECTED_COMMIT || '',
       '--check-remote', '--info', 'dist/build-info.json', '--platform', 'desktop',
     ], {cwd:root,stdio:'inherit'});
   }
@@ -32,3 +39,5 @@ module.exports = async function(context) {
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   if (hash.digest('hex') !== model.sha256) throw new Error('Bundled model checksum mismatch');
 };
+
+module.exports.candidatePolicy=candidatePolicy;

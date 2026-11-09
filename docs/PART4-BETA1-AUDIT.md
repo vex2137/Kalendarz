@@ -74,7 +74,7 @@ NOT TESTED — an actual Android APK upgrade from 1.4.2/Part 3 on a physical dev
 
 PASS — before fixes, 2/5 new calendar fault tests failed and 4 history mutation fault cases failed; after fixes all 10 new integrity/history cases pass, including 1000 retained messages. Existing chat/store regression cases pass. The long-history test initially used the wrong paging argument and was corrected to the documented `(id, before, limit)` API; no application paging behavior changed.
 
-PASS — TypeScript; local broad unit run 258/258 before the additional five history cases; 65/65 Python policies. Final candidate workflow reruns the complete 263-unit set, existing native/stream/browser regressions, Android JVM/device-test compilation and actual packaged Electron acceptance. Exact final results are the workflow and delivery appendix, not inferred from local counts.
+PASS — TypeScript; local broad unit run 258/258 before the additional five history cases; 65/65 Python policies. Final candidate workflow reruns the complete unit set, existing native/stream/browser regressions, Android JVM/device-test compilation and actual packaged Electron acceptance. Exact final results are the workflow and delivery appendix, not inferred from local counts.
 
 NOT TESTED — FINAL_CI_PENDING: complete candidate workflow and package behavior until it actually succeeds. Android device tests are compiled, not declared executed. Native engine architectures/binary inventory and CPU acceptance are distinct from real CUDA/Vulkan offload.
 
@@ -107,3 +107,5 @@ NOT TESTED — POCO installation/data update, actual biometrics/enrollment chang
 NOT APPLICABLE — stable 1.5.0 publication: this is Part 4 Beta 1 only. No public Release or automatic merge. No package may be described ready if a critical test or integrity gate fails.
 
 Workflow preflight correction: the first private validation attempt stopped before packaging because the copied template accidentally renamed the existing Part 3 Beta 2 UI regression path. Only that path was restored; referenced test-file existence is now checked before redeployment. One public desktop job also hit an HTTP 504 during packaging; its failed job was retried without a code change. These are not application-data test failures.
+
+Packaging preflight correction: the existing Electron hook did not recognize the new Part 4 channel and correctly failed closed through the older guard. It now selects the Part 4 policy explicitly, with regression coverage for all retained channels and a profile flag without a source SHA. The workflow/source checks were not disabled. The affected run was cancelled before signing/build output; no update key was transmitted for it.
