@@ -75,6 +75,7 @@ jobs:
     - name: Calendar, assistant, copy, history, models and transfer browser regressions
       run: |-
         node tests/browser.cjs
+        node tests/diagnostics-actions-browser.cjs
         node tests/assistant-beta4-browser.cjs
         node tests/assistant-beta5-browser.cjs
         node tests/beta7-browser.cjs
