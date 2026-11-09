@@ -30,7 +30,7 @@ failure. Browser recovery tests use real HTTP, OPFS, IndexedDB and NativeModelSt
 with a small synthetic GGUF; those are not inference tests. The chat browser test
 uses a controlled inference boundary and clock.
 
-The private Beta 3 workflow performs full browser/migration regressions and builds
+The private Beta 3 workflow requires successful full browser/migration regressions and builds
 all five formats from one immutable current application SHA. Android is 10524,
 package/certificate unchanged. AppImage, Windows and installed Flatpak additionally
 import the approved private Qwen 0.8B, run real CPU inference, remove the test model,
@@ -44,3 +44,11 @@ test input in its own XDG data directory; this does not verify a real portal pic
 Physical RTX 4060 CUDA/Vulkan, Android GPU, system file pickers and updates on the
 user's existing device still require manual verification. Native runtimes are
 unchanged. No public release or automatic PR merge is authorized.
+
+The final package-harness correction reuses completed validation job 129410962608
+(run 42691166742, application 946d8ce). A strict diff allowlist rejects changes to
+any application/runtime/unit/browser test code; immutable job and migration
+artifact evidence are verified before reuse. Unit/type/native checks and actual
+package tests run again. Async bridge installation results are awaited on the
+controller side; the download scenario starts in an empty profile, before import.
+Further application changes must restore full regression execution.

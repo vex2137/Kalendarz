@@ -65,79 +65,36 @@ jobs:
         npm run test:native
         node --test tests/beta7-stream.test.cjs tests/default-model-store.test.cjs
         python3 -m unittest discover -s tests -p 'test_*.py'
-    - name: Install the pinned browser/Xvfb dependencies
-      run: |-
-        npx --no-install playwright install --with-deps chromium
-        if [ ! -e /usr/bin/chromium ]; then sudo ln -s "$(node -p 'require("playwright").chromium.executablePath()')" /usr/bin/chromium; fi
-    - name: Build current model-free web assets for production browser regressions
-      run: |-
-        node scripts/prepare-model-free.cjs
-        node node_modules/vite/bin/vite.js build --mode production
-    - name: Calendar, assistant, copy, history, models and transfer browser regressions
-      run: |-
-        node tests/browser.cjs
-        node tests/diagnostics-actions-browser.cjs
-        node tests/part4-recovery-browser.cjs
-        node tests/assistant-beta4-browser.cjs
-        node tests/assistant-beta5-browser.cjs
-        node tests/beta7-browser.cjs
-        node tests/part3-browser.cjs
-        node tests/part3-beta2-browser.cjs
-        node tests/part3-qr-browser.cjs
-        node tests/android-beta5-browser.cjs
-        node tests/beta6-gpu-browser.cjs
-        node tests/beta6-sync-browser.cjs
-        node tests/model-context-browser.cjs
-        node tests/native-startup-browser.cjs
-        node tests/model-transfer-lifecycle-browser.cjs
-        node tests/default-model-recovery-browser.cjs
-        node tests/beta3-chat-browser.cjs
-    - name: Part 2 themes, calendar, security and motion browser regressions
-      run: |-
-        node node_modules/vite/bin/vite.js --host=127.0.0.1 --port=4179 --strictPort > "$RUNNER_TEMP/stable-ui-server.log" 2>&1 &
-        server_pid=$!
-        trap 'kill "$server_pid"' EXIT
-        for i in {1..50}; do curl -fsS http://127.0.0.1:4179 >/dev/null && break; sleep 0.2; done
-        for file in themes pin password biometric animations dialog-motion month; do node "tests/${file}-part2-browser.cjs"; done
     - uses: actions/download-artifact@v4
       with:
         repository: vex2137/Kalendarz-private-builds
         github-token: ${{ github.token }}
-        run-id: 42563978670
-        name: Kalendarz-Part-3-Beta-2-android-5e4ed1718cc40c2c57d44e437fa23ac9cc48d643
-        path: source/build/accepted-part2
-    - name: Verify accepted Part 3 Beta 2 assets and actual same-origin data upgrade
+        run-id: 42691166742
+        name: Kalendarz-Part-4-Beta-3-validation-946d8cea51b3c67bc4627750265df352e4b5df18
+        path: source/manual-test-assets/part4/
+    - name: Require successful full regressions of byte-identical application code
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |-
-        python3 - <<'PYUPGRADE'
-        import hashlib,json,zipfile
+        python3 - <<'PYREUSE'
+        import json,os,subprocess
         from pathlib import Path
-        p=Path('build/accepted-part2/Kalendarz-1.5.0-Part-3-Beta-2-Android-arm64.apk')
-        with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='83d4eb3cb76b46565a2ab345675eeb716b179c09f6b312e26ac1e9855e4715a9'
-        root=Path('build/accepted-part2-web');root.mkdir()
-        with zipfile.ZipFile(p) as z:
-            info=json.loads(z.read('assets/public/build-info.json'));assert info['commit']=='5e4ed1718cc40c2c57d44e437fa23ac9cc48d643'
-            for name in z.namelist():
-                if name.startswith('assets/public/') and not name.endswith('/'):
-                    target=root/name.removeprefix('assets/public/');assert target.resolve().is_relative_to(root.resolve())
-                    target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(z.read(name))
-        PYUPGRADE
-        CALENDAR_140_WEB_DIR="$PWD/build/accepted-part2-web" CALENDAR_UPGRADE_SOURCE_VERSION=1.5.0 node tests/upgrade-part2-browser.cjs
-    - name: Published 1.4.2 same-origin upgrade and deterministic performance evidence
-      run: |-
-        mkdir -p build/source142
-        python3 scripts/release_download.py https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WEB.zip build/source142/web.zip --bytes 6955172 --sha256 2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676
-        python3 - <<'PY142'
-        import hashlib,zipfile
-        from pathlib import Path
-        p=Path('build/source142/web.zip')
-        assert hashlib.sha256(p.read_bytes()).hexdigest()=='2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676'
-        root=Path('build/source142/web');root.mkdir()
-        with zipfile.ZipFile(p) as z:
-            for name in z.namelist():assert not Path(name).is_absolute() and '..' not in Path(name).parts
-            z.extractall(root)
-        PY142
-        CALENDAR_140_WEB_DIR="$PWD/build/source142/web" node tests/upgrade-part4-browser.cjs
-        node tests/part4-performance.cjs
+        base='946d8cea51b3c67bc4627750265df352e4b5df18'
+        subprocess.run(['git','merge-base','--is-ancestor',base,'HEAD'],check=True)
+        changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines())
+        allowed={'tests/default-model-package-check.cjs','scripts/part4-beta3-private-build.yml','docs/PART4-BETA3-MODEL-INSTALL.md'}
+        assert changed <= allowed, 'Application/runtime/test-suite changes require fresh full regression: '+repr(changed-allowed)
+        job=json.loads(subprocess.check_output(['gh','api','repos/vex2137/Kalendarz-private-builds/actions/jobs/129410962608'],text=True))
+        assert job['run_id']==42691166742 and job['conclusion']=='success' and job['name']=='validation'
+        run=json.loads(subprocess.check_output(['gh','api','repos/vex2137/Kalendarz-private-builds/actions/runs/42691166742'],text=True))
+        assert run['head_sha']=='f8b404f8e5b2a7cc06d972f52811715116165220' and run['path']=='.github/workflows/build-part4-beta3.yml' and run['event']=='workflow_dispatch'
+        p=Path('manual-test-assets/part4');upgrade=json.loads((p/'upgrade-142.json').read_text())
+        assert upgrade['status']=='PASS' and upgrade['target']['commit']==base and upgrade['before']==upgrade['after']
+        report={'source':os.environ['CALENDAR_EXPECTED_COMMIT'],'baseline':base,'baselineJob':job['id'],'fullBrowserMigrationSecurityRegression':'PASS verified successful full validation of byte-identical application code','harnessOnlyChanges':sorted(changed),'freshPackageDefaultModelTestsRequired':True}
+        (p/'validation-reuse.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
+        PYREUSE
+        node --check tests/default-model-package-check.cjs
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: Kalendarz-Part-4-Beta-3-validation-${{ inputs.source_commit }}
@@ -145,7 +102,10 @@ jobs:
         if-no-files-found: error
         retention-days: 30
     - name: Real sandboxed Electron preload/IPC streaming and cancellation
-      run: xvfb-run -a node tests/beta7-electron-stream.cjs
+      run: |-
+        sudo apt-get update -qq
+        sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libxss1 libasound2t64
+        xvfb-run -a node tests/beta7-electron-stream.cjs
     - name: Final live-head guard
       run: python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
   android:
