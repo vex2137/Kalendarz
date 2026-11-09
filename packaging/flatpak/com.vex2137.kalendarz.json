@@ -7,28 +7,53 @@
   "base-version": "25.08",
   "command": "calendar",
   "finish-args": [
-    "--socket=wayland", "--socket=fallback-x11", "--share=ipc",
-    "--device=dri", "--share=network",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--share=ipc",
+    "--device=dri",
+    "--share=network",
     "--talk-name=org.freedesktop.Notifications",
     "--env=ELECTRON_USE_PORTAL=1"
   ],
-  "modules": [{
-    "name": "calendar",
-    "buildsystem": "simple",
-    "build-commands": [
-      "mkdir -p /app/lib/com.vex2137.kalendarz",
-      "cp -a payload/. /app/lib/com.vex2137.kalendarz/",
-      "install -Dm755 calendar /app/bin/calendar",
-      "install -Dm644 com.vex2137.kalendarz.desktop /app/share/applications/com.vex2137.kalendarz.desktop",
-      "install -Dm644 512x512.png /app/share/icons/hicolor/512x512/apps/com.vex2137.kalendarz.png",
-      "install -Dm644 LICENSE /app/share/licenses/com.vex2137.kalendarz/LICENSE"
-    ],
-    "sources": [
-      {"type": "dir", "path": "../../release/linux-unpacked", "dest": "payload"},
-      {"type": "file", "path": "calendar"},
-      {"type": "file", "path": "com.vex2137.kalendarz.desktop"},
-      {"type": "file", "path": "../icons/png/512x512.png"},
-      {"type": "file", "path": "../../LICENSE"}
-    ]
-  }]
+  "modules": [
+    {
+      "name": "calendar",
+      "buildsystem": "simple",
+      "build-commands": [
+        "mkdir -p /app/lib/com.vex2137.kalendarz",
+        "cp -a payload/. /app/lib/com.vex2137.kalendarz/",
+        "install -Dm755 calendar /app/bin/calendar",
+        "install -Dm644 com.vex2137.kalendarz.desktop /app/share/applications/com.vex2137.kalendarz.desktop",
+        "install -Dm644 512x512.png /app/share/icons/hicolor/512x512/apps/com.vex2137.kalendarz.png",
+        "install -Dm644 LICENSE /app/share/licenses/com.vex2137.kalendarz/LICENSE"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "../../release/linux-unpacked",
+          "dest": "payload"
+        },
+        {
+          "type": "file",
+          "path": "calendar"
+        },
+        {
+          "type": "file",
+          "path": "com.vex2137.kalendarz.desktop"
+        },
+        {
+          "type": "file",
+          "path": "../icons/png/512x512.png"
+        },
+        {
+          "type": "file",
+          "path": "../../LICENSE"
+        }
+      ]
+    }
+  ],
+  "build-options": {
+    "strip": false,
+    "no-debuginfo": true
+  }
 }
