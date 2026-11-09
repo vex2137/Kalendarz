@@ -525,6 +525,9 @@ jobs:
         from part2_artifact_guard import asar_build_info
         verify_candidate_info(asar_build_info(Path('release/linux-unpacked/resources/app.asar')),os.environ['CALENDAR_EXPECTED_COMMIT'],False)
         PYINFO
+        # The verified tar remains in the private producer artifact. This local copy is no longer needed.
+        rm -f -- part4-artifacts/payload/linux-unpacked.tar
+        df -h .
     - name: Install Flatpak builder, supported runtime, Electron Zypak base and test tools
       run: |-
         sudo apt-get update -qq
@@ -540,6 +543,10 @@ jobs:
         flatpak install --user -y --noninteractive local-candidate com.vex2137.kalendarz//beta
         python3 scripts/check-part4-beta2-flatpak.py --installed-only
         desktop-file-validate build/flatpak-root/files/share/applications/com.vex2137.kalendarz.desktop
+        # Only disposable copies/cache in this ephemeral source checkout. Keep the installed app,
+        # build/flatpak-root, export repository, private artifacts and all application data.
+        rm -rf -- .flatpak-builder release/linux-unpacked
+        df -h .
     - name: Run the installed sandboxed application with actual persistence and filesystem denial
       run: 'xvfb-run -a dbus-run-session -- bash -c ''export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; node tests/flatpak-packaged.cjs'' '
     - name: Use the already-private Qwen v2 only for package acceptance, never packaging
