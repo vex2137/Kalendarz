@@ -480,7 +480,7 @@ jobs:
         mkdir -p part4-artifacts/windows
         cp release/*-Setup.exe release/*-Portable.exe part4-artifacts/windows/
         python scripts/check-part4-beta2-windows.py
-    - name: Fetch and verify the actual 1.4.2 Windows installer for the update test
+    - name: Fetch and verify the actual 1.4.2 Portable EXE for the legacy-profile test
       run: |-
         mkdir -p build/source142
         python scripts/release_download.py https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WINDOWS-x86_64.exe build/source142/setup.exe --bytes 124758456 --sha256 b147323b97c62b2ee390af3ee64dd0fa4b983282c2e38b1c3aa367dcb397a1f4
@@ -577,7 +577,7 @@ jobs:
     - name: Build and install the actual Flatpak bundle with minimal permissions
       run: |-
         mkdir -p part4-artifacts/flatpak
-        flatpak-builder --user --force-clean --repo=build/flatpak-repo --default-branch=beta build/flatpak-root packaging/flatpak/com.vex2137.kalendarz.json
+        flatpak-builder --user --force-clean --repo=build/flatpak-repo --default-branch=beta build/flatpak-root com.vex2137.kalendarz.yml
         flatpak build-bundle build/flatpak-repo part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-2-Linux-x86_64.flatpak com.vex2137.kalendarz beta --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
         flatpak install --user -y --noninteractive --bundle part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-2-Linux-x86_64.flatpak
         python3 scripts/check-part4-beta2-flatpak.py
