@@ -52,40 +52,56 @@
         "AppImage"
       ],
       "category": "Office",
-      "icon": "public/pwa-512x512.png",
+      "icon": "packaging/icons/png",
       "syncDesktopName": true,
       "artifactName": "Calendar-${version}-linux-${arch}.${ext}",
-      "executableName": "calendar"
+      "executableName": "calendar",
+      "desktop": {
+        "entry": {
+          "Name": "Calendar",
+          "StartupWMClass": "com.vex2137.kalendarz",
+          "X-GNOME-UsesNotifications": "true"
+        }
+      }
     },
     "win": {
       "target": [
         "portable",
         "nsis"
       ],
-      "icon": "public/pwa-512x512.png",
+      "icon": "packaging/icons/calendar.ico",
       "artifactName": "Calendar-${version}-windows-${arch}.${ext}",
-      "signExecutable": false
+      "signExecutable": false,
+      "signAndEditExecutable": true
     },
     "nsis": {
       "differentialPackage": false,
-      "artifactName": "Calendar-${version}-windows-${arch}-setup.${ext}"
+      "artifactName": "Calendar-${version}-windows-${arch}-setup.${ext}",
+      "perMachine": false,
+      "allowElevation": false,
+      "deleteAppDataOnUninstall": false,
+      "createStartMenuShortcut": true,
+      "createDesktopShortcut": false,
+      "installerIcon": "packaging/icons/calendar.ico",
+      "uninstallerIcon": "packaging/icons/calendar.ico"
     },
     "asar": true,
     "portable": {
-      "artifactName": "Calendar-${version}-windows-${arch}-portable.${ext}"
+      "artifactName": "Calendar-${version}-windows-${arch}-portable.${ext}",
+      "requestExecutionLevel": "user"
     },
     "flatpak": {
-      "runtimeVersion": "24.08",
-      "baseVersion": "24.08",
+      "runtimeVersion": "25.08",
+      "baseVersion": "25.08",
       "artifactName": "Calendar-${version}-linux-${arch}.${ext}",
       "finishArgs": [
         "--socket=wayland",
-        "--socket=x11",
+        "--socket=fallback-x11",
         "--share=ipc",
         "--device=dri",
-        "--filesystem=xdg-download",
         "--talk-name=org.freedesktop.Notifications",
-        "--share=network"
+        "--share=network",
+        "--env=ELECTRON_USE_PORTAL=1"
       ]
     },
     "beforePack": "scripts/verify-packaged-model.cjs",

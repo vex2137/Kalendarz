@@ -1,0 +1,16 @@
+{
+  "source": "public/icon.svg",
+  "sourceSha256": "77ebb4c0f39c79e616714e032cebb7d8881b79f8b02a44f3b5f60019c2b35106",
+  "files": {
+    "packaging/icons/png/16x16.png": "9032ab031c5b520bbe1af10f1238a949e4fdc2c62976f4bffc1083416bb0387d",
+    "packaging/icons/png/24x24.png": "f143594fa09fab0b3a0c5162b6e87d4ac9101ba1a7a8d7a71e08085c55cac141",
+    "packaging/icons/png/32x32.png": "b1f52254cfce755ce669d7b67108c9f22d70a124303918e7149bed7a3b0d4b58",
+    "packaging/icons/png/48x48.png": "827817850474caa94386c0e077e2e2111ed56cec24e73a9aaa06b3dd0664e9fb",
+    "packaging/icons/png/64x64.png": "6fbb0a1d4434d4996f6d87ee75899ad6b36ed4b39ca4c20db548de40d6f6bafa",
+    "packaging/icons/png/128x128.png": "ed3d8795ad48a45c51a98f4d44ef3368b8ac4524bf5e07d04f33a1ebe3c66afc",
+    "packaging/icons/png/256x256.png": "a709ac2770b038e4d3bfd947374eba39ca555d8e5b98c364cb893bc9853fd72e",
+    "packaging/icons/png/512x512.png": "33e2809248078545083e466aba617110eaa7a1bc16a4db7e606ea91499fd54f3",
+    "packaging/icons/calendar.ico": "23cdc766ed83ffe26697c25086edff0ec183623fa6ddf44773d03fa303db9c2f",
+    "public/desktop-icon.png": "480799f5dc97c852f7db8b29d4eb00d8fd66b8a7d9121c2567990ea5e51c42b5"
+  }
+}

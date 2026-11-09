@@ -2,6 +2,9 @@ const { app, BrowserWindow, Menu, shell, protocol, net, ipcMain, dialog } = requ
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const {APP_ID,desktopProfile,ensurePortableWritable}=require('./desktop-profile.cjs');
+if(process.platform==='win32')app.setAppUserModelId(APP_ID);
+if(process.platform==='linux'){app.setDesktopName(APP_ID+'.desktop');app.commandLine.appendSwitch('class',APP_ID);app.commandLine.appendSwitch('wayland-app-id',APP_ID);}
 
 // Preserve the existing file:// profile/origin, including its calendar IndexedDB.
 // Fetch cannot read WASM over file://; expose only packaged WASM files, never user paths.
@@ -12,7 +15,15 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'calendar-asset', privileges: {
 // Keep the profile used by older releases when the desktop product name changes.
 // Explicit profiles (including isolated smoke tests) still take precedence.
 const profileOverride = app.commandLine.getSwitchValue('user-data-dir');
-app.setPath('userData', profileOverride || path.join(app.getPath('appData'), 'Kalendarz Offline'));
+const profile=desktopProfile({platform:process.platform,appData:app.getPath('appData'),override:profileOverride,portableDirectory:process.env.PORTABLE_EXECUTABLE_DIR});
+try{ensurePortableWritable(profile);}catch{
+  dialog.showErrorBox('Calendar','The portable data folder is not writable. Move the EXE together with Calendar Data to a writable folder and retry. The installed profile was not used.');
+  app.exit(1);
+  throw Error('portable-data-not-writable');
+}
+app.setPath('userData',profile.path);
+app.setPath('sessionData',profile.path);
+if(profile.portable){const dumps=path.join(profile.path,'Crashpad');fs.mkdirSync(dumps,{recursive:true});app.setPath('crashDumps',dumps);}
 
 let mainWindow;
 let nativeAI, nativeModels, modelFolders;
@@ -25,7 +36,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#09090b',
     title: 'Calendar',
-    icon: path.join(__dirname, '../dist/pwa-512x512.png'),
+    icon: path.join(__dirname, '../dist/desktop-icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
