@@ -3,8 +3,10 @@
 const assert=require('node:assert/strict'),https=require('node:https'),fs=require('node:fs'),fsp=require('node:fs/promises'),crypto=require('node:crypto');
 const model=require('../src/utils/localModelManifest.json'),source=require('../src/utils/defaultModelSource.json');
 async function infer(page){
+ await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').click();await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
+ const row=page.locator(`[data-model-id="${model.id}"]`);await row.getByRole('button',{name:'Load',exact:true}).click();await row.locator('[data-testid=model-in-use]').waitFor({timeout:180000});
  const info=await page.evaluate(id=>window.calendarNativeAI.info(id),model.id);assert.equal(info.installed,true);assert.equal(info.verified,true);assert.equal(info.bytes,model.bytes);
- const result=await page.evaluate(async id=>{await window.calendarNativeAI.setMode('cpu',1,false);return window.calendarNativeAI.complete(id,{messages:[{role:'system',content:'Reply briefly without reasoning.'},{role:'user',content:'Say hello briefly.'}],max_tokens:64});},model.id);
+ const result=await page.evaluate(async id=>{return window.calendarNativeAI.complete(id,{messages:[{role:'system',content:'Reply briefly without reasoning.'},{role:'user',content:'Say hello briefly.'}],max_tokens:64});},model.id);
  assert.ok(result.text.trim());assert.ok(result.usage.completion_tokens>0);assert.equal(result.backend.backend,'cpu-native');assert.equal(result.backend.gpuActive,false);return{installed:true,verified:true,completionTokens:result.usage.completion_tokens,backend:result.backend.backend};
 }
 async function installed(page,wanted=true){
@@ -26,11 +28,11 @@ async function cycle(page,file){
   // A fresh profile proves a real download; retained verified bytes should be recovered.
   assert.equal((await page.evaluate(id=>window.calendarNativeAI.info(id),model.id)).installed,false);
   await page.route(source.url,route);await row.getByRole('button',{name:'Download',exact:true}).click();await installed(page);assert.ok(requests>0,'The real catalogue download must reach the local HTTP server');
-  await row.getByRole('button',{name:'Load',exact:true}).click();await row.locator('[data-testid=model-in-use]').waitFor({timeout:180000});const downloadInference=await infer(page);
+  const downloadInference=await infer(page);
   await row.locator('details').evaluate(e=>{e.open=true});page.once('dialog',d=>d.accept());await row.getByRole('button',{name:'Remove download',exact:true}).click();await installed(page,false);
-  await page.getByLabel('Import GGUF',{exact:true}).setInputFiles(file);await installed(page);await row.getByRole('button',{name:'Load',exact:true}).click();await row.locator('[data-testid=model-in-use]').waitFor({timeout:180000});
-  const importInference=await infer(page);
   await page.getByLabel('Import GGUF',{exact:true}).setInputFiles(file);await installed(page);
+  const importInference=await infer(page);
+  await page.getByLabel('Import GGUF',{exact:true}).setInputFiles(file);await installed(page);await page.waitForFunction(()=>{const input=document.querySelector('input[aria-label="Import GGUF"]');return input&&!input.disabled;});
   return{source:process.env.CALENDAR_EXPECTED_COMMIT,modelId:model.id,sha256:model.sha256,bytes:model.bytes,blockCount:metadata.blockCount,contextLength:metadata.contextLength,import:'PASS actual pinned default file, duplicate and native load',download:'PASS actual HTTP to OPFS to native commit and load',importInference,downloadInference,networkRequests:requests,physicalGpuTested:false};
  }finally{await page.unroute(source.url,route);server.closeAllConnections();await new Promise(r=>server.close(r));await fsp.rm(certDirectory,{recursive:true,force:true});}
 }

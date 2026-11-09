@@ -52,3 +52,13 @@ artifact evidence are verified before reuse. Unit/type/native checks and actual
 package tests run again. Async bridge installation results are awaited on the
 controller side; the download scenario starts in an empty profile, before import.
 Further application changes must restore full regression execution.
+
+The acceptance helper loads through the normal CPU settings/model UI before
+completion; it does not call native setMode behind a live renderer engine.
+An isolated local Vite/Chromium + actual b12189 CPU server test used the approved
+529,297,056-byte Qwen (full SHA-256 verified from the original 1.4.2 APK) and
+generated 10 tokens before and 10 after a persisted-profile/process restart.
+This was real CPU inference through a controller native bridge, not packaged
+Electron IPC or a physical GPU test. The temporary extracted model was removed;
+the original APK and signing backup were not changed. Final packages still
+require their own real import/download/inference/restart acceptance.
