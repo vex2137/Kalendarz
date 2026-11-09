@@ -1,0 +1,8 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{_electron}=require('playwright'),check=require('./default-model-package-check.cjs');
+(async()=>{assert.ok(process.env.CALENDAR_EXTERNAL_MODEL,'Supply the approved GGUF outside the package');const profile=fs.mkdtempSync(path.join(os.tmpdir(),'calendar-default-package-'));let app;const args=['--no-sandbox','--disable-gpu','--ignore-certificate-errors','--user-data-dir='+path.join(profile,'data')];
+const executablePath=process.env.ELECTRON_EXECUTABLE||path.resolve(process.platform==='win32'?'release/win-unpacked/Calendar.exe':'build/checked-appimage/squashfs-root/calendar');
+async function open(){app=await _electron.launch({executablePath,args,timeout:60000});const p=await app.firstWindow();await p.locator('#btn-open-ai-assistant').click();await p.locator('#btn-ai-settings').click();return p;}
+try{let page=await open();const result=await check.cycle(page,process.env.CALENDAR_EXTERNAL_MODEL);await app.close();app=undefined;page=await open();result.restart=await check.infer(page);
+const files=fs.readdirSync(path.join(profile,'data/native-models-v1')).filter(n=>n.endsWith('.gguf'));assert.equal(files.length,1);result.nativeFiles=files.length;result.status='PASS';
+const folder=process.env.CALENDAR_DEFAULT_MODEL_REPORT_DIR||'manual-test-assets/default-model';fs.mkdirSync(folder,{recursive:true});fs.writeFileSync(path.join(folder,'default-model.json'),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
+}finally{await app?.close();fs.rmSync(profile,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1});

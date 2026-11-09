@@ -5,8 +5,8 @@ const { execFileSync } = require('node:child_process');
 const model = require('../src/utils/localModelManifest.json');
 function candidatePolicy(env=process.env) {
   if(env.CALENDAR_PART4_BETA==='true'){
-    if(!['1','2'].includes(env.CALENDAR_PART4_BETA_NUMBER||'1'))throw Error('Unsupported Part 4 beta');
-    return env.CALENDAR_PART4_BETA_NUMBER==='2'?'scripts/part4_beta2_guard.py':'scripts/part4_beta_guard.py';
+    if(!['1','2','3'].includes(env.CALENDAR_PART4_BETA_NUMBER||'1'))throw Error('Unsupported Part 4 beta');
+    return env.CALENDAR_PART4_BETA_NUMBER==='3'?'scripts/part4_beta3_guard.py':env.CALENDAR_PART4_BETA_NUMBER==='2'?'scripts/part4_beta2_guard.py':'scripts/part4_beta_guard.py';
   }
   if(env.CALENDAR_PART3_BETA==='true')return 'scripts/part3_beta_guard.py';
   if(env.CALENDAR_PART2_STABLE==='true')return 'scripts/part2_stable_guard.py';

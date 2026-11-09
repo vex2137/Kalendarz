@@ -108,7 +108,10 @@ export async function recoverSavedModel(descriptor: ModelDescriptor, signal?: Ab
   catch (error) { if (error instanceof DOMException && error.name === 'NotFoundError') {if(damaged)throw damaged;return;} throw error; }
   for await (const [name, handle] of dir.entries()) {
     signal?.throwIfAborted();
-    if (!name.startsWith(descriptor.id + '-') || handle.kind !== 'file') continue;
+    // A complete transfer/import can outlive a failed native commit or a changed URL.
+    // Adopt only after the exact expected size and full pinned SHA-256 match.
+    const candidate=name.startsWith(descriptor.id+'-') || /^transfer-[a-f0-9]{64}\.gguf$/.test(name) || /^import-staging-[a-f0-9-]{36}\.gguf$/.test(name);
+    if (!candidate || handle.kind !== 'file') continue;
     const file = await (handle as FileSystemFileHandle).getFile();
     if (file.size !== descriptor.bytes) continue;
     try { await verifyModel(file, signal, undefined, descriptor); }

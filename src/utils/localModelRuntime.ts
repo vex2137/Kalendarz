@@ -217,6 +217,7 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
   let blob: Blob | undefined;
   const previous = {...status};
   let selectionChanged = false;
+  let committed = false, commitStarted = false;
   update({phase:'downloading',importing:true,progress:bytes>0?0:-1,error:undefined,errorDetail:undefined});
   let stage:DiagnosticStage='stream-open';
   const step=(next:DiagnosticStage)=>{stage=next;recordDiagnosticAction('import-gguf',stage,undefined,{expectedBytes:bytes>0?bytes:undefined});};
@@ -238,8 +239,9 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
     update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false});
     await selectLocalModel(descriptor.id);
     selectionChanged = true;
-    step('commit');await installLocalModel(blob);
+    commitStarted=true;step('commit');await installLocalModel(blob);
     if (!status.installed || status.phase === 'error') throw Error(status.error || 'model-import-file');
+    committed = true;
     recordDiagnosticAction('import-gguf','success');
   } catch(error){
     if (selectionChanged && !operation && !transition) {
@@ -250,7 +252,8 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
     throw controller.signal.aborted?new Error('model-cancelled'):new Error(runtimeError(error));
   } finally {
     if (operation === controller) { operation=undefined; operationKind=undefined; update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false}); }
-    await discardDownloadedModel(blob);
+    // Retain verified complete staging bytes when the native commit fails.
+    if(!commitStarted||committed)await discardDownloadedModel(blob);
   }
 }
 
@@ -266,6 +269,7 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
   const controller = operation = new AbortController();
   operationKind = file ? 'import' : 'download';
   const action=file?'import-gguf':'download-model';
+  let committed = false, commitStarted = false;
   recordDiagnosticAction(action,'start',undefined,{modelId:descriptor.id});
   let stage:DiagnosticStage='lookup';
   const step=(next:DiagnosticStage)=>{stage=next;recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:descriptor.bytes});};
@@ -281,10 +285,22 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
       update({phase:'installed',installation:'verified',queued:false,installed:true,loaded:false,progress:100,error:undefined});
       return;
     }
-    const existing = await recoverSavedModel(descriptor, controller.signal).catch(error => { if (error instanceof Error && ['model-size','model-checksum'].includes(error.message)) return undefined; throw error; });
+    // An already verified native file needs no OPFS read or second upload.
+    if(!file && await hasNativeModelData(descriptor)) {
+      update({phase:'installed',installation:'verified',queued:false,installed:true,loaded:false,progress:100,error:undefined});
+      return;
+    }
+    const existing = !file ? await recoverSavedModel(descriptor, controller.signal).catch(error => { if (error instanceof Error && ['model-size','model-checksum'].includes(error.message)) return undefined; throw error; }) : undefined;
     // A second install request adopts verified bytes instead of downloading/copying again.
     if (!file && (existing || descriptor.bundled && await bundledModelAvailable(descriptor))) {
-      if (existing) await verifyModel(existing, controller.signal, undefined, descriptor);
+      if (existing) {
+        await verifyModel(existing, controller.signal, undefined, descriptor);
+        if(desktopAI()&&desktopAI()?.platform!=='android') {
+          commitStarted=true;step('commit');
+          await saveModel(existing,controller.signal,descriptor,n=>update({progress:n/descriptor.bytes*100}),action);
+          committed=true;
+        }
+      }
       update({phase:'installed',installation:'verified',queued:false,installed:true,loaded:false,progress:100,error:undefined});
       return;
     }
@@ -297,7 +313,8 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
     update({ phase: 'verifying', queued:false, installation:previouslyInstalled?'verified':'unverified', progress: 0 });
     step('verify');await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     try{cacheModelMetadata(descriptor,await ggufMetadata(blob));}catch{/* Keep valid older engine-compatible files usable. */}
-    step('commit');await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}),action);
+    commitStarted=true;step('commit');await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}),action);
+    committed = true;
     update({ phase: 'installed', installation:'verified', queued:false, installed: true, loaded:false, progress: 100, resumeBytes: 0, error:undefined,errorDetail:undefined });
   } catch (error) {
     if (error instanceof Error && error.message === 'model-checksum') await discardDownloadedModel(blob, true);
@@ -305,7 +322,7 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
     const resumeBytes = await modelTransferBytes(descriptor).catch(() => 0);
     update({ resumeBytes, queued:false, installation:previouslyInstalled?'verified':resumeBytes>=descriptor.bytes?'unverified':resumeBytes?'partial':'missing', phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : runtimeError(error) });
     throw controller.signal.aborted?new Error('model-cancelled'):error;
-  } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; operationKind = undefined; transition = false; update({importing:false,queued:false}); } }
+  } finally { try { if(!commitStarted||committed)await discardDownloadedModel(blob); } finally { operation = undefined; operationKind = undefined; transition = false; update({importing:false,queued:false}); } }
 }
 
 export async function unloadLocalModel() {

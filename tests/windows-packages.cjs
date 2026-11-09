@@ -1,7 +1,7 @@
 // Execute actual NSIS Setup and Portable packages on an ephemeral Windows runner.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {spawn,execFileSync}=require('node:child_process'),{_electron,chromium}=require('playwright');
-const policy=require('../scripts/part4-beta2-version.json');
+const policy=require('../scripts/part4-beta'+(process.env.CALENDAR_PART4_BETA_NUMBER==='3'?'3':'2')+'-version.json');
 const owned=new Set();
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,timeout=120000){const end=Date.now()+timeout;let error;while(Date.now()<end){try{const v=await fn();if(v)return v;}catch(e){error=e;}await pause(500);}throw error||Error('Timed out');}

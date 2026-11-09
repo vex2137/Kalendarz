@@ -84,12 +84,12 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  const {NativeModelStore}=require('./native-model-store.cjs');
+  const {NativeModelStore,packagedModelId}=require('./native-model-store.cjs');
   const {NativeAI}=require('./native-ai.cjs');
   const {ModelFolders}=require('./model-folders.cjs');
   const catalogue=require('../dist/models/catalogue.json');
   const bundled=require('../dist/models/manifest.json');
-  const bundledId=catalogue[0].id;
+  const bundledId=packagedModelId(require('../dist/build-info.json'),bundled);
   const physicalApp=app.getAppPath().endsWith('.asar')?app.getAppPath()+'.unpacked':app.getAppPath();
   modelFolders=new ModelFolders({configFile:path.join(app.getPath('userData'),'model-folders-v1.json')});
   void modelFolders.ready.catch(()=>{}); // Report damaged configuration through the folder panel; preserve the file.

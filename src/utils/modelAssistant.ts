@@ -118,7 +118,7 @@ async function runDetectedAssistant(query: string, events: CalendarEvent[], lang
   if (!needsCalendarExtraction(query, now, context, language)) {
     trace.route = 'model'; trace.commandAction = 'chat';
     const chatTurns = turns.filter(turn => turn.role === 'user' || !turn.content.trim().startsWith('{'));
-    let text = await inferLocalText(naturalChatSystemPrompt(language, context.lastConfirmedAction)+(/^(?:continue|kontynuuj|dalej|go on)\b/iu.test(query)?' Continue the previous answer from its end without restarting or repeating it.':''), query, chatTurns, {...inferenceOptions,onText:inferenceOptions.onText?value=>inferenceOptions.onText!(guardCalendarWriteClaim(value,language)):undefined});
+    let text = await inferLocalText(naturalChatSystemPrompt(language, context.lastConfirmedAction, now)+(/^(?:continue|kontynuuj|dalej|go on)\b/iu.test(query)?' Continue the previous answer from its end without restarting or repeating it.':''), query, chatTurns, {...inferenceOptions,onText:inferenceOptions.onText?value=>inferenceOptions.onText!(guardCalendarWriteClaim(value,language)):undefined});
     text = guardCalendarWriteClaim(text,language);
     const modelText=text;
     if (modelMetrics().at(-1)?.outputTruncated) text += '\n\n' + ({en:'Response length limit reached. You can ask me to continue.',pl:'Osiągnięto limit długości odpowiedzi. Możesz poprosić o kontynuację.',de:'Die Antwortlänge wurde begrenzt. Du kannst um Fortsetzung bitten.',ru:'Достигнут предел длины ответа. Можно попросить продолжить.'}[language]);

@@ -3,6 +3,12 @@ const { createReadStream } = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
+// Catalogue preference is not proof that weights are shipped. Legacy bundled
+// builds omit the flag; explicit model-free builds always use the managed store.
+function packagedModelId(build, manifest) {
+  return build.bundledModel === false || build.distribution === 'model-free' ? undefined : manifest.id;
+}
+
 class NativeModelStore {
   constructor({root,bundledPath,catalogue,bundledId,external}) {
     this.root=root;this.bundledPath=bundledPath;this.bundledId=bundledId;
@@ -72,4 +78,4 @@ class NativeModelStore {
   async remove(id){if(id?.startsWith('external-'))throw Error('model-external-readonly');if(id===this.bundledId)throw Error('model-bundled');await fs.rm(this.file(id),{force:true});}
   async close(){for(const token of [...this.uploads.keys()])await this.abort(token);}
 }
-module.exports={NativeModelStore};
+module.exports={NativeModelStore,packagedModelId};
