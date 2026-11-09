@@ -1,4 +1,4 @@
-import unittest,sys,json,hashlib,tempfile,importlib.util
+import unittest,sys,json,hashlib,tempfile,importlib.util,os
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import part4_beta2_guard as guard
@@ -19,7 +19,7 @@ class Beta2PolicyTest(unittest.TestCase):
    (root/'windows'/p['portableFile']).write_bytes(b'changed')
    with self.assertRaises(AssertionError):delivery.verify(root,source)
  def test_beta2_info_rejects_beta1_and_dirty_source(self):
-  info=dict(commit='a'*40,branch=guard.BRANCH,dirty=False,version='1.5.0',distribution='model-free',bundledModel=False,androidNative=False,releaseChannel='part4-beta2')
+  info=dict(workflowCommit=os.environ.get('GITHUB_SHA'),commit='a'*40,branch=guard.BRANCH,dirty=False,version='1.5.0',distribution='model-free',bundledModel=False,androidNative=False,releaseChannel='part4-beta2')
   guard.verify_candidate_info(info,'a'*40,False)
   for bad in [{**info,'releaseChannel':'part4-beta1'},{**info,'dirty':True},{**info,'commit':'b'*40}]:
    with self.assertRaises(ValueError):guard.verify_candidate_info(bad,'a'*40,False)
