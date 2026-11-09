@@ -16,6 +16,7 @@ async function installed(page,wanted=true){
  const end=Date.now()+180000;let last;
  // Poll awaited bridge values on the controller side; a Promise is not installation proof.
  do{last=await page.evaluate(id=>window.calendarNativeAI.info(id),model.id);if(last.installed===wanted&&(!wanted||last.verified===true))return;await page.waitForTimeout(100);}while(Date.now()<end);
+ console.error('Default model wait diagnostics',await page.locator('#ai-settings-panel [role=alert]').allTextContents().catch(()=>[]));
  throw Error('Timed out waiting for verified native installation='+wanted+': '+JSON.stringify(last));
 }
 async function cycle(page,file){
@@ -26,6 +27,10 @@ async function cycle(page,file){
  const cert=require('node:path').join(certDirectory,'cert.pem'),key=require('node:path').join(certDirectory,'key.pem');require('node:child_process').execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-keyout',key,'-out',cert,'-days','1','-subj','/CN=localhost'],{stdio:'ignore'});
  let requests=0;const server=https.createServer({key:await fsp.readFile(key),cert:await fsp.readFile(cert)},(req,res)=>{res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Headers','Range, If-Range');res.setHeader('Access-Control-Expose-Headers','Content-Range, ETag');if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}requests++;const range=/^bytes=(\d+)-$/.exec(req.headers.range||''),start=range?Number(range[1]):0;res.setHeader('Content-Type','application/octet-stream');res.setHeader('ETag','"'+model.sha256+'"');res.setHeader('Content-Length',model.bytes-start);if(range){res.statusCode=206;res.setHeader('Content-Range',`bytes ${start}-${model.bytes-1}/${model.bytes}`);}fs.createReadStream(file,{start}).pipe(res);});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const route=route=>route.continue({url:'https://127.0.0.1:'+server.address().port+'/model.gguf'});
+ // CDP-connected Flatpak must explicitly trust this ephemeral localhost test certificate.
+ // This is a private test process, not a production certificate-policy change.
+ const cdp=await page.context().newCDPSession(page);await cdp.send('Security.setIgnoreCertificateErrors',{ignore:true});
+ const failed=request=>{if(request.url()===source.url)console.error('Default model HTTP failure:',request.failure()?.errorText);};page.on('requestfailed',failed);
  try{
   const row=page.locator(`[data-model-id="${model.id}"]`);await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').click();await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
   console.log('Default model: verified empty profile; starting download');
@@ -39,6 +44,6 @@ async function cycle(page,file){
   await page.getByLabel('Import GGUF',{exact:true}).setInputFiles(file);await installed(page);await page.waitForFunction(()=>{const input=document.querySelector('input[aria-label="Import GGUF"]');return input&&!input.disabled;});
   console.log('Default model: duplicate import finished');
   return{source:process.env.CALENDAR_EXPECTED_COMMIT,modelId:model.id,sha256:model.sha256,bytes:model.bytes,blockCount:metadata.blockCount,contextLength:metadata.contextLength,import:'PASS actual pinned default file, duplicate and native load',download:'PASS actual HTTP to OPFS to native commit and load',importInference,downloadInference,networkRequests:requests,physicalGpuTested:false};
- }finally{console.log('Default model: closing local HTTPS server');await page.unroute(source.url,route);server.closeAllConnections();let timer;try{await Promise.race([new Promise(r=>server.close(r)),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('default-model-test-server-close-timeout')),5000)})]);}finally{clearTimeout(timer);await fsp.rm(certDirectory,{recursive:true,force:true});}}
+ }finally{console.log('Default model: closing local HTTPS server');page.off('requestfailed',failed);await cdp.send('Security.setIgnoreCertificateErrors',{ignore:false}).catch(()=>{});await cdp.detach().catch(()=>{});await page.unroute(source.url,route);server.closeAllConnections();let timer;try{await Promise.race([new Promise(r=>server.close(r)),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('default-model-test-server-close-timeout')),5000)})]);}finally{clearTimeout(timer);await fsp.rm(certDirectory,{recursive:true,force:true});}}
 }
 module.exports={cycle,infer,model};

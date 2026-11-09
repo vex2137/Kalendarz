@@ -68,3 +68,8 @@ CPU completion (120s), local test-server shutdown (5s), CDP shutdown (15s) and
 the isolated sandbox test process (600s). Errors are printed before cleanup, so
 a failed operation cannot be hidden by an unbounded test teardown. A timeout
 is a failed test, never a skipped assertion or successful inference.
+
+The localhost HTTPS fixture explicitly sets certificate trust through a test CDP
+session (including the existing Flatpak CDP connection), restores it afterwards,
+and reports request failures without headers or credentials. Production TLS
+validation is unchanged; the test uses an ephemeral self-signed localhost server.
