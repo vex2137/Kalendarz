@@ -186,7 +186,7 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
     await plainReceiver.page.getByText('Zapisano i scalono dane.',{exact:true}).waitFor();assert.equal((await incomingEvents()).filter(e=>e.id.startsWith('private-')).length,80);
     // Exercise the real JSON download and browser file input, with confirmation.
     await sender.page.getByRole('button',{name:'File',exact:true}).click();
-    const downloadPromise=sender.page.waitForEvent('download');await sender.page.getByRole('button',{name:'Export full package',exact:true}).click();const download=await downloadPromise;
+    const downloadPromise=sender.page.waitForEvent('download');await sender.page.getByRole('button',{name:'Export package',exact:true}).click();const download=await downloadPromise;
     const chunks=[];for await(const chunk of await download.createReadStream())chunks.push(chunk);const exported=Buffer.concat(chunks);const exportedPayload=JSON.parse(exported);
     assert.equal(exportedPayload.events.length,80);
     await plainReceiver.page.getByRole('button',{name:'Plik',exact:true}).click();
