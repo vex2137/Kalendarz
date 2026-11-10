@@ -12,15 +12,40 @@ const vite=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host=127.0
 try{
  for(let i=0;i<100;i++){try{if((await fetch(base)).ok)break}catch{}await new Promise(r=>setTimeout(r,100));}
  browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:['--no-sandbox']});
- for(const mode of ['download','import-stream','partial','corrupt','duplicate']){
+ for(const mode of ['catalogue-actions','download','import-stream','partial','corrupt','duplicate']){
   modelStore=new NativeModelStore({root:path.join(root,mode),catalogue:[{id,bytes:data.length,sha256:sha}],bundledPath:'/not-packaged.gguf',bundledId:packagedModelId({distribution:'model-free',bundledModel:false},{id})});
   const context=await browser.newContext({serviceWorkers:'block'});const page=await context.newPage();
   await page.exposeFunction('nativeCall',async(method,...args)=>{if(method==='finish'&&failCommit){await modelStore.abort(args[0]);throw Error('model-storage');}return modelStore[method](...args.map((arg,i)=>method==='write'&&i===1?Buffer.from(arg):arg));});
   await page.addInitScript(()=>{window.calendarNativeAI={info:id=>window.nativeCall('info',id),begin:id=>window.nativeCall('begin',id),write:(token,chunk)=>window.nativeCall('write',token,Array.from(chunk)),finish:token=>window.nativeCall('finish',token),abortUpload:token=>window.nativeCall('abort',token),remove:id=>window.nativeCall('remove',id),stop:async()=>{},status:async()=>({backend:'cpu-native',mode:'cpu',loaded:false,available:true,gpuActive:false}),folders:async()=>({models:[],folders:[],warnings:[]})};});
-  const prepare=async()=>{await page.goto(base);await page.evaluate(async fixture=>{const registry=await import('/src/utils/modelRegistry.ts');Object.assign(registry.DEFAULT_MODEL,fixture);window.r=await import('/src/utils/localModelRuntime.ts');window.s=await import('/src/utils/localModelStore.ts');await window.r.selectLocalModel(fixture.id);localStorage.setItem('calendar-data-marker','preserved');},{id,bytes:data.length,sha256:sha,url:'http://127.0.0.1:'+fileServer.address().port+'/model',bundled:false});};
+  const prepare=async()=>{await page.goto(base);await page.evaluate(async fixture=>{const registry=await import('/src/utils/modelRegistry.ts');if(registry.DEFAULT_MODEL.bundled!==false)throw Error('model-free default was marked bundled');Object.assign(registry.DEFAULT_MODEL,fixture);window.r=await import('/src/utils/localModelRuntime.ts');window.s=await import('/src/utils/localModelStore.ts');await window.r.selectLocalModel(fixture.id);localStorage.setItem('calendar-data-marker','preserved');},{id,bytes:data.length,sha256:sha,url:'http://127.0.0.1:'+fileServer.address().port+'/model',bundled:false});};
   await page.route('**/_calendar_model_import/fixture',route=>route.fulfill({body:data,headers:{'Content-Type':'application/octet-stream'}}));
   await prepare();const before=requests;
-  if(mode==='download'||mode==='import-stream'){
+  if(mode==='catalogue-actions'){
+   await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();
+   const row=page.locator(`[data-model-id="${id}"]`);
+   assert.equal(await row.getAttribute('data-model-installation'),'missing');
+   await row.getByRole('button',{name:'Download',exact:true}).waitFor({timeout:5000});
+   // Reproduce an older failed commit while another model is selected. This is
+   // real OPFS, not an installed flag; the collapsed details must not hide recovery.
+   await page.evaluate(async({bytes})=>{
+    await window.r.selectLocalModel('lfm2.5-350m-q4-k-m');
+    const registry=await import('/src/utils/modelRegistry.ts'),t=await import('/src/utils/resumableModelTransfer.ts');
+    const store=await import('/src/utils/localModelStore.ts');
+    if(await store.bundledModelAvailable({...registry.DEFAULT_MODEL,bundled:true}))throw Error('manifest metadata was accepted as bundled weights');
+    const dir=await(await navigator.storage.getDirectory()).getDirectoryHandle('calendar-models',{create:true});
+    const h=await dir.getFileHandle(t.transferName(registry.DEFAULT_MODEL)+'.gguf',{create:true}),w=await h.createWritable();await w.write(new Uint8Array(bytes));await w.close();
+   },{bytes:Array.from(data)});
+   await page.reload();
+   await page.evaluate(async fixture=>{Object.assign((await import('/src/utils/modelRegistry.ts')).DEFAULT_MODEL,fixture);window.r=await import('/src/utils/localModelRuntime.ts');},{id,bytes:data.length,sha256:sha,url:'http://127.0.0.1:'+fileServer.address().port+'/model',bundled:false});
+   await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();
+   await page.waitForFunction(id=>document.querySelector(`[data-model-id="${id}"]`)?.dataset.modelInstallation==='unverified',id);
+   const verify=row.locator(':scope > div').getByRole('button',{name:'Verify model',exact:true});
+   await verify.waitFor({state:'visible',timeout:5000});assert.equal(await row.locator('details').getAttribute('open'),null);
+   const network=requests;await verify.click();
+   const deadline=Date.now()+10000;while(!(await modelStore.info(id)).installed&&Date.now()<deadline)await page.waitForTimeout(50);
+   assert.equal((await modelStore.info(id)).verified,true);assert.equal(requests,network,'Retained verified bytes must not download again');
+   await row.getByRole('button',{name:'Use',exact:true}).or(row.getByRole('button',{name:'Load',exact:true})).waitFor({timeout:5000});
+  }else if(mode==='download'||mode==='import-stream'){
    failCommit=true;
    const failed=await page.evaluate(async({mode,bytes})=>{try{if(mode==='download')await window.r.installLocalModel();else await window.r.importLocalModel({url:location.origin+'/_calendar_model_import/fixture',bytes},'default.gguf');}catch(e){return e.message;}},{mode,bytes:data.length});
    // Stream imports use a real local HTTP source; expose its bytes via Vite routing.

@@ -3,6 +3,7 @@ import { androidAIReady } from './nativeAndroidAI';
 import { nativeModelResponse } from './nativeModelImport';
 import { openDB } from 'idb';
 import { sha256 } from '@noble/hashes/sha2.js';
+import { BUILD_INFO, buildBundlesModel } from './buildInfo';
 import { LOCAL_MODEL, bundledModelUrl } from './localModelManifest';
 import { DEFAULT_MODEL, type ModelDescriptor } from './modelRegistry';
 import { desktopAI, ensureNativeModel } from './nativeDesktopAI';
@@ -310,7 +311,7 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
 // The build stages the exact verified weights beside this small metadata file.
 // Availability is cheap; inference independently verifies the actual GGUF bytes.
 export async function bundledModelAvailable(descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<boolean> {
-  if (!descriptor.bundled) return false;
+  if (!descriptor.bundled || !buildBundlesModel(BUILD_INFO)) return false;
   try {
     const response = await fetch(bundledModelUrl('manifest.json'), { credentials: 'omit' });
     if (!response.ok) return false;

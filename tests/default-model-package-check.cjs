@@ -19,7 +19,7 @@ async function installed(page,wanted=true){
  console.error('Default model wait diagnostics',await page.locator('#ai-settings-panel [role=alert]').allTextContents().catch(()=>[]));
  throw Error('Timed out waiting for verified native installation='+wanted+': '+JSON.stringify(last));
 }
-async function cycle(page,file){
+async function cycle(page,file,options={}){
  const stat=await fsp.stat(file);assert.equal(stat.size,model.bytes);const hash=crypto.createHash('sha256');for await(const b of fs.createReadStream(file))hash.update(b);assert.equal(hash.digest('hex'),model.sha256);
  const metadata=await require('../electron/model-folders.cjs').readGGUF(file);assert.equal(metadata.architecture,'qwen35');assert.ok(metadata.blockCount>0);assert.ok(metadata.contextLength>=2048);
  const certDirectory=await fsp.mkdtemp(require('node:path').join(require('node:os').tmpdir(),'calendar-https-test-'));
@@ -30,20 +30,39 @@ async function cycle(page,file){
  // CDP-connected Flatpak must explicitly trust this ephemeral localhost test certificate.
  // This is a private test process, not a production certificate-policy change.
  const cdp=await page.context().newCDPSession(page);await cdp.send('Security.setIgnoreCertificateErrors',{ignore:true});
+ const live=process.env.CALENDAR_TEST_LIVE_MODEL_SOURCE==='true';let catalogueRequests=0;
+ const requested=request=>{if(request.url()===source.url)catalogueRequests++;};page.on('request',requested);
+ const networkCount=()=>live?catalogueRequests:requests;
  const failed=request=>{if(request.url()===source.url)console.error('Default model HTTP failure:',request.failure()?.errorText);};page.on('requestfailed',failed);
+ let retainedRecovery=false;
  try{
   const row=page.locator(`[data-model-id="${model.id}"]`);await page.locator('[data-testid=backend-settings]:visible [data-mode=cpu]').click();await page.locator('[data-testid=backend-mode-result]:visible').filter({hasText:'Mode saved'}).waitFor();
   console.log('Default model: verified empty profile; starting download');
   // A fresh profile proves a real download; retained verified bytes should be recovered.
   assert.equal((await page.evaluate(id=>window.calendarNativeAI.info(id),model.id)).installed,false);
-  await page.route(source.url,route);await row.getByRole('button',{name:'Download',exact:true}).click();await installed(page);assert.ok(requests>0,'The real catalogue download must reach the local HTTP server');console.log('Default model: download committed and verified');
+  if(!live)await page.route(source.url,route);
+  if(options.beforeFailedCommit)await options.beforeFailedCommit();
+  await row.getByRole('button',{name:'Download',exact:true}).click();
+  if(options.beforeFailedCommit){
+   await page.waitForFunction(id=>document.querySelector(`[data-model-id="${id}"]`)?.dataset.modelInstallation==='unverified',model.id,{timeout:180000});
+   await options.clearFailedCommit();
+   await page.evaluate(()=>localStorage.setItem('calendar_active_ai_model_v1','lfm2.5-350m-q4-k-m'));
+   await page.reload();await page.locator('#btn-open-ai-assistant').click();await page.locator('#btn-ai-settings').click();
+   await page.waitForFunction(id=>document.querySelector(`[data-model-id="${id}"]`)?.dataset.modelInstallation==='unverified',model.id,{timeout:30000});
+   assert.equal(await row.locator('details').getAttribute('open'),null);
+   const network=networkCount();
+   await row.locator(':scope > div').getByRole('button',{name:'Verify model',exact:true}).click();
+   await installed(page);assert.equal(networkCount(),network,'Recovery after restart must reuse complete OPFS without another HTTP request');retainedRecovery=true;
+   console.log('Default model: visible primary action recovered retained OPFS after failed commit/reload, no redownload');
+  }
+  await installed(page);assert.ok(networkCount()>0,'The real catalogue download must reach its HTTP source');console.log('Default model: download committed and verified');
   const downloadInference=await infer(page);
   await row.locator('details').evaluate(e=>{e.open=true});page.once('dialog',d=>d.accept());await row.getByRole('button',{name:'Remove download',exact:true}).click();await installed(page,false);console.log('Default model: removed test download; starting file import');
   await page.getByLabel('Import GGUF',{exact:true}).setInputFiles(file);await installed(page);
   console.log('Default model: file import committed and verified');const importInference=await infer(page);
   await page.getByLabel('Import GGUF',{exact:true}).setInputFiles(file);await installed(page);await page.waitForFunction(()=>{const input=document.querySelector('input[aria-label="Import GGUF"]');return input&&!input.disabled;});
   console.log('Default model: duplicate import finished');
-  return{source:process.env.CALENDAR_EXPECTED_COMMIT,modelId:model.id,sha256:model.sha256,bytes:model.bytes,blockCount:metadata.blockCount,contextLength:metadata.contextLength,import:'PASS actual pinned default file, duplicate and native load',download:'PASS actual HTTP to OPFS to native commit and load',importInference,downloadInference,networkRequests:requests,physicalGpuTested:false};
- }finally{console.log('Default model: closing local HTTPS server');page.off('requestfailed',failed);await cdp.send('Security.setIgnoreCertificateErrors',{ignore:false}).catch(()=>{});await cdp.detach().catch(()=>{});await page.unroute(source.url,route);server.closeAllConnections();let timer;try{await Promise.race([new Promise(r=>server.close(r)),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('default-model-test-server-close-timeout')),5000)})]);}finally{clearTimeout(timer);await fsp.rm(certDirectory,{recursive:true,force:true});}}
+  return{source:process.env.CALENDAR_EXPECTED_COMMIT,modelId:model.id,sha256:model.sha256,bytes:model.bytes,blockCount:metadata.blockCount,contextLength:metadata.contextLength,import:'PASS actual pinned default file, duplicate and native load',download:'PASS actual HTTP to OPFS to native commit and load',retainedRecovery,importInference,downloadInference,networkRequests:networkCount(),downloadSource:live?'public-huggingface':'controlled-local-https',physicalGpuTested:false};
+ }finally{console.log('Default model: closing local HTTPS server');page.off('requestfailed',failed);page.off('request',requested);await cdp.send('Security.setIgnoreCertificateErrors',{ignore:false}).catch(()=>{});await cdp.detach().catch(()=>{});await page.unroute(source.url,route);server.closeAllConnections();let timer;try{await Promise.race([new Promise(r=>server.close(r)),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('default-model-test-server-close-timeout')),5000)})]);}finally{clearTimeout(timer);await fsp.rm(certDirectory,{recursive:true,force:true});}}
 }
 module.exports={cycle,infer,model};
