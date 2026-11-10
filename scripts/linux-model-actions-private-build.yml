@@ -4,7 +4,7 @@ name: Private Linux default model actions and real AppImage inference
   workflow_dispatch:
     inputs:
       source_commit:
-        description: Exact current application SHA; all five packages use this same source
+        description: Exact current application SHA; Linux-only diagnostic
         required: true
         type: string
 permissions:
@@ -76,7 +76,7 @@ jobs:
 
         node --test tests/default-model-store.test.cjs
 
-        node tests/default-model-recovery-browser.cjs'
+        BROWSER_EXECUTABLE="$(node -p ''require("playwright").chromium.executablePath()'')" node tests/default-model-recovery-browser.cjs'
     - name: Build model-free AppImage with the unchanged pinned CPU/CUDA/Vulkan runtimes
       run: 'test ! -e native/linux-x64/runtime-manifest.json
 
