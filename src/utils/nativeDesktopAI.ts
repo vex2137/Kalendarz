@@ -7,6 +7,8 @@ export interface BackendInfo {
   contextLimit?:number; availableMemoryBytes?:number; contextRequested?:number; contextApplied?:number; contextUsed?:number;
   loaded:boolean;gpuActive:boolean;automaticLayers?:boolean;modeChanging?:boolean;gpuLayers?:number;system?:string;cpuArchitecture?:string;packagedBackends?:string[];availableBackends?:string[];vulkanFeatureVersion?:number;vulkanHardwareLevel?:number;deviceName?:string;offloadedLayers?:number;
   fallbackReason?:string;threads?:number;ramBytes?:number;vramBytes?:number;memoryScope?:string;
+  processAlive?:boolean;stopping?:boolean;shutdownError?:string;
+  inference?:{status:string;stage:string;backend:string;httpStatus?:number;completionTokens?:number;textCharacters?:number;finishReason?:string;exceptionType?:string;code?:string};
   errorCode?:string;modelId?:string;modelName?:string;loadMs?:number;tokensPerSecond?:number;
   nativeAttempts?:{backend:string;binary:string;stage:string;status:string;requestedLayers:number;effectiveLayers?:number;estimatedVramBytes?:number;availableVramBytes?:number;reserveBytes?:number;kvCacheBytes?:number;backendOverheadBytes?:number;estimateKind?:string;layerMetadataKnown?:boolean;contextLength?:number;offloadedLayers:number;stderr:string;code?:string;reason?:string;nativeCode?:string;exitCode?:number|null;signal?:string|null;healthHttpStatus?:number}[];
   gpuAttempt?:{arguments?:Record<string,string>;stage:string;status:string;requestedDevice?:string;requestedLayers:number;contextLength:number;offloadedLayersObserved:number;code?:string;nativeCode?:string;exceptionType?:string;message?:string;exitCode?:number;healthHttpStatus?:number;nativeLog:string;stages:{stage:string;elapsedMs:number}[]};

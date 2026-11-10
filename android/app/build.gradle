@@ -10,7 +10,9 @@ def calendarStableUpdate = providers.gradleProperty('calendarStableUpdate').orEl
 def calendarQwenV2Update = providers.gradleProperty('calendarQwenV2Update').orElse('false').get().toBoolean()
 def calendarPart4BetaNumber = providers.gradleProperty('calendarPart4BetaNumber').orElse('1').get()
 if (!(calendarPart4BetaNumber in ['1','2','3'])) throw new GradleException('Unsupported Part 4 beta number')
+def calendarLifecycleDiagnostic = System.getenv('CALENDAR_ANDROID_LIFECYCLE_DIAGNOSTIC') == 'true'
 def calendarPart4Beta = providers.gradleProperty('calendarPart4Beta').orElse('false').get().toBoolean()
+if (calendarLifecycleDiagnostic && (!calendarPart4Beta || calendarPart4BetaNumber != '3')) throw new GradleException('Lifecycle diagnostic requires the existing Part 4 Beta 3 signing profile')
 if (calendarPart4Beta && providers.gradleProperty('calendarPart3Beta').orElse('false').get().toBoolean()) throw new GradleException('Choose one Part 3 or Part 4 profile')
 def calendarPart3Beta = calendarPart4Beta || providers.gradleProperty('calendarPart3Beta').orElse('false').get().toBoolean()
 if (calendarPart3Beta && providers.gradleProperty('calendarPart2Beta').orElse('false').get().toBoolean()) throw new GradleException('Choose one Part 2 or Part 3 profile')
@@ -118,7 +120,7 @@ android {
         diagnostics {
             initWith debug
             applicationIdSuffix '.diagnostics'
-            versionNameSuffix (calendarPart2Beta ? (calendarPart3Beta ? (calendarPart4Beta ? '-part4-beta.' + calendarPart4BetaNumber : '-part3-beta.2') : calendarPart2BetaNumber == 'stable' ? '-part2-stable' : '-part2-beta.' + calendarPart2BetaNumber) : (calendarStableUpdate || calendarQwenV2Update) ? '' : calendarBeta ? ' beta 3' : '-diagnostics')
+            versionNameSuffix (calendarPart2Beta ? (calendarPart3Beta ? (calendarPart4Beta ? '-part4-beta.' + calendarPart4BetaNumber + (calendarLifecycleDiagnostic ? '-diag.1' : '') : '-part3-beta.2') : calendarPart2BetaNumber == 'stable' ? '-part2-stable' : '-part2-beta.' + calendarPart2BetaNumber) : (calendarStableUpdate || calendarQwenV2Update) ? '' : calendarBeta ? ' beta 3' : '-diagnostics')
             matchingFallbacks = ['debug']
             signingConfig signingConfigs.debug
             if (calendarQwenV2Update || calendarPart2Beta) signingConfig signingConfigs.stableRelease

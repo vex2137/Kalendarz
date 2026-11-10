@@ -37,7 +37,18 @@ def expected_android_source(source,check_remote=False):
     return source
 
 
+def diagnostic():
+    return os.environ.get('CALENDAR_ANDROID_LIFECYCLE_DIAGNOSTIC')=='true'
+
+
 def policy():
+    if diagnostic():
+        value=json.loads((ROOT/'scripts/part4-beta3-lifecycle-version.json').read_text())
+        if (value.get('version')!='1.5.0' or value.get('channel')!='part4-beta3-lifecycle-diag1' or
+                value.get('versionName')!='1.5.0-part4-beta.3-diag.1' or value.get('lastTestedVersionCode')!=10524 or
+                type(value.get('versionCode')) is not int or value['versionCode']<=10524):
+            raise ValueError('Lifecycle diagnostic must update Beta 3 with the existing identity and a higher versionCode')
+        return value
     value=json.loads((ROOT/'scripts/part4-beta3-version.json').read_text())
     if (value.get('version')!='1.5.0' or value.get('channel')!='part4-beta3' or
             value.get('versionName')!='1.5.0-part4-beta.3' or
@@ -49,7 +60,7 @@ def policy():
 
 def verify_candidate_info(info,source,android):
     verify_info(info,source,android)
-    if info.get('releaseChannel')!='part4-beta3' or info.get('branch')!=BRANCH:
+    if info.get('releaseChannel')!=policy()['channel'] or info.get('branch')!=BRANCH:
         raise ValueError('Missing Part 4 Beta 3 channel/application branch')
     if os.environ.get('GITHUB_REPOSITORY')=='vex2137/Kalendarz-private-builds' and info.get('workflowCommit')!=os.environ.get('GITHUB_SHA'):
         raise ValueError('Private workflow provenance mismatch')
@@ -107,7 +118,7 @@ def verify_apk(apk, source, tools):
         checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
     return dict(file=apk.name, bytes=apk.stat().st_size, sha256=checksum, source=source,
                 package='com.kalendarz.offline.diagnostics', versionCode=policy()['versionCode'],
-                certificateSha256=CERT, runtime=runtime, vulkanDiagnostics=diag, channel='part4-beta3', versionName=policy()['versionName'])
+                certificateSha256=CERT, runtime=runtime, vulkanDiagnostics=diag, channel=policy()['channel'], versionName=policy()['versionName'])
 
 
 def main():
@@ -124,7 +135,7 @@ def main():
         if not args.platform:p.error('--info requires --platform')
         verify_candidate_info(json.loads(args.info.read_text()), args.source, args.platform=='android')
     if args.apk:
-        if args.apk.name != NAME:
+        if args.apk.name != policy()['androidFile']:
             raise ValueError('Unexpected artifact filename')
         result = verify_apk(args.apk, args.source, Path(os.environ['ANDROID_HOME']) / 'build-tools/35.0.0')
         args.apk.with_suffix('.apk.sha256').write_text(result['sha256'] + '  ' + args.apk.name + '\n')

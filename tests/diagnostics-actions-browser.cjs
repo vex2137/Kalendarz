@@ -65,6 +65,32 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   const retry=await page.evaluate(async()=>{try{await window.__runtime.retryLocalModel();return 'unexpected-success';}catch(error){return error.message;}});
   assert.equal(retry,'model-stop-timeout');assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().phase),'error','A failed shutdown retry must not leave the UI stuck checking');
   await page.evaluate(()=>window.__bridge.stopFailure=false);await page.getByRole('button',{name:'Release memory',exact:true}).click();await result.filter({hasText:'Model unloaded'}).waitFor();
+  // A failed stop can invalidate readiness without releasing the OS process.
+  // Keep ownership for retry, while runtime and backend show the same loaded flag.
+  await page.evaluate(async()=>{
+    await window.__runtime.retryLocalModel();
+    window.__bridge.loaded=false;window.__bridge.stopFailure=true;
+    const native=await import('/src/utils/nativeDesktopAI.ts');
+    native.updateBackend({...await window.calendarNativeAI.status(),processAlive:true,stopping:true,errorCode:'model-stop-timeout'});
+  });
+  assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().loaded),false);
+  assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().phase),'error');
+  await page.getByRole('button',{name:'Release memory',exact:true}).click();
+  await result.filter({hasText:'model-stop-timeout'}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().loaded),false);
+  await page.evaluate(()=>window.__bridge.stopFailure=false);
+  await page.getByRole('button',{name:'Release memory',exact:true}).click();await result.filter({hasText:'Model unloaded'}).waitFor();
+  // A cleanup error must not hide the first inference failure in diagnostics.
+  const firstFailure=await page.evaluate(async()=>{
+    await window.__runtime.retryLocalModel();window.__bridge.stopFailure=true;
+    window.calendarNativeAI.complete=async()=>{window.__bridge.loaded=false;throw Error('model-native-response');};
+    try{await window.__runtime.inferLocalText('Reply briefly','Failure fixture');return 'unexpected-success';}catch(error){return error.message;}
+  });
+  assert.equal(firstFailure,'model-native-response');
+  assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().loaded),false);
+  assert.equal(await page.evaluate(()=>window.__runtime.modelStatus().error),'model-native-response');
+  await page.evaluate(()=>window.__bridge.stopFailure=false);
+  await page.getByRole('button',{name:'Release memory',exact:true}).click();await result.filter({hasText:'Model unloaded'}).waitFor();
   // Real browser download dispatch contains valid diagnostics and click evidence.
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();
   const file=await download;const json=JSON.parse(await fs.readFile(await file.path(),'utf8'));assert.equal(json.version,5);assert.equal(json.backend.gpuAttempt.nativeCode,'VK_ERROR_FEATURE_NOT_PRESENT');assert.equal(json.backend.gpuAttempt.requestedLayers,999);assert.ok(json.actions.some(e=>e.action==='export-json'&&e.stage==='click'));await result.filter({hasText:'download started'}).waitFor();

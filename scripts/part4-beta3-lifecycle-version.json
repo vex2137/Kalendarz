@@ -1,0 +1,9 @@
+{
+  "version": "1.5.0",
+  "channel": "part4-beta3-lifecycle-diag1",
+  "label": "Kalendarz Part 4 Beta 3 Android lifecycle diagnostic",
+  "lastTestedVersionCode": 10524,
+  "versionCode": 10525,
+  "versionName": "1.5.0-part4-beta.3-diag.1",
+  "androidFile": "Kalendarz-1.5.0-Part-4-Beta-3-Android-Lifecycle-Diagnostic-arm64.apk"
+}
