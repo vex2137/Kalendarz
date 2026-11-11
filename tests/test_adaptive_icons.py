@@ -17,6 +17,12 @@ class AdaptiveIcons(unittest.TestCase):
   masked=adaptive.compose();full=adaptive.compose(False);self.assertEqual(masked.getpixel((0,0))[3],0);self.assertEqual(full.getpixel((0,0))[3],255);self.assertEqual(masked.crop((64,64,448,448)).tobytes(),full.crop((64,64,448,448)).tobytes())
  def test_published_svg_embeds_original_foreground_and_platform_transform(self):
   svg=(ROOT/'public/icon.svg').read_text();self.assertEqual(svg,adaptive.reference_svg());self.assertIn('x="-25" y="-25" width="150" height="150"',svg);self.assertNotIn('ic_launcher.png',svg)
+ def test_pixel_checker_rejects_wrong_rgb_with_the_same_alpha(self):
+  spec=importlib.util.spec_from_file_location('pixel_checker',ROOT/'scripts/check-canonical-icons.py');checker=importlib.util.module_from_spec(spec);spec.loader.exec_module(checker)
+  with self.assertRaises(AssertionError):checker.same_pixels(Image.new('RGBA',(8,8),'red'),Image.new('RGBA',(8,8),'blue'))
+ def test_pixel_checker_rejects_wrong_transparency(self):
+  spec=importlib.util.spec_from_file_location('pixel_checker',ROOT/'scripts/check-canonical-icons.py');checker=importlib.util.module_from_spec(spec);spec.loader.exec_module(checker)
+  with self.assertRaises(AssertionError):checker.same_pixels(Image.new('RGBA',(8,8),(255,255,255,255)),Image.new('RGBA',(8,8),(255,255,255,0)))
  def test_generation_is_deterministic_and_does_not_reuse_legacy_png(self):
   self.assertEqual(adaptive.compose().tobytes(),adaptive.compose().tobytes());old=Image.open(ROOT/'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png').convert('RGBA').resize((512,512),Image.Resampling.LANCZOS);self.assertNotEqual(adaptive.compose().tobytes(),old.tobytes())
 if __name__=='__main__':unittest.main()

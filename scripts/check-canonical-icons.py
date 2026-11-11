@@ -8,7 +8,7 @@ def same_pixels(a,b):
  assert a.size==b.size,(a.size,b.size)
  for color in ('white','black'):
   bg=Image.new('RGBA',a.size,color)
-  assert ImageChops.difference(Image.alpha_composite(bg,a),Image.alpha_composite(bg,b)).getbbox() is None
+  assert ImageChops.difference(Image.alpha_composite(bg,a),Image.alpha_composite(bg,b)).convert('RGB').getbbox() is None
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--web-dir',type=Path);p.add_argument('--x11-window');p.add_argument('--flatpak-location',type=Path);a=p.parse_args()
