@@ -34,7 +34,7 @@ async function seed(page,title){await page.locator('#btn-create-event-top').clic
  // The Portable bootstrapper must choose its profile; do not pass --user-data-dir.
  const portableRoot=fs.mkdtempSync(path.join(os.tmpdir(),'calendar-portable-'));folder=path.join(portableRoot,'first');portableExe=policy.portableFile;fs.mkdirSync(folder);fs.copyFileSync(portable,path.join(folder,policy.portableFile));
  let portableApp=await portableWindow();await seed(portableApp.p,'Portable folder retained event');await portableApp.close();assert.ok(fs.existsSync(path.join(folder,'Calendar Data')));
- const moved=path.join(portableRoot,'moved');fs.renameSync(folder,moved);folder=moved;
+ const moved=path.join(portableRoot,'moved');await until(()=>{fs.renameSync(folder,moved);return true;},30000);folder=moved;
  portableApp=await portableWindow();await portableApp.p.getByText('Portable folder retained event',{exact:true}).waitFor();assert.equal(await portableApp.p.getByText('Windows 1.4.2 retained event',{exact:true}).count(),0);await portableApp.close();
  ({a,p}=await installedWindow());await p.getByText('Windows 1.4.2 retained event',{exact:true}).waitFor();assert.equal(await p.getByText('Portable folder retained event',{exact:true}).count(),0);await a.close();
  const uninstall=fs.readdirSync(path.dirname(installed)).find(n=>/^Uninstall.*\.exe$/i.test(n));assert.ok(uninstall);await execute(path.join(path.dirname(installed),uninstall),['/S']);await until(()=>!fs.existsSync(installed));assert.ok(fs.existsSync(installedData));

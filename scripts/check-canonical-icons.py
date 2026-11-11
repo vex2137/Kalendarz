@@ -34,7 +34,7 @@ def main():
   icon=a.flatpak_location/'files/share/icons/hicolor/512x512/apps/com.vex2137.kalendarz.png';assert digest(icon)==m['files']['packaging/icons/png/512x512.png']
   desktop=a.flatpak_location/'files/share/applications/com.vex2137.kalendarz.desktop';assert 'Icon=com.vex2137.kalendarz' in desktop.read_text();report['flatpakExportedIcon']='PASS installed bundle icon and desktop identity'
  if a.x11_window:
-  text=subprocess.check_output(['xprop','-id',a.x11_window,'-f','_NET_WM_ICON','32c','_NET_WM_ICON'],text=True)
+  text=subprocess.check_output(['xprop','-len','16777216','-id',a.x11_window,'-f','_NET_WM_ICON','32c','_NET_WM_ICON'],text=True)
   assert '=' in text,'Window did not publish an icon'
   values=[int(v)&0xffffffff for v in re.findall(r'-?\d+',text.split('=',1)[1])];images=[];i=0
   while i<len(values):
