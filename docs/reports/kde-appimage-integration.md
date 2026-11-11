@@ -8,8 +8,8 @@ The AppImage has com.vex2137.kalendarz.desktop, StartupWMClass=com.vex2137.kalen
 and Icon=calendar resolving to its own calendar.png. The packaged PNG is the
 Android-adaptive master, SHA-256
 59ce3165caa8fbcefd5d2c840976441081ef06c89db54c8cd1901a970e7388dc.
-Electron sets the desktop name, X11 class and Wayland app ID to the same application
-identity. A pinned Plasma task can still use a different, previously installed
+Electron is configured with the same desktop name, X11 class and Wayland app ID.
+Actual X11 WM_CLASS and window icon were verified in the earlier ba9f8e5 package run. A pinned Plasma task can still use a different, previously installed
 .desktop service and its icon instead of the icon shown in the window title.
 Replacing an AppImage file does not update those separate per-user files or pins.
 
@@ -54,7 +54,15 @@ applications:com.vex2137.kalendarz.desktop rather than an obsolete desktop ID.
 
 Four standalone integration tests PASS: stale entry replacement and backup,
 idempotence/data-and-pin preservation, preservation of translations/custom actions,
-and safe failure with a missing icon. A real Plasma 6 task-panel fixture is being
-verified on a disposable runner with nested KWin Wayland; its result and screenshots
-must be checked before claiming panel verification. The user's actual CachyOS
-configuration and its specific pinned desktop ID remain NOT TESTED remotely.
+and safe failure with a missing icon.
+
+Actual Plasma task-panel rendering: NOT TESTED. Private diagnostic run 43039488976
+on ubuntu-26.04 failed to provision Plasma 6: apt repeatedly reported Temporary
+failure resolving azure.archive.ubuntu.com, archive.ubuntu.com and security.ubuntu.com.
+The job timed out before any application/panel launch. Its empty diagnostic ZIP is
+not screenshot evidence. No successful visual panel comparison is claimed.
+
+The user's actual CachyOS configuration and its specific pinned desktop ID remain
+NOT TESTED remotely. Read-only commands were requested to identify that precise
+entry. The package's correct window icon does not alone prove panel integration;
+after local repair the user must check the running task, not only its title bar.
