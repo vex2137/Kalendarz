@@ -1,7 +1,7 @@
 // Execute actual NSIS Setup and Portable packages on an ephemeral Windows runner.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {spawn,execFileSync}=require('node:child_process'),{_electron,chromium}=require('playwright');
-const policy=require('../scripts/part4-beta'+(process.env.CALENDAR_PART4_BETA_NUMBER==='3'?'3':'2')+'-version.json');
+const policy=process.env.CALENDAR_FINAL_STABLE==='true'?require('../scripts/stable-150-version.json'):require('../scripts/part4-beta'+(process.env.CALENDAR_PART4_BETA_NUMBER==='3'?'3':'2')+'-version.json');
 const owned=new Set();
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,timeout=120000){const end=Date.now()+timeout;let error;while(Date.now()<end){try{const v=await fn();if(v)return v;}catch(e){error=e;}await pause(500);}throw error||Error('Timed out');}
@@ -40,5 +40,16 @@ async function seed(page,title){await page.locator('#btn-create-event-top').clic
  const uninstall=fs.readdirSync(path.dirname(installed)).find(n=>/^Uninstall.*\.exe$/i.test(n));assert.ok(uninstall);await execute(path.join(path.dirname(installed),uninstall),['/S']);await until(()=>!fs.existsSync(installed));assert.ok(fs.existsSync(installedData));
  // Reinstall after uninstall and verify the preserved user data, rather than checking only directory existence.
  await execute(setup,['/S']);({a,p}=await installedWindow());await p.getByText('Windows 1.4.2 retained event',{exact:true}).waitFor();await a.close();
- const report={source:process.env.CALENDAR_EXPECTED_COMMIT,setup:'PASS actual 1.4.2 Portable legacy profile to Beta 2 Setup; install, repeated install/update, uninstall/reinstall retained event',portable:'PASS actual single EXE, isolated profile, whole-folder move and restart',icon:process.env.CALENDAR_VERIFY_CANONICAL_ICONS==='true'?'PASS actual PE and HWND icon pixels match Android reference':'PASS packaged window image and PE icons; visual taskbar/Start menu validation remains manual',standardUserAccount:'NOT TESTED: hosted runner account; per-user/asInvoker configuration is statically checked',physicalGpu:'NOT TESTED'};fs.writeFileSync(path.join(out,'windows-smoke.json'),JSON.stringify(report,null,2));console.log(report);
+ if(process.env.CALENDAR_FINAL_STABLE==='true'){
+  const zipRoot=path.resolve('build/checked-windows-zip'),zip=path.join(out,policy.windowsZipFile);fs.mkdirSync(zipRoot,{recursive:true});
+  execFileSync('python',['-c','import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert not any(".." in n.split("/") for n in z.namelist()); z.extractall(sys.argv[2])',zip,zipRoot]);
+  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'calendar-zip-profile-'));
+  for(let i=0;i<2;i++){
+   const zapp=await _electron.launch({executablePath:path.join(zipRoot,'Calendar.exe'),args:['--user-data-dir='+profile]});owned.add(zapp.process());const zp=await zapp.firstWindow();await zp.locator('#btn-create-event-top').waitFor();assert.equal(await zapp.evaluate(({app})=>app.getPath('userData')),profile);
+   if(i===0)await seed(zp,'Windows ZIP retained event');else await zp.getByText('Windows ZIP retained event',{exact:true}).waitFor();
+   execFileSync('powershell',['-NoProfile','-File','scripts/check-windows-icon.ps1','-Executable',path.join(zipRoot,'Calendar.exe'),'-CheckOpenWindow'],{stdio:'inherit'});await zapp.close();
+  }
+  console.log('PASS actual extracted Windows ZIP startup, icon and retained event after restart');
+ }
+ const report={source:process.env.CALENDAR_EXPECTED_COMMIT,setup:'PASS actual 1.4.2 Portable legacy profile to current Setup; install, repeated install/update, uninstall/reinstall retained event',portable:'PASS actual single EXE, isolated profile, whole-folder move and restart',icon:process.env.CALENDAR_VERIFY_CANONICAL_ICONS==='true'?'PASS actual PE and HWND icon pixels match Android reference':'PASS packaged window image and PE icons; visual taskbar/Start menu validation remains manual',standardUserAccount:'NOT TESTED: hosted runner account; per-user/asInvoker configuration is statically checked',physicalGpu:'NOT TESTED'};fs.writeFileSync(path.join(out,'windows-smoke.json'),JSON.stringify(report,null,2));console.log(report);
 })().catch(e=>{console.error(e);for(const child of owned){if(child.exitCode===null&&child.pid){try{execFileSync('taskkill',['/PID',String(child.pid),'/T','/F'],{stdio:'ignore'});}catch{}}}process.exit(1)});

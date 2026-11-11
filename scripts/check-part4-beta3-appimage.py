@@ -1,7 +1,7 @@
 """Verify the built Part 4 Beta 3 AppImage with the unchanged Beta 5 runtime inventory."""
 import hashlib,importlib.util,json,os,shutil,subprocess
 from pathlib import Path
-from part4_beta3_guard import ROOT,policy,expected_android_source,verify_candidate_info
+from release_candidate import ROOT,policy,expected_android_source,verify_candidate_info
 from part2_artifact_guard import asar_build_info
 
 def verify_desktop_icons(appdir):

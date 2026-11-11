@@ -1,7 +1,7 @@
 """Inspect the built OSTree bundle and installed payload, not just the manifest."""
 import hashlib,json,os,subprocess,configparser
 from pathlib import Path
-from part4_beta3_guard import ROOT,policy,expected_android_source,verify_candidate_info
+from release_candidate import ROOT,policy,expected_android_source,verify_candidate_info
 from part2_artifact_guard import asar_build_info
 APP='com.vex2137.kalendarz'
 def verify_permissions(permissions):

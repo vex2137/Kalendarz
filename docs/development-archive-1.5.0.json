@@ -1,0 +1,156 @@
+{
+  "title": "Kalendarz 1.5.0 \u2014 Development Archive",
+  "publicationChanges": false,
+  "duplicatePackagesCreated": false,
+  "notes": [
+    "Existing releases and packages are referenced without deletion, renaming or rebuilding.",
+    "Actions entries require repository access and retain their original expiry dates; metadata and checksums remain recorded here.",
+    "Part 4 intentionally records separate original Android and desktop source commits."
+  ],
+  "parts": [
+    {
+      "part": 1,
+      "version": "1.5.0 Part 1 Beta 3",
+      "source": "7f9721eebc45dbd9c84e327988909b919a8bbcf8",
+      "date": "2026-11-05T12:23:48Z",
+      "historical": true,
+      "description": "Calendar view modernization, Android launcher language switching and compact centered all-day labels.",
+      "release": "https://github.com/vex2137/Kalendarz/releases/tag/v1.5.0-part1-beta3",
+      "files": [
+        {
+          "name": "Kalendarz-1.5.0-Part-1-Beta-3.apk",
+          "url": "https://github.com/vex2137/Kalendarz/releases/download/v1.5.0-part1-beta3/Kalendarz-1.5.0-Part-1-Beta-3.apk",
+          "bytes": 24012233,
+          "sha256": "8866597ba603dc39a48a5671f362d582e6f8b39e955d5f574b0655f45730467a"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "url": "https://github.com/vex2137/Kalendarz/releases/download/v1.5.0-part1-beta3/SHA256SUMS.txt",
+          "bytes": 100,
+          "sha256": "c465ee344943a0315043bc92f18692607ab2ddd816e368d17a4690226abf11cc"
+        }
+      ]
+    },
+    {
+      "part": 2,
+      "version": "1.5.0 Part 2 Stable",
+      "source": "ab9371c6a03d2878536f85fa8a9e6bf7db89fd2b",
+      "date": "2026-11-08T13:47:39Z",
+      "historical": true,
+      "description": "Themes, personalization, app-lock credentials, Android biometrics, animation settings, native AI and generation/transfer stability.",
+      "run": "https://github.com/vex2137/Kalendarz-private-builds/actions/runs/42485721247",
+      "private": true,
+      "originalRetentionExpires": "2026-12-08",
+      "checksumEvidence": "Successful original download-verification job",
+      "files": [
+        {
+          "platform": "android",
+          "file": "Kalendarz-1.5.0-Part-2-Stable-Android-arm64.apk",
+          "bytes": 37035996,
+          "sha256": "d1d62d75d465ce78159697fc74ee6cc0b906222019c1f2bf07a4eeb4465bd6dc",
+          "source": "ab9371c6a03d2878536f85fa8a9e6bf7db89fd2b",
+          "artifactUrl": "https://github.com/vex2137/Kalendarz-private-builds/actions/runs/42485721247/artifacts/13619671881"
+        },
+        {
+          "platform": "linux",
+          "file": "Kalendarz-1.5.0-Part-2-Stable-x86_64.AppImage",
+          "bytes": 947359319,
+          "sha256": "4d22276ac70e0b449e0a410c41ce6fcdf395c30e2b8e87239b156ef2e1c98fef",
+          "source": "ab9371c6a03d2878536f85fa8a9e6bf7db89fd2b",
+          "artifactUrl": "https://github.com/vex2137/Kalendarz-private-builds/actions/runs/42485721247/artifacts/13619931482"
+        }
+      ]
+    },
+    {
+      "part": 3,
+      "version": "1.5.0 Part 3 Beta 2",
+      "source": "5e4ed1718cc40c2c57d44e437fa23ac9cc48d643",
+      "date": "2026-11-09T05:03:06Z",
+      "historical": true,
+      "description": "Desktop ergonomics, keyboard shortcuts, compressed multipart QR, reorganized settings and truthful assistant operation feedback.",
+      "run": "https://github.com/vex2137/Kalendarz-private-builds/actions/runs/42563978670",
+      "private": true,
+      "originalRetentionExpires": "2026-12-09",
+      "checksumEvidence": "Successful original download-verification job",
+      "files": [
+        {
+          "platform": "android",
+          "file": "Kalendarz-1.5.0-Part-3-Beta-2-Android-arm64.apk",
+          "bytes": 37055334,
+          "sha256": "83d4eb3cb76b46565a2ab345675eeb716b179c09f6b312e26ac1e9855e4715a9",
+          "source": "5e4ed1718cc40c2c57d44e437fa23ac9cc48d643",
+          "artifactUrl": "https://github.com/vex2137/Kalendarz-private-builds/actions/runs/42563978670/artifacts/13650607493"
+        },
+        {
+          "platform": "linux",
+          "file": "Kalendarz-1.5.0-Part-3-Beta-2-x86_64.AppImage",
+          "bytes": 947371457,
+          "sha256": "1d507f1c116e22f8ef8fab5e5d22ecaedbc0a063f2a0f68e44bea85c0b481edc",
+          "source": "5e4ed1718cc40c2c57d44e437fa23ac9cc48d643",
+          "artifactUrl": "https://github.com/vex2137/Kalendarz-private-builds/actions/runs/42563978670/artifacts/13650727330"
+        }
+      ]
+    },
+    {
+      "part": 4,
+      "version": "1.5.0 Part 4 Beta 3 with final fixes",
+      "source": "ba9f8e51489b1d3b786aae04953554a7bbfe21f5",
+      "androidSource": "4eb01781cfe21b5b180c1d0f501a9a006e5eee0f",
+      "integrationCommit": "13cf46aa020afff1d76e0bdf4fe8fc90601069b8",
+      "date": "2026-11-11T13:59:04Z",
+      "historical": true,
+      "private": true,
+      "description": "Migration/data integrity checks, Windows/Flatpak packaging, model-free model installation, Android lifecycle recovery and original Android adaptive desktop icons; later standalone KDE integration repair.",
+      "files": [
+        {
+          "name": "Kalendarz-1.5.0-Part-4-Beta-3-Android-Lifecycle-Diagnostic-arm64-4eb01781cfe2.apk",
+          "source": "4eb01781cfe21b5b180c1d0f501a9a006e5eee0f",
+          "date": "2026-11-10T19:34:11Z",
+          "bytes": 37145710,
+          "sha256": "80038012c11b27557821869ea02ac1df91c23df3c3a266a3fe5c4dadca73ce47",
+          "url": "https://github.com/vex2137/Kalendarz-private-builds/releases/download/untagged-c842181ffd123d22c06a/Kalendarz-1.5.0-Part-4-Beta-3-Android-Lifecycle-Diagnostic-arm64-4eb01781cfe2.apk"
+        },
+        {
+          "name": "Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64-Android16-Adaptive-ba9f8e51489b.AppImage",
+          "source": "ba9f8e51489b1d3b786aae04953554a7bbfe21f5",
+          "date": "2026-11-11T13:38:16Z",
+          "bytes": 947814758,
+          "sha256": "936c20ae17b633251581114ada2eb81faff0848d1ded3db9f684d0fc4bba27bf",
+          "url": "https://github.com/vex2137/Kalendarz-private-builds/releases/download/untagged-c842181ffd123d22c06a/Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64-Android16-Adaptive-ba9f8e51489b.AppImage"
+        },
+        {
+          "name": "Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64-Android16-Adaptive-ba9f8e51489b.flatpak",
+          "source": "ba9f8e51489b1d3b786aae04953554a7bbfe21f5",
+          "date": "2026-11-11T13:57:48Z",
+          "bytes": 726996344,
+          "sha256": "6a6971e3efc631091378d5f12eb55e75eecdca7f4ef626c7fb0abeac65790a3c",
+          "url": "https://github.com/vex2137/Kalendarz-private-builds/releases/download/untagged-c842181ffd123d22c06a/Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64-Android16-Adaptive-ba9f8e51489b.flatpak"
+        },
+        {
+          "name": "Kalendarz-1.5.0-Part-4-Beta-3-Web-PWA-Android16-Adaptive-ba9f8e51489b.zip",
+          "source": "ba9f8e51489b1d3b786aae04953554a7bbfe21f5",
+          "date": "2026-11-11T13:39:05Z",
+          "bytes": 7390325,
+          "sha256": "c434136591c98bb02dd93afe320015adb5c5150ce7f65ccfcef13cb056280cf6",
+          "url": "https://github.com/vex2137/Kalendarz-private-builds/releases/download/untagged-c842181ffd123d22c06a/Kalendarz-1.5.0-Part-4-Beta-3-Web-PWA-Android16-Adaptive-ba9f8e51489b.zip"
+        },
+        {
+          "name": "Kalendarz-1.5.0-Part-4-Beta-3-Windows-x64-Portable-Android16-Adaptive-ba9f8e51489b.exe",
+          "source": "ba9f8e51489b1d3b786aae04953554a7bbfe21f5",
+          "date": "2026-11-11T13:40:32Z",
+          "bytes": 125426018,
+          "sha256": "02d4e07c98dd6c056d7126363df8bb96b40b647d2e761de306f45a6a92839aa3",
+          "url": "https://github.com/vex2137/Kalendarz-private-builds/releases/download/untagged-c842181ffd123d22c06a/Kalendarz-1.5.0-Part-4-Beta-3-Windows-x64-Portable-Android16-Adaptive-ba9f8e51489b.exe"
+        },
+        {
+          "name": "Kalendarz-1.5.0-Part-4-Beta-3-Windows-x64-Setup-Android16-Adaptive-ba9f8e51489b.exe",
+          "source": "ba9f8e51489b1d3b786aae04953554a7bbfe21f5",
+          "date": "2026-11-11T13:40:32Z",
+          "bytes": 125632751,
+          "sha256": "315fb5e3c019a10b632f280cf8f78272e3d66dd30a9eeed234f3a56c75c3cc1d",
+          "url": "https://github.com/vex2137/Kalendarz-private-builds/releases/download/untagged-c842181ffd123d22c06a/Kalendarz-1.5.0-Part-4-Beta-3-Windows-x64-Setup-Android16-Adaptive-ba9f8e51489b.exe"
+        }
+      ]
+    }
+  ]
+}

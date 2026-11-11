@@ -66,26 +66,27 @@ def verify_candidate_info(info,source,android):
         raise ValueError('Private workflow provenance mismatch')
 
 
-def identity(badging):
-    value = policy()
+def identity(badging, release_policy=None):
+    value = release_policy or policy()
     expected = "name='com.kalendarz.offline.diagnostics' versionCode='{}' versionName='{}'".format(value['versionCode'], value['versionName'])
     if expected not in badging:
         raise ValueError('Android application ID/version mismatch')
 
 
-def verify_apk(apk, source, tools):
+def verify_apk(apk, source, tools, *, release_policy=None, info_verifier=None):
+    value = release_policy or policy()
     def run(*args):
         return subprocess.check_output(list(map(str, args)), text=True)
     certs = run(tools / 'apksigner', 'verify', '--verbose', '--print-certs', apk)
     if 'certificate SHA-256 digest: ' + CERT not in certs:
         raise ValueError('Existing Android update certificate is required')
-    identity(run(tools / 'aapt', 'dump', 'badging', apk))
+    identity(run(tools / 'aapt', 'dump', 'badging', apk), value)
     run(tools / 'zipalign', '-c', '-P', '16', '4', apk)
     with zipfile.ZipFile(apk) as z:
         if z.testzip() or any(n.lower().endswith(('.gguf', '.p12', '.jks', '.keystore')) for n in z.namelist()):
             raise ValueError('Corrupt APK or forbidden weights/signing material')
         info=json.loads(z.read('assets/public/build-info.json'))
-        verify_candidate_info(info,source,android=True)
+        (info_verifier or verify_candidate_info)(info,source,android=True)
         if info.get('branch')!=BRANCH:raise ValueError('Application branch must not be confused with the private workflow main branch')
         if os.environ.get('GITHUB_REPOSITORY')=='vex2137/Kalendarz-private-builds' and info.get('workflowCommit')!=os.environ.get('GITHUB_SHA'):raise ValueError('Private workflow provenance mismatch')
         native = [n for n in z.namelist() if n.startswith('lib/')]
@@ -117,8 +118,8 @@ def verify_apk(apk, source, tools):
     with apk.open('rb') as stream:
         checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
     return dict(file=apk.name, bytes=apk.stat().st_size, sha256=checksum, source=source,
-                package='com.kalendarz.offline.diagnostics', versionCode=policy()['versionCode'],
-                certificateSha256=CERT, runtime=runtime, vulkanDiagnostics=diag, channel=policy()['channel'], versionName=policy()['versionName'])
+                package='com.kalendarz.offline.diagnostics', versionCode=value['versionCode'],
+                certificateSha256=CERT, runtime=runtime, vulkanDiagnostics=diag, channel=value['channel'], versionName=value['versionName'])
 
 
 def main():
