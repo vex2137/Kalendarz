@@ -4,6 +4,7 @@ from pathlib import Path
 from part2_artifact_guard import ROOT,run,verify_info
 from part4_beta3_guard import expected_android_source,verify_apk,CERT
 BASE='13cf46aa020afff1d76e0bdf4fe8fc90601069b8'
+NETWORK_CONFIG='android/app/src/main/res/xml/network_security_config.xml'
 def policy():
  p=json.loads((ROOT/'scripts/stable-150-version.json').read_text())
  if p['version']!='1.5.0' or p['versionName']!='1.5.0' or p['channel']!='stable' or p['lastTestedVersionCode']<10525 or p['versionCode']<=p['lastTestedVersionCode']:raise ValueError('Stable must update the accepted 10525 installation')
@@ -17,9 +18,14 @@ def reject_debuggable(tree):
  for key in ['debuggable','testOnly']:
   m=re.search(r'android:'+key+r'[^\n]*\(type 0x12\)(0x[0-9a-f]+)',tree,re.I)
   if m and int(m[1],16):raise ValueError('Stable APK must not be '+key)
+def verify_application_delta(changed,baseline_network,stable_network):
+ if set(changed)-{NETWORK_CONFIG}:raise ValueError('Stable candidate unexpectedly changed accepted application/runtime/data code')
+ expected=baseline_network.replace('<domain>127.0.0.1</domain>','<domain includeSubdomains="false">127.0.0.1</domain>',1)
+ if expected==baseline_network or stable_network!=expected:raise ValueError('Stable only permits the explicit false loopback subdomain default; no other network policy change')
 def verify_runtime_scope(source):
  subprocess.run(['git','merge-base','--is-ancestor',BASE,source],cwd=ROOT,check=True)
- if run('git','diff','--name-only',BASE,source,'--','src','electron','android/app/src','android/native','scripts/native-runtime-manifest.json','bun.lock'):raise ValueError('Stable candidate unexpectedly changed accepted application/runtime/data code')
+ changed=run('git','diff','--name-only',BASE,source,'--','src','electron','android/app/src','android/native','scripts/native-runtime-manifest.json','bun.lock').splitlines()
+ verify_application_delta(changed,run('git','show',BASE+':'+NETWORK_CONFIG),run('git','show',source+':'+NETWORK_CONFIG))
 def main():
  p=argparse.ArgumentParser();p.add_argument('--source',required=True);p.add_argument('--check-remote',action='store_true');p.add_argument('--info',type=Path);p.add_argument('--platform',choices=['android','desktop']);p.add_argument('--apk',type=Path);a=p.parse_args();expected_android_source(a.source,a.check_remote);verify_runtime_scope(a.source);value=policy();report=dict(source=a.source,**value)
  if a.info:verify_candidate_info(json.loads(a.info.read_text()),a.source,a.platform=='android')

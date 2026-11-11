@@ -53,6 +53,17 @@ class Stable150(unittest.TestCase):
   workflow=(ROOT/'scripts/stable-150-private-build.yml').read_text()
   self.assertIn("''--config.win.artifactName=Kalendarz-1.5.0-Windows-x64.${ext}''",workflow)
   self.assertNotIn('--config.artifactName=Kalendarz-1.5.0-Windows',workflow)
+ def test_stable_scope_accepts_only_the_explicit_loopback_subdomain_default(self):
+  original='<network-security-config><base-config cleartextTrafficPermitted="false"/><domain-config cleartextTrafficPermitted="true"><domain>127.0.0.1</domain></domain-config></network-security-config>'
+  expected=original.replace('<domain>','<domain includeSubdomains="false">')
+  stable.verify_application_delta([stable.NETWORK_CONFIG],original,expected)
+  with self.assertRaises(ValueError):stable.verify_application_delta([stable.NETWORK_CONFIG,'src/utils/localModelRuntime.ts'],original,expected)
+  for value in [original,expected.replace('127.0.0.1','example.com'),expected.replace('includeSubdomains="false"','includeSubdomains="true"'),expected.replace('<base-config cleartextTrafficPermitted="false"','<base-config cleartextTrafficPermitted="true"')]:
+   with self.subTest(value=value),self.assertRaises(ValueError):stable.verify_application_delta([stable.NETWORK_CONFIG],original,value)
+ def test_packaged_loopback_policy_remains_narrow(self):
+  import xml.etree.ElementTree as ET
+  root=ET.fromstring((ROOT/stable.NETWORK_CONFIG).read_text());self.assertEqual(root.find('base-config').get('cleartextTrafficPermitted'),'false')
+  domains=root.findall('.//domain');self.assertEqual(len(domains),1);self.assertEqual(domains[0].text,'127.0.0.1');self.assertEqual(domains[0].get('includeSubdomains'),'false')
  def test_gradle_has_stable_only_update_identity_and_release_signature(self):
   s=(ROOT/'android/app/build.gradle').read_text();self.assertIn("calendarFinalStable ? 'scripts/stable_150_guard.py'",s);self.assertIn('if (calendarFinalStable) { debuggable false; jniDebuggable false }',s);self.assertIn("if (calendarQwenV2Update || calendarPart2Beta || calendarFinalStable) signingConfig signingConfigs.stableRelease",s);self.assertIn("applicationIdSuffix '.diagnostics'",s);self.assertIn(historical.CERT,s)
 if __name__=='__main__':unittest.main()
