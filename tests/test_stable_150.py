@@ -24,6 +24,9 @@ class Stable150(unittest.TestCase):
  def test_debuggable_apk_is_rejected(self):
   stable.reject_debuggable('A: android:debuggable(0x0101000f)=(type 0x12)0x0')
   with self.assertRaises(ValueError):stable.reject_debuggable('A: android:debuggable(0x0101000f)=(type 0x12)0xffffffff')
+  with self.assertRaises(ValueError):stable.reject_debuggable('A: android:testOnly(0x01010272)=(type 0x12)0x1')
+ def test_workflow_pins_the_existing_certificate_without_secret_mutation(self):
+  s=(ROOT/'scripts/stable-150-private-build.yml').read_text();self.assertIn('EXPECTED_ANDROID_CERTIFICATE: '+historical.CERT,s);self.assertIn("CALENDAR_ANDROID_KEYSTORE_BASE64: ''",s);self.assertNotIn('gh secret set',s);self.assertNotIn('gh release publish',s)
  def test_gradle_has_stable_only_update_identity_and_release_signature(self):
   s=(ROOT/'android/app/build.gradle').read_text();self.assertIn("calendarFinalStable ? 'scripts/stable_150_guard.py'",s);self.assertIn('if (calendarFinalStable) { debuggable false; jniDebuggable false }',s);self.assertIn("if (calendarQwenV2Update || calendarPart2Beta || calendarFinalStable) signingConfig signingConfigs.stableRelease",s);self.assertIn("applicationIdSuffix '.diagnostics'",s);self.assertIn(historical.CERT,s)
 if __name__=='__main__':unittest.main()

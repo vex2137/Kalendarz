@@ -502,13 +502,10 @@ jobs:
       with:
         distribution: temurin
         java-version: '21'
-    - name: Acquire and verify the existing update key (secrets or one-use encrypted handoff)
+    - name: Acquire original verified update key through the one-use encrypted handoff
       env:
-        CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
-        CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
-        CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
-        CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
         GH_TOKEN: ${{ github.token }}
+        CALENDAR_ANDROID_KEYSTORE_BASE64: ''
       run: node scripts/android-beta5-signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP" "$CALENDAR_EXPECTED_COMMIT"
         "$GITHUB_REPOSITORY"
     - name: Install Android ARM64 build tools
@@ -594,6 +591,7 @@ jobs:
       CALENDAR_ANDROID_NATIVE: 'true'
       CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
       GH_TOKEN: ${{ github.token }}
+      EXPECTED_ANDROID_CERTIFICATE: ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143
     needs: prepare
   delivery:
     if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'

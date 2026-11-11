@@ -14,8 +14,9 @@ Stable rejects debug signing, conflicting beta flags and debuggable/test-only AP
 CPU/Vulkan executables are reused byte-for-byte from the accepted lifecycle APK;
 the independent tiny hardware probe is rebuilt using the existing verified toolchain.
 
-The workflow uses the original signing secrets where available, otherwise the
-existing run/source/workflow-bound encrypted handoff. The permanent key is never
+The final workflow uses the existing run/source/workflow-bound encrypted handoff
+from the locally verified original key. Secret-name listing was denied by the API;
+no unverified secret value is assumed and no existing secret is changed. The permanent key is never
 stored in the source tree, public logs, deliverables or a permanent new secret.
 Only the new exact private workflow path is added to the trust allowlist.
 
