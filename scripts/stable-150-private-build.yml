@@ -360,13 +360,24 @@ jobs:
         bun-version: 1.4.3
     - run: bun install --frozen-lockfile
     - name: Full final type/unit/native regression and explicit stable/historical policies
-      run: "npm run lint\nnpm test | tee \"$RUNNER_TEMP/stable-unit.log\"\nnpm run test:native\npython3 -m unittest discover\
-        \ -s tests -p test_stable_150.py\npython3 -m unittest discover -s tests -p test_android_lifecycle_policy.py\npython3\
-        \ -m unittest discover -s tests -p test_kde_integration.py\npython3 -m unittest discover -s tests -p test_release_v142.py\n\
-        python3 - <<'PYCOUNT'\nimport os,re\nfrom pathlib import Path\ns=Path(os.environ['RUNNER_TEMP'],'stable-unit.log').read_text();m=re.findall(r'(?:#\
-        \ |\u2139 )?tests\\s+(\\d+)',s);assert m\nwith open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('cases='+m[-1]+'\\\
-        n')\nPYCOUNT\n"
       id: unit
+      run: |
+        npm run lint
+        npm test | tee "$RUNNER_TEMP/stable-unit.log"
+        npm run test:native
+        python3 -m unittest discover -s tests -p test_stable_150.py
+        python3 -m unittest discover -s tests -p test_android_lifecycle_policy.py
+        python3 -m unittest discover -s tests -p test_kde_integration.py
+        python3 -m unittest discover -s tests -p test_release_v142.py
+        python3 - <<'PYCOUNT'
+        import os,re
+        from pathlib import Path
+        s=Path(os.environ['RUNNER_TEMP'],'stable-unit.log').read_text()
+        m=re.findall(r'(?:# |ℹ )?tests\s+(\d+)',s)
+        assert m, 'Missing completed Node test count'
+        with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+            f.write('cases='+m[-1]+'\n')
+        PYCOUNT
     - name: Install the pinned browser/Xvfb dependencies
       run: 'npx --no-install playwright install --with-deps chromium
 
@@ -605,6 +616,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       CALENDAR_UNIT_TEST_COUNT: ${{ needs.validation.outputs.unitCases }}
