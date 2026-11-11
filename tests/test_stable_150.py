@@ -1,4 +1,4 @@
-import unittest,sys,os,json,copy,tempfile,textwrap
+import unittest,sys,os,json,copy,tempfile,textwrap,importlib.util
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'scripts'))
@@ -42,6 +42,12 @@ class Stable150(unittest.TestCase):
   s=(ROOT/'scripts/stable-150-private-build.yml').read_text().split('  delivery:\n',1)[1]
   permissions=s.split('    permissions:\n',1)[1].split('    steps:\n',1)[0]
   self.assertIn('      contents: write\n',permissions);self.assertIn('      actions: read\n',permissions)
+ def test_native_reuse_keeps_licenses_but_not_old_capacitor_or_web_assets(self):
+  spec=importlib.util.spec_from_file_location('stable_native_reuse',ROOT/'scripts/reuse-stable-android-native.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  for name in ['android-native-runtime.json','android-vulkan-runtime.json','llama-cpp-LICENSE.txt','Vulkan-Headers-LICENSE.md','SPIRV-Headers-LICENSE.txt','llama-third-party/ggml/LICENSE','upstream-0-license.txt','vulkan-build-recipe.sha256','vulkan-elf.txt']:
+   with self.subTest(name=name):self.assertTrue(module.native_asset('assets/'+name))
+  for name in ['capacitor.config.json','capacitor.plugins.json','native-bridge.js','public/build-info.json','public/index.html','android-vulkan-diagnostics.json','private.p12','model.gguf']:
+   with self.subTest(name=name):self.assertFalse(module.native_asset('assets/'+name))
  def test_gradle_has_stable_only_update_identity_and_release_signature(self):
   s=(ROOT/'android/app/build.gradle').read_text();self.assertIn("calendarFinalStable ? 'scripts/stable_150_guard.py'",s);self.assertIn('if (calendarFinalStable) { debuggable false; jniDebuggable false }',s);self.assertIn("if (calendarQwenV2Update || calendarPart2Beta || calendarFinalStable) signingConfig signingConfigs.stableRelease",s);self.assertIn("applicationIdSuffix '.diagnostics'",s);self.assertIn(historical.CERT,s)
 if __name__=='__main__':unittest.main()
