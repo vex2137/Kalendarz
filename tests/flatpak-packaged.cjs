@@ -10,13 +10,14 @@ async function closeBrowser(browser){if(!browser)return;let timer;try{await Prom
   child=spawn('flatpak',['run','--user',APP,...(process.env.CALENDAR_PART4_BETA_NUMBER==='3'?['--ignore-certificate-errors']:[]),'--remote-debugging-port='+port],{stdio:['ignore','pipe','pipe']});let logs='';for(const stream of [child.stdout,child.stderr])stream.on('data',b=>{logs=(logs+b).slice(-30000)});
   const end=Date.now()+90000;while(Date.now()<end){try{if((await fetch('http://127.0.0.1:'+port+'/json/version')).ok)break;}catch{}if(child.exitCode!==null)throw Error('Flatpak exited: '+logs);await pause(500);}
   browser=await chromium.connectOverCDP('http://127.0.0.1:'+port);const page=browser.contexts()[0].pages()[0];await page.locator('#btn-create-event-top').waitFor();
+  if(process.env.CALENDAR_VERIFY_CANONICAL_ICONS==='true'){const ids=execFileSync('xdotool',['search','--onlyvisible','--class','com.vex2137.kalendarz'],{encoding:'utf8'}).trim().split(/\s+/);assert.ok(ids.length);for(const id of ids)execFileSync('python3',['scripts/check-canonical-icons.py','--x11-window',id],{stdio:'inherit'});}
   if(process.env.CALENDAR_FLATPAK_REOPEN==='true')await page.getByText('Flatpak preserved event',{exact:true}).waitFor();
   else{await page.locator('#btn-create-event-top').click();await page.locator('#input-event-title').fill('Flatpak preserved event');await page.locator('#btn-save-event-form').click();await page.getByText('Flatpak preserved event',{exact:true}).waitFor();}
   await page.reload();await page.getByText('Flatpak preserved event',{exact:true}).waitFor();await page.locator('#btn-open-ai-assistant').click();
   const native=await page.evaluate(()=>window.calendarNativeAI.status());for(const backend of ['cpu-native','cuda','vulkan'])assert.ok(native.packagedBackends.includes(backend));
   await page.locator('#btn-ai-settings').click();await page.getByTestId('model-folders').waitFor();
   const data=await page.evaluate(()=>({origin:location.origin,crypto:!!crypto.subtle}));assert.equal(data.crypto,true);
-  if(process.env.CALENDAR_PART4_BETA_NUMBER==='3' && process.env.CALENDAR_FLATPAK_REOPEN==='true'){
+  if(process.env.CALENDAR_PART4_BETA_NUMBER==='3' && process.env.CALENDAR_FLATPAK_REOPEN==='true' && process.env.CALENDAR_ICON_ONLY!=='true'){
    const check=require('./default-model-package-check.cjs');
    if(process.env.CALENDAR_EXTERNAL_MODEL){
     // Input copied into the app's existing sandbox-owned XDG data; no filesystem grant.

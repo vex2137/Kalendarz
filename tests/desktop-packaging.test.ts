@@ -20,8 +20,8 @@ test('portable write failure propagates without creating or selecting an install
 test('desktop identities, unsigned Windows resource editing and per-user uninstall policy stay aligned',()=>{
  const pkg=require('../package.json'),build=pkg.build;assert.equal(build.appId,APP_ID);assert.equal(pkg.desktopName,APP_ID+'.desktop');assert.equal(build.linux.desktop.entry.StartupWMClass,APP_ID);assert.equal(build.win.signExecutable,false);assert.equal(build.win.signAndEditExecutable,true);assert.equal(build.nsis.perMachine,false);assert.equal(build.nsis.allowElevation,false);assert.equal(build.nsis.deleteAppDataOnUninstall,false);assert.equal(build.portable.requestExecutionLevel,'user');
 });
-test('checked-in desktop icon derivatives match the original official SVG and include DPI sizes',()=>{
- const {createHash}=require('node:crypto'),manifest=require('../packaging/icons/manifest.json');const hash=(p:string)=>createHash('sha256').update(readFileSync(p)).digest('hex');assert.equal(hash(manifest.source),manifest.sourceSha256);for(const [file,sha]of Object.entries(manifest.files))assert.equal(hash(file),sha,file);
+test('checked-in icon derivatives match the unchanged Android launcher and include DPI sizes',()=>{
+ const {createHash}=require('node:crypto'),manifest=require('../packaging/icons/manifest.json');assert.equal(manifest.source,'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png');assert.equal(manifest.sourceSha256,'87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761');const hash=(p:string)=>createHash('sha256').update(readFileSync(p)).digest('hex');assert.equal(hash(manifest.source),manifest.sourceSha256);for(const [file,sha]of Object.entries(manifest.files))assert.equal(hash(file),sha,file);
  const ico=readFileSync('packaging/icons/calendar.ico');assert.equal(ico.readUInt16LE(2),1);const count=ico.readUInt16LE(4),sizes=Array.from({length:count},(_,i)=>ico[6+16*i]||256);for(const n of [16,24,32,48,64,128,256])assert.ok(sizes.includes(n));
  const png=readFileSync('public/desktop-icon.png');assert.equal(png.readUInt32BE(16),512);assert.equal(png.readUInt32BE(20),512);
 });

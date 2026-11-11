@@ -33,6 +33,8 @@ export default defineConfig(() => {
         injectRegister: null,
         includeAssets: [
           'icon.svg',
+          'favicon.ico',
+          'favicon-32x32.png',
           'apple-touch-icon.png',
           'pwa-192x192.png',
           'pwa-512x512.png',

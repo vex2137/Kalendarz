@@ -1,16 +1,28 @@
 {
-  "source": "public/icon.svg",
-  "sourceSha256": "77ebb4c0f39c79e616714e032cebb7d8881b79f8b02a44f3b5f60019c2b35106",
+  "source": "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+  "sourceSha256": "87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761",
+  "conversion": "Unchanged Android legacy launcher PNG; resolution/encoding only",
+  "androidReference": {
+    "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": "87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761",
+    "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png": "bd24fd383253bf8d43f0a81f11c071d76d1d555114376dd647cd9fb38fa0a9da",
+    "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": "9c3a7e0a6515c6e1a7ae834a9ae430311ebc3241f7b2e5e7f0460aa690709a7c"
+  },
   "files": {
-    "packaging/icons/png/16x16.png": "9032ab031c5b520bbe1af10f1238a949e4fdc2c62976f4bffc1083416bb0387d",
-    "packaging/icons/png/24x24.png": "f143594fa09fab0b3a0c5162b6e87d4ac9101ba1a7a8d7a71e08085c55cac141",
-    "packaging/icons/png/32x32.png": "b1f52254cfce755ce669d7b67108c9f22d70a124303918e7149bed7a3b0d4b58",
-    "packaging/icons/png/48x48.png": "827817850474caa94386c0e077e2e2111ed56cec24e73a9aaa06b3dd0664e9fb",
-    "packaging/icons/png/64x64.png": "6fbb0a1d4434d4996f6d87ee75899ad6b36ed4b39ca4c20db548de40d6f6bafa",
-    "packaging/icons/png/128x128.png": "ed3d8795ad48a45c51a98f4d44ef3368b8ac4524bf5e07d04f33a1ebe3c66afc",
-    "packaging/icons/png/256x256.png": "a709ac2770b038e4d3bfd947374eba39ca555d8e5b98c364cb893bc9853fd72e",
-    "packaging/icons/png/512x512.png": "33e2809248078545083e466aba617110eaa7a1bc16a4db7e606ea91499fd54f3",
-    "packaging/icons/calendar.ico": "23cdc766ed83ffe26697c25086edff0ec183623fa6ddf44773d03fa303db9c2f",
-    "public/desktop-icon.png": "480799f5dc97c852f7db8b29d4eb00d8fd66b8a7d9121c2567990ea5e51c42b5"
+    "packaging/icons/png/16x16.png": "f6e8db8a6b72821176c7a7037e163d93d8f5caaadedfa17c28439ddd463c9bb5",
+    "packaging/icons/png/24x24.png": "acca9bd0b5ce111576d5e7a2218e27c6dc92184654446d9faf5efe0d509a28a4",
+    "packaging/icons/png/32x32.png": "fdd69b51bd130f78ef61f77a46a18292fd3e6d7719905812e184fc0daf0612e1",
+    "packaging/icons/png/48x48.png": "a01ef816125c21e57c8b10ef1232bb1e1d2278940fd93f405ee58be88809e050",
+    "packaging/icons/png/64x64.png": "aef3bd45071cb96eb4dd7e20488859d30e7a960f9a75a3a06994eec11eda32aa",
+    "packaging/icons/png/128x128.png": "e39f445450194797cdafb832afdf7e8a775d014a666d05eb2bf8d0a58b19bd1c",
+    "packaging/icons/png/256x256.png": "d75ab6fa5e9fac4179ad7ff1c3758031003e065a59cbe61df92c900ace37bb8e",
+    "packaging/icons/png/512x512.png": "1c70ff38ec13b23285f2b19723fb7f27d7f351d57957b6fdfb263bf412316580",
+    "public/desktop-icon.png": "1c70ff38ec13b23285f2b19723fb7f27d7f351d57957b6fdfb263bf412316580",
+    "public/pwa-512x512.png": "1c70ff38ec13b23285f2b19723fb7f27d7f351d57957b6fdfb263bf412316580",
+    "public/apple-touch-icon.png": "6b69c454da2ede6bef23ed1073d0033598d4e4514e506e760ff7fc928fceb999",
+    "public/favicon-32x32.png": "fdd69b51bd130f78ef61f77a46a18292fd3e6d7719905812e184fc0daf0612e1",
+    "packaging/icons/calendar.ico": "e9c8f27066f2f7b052759790a4e35b2dfce91dfed75dfe2776aaeec4f7748731",
+    "public/pwa-192x192.png": "87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761",
+    "public/favicon.ico": "e9c8f27066f2f7b052759790a4e35b2dfce91dfed75dfe2776aaeec4f7748731",
+    "public/icon.svg": "4e18520fed3ec9d38a4948cda116ba3e87a42aa43c62bf29bab400b2cc4f5c2d"
   }
 }
