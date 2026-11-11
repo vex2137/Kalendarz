@@ -31,6 +31,9 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   await page.locator('#btn-ai-settings').click();
   const generation=page.getByTestId('model-generation-settings').filter({visible:true});
   await generation.locator('input[type=checkbox]').uncheck();await generation.locator('input[type=number]').fill('1500');await generation.getByRole('button',{name:'Save response limit',exact:true}).click();
+  await generation.getByRole('status').filter({hasText:'Saved for this model.'}).waitFor();
+  const savedLimit=()=>page.evaluate(async()=>{const {modelStatus}=await import('/src/utils/localModelRuntime.ts'),{findModel}=await import('/src/utils/modelRegistry.ts'),{generationPreference}=await import('/src/utils/generationSettings.ts');const model=findModel(modelStatus().modelId);return {id:model.id,preference:generationPreference(model)};});
+  const savedGeneration=await savedLimit();assert.deepEqual(savedGeneration.preference,{mode:'manual',tokens:1500},'The Save button must persist the active model preference before continuing');
   await page.locator('#ai-tab-diagnostics').click();
   // Diagnostics stay live while preload progresses. Capture the full expected
   // snapshot in the same click event, before React's bubble-phase copy handler.
@@ -39,9 +42,9 @@ const assert=require('node:assert/strict'),{spawn}=require('node:child_process')
   assert.equal(await page.evaluate(()=>window.__copied),await page.evaluate(()=>window.__expectedCopy));
   await page.evaluate(()=>window.__copyFail=true);await copy.click();await page.getByRole('alert').filter({hasText:'Could not copy diagnostics'}).waitFor();
   await page.reload();await page.locator('#btn-open-ai-assistant').click();assert.equal((await records()).length,2);
-  await send('Tell me a longer story about a forest');await page.getByText(/Response length limit reached/).last().waitFor();
+  assert.deepEqual(await savedLimit(),savedGeneration,'Reload must preserve both the active model and its manual response limit');await send('Tell me a longer story about a forest');await page.getByText(/Response length limit reached/).last().waitFor();
   await send('Continue');await page.getByText('The story continues from its previous ending.',{exact:true}).waitFor();
-  const requests=await page.evaluate(()=>window.__requests);assert.equal(requests[0].max_tokens,1500);assert.ok(requests[1].messages.some(m=>m.role==='assistant'&&m.content==='First part of a longer story.'));
+  const requests=await page.evaluate(()=>window.__requests);assert.equal(requests[0].max_tokens,1500,JSON.stringify({savedGeneration,currentGeneration:await savedLimit(),budgets:requests.map(r=>({max_tokens:r.max_tokens,estimatedInputTokens:r.messages.reduce((n,m)=>n+Math.ceil(new TextEncoder().encode(m.content).length/3)+16,0)+32}))}));assert.ok(requests[1].messages.some(m=>m.role==='assistant'&&m.content==='First part of a longer story.'));
   assert.deepEqual(errors,[]);console.log('PASS Beta4: real atomic calendar writes/rollback, no writes before confirmation/cancellation, stable IDs, restart persistence, manual generation budget, continuation and full JSON clipboard success/error. Native inference simulated.');
  }finally{await browser?.close();server.kill();}
 })().catch(e=>{console.error(e);process.exitCode=1});
