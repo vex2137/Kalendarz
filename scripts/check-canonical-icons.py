@@ -1,5 +1,5 @@
 """Verify deterministic Android-derived assets and actual packaged/window icons."""
-import argparse,base64,hashlib,json,re,subprocess
+import argparse,base64,hashlib,json,re,subprocess,importlib.util
 from pathlib import Path
 from PIL import Image,ImageChops,ImageStat
 ROOT=Path(__file__).resolve().parents[1]
@@ -12,11 +12,14 @@ def same_pixels(a,b):
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--web-dir',type=Path);p.add_argument('--x11-window');p.add_argument('--flatpak-location',type=Path);a=p.parse_args()
- m=json.loads((ROOT/'packaging/icons/manifest.json').read_text());assert m['source']=='android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'
- assert m['sourceSha256']=='87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761'
+ m=json.loads((ROOT/'packaging/icons/manifest.json').read_text());assert m['source']=='android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png'
+ assert m['sourceSha256']=='bd24fd383253bf8d43f0a81f11c071d76d1d555114376dd647cd9fb38fa0a9da'
  assert digest(ROOT/m['source'])==m['sourceSha256']
  for name,sha in {**m['androidReference'],**m['files']}.items():assert digest(ROOT/name)==sha,name
- source=Image.open(ROOT/m['source']).convert('RGBA')
+ spec=importlib.util.spec_from_file_location('adaptive',ROOT/'scripts/android-adaptive-icon.py');adaptive=importlib.util.module_from_spec(spec);spec.loader.exec_module(adaptive)
+ source=adaptive.compose();assert m['composition']==adaptive.configuration()
+ assert (ROOT/'public/icon.svg').read_text()==adaptive.reference_svg()
+ same_pixels(Image.open(ROOT/'public/pwa-maskable-512x512.png').convert('RGBA'),adaptive.compose(masked=False))
  for n in [16,24,32,48,64,128,256,512]:same_pixels(Image.open(ROOT/f'packaging/icons/png/{n}x{n}.png').convert('RGBA'),source.resize((n,n),Image.Resampling.LANCZOS))
  ico=Image.open(ROOT/'packaging/icons/calendar.ico')
  for n in [16,24,32,48,64,128,256]:same_pixels(ico.ico.getimage((n,n)).convert('RGBA'),source.resize((n,n),Image.Resampling.LANCZOS))

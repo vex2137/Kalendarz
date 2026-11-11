@@ -19,3 +19,5 @@ Path(sys.argv[2]).write_text('[Desktop Entry]\nType=Application\nName=Calendar\n
 PY
 chmod +x "$image"
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$data/applications" || true
+
+command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$data/icons/hicolor" || true

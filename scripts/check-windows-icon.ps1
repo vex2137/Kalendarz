@@ -41,5 +41,11 @@ public static class CalendarWindowIcon {
   $g=[System.Drawing.Graphics]::FromImage($b);$g.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;$g.DrawImage($source,0,0,$b.Width,$b.Height);$g.Dispose()
   try {$iconMean=Compare-Icon $a $b 4.0;Write-Output "PASS actual HWND icon pixels: $($window.Id); mean error=$iconMean"}
   finally {$a.Dispose();$b.Dispose();$source.Dispose();$icon.Dispose()}
+  if($env:CALENDAR_CAPTURE_ICON_EVIDENCE -eq 'true') {
+    $out=Join-Path $root 'part4-artifacts/windows/visual';[void](New-Item -ItemType Directory -Force $out)
+    $copy=[System.Drawing.Icon]::FromHandle([IntPtr]([long]$handle.ToUInt64())).Clone();$bitmap=$copy.ToBitmap()
+    try{$bitmap.Save((Join-Path $out "actual-window-icon-$($window.Id).png"))}finally{$bitmap.Dispose();$copy.Dispose()}
+    & (Join-Path $PSScriptRoot 'capture-adaptive-icon-windows.ps1') -WindowHandle $window.MainWindowHandle -ProcessId $window.Id
+  }
  }
 }

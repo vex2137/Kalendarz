@@ -15,9 +15,9 @@ manifest=json.loads(Path('packaging/icons/manifest.json').read_text());files=[];
 for package in packages:
  report_path=package.with_name(package.name+'.json');report=json.loads(report_path.read_text()) if report_path.exists() else {}
  if a.kind!='web':assert report['source']==source and report['sha256']==sha(package)
- name=package.stem+'-Android-Icon-'+source[:12]+package.suffix
+ name=package.stem+'-Android16-Adaptive-'+source[:12]+package.suffix
  renamed=package.with_name(name);package.rename(renamed)
- report.update(file=name,source=source,bytes=renamed.stat().st_size,sha256=sha(renamed),androidIconSource=manifest['source'],androidIconSourceSha256=manifest['sourceSha256'],diagnosticOnly=True,applicationCodeUnchangedFrom='aa90a317c9e89ae8ef984de6e435df6f4604eb28',priorRealQwenRun=42894252025,workflowCommit=os.environ['GITHUB_SHA'],workflowRun=os.environ['GITHUB_RUN_ID'])
+ report.update(file=name,source=source,bytes=renamed.stat().st_size,sha256=sha(renamed),androidIconSource=manifest['source'],androidAdaptiveComposition=manifest['composition'],androidIconSourceSha256=manifest['sourceSha256'],diagnosticOnly=True,applicationCodeUnchangedFrom='aa90a317c9e89ae8ef984de6e435df6f4604eb28',priorRealQwenRun=42894252025,workflowCommit=os.environ['GITHUB_SHA'],workflowRun=os.environ['GITHUB_RUN_ID'])
  meta=renamed.with_name(name+'.json');meta.write_text(json.dumps(report,indent=2)+'\n');checksum=renamed.with_name(name+'.sha256');checksum.write_text(report['sha256']+'  '+name+'\n');files.extend([renamed,meta,checksum]);reports.append(report)
 names={f.name for f in files};assert not names.intersection(asset['name'] for asset in release['assets'])
 subprocess.run(['gh','release','upload','model-v142-v2',*[str(f) for f in files],'--repo',repo],check=True)
