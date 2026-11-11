@@ -175,7 +175,7 @@ jobs:
 
         node node_modules/vite/bin/vite.js build --mode production
 
-        npx --no-install electron-builder --win nsis portable zip --x64 ''--config.artifactName=Kalendarz-1.5.0-Windows-x64.${ext}''
+        npx --no-install electron-builder --win nsis portable zip --x64 ''--config.win.artifactName=Kalendarz-1.5.0-Windows-x64.${ext}''
         --publish never --config.publish.provider=github --config.publish.owner=vex2137 --config.publish.repo=Kalendarz --config.nsis.artifactName=Kalendarz-1.5.0-Windows-x64-Setup.exe
         --config.portable.artifactName=Kalendarz-1.5.0-Windows-x64-Portable.exe
 

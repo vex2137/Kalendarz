@@ -48,6 +48,11 @@ class Stable150(unittest.TestCase):
    with self.subTest(name=name):self.assertTrue(module.native_asset('assets/'+name))
   for name in ['capacitor.config.json','capacitor.plugins.json','native-bridge.js','public/build-info.json','public/index.html','android-vulkan-diagnostics.json','private.p12','model.gguf']:
    with self.subTest(name=name):self.assertFalse(module.native_asset('assets/'+name))
+ def test_windows_zip_name_overrides_the_existing_platform_configuration(self):
+  config=json.loads((ROOT/'package.json').read_text())['build'];self.assertIn('artifactName',config['win'])
+  workflow=(ROOT/'scripts/stable-150-private-build.yml').read_text()
+  self.assertIn("''--config.win.artifactName=Kalendarz-1.5.0-Windows-x64.${ext}''",workflow)
+  self.assertNotIn('--config.artifactName=Kalendarz-1.5.0-Windows',workflow)
  def test_gradle_has_stable_only_update_identity_and_release_signature(self):
   s=(ROOT/'android/app/build.gradle').read_text();self.assertIn("calendarFinalStable ? 'scripts/stable_150_guard.py'",s);self.assertIn('if (calendarFinalStable) { debuggable false; jniDebuggable false }',s);self.assertIn("if (calendarQwenV2Update || calendarPart2Beta || calendarFinalStable) signingConfig signingConfigs.stableRelease",s);self.assertIn("applicationIdSuffix '.diagnostics'",s);self.assertIn(historical.CERT,s)
 if __name__=='__main__':unittest.main()
