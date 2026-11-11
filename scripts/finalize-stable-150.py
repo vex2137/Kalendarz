@@ -8,6 +8,7 @@ assert api('')['private'];r=next(r for r in api('releases') if r['tag_name']=='s
 files=[];reports={}
 for key in ['androidFile','linuxFile','flatpakFile','setupFile','portableFile','webFile','windowsZipFile']:
  a=assets[p[key]];meta=assets[p[key]+'.json'];raw=subprocess.check_output(['gh','api','repos/'+repo+'/releases/assets/'+str(meta['id']),'-H','Accept: application/octet-stream']);v=json.loads(raw);assert v['source']==source and v['channel']=='stable' and v['version']=='1.5.0' and v['workflowRun']==os.environ['GITHUB_RUN_ID'] and v['workflowCommit']==os.environ['GITHUB_SHA'];assert a['size']==v['bytes'] and a['digest']=='sha256:'+v['sha256'];reports[key]=v;files.append(dict(name=a['name'],bytes=a['size'],sha256=v['sha256'],url=a['browser_download_url']))
+assert reports['flatpakFile']['flatpakBranch']=='stable'
 a=reports['androidFile'];assert a['versionCode']==10526 and a['versionName']=='1.5.0' and a['certificateSha256']==CERT and a['debuggable'] is False
 root=Path('stable-delivery');root.mkdir(exist_ok=True)
 integration=root/'Kalendarz-1.5.0-Linux-Desktop-Integration.zip'

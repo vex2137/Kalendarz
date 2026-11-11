@@ -64,6 +64,13 @@ class Stable150(unittest.TestCase):
   import xml.etree.ElementTree as ET
   root=ET.fromstring((ROOT/stable.NETWORK_CONFIG).read_text());self.assertEqual(root.find('base-config').get('cleartextTrafficPermitted'),'false')
   domains=root.findall('.//domain');self.assertEqual(len(domains),1);self.assertEqual(domains[0].text,'127.0.0.1');self.assertEqual(domains[0].get('includeSubdomains'),'false')
+ def test_stable_flatpak_rejects_a_beta_reference_without_changing_history(self):
+  spec=importlib.util.spec_from_file_location('stable_flatpak_check',ROOT/'scripts/check-part4-beta3-flatpak.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  self.assertEqual(module.verify_ref('app/com.vex2137.kalendarz/x86_64/stable\n','stable'),'stable')
+  self.assertEqual(module.verify_ref('app/com.vex2137.kalendarz/x86_64/beta','part4-beta3'),'beta')
+  for ref in ['app/com.vex2137.kalendarz/x86_64/beta','app/other/x86_64/stable','app/com.vex2137.kalendarz/aarch64/stable']:
+   with self.subTest(ref=ref),self.assertRaises(ValueError):module.verify_ref(ref,'stable')
+  workflow=(ROOT/'scripts/stable-150-private-build.yml').read_text();self.assertIn('--default-branch=stable',workflow);self.assertNotIn('--default-branch=beta',workflow)
  def test_gradle_has_stable_only_update_identity_and_release_signature(self):
   s=(ROOT/'android/app/build.gradle').read_text();self.assertIn("calendarFinalStable ? 'scripts/stable_150_guard.py'",s);self.assertIn('if (calendarFinalStable) { debuggable false; jniDebuggable false }',s);self.assertIn("if (calendarQwenV2Update || calendarPart2Beta || calendarFinalStable) signingConfig signingConfigs.stableRelease",s);self.assertIn("applicationIdSuffix '.diagnostics'",s);self.assertIn(historical.CERT,s)
 if __name__=='__main__':unittest.main()

@@ -276,14 +276,14 @@ jobs:
     - name: Build Flatpak only, validate installed source, native files and menu icon
       run: 'mkdir -p part4-artifacts/flatpak
 
-        flatpak-builder --user --disable-cache --force-clean --repo=build/flatpak-repo --default-branch=beta build/flatpak-root
+        flatpak-builder --user --disable-cache --force-clean --repo=build/flatpak-repo --default-branch=stable build/flatpak-root
         com.vex2137.kalendarz.yml
 
         flatpak build-update-repo build/flatpak-repo
 
         flatpak remote-add --user --no-gpg-verify local-candidate "file://$PWD/build/flatpak-repo"
 
-        flatpak install --user -y --noninteractive local-candidate com.vex2137.kalendarz//beta
+        flatpak install --user -y --noninteractive local-candidate com.vex2137.kalendarz//stable
 
         python3 scripts/check-part4-beta3-flatpak.py --installed-only
 
@@ -298,7 +298,7 @@ jobs:
         tests/flatpak-packaged.cjs'
     - name: Bundle and install actual bytes; verify original profile remains intact
       run: 'flatpak build-bundle build/flatpak-repo part4-artifacts/flatpak/Kalendarz-1.5.0-Linux-x86_64.flatpak com.vex2137.kalendarz
-        beta --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
+        stable --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
 
         # Isolated GitHub-hosted test installation only. Never --delete-data.
 

@@ -4,6 +4,10 @@ from pathlib import Path
 from release_candidate import ROOT,policy,expected_android_source,verify_candidate_info
 from part2_artifact_guard import asar_build_info
 APP='com.vex2137.kalendarz'
+def verify_ref(ref,channel):
+ branch='stable' if channel=='stable' else 'beta'
+ if ref.strip()!=f'app/{APP}/x86_64/{branch}':raise ValueError('Installed Flatpak reference does not match the candidate channel')
+ return branch
 def verify_permissions(permissions):
  # Flatpak 1.12.7 flatpak-context.c:1075-1076 explicitly expands
  # fallback-x11 to FALLBACK_X11 | X11. Compare sets, not serialized order.
@@ -15,6 +19,7 @@ def verify_permissions(permissions):
 
 def main():
  source=expected_android_source(os.environ['CALENDAR_EXPECTED_COMMIT'],True)
+ p=policy();branch=verify_ref(subprocess.check_output(['flatpak','info','--user','--show-ref',APP],text=True),p['channel'])
  location=Path(subprocess.check_output(['flatpak','info','--user','--show-location',APP],text=True).strip());app=location/'files/lib'/APP
  verify_candidate_info(asar_build_info(app/'resources/app.asar'),source,False)
  installed=configparser.ConfigParser(interpolation=None);installed.read(location/'metadata');permissions=installed['Context'];verify_permissions(permissions)
@@ -30,6 +35,6 @@ def main():
   print('PASS installed Flatpak source, normalized permissions, icon and all native hashes');return
  p=policy();bundle=ROOT/'part4-artifacts/flatpak'/p['flatpakFile']
  with bundle.open('rb')as f:sha=hashlib.file_digest(f,'sha256').hexdigest()
- report=dict(file=bundle.name,source=source,channel=p['channel'],bytes=bundle.stat().st_size,sha256=sha,appId=APP,nativeFilesVerified=len(meta['files']),permissions=dict(permissions),physicalGpuVerified=False)
+ report=dict(file=bundle.name,source=source,channel=p['channel'],bytes=bundle.stat().st_size,sha256=sha,appId=APP,flatpakBranch=branch,nativeFilesVerified=len(meta['files']),permissions=dict(permissions),physicalGpuVerified=False)
  bundle.with_name(bundle.name+'.sha256').write_text(sha+'  '+bundle.name+'\n');bundle.with_name(bundle.name+'.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
 if __name__=='__main__':main()
