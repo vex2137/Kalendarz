@@ -1,10 +1,16 @@
 name: Stage approved Kalendarz 1.5.0 packages (no build)
 on:
   workflow_dispatch:
+    inputs:
+      historical:
+        type: boolean
+        default: false
+        description: Stage the preserved last beta of Parts 2–4 instead of Stable
 permissions:
   contents: write
 jobs:
   transfer:
+    if: inputs.historical != true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -78,3 +84,44 @@ jobs:
           assert all(Path(f['name']).stat().st_size==f['bytes'] for f in index['files'])
           print('PASS: seven original uploaded packages downloaded and verified. Release remains draft.')
           PY
+
+  historical:
+    if: inputs.historical == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPOT_TOKEN: ${{ secrets.CALENDAR_MODEL_DEPOT_TOKEN }}
+      PUBLIC_TOKEN: ${{ github.token }}
+      ARCHIVE_PLAN: WwogIHsKICAgICJwYXJ0IjogMiwKICAgICJiZXRhIjogNywKICAgICJ0YWciOiAidjEuNS4wLXBhcnQyLWJldGE3IiwKICAgICJzb3VyY2UiOiAiMGQzMGZjNzk5ODg5YjExZDhjODY1M2NkZDIyMWQxZmJhNjYyNjRkYiIsCiAgICAicmVsZWFzZV9pZCI6IDQ0MzM4ODMxOCwKICAgICJmaWxlcyI6IFsKICAgICAgewogICAgICAgICJkaWdlc3QiOiAic2hhMjU2OjlmYzI5OTVlOTM4YTk2MDYzMjdhZWQ1YTYxMWRiMDg1ZjM2NWMxN2I3ZTExYzA5ZjI4OWU4MmVhYTM1ZjU1MmMiLAogICAgICAgICJpZCI6IDc0MDY5MjU4MSwKICAgICAgICAibmFtZSI6ICJLYWxlbmRhcnotMS41LjAtUGFydC0yLUJldGEtNy1BbmRyb2lkLWFybTY0LmFwayIsCiAgICAgICAgInNpemUiOiAzNzAzNTc3MiwKICAgICAgICAic291cmNlIjogIjBkMzBmYzc5OTg4OWIxMWQ4Yzg2NTNjZGQyMjFkMWZiYTY2MjY0ZGIiCiAgICAgIH0KICAgIF0KICB9LAogIHsKICAgICJwYXJ0IjogMywKICAgICJiZXRhIjogMiwKICAgICJ0YWciOiAidjEuNS4wLXBhcnQzLWJldGEyIiwKICAgICJzb3VyY2UiOiAiNWU0ZWQxNzE4Y2M0MGMyYzU3ZDQ0ZTQzN2ZhMjNhYzljYzQ4ZDY0MyIsCiAgICAicmVsZWFzZV9pZCI6IDQ0MzM4ODM0NywKICAgICJmaWxlcyI6IFsKICAgICAgewogICAgICAgICJkaWdlc3QiOiAic2hhMjU2OjgzZDRlYjNjYjc2YjQ2NTY1YTJhYjM0NTY3NWVlYjcxNmIxNzljMDlmNmIzMTJlMjZhYzFlOTg1NWU0NzE1YTkiLAogICAgICAgICJpZCI6IDc0MDY5MjU5MCwKICAgICAgICAibmFtZSI6ICJLYWxlbmRhcnotMS41LjAtUGFydC0zLUJldGEtMi1BbmRyb2lkLWFybTY0LmFwayIsCiAgICAgICAgInNpemUiOiAzNzA1NTMzNCwKICAgICAgICAic291cmNlIjogIjVlNGVkMTcxOGNjNDBjMmM1N2Q0NGU0MzdmYTIzYWM5Y2M0OGQ2NDMiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAiZGlnZXN0IjogInNoYTI1NjoxZDUwN2YxYzExNmUyMmY4ZWY4ZmFiNWU1ZDIyZWNhZWRiYzBhMDYzZjJhMGY2OGU0NGJlYTg1YzBiNDgxZWRjIiwKICAgICAgICAiaWQiOiA3NDA2OTI1ODYsCiAgICAgICAgIm5hbWUiOiAiS2FsZW5kYXJ6LTEuNS4wLVBhcnQtMy1CZXRhLTIteDg2XzY0LkFwcEltYWdlIiwKICAgICAgICAic2l6ZSI6IDk0NzM3MTQ1NywKICAgICAgICAic291cmNlIjogIjVlNGVkMTcxOGNjNDBjMmM1N2Q0NGU0MzdmYTIzYWM5Y2M0OGQ2NDMiCiAgICAgIH0KICAgIF0KICB9LAogIHsKICAgICJwYXJ0IjogNCwKICAgICJiZXRhIjogMywKICAgICJ0YWciOiAidjEuNS4wLXBhcnQ0LWJldGEzIiwKICAgICJzb3VyY2UiOiAiYmE5ZjhlNTE0ODliMWQzYjc4NmFhZTA0OTUzNTU0YTdiYmZlMjFmNSIsCiAgICAicmVsZWFzZV9pZCI6IDQ0MzM4ODQwOSwKICAgICJmaWxlcyI6IFsKICAgICAgewogICAgICAgICJkaWdlc3QiOiAic2hhMjU2OjgwMDM4MDEyYzExYjI3NTU3ODIxODY5ZWEwMmFjMWRmOTFjMjNkZjNjM2EyNjZhM2ZlNWM0ZGFkY2E3M2NlNDciLAogICAgICAgICJpZCI6IDczMjY4NDM5OCwKICAgICAgICAibmFtZSI6ICJLYWxlbmRhcnotMS41LjAtUGFydC00LUJldGEtMy1BbmRyb2lkLUxpZmVjeWNsZS1EaWFnbm9zdGljLWFybTY0LTRlYjAxNzgxY2ZlMi5hcGsiLAogICAgICAgICJzaXplIjogMzcxNDU3MTAsCiAgICAgICAgInNvdXJjZSI6ICI0ZWIwMTc4MWNmZTIxYjViMTgwYzFkMGY1MDFhOWEwMDZlNWVlZTBmIgogICAgICB9LAogICAgICB7CiAgICAgICAgImRpZ2VzdCI6ICJzaGEyNTY6OTM2YzIwYWUxN2I2MzMyNTE1ODExMTRhZGEyZWI4MWZhZmYwODQ4ZDFkZWQzZGI5ZjY4NGQwZmM0YmJhMjdiZiIsCiAgICAgICAgImlkIjogNzM1NjU3ODg3LAogICAgICAgICJuYW1lIjogIkthbGVuZGFyei0xLjUuMC1QYXJ0LTQtQmV0YS0zLUxpbnV4LXg4Nl82NC1BbmRyb2lkMTYtQWRhcHRpdmUtYmE5ZjhlNTE0ODliLkFwcEltYWdlIiwKICAgICAgICAic2l6ZSI6IDk0NzgxNDc1OCwKICAgICAgICAic291cmNlIjogImJhOWY4ZTUxNDg5YjFkM2I3ODZhYWUwNDk1MzU1NGE3YmJmZTIxZjUiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAiZGlnZXN0IjogInNoYTI1Njo2YTY5NzFlM2VmYzYzMTA5MTM3OGQ1ZjEyZWI1NWU3NWVlY2RjYTdmNGVmNjI2YzdmYjBhYmVhYzY1NzkwYTNjIiwKICAgICAgICAiaWQiOiA3MzU3MTUxMDMsCiAgICAgICAgIm5hbWUiOiAiS2FsZW5kYXJ6LTEuNS4wLVBhcnQtNC1CZXRhLTMtTGludXgteDg2XzY0LUFuZHJvaWQxNi1BZGFwdGl2ZS1iYTlmOGU1MTQ4OWIuZmxhdHBhayIsCiAgICAgICAgInNpemUiOiA3MjY5OTYzNDQsCiAgICAgICAgInNvdXJjZSI6ICJiYTlmOGU1MTQ4OWIxZDNiNzg2YWFlMDQ5NTM1NTRhN2JiZmUyMWY1IgogICAgICB9LAogICAgICB7CiAgICAgICAgImRpZ2VzdCI6ICJzaGEyNTY6YzQzNDEzNjU5MWM5OGJiMDJkZDkzYWZlMzIwMDE1YWRiNWM1MTUwY2U3ZjY1Y2NmY2VmMTNjYjA1NjI4MGNmNiIsCiAgICAgICAgImlkIjogNzM1NjYwMzc4LAogICAgICAgICJuYW1lIjogIkthbGVuZGFyei0xLjUuMC1QYXJ0LTQtQmV0YS0zLVdlYi1QV0EtQW5kcm9pZDE2LUFkYXB0aXZlLWJhOWY4ZTUxNDg5Yi56aXAiLAogICAgICAgICJzaXplIjogNzM5MDMyNSwKICAgICAgICAic291cmNlIjogImJhOWY4ZTUxNDg5YjFkM2I3ODZhYWUwNDk1MzU1NGE3YmJmZTIxZjUiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAiZGlnZXN0IjogInNoYTI1NjowMmQ0ZTA3Yzk4ZGQ2YzA1NmQ3MTI2MzYzZGY4YmI5NmI0MGI2NDdkMmU3NjFkZTMwNmY0NWE2YTkyODM5YWEzIiwKICAgICAgICAiaWQiOiA3MzU2NjQ4NDMsCiAgICAgICAgIm5hbWUiOiAiS2FsZW5kYXJ6LTEuNS4wLVBhcnQtNC1CZXRhLTMtV2luZG93cy14NjQtUG9ydGFibGUtQW5kcm9pZDE2LUFkYXB0aXZlLWJhOWY4ZTUxNDg5Yi5leGUiLAogICAgICAgICJzaXplIjogMTI1NDI2MDE4LAogICAgICAgICJzb3VyY2UiOiAiYmE5ZjhlNTE0ODliMWQzYjc4NmFhZTA0OTUzNTU0YTdiYmZlMjFmNSIKICAgICAgfSwKICAgICAgewogICAgICAgICJkaWdlc3QiOiAic2hhMjU2OjMxNWZiNWUzYzAxOWExMGI2MzJmMjgwY2Y4Zjc4MjcyZTNkNjZkZDMwYTllZWVkMjM0ZjNhNTZjNzVjM2NjMWQiLAogICAgICAgICJpZCI6IDczNTY2NDgzNiwKICAgICAgICAibmFtZSI6ICJLYWxlbmRhcnotMS41LjAtUGFydC00LUJldGEtMy1XaW5kb3dzLXg2NC1TZXR1cC1BbmRyb2lkMTYtQWRhcHRpdmUtYmE5ZjhlNTE0ODliLmV4ZSIsCiAgICAgICAgInNpemUiOiAxMjU2MzI3NTEsCiAgICAgICAgInNvdXJjZSI6ICJiYTlmOGU1MTQ4OWIxZDNiNzg2YWFlMDQ5NTM1NTRhN2JiZmUyMWY1IgogICAgICB9CiAgICBdCiAgfQpdCg==
+    steps:
+      - name: Copy only preserved original historical assets with exact SHA-256
+        run: |
+          test -n "$DEPOT_TOKEN"
+          printf '%s' "$ARCHIVE_PLAN" | base64 -d > archive-plan.json
+          python - <<'PYCODE'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          plan=json.load(open('archive-plan.json'))
+          def gh(args,token,**kwargs):
+              env={**os.environ,'GH_TOKEN':token}
+              return subprocess.run(['gh',*args],env=env,check=True,**kwargs)
+          for part in plan:
+              meta=json.loads(gh(['api',f"repos/vex2137/Kalendarz/releases/{part['release_id']}"],os.environ['PUBLIC_TOKEN'],capture_output=True,text=True).stdout)
+              assert meta['draft'] and meta['tag_name']==part['tag'] and meta['target_commitish']==part['source']
+              folder=Path(part['tag']);folder.mkdir()
+              for f in part['files']:
+                  target=folder/f['name']
+                  with target.open('wb') as output:
+                      gh(['api',f"repos/vex2137/Kalendarz-private-builds/releases/assets/{f['id']}",'-H','Accept: application/octet-stream'],os.environ['DEPOT_TOKEN'],stdout=output)
+                  with target.open('rb') as source: actual=hashlib.file_digest(source,'sha256').hexdigest()
+                  assert actual==f['digest'].removeprefix('sha256:') and target.stat().st_size==f['size']
+              (folder/'SHA256SUMS.txt').write_text(''.join(f"{f['digest'].removeprefix('sha256:')}  {f['name']}\n" for f in part['files']))
+              (folder/'HISTORICAL-SOURCES.json').write_text(json.dumps(part,indent=2)+'\n')
+              gh(['release','upload',part['tag'],'--repo','vex2137/Kalendarz',*[str(p) for p in folder.iterdir()]],os.environ['PUBLIC_TOKEN'])
+              verify=folder/'download-check';verify.mkdir()
+              gh(['release','download',part['tag'],'--repo','vex2137/Kalendarz','--dir',str(verify)],os.environ['PUBLIC_TOKEN'])
+              for f in part['files']:
+                  with (verify/f['name']).open('rb') as source: actual=hashlib.file_digest(source,'sha256').hexdigest()
+                  assert actual==f['digest'].removeprefix('sha256:')
+              print('PASS original beta copied and downloaded:',part['tag'],flush=True)
+          PYCODE
