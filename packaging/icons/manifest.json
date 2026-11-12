@@ -1,0 +1,41 @@
+{
+  "source": "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+  "sourceSha256": "bd24fd383253bf8d43f0a81f11c071d76d1d555114376dd647cd9fb38fa0a9da",
+  "conversion": "Original Android adaptive foreground + original background, Android 16 AOSP mask and 1.5x child viewport; no added artwork",
+  "composition": {
+    "foreground": "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+    "background": "android/app/src/main/res/values/ic_launcher_background.xml",
+    "adaptiveXml": "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+    "platformReference": "https://android.googlesource.com/platform/frameworks/base/+/android-16.0.0_r1/core/res/res/values/config.xml",
+    "viewportReference": "https://android.googlesource.com/platform/frameworks/base/+/android-16.0.0_r1/graphics/java/android/graphics/drawable/AdaptiveIconDrawable.java",
+    "maskPath": "M50,0L92,0C96.42,0 100,4.58 100 8L100,92C100, 96.42 96.42 100 92 100L8 100C4.58, 100 0 96.42 0 92L0 8 C 0 4.42 4.42 0 8 0L50 0Z",
+    "extraInsetPercentage": 0.25,
+    "viewportScale": 0.6666666666666666,
+    "maskScope": "Android 16 AOSP default; manufacturer/launcher overlays may differ"
+  },
+  "androidReference": {
+    "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png": "bd24fd383253bf8d43f0a81f11c071d76d1d555114376dd647cd9fb38fa0a9da",
+    "android/app/src/main/res/values/ic_launcher_background.xml": "cd40bafe618ff506f4088778b135cb4faa15f25e0c9b475e22d730c74b7be115",
+    "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": "9c3a7e0a6515c6e1a7ae834a9ae430311ebc3241f7b2e5e7f0460aa690709a7c",
+    "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": "87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761"
+  },
+  "files": {
+    "packaging/icons/png/16x16.png": "ddbcb9d5e05bcf0d90298744b049a28cca000d220cc5eb54339b30135a7c0595",
+    "packaging/icons/png/24x24.png": "92f58ba93935310b5d2dcd57afbd98e675998dc1b963ba627a14d4c5c7ed3f53",
+    "packaging/icons/png/32x32.png": "f7ad185bca438d3c275b9e3c00968fee35cdcfe246734d82edf96c32e016add9",
+    "packaging/icons/png/48x48.png": "0bc40f5dde64dbbd900a4a562c60427e05c0854a0ad5540aa87baf93fdad98d7",
+    "packaging/icons/png/64x64.png": "83cc85550eb17ce7e6b7a3ce301e4494bbc8155de37cbe7fd1292c6ce2a26665",
+    "packaging/icons/png/128x128.png": "eb0a7e13d172e11b4e5c1ee39f1ad4558d2bbedcc51f72d0cb34d1df32c73910",
+    "packaging/icons/png/256x256.png": "0cb1012c50aef1713157585bf11781d9d06629324b46c89990f091f785902a78",
+    "packaging/icons/png/512x512.png": "59ce3165caa8fbcefd5d2c840976441081ef06c89db54c8cd1901a970e7388dc",
+    "public/desktop-icon.png": "59ce3165caa8fbcefd5d2c840976441081ef06c89db54c8cd1901a970e7388dc",
+    "public/pwa-512x512.png": "59ce3165caa8fbcefd5d2c840976441081ef06c89db54c8cd1901a970e7388dc",
+    "public/pwa-192x192.png": "13eef3a70d71e45f4366d58c83ff849195b0298eb9fc4d92aab183faf669c32c",
+    "public/apple-touch-icon.png": "7a7001fff7523d1c9573cfdbbb069abb869c753539810459dcf1e2c292300c7a",
+    "public/favicon-32x32.png": "f7ad185bca438d3c275b9e3c00968fee35cdcfe246734d82edf96c32e016add9",
+    "public/pwa-maskable-512x512.png": "fe55e550af7d1e9d88b1e5fba77bfc6a2092820f5694ceb077fd176361eebe58",
+    "packaging/icons/calendar.ico": "5abf68525b7ef034f282808b103481bd8c4cb8b06ccc171065cd3f85f42bf9e9",
+    "public/favicon.ico": "5abf68525b7ef034f282808b103481bd8c4cb8b06ccc171065cd3f85f42bf9e9",
+    "public/icon.svg": "73f52d51a6d006820143e668f03ac2f27a109b47ad04e67dc2ead9bd712c7ba7"
+  }
+}

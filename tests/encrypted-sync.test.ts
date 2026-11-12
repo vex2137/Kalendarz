@@ -47,14 +47,14 @@ test('multipart encryption supports reversed/duplicate frames and rejects confli
   const encoded = await encodeSync(many, password);
   assert.ok(encoded.frames.length > 1);
   const assembler = new QRAssembler();
-  assembler.add(encoded.frames.at(-1)!);
+  await assembler.add(encoded.frames.at(-1)!);
   let code = '';
-  for (const frame of [...encoded.frames].reverse()) code = assembler.add(frame).code || code;
+  for (const frame of [...encoded.frames].reverse()) code = (await assembler.add(frame)).code || code;
   assert.deepEqual(await decodeSync(code, password), many);
-  const conflict = new QRAssembler(); conflict.add(encoded.frames[0]);
+  const conflict = new QRAssembler(); await conflict.add(encoded.frames[0]);
   const altered = encoded.frames[0].slice(0, -1) + (encoded.frames[0].endsWith('A') ? 'B' : 'A');
-  assert.throws(() => conflict.add(altered), /Conflicting/);
-  assert.throws(() => conflict.add(encoded.frames[0].replace('KAL3P:', 'KAL2P:')), /Conflicting/);
+  await assert.rejects(conflict.add(altered), /Damaged/);
+  const fields=encoded.frames[0].split(':');fields[2]='2';await assert.rejects(conflict.add(fields.join(':')),/Damaged/);
 });
 
 test('legacy JSON and KAL2 gzip remain readable; custom palettes are validated before importing', async () => {

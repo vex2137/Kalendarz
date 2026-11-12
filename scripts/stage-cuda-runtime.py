@@ -4,6 +4,7 @@ No model weights are downloaded. Existing CPU/Vulkan files remain untouched.
 """
 import argparse, hashlib, json, os, re, shutil, subprocess, tarfile, zipfile
 from pathlib import Path
+from release_download import download_pinned_release
 ROOT=Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser();parser.add_argument('--target',choices=['linux-x64','win-x64'],required=True);args=parser.parse_args()
 assets={
@@ -36,9 +37,13 @@ def target_name(name,archive):
 for name,expected in assets[args.target]:
  archive=cache/name
  if not archive.exists() or digest(archive)!=expected:
-  part=cache/(name+'.partial');subprocess.run(['curl','--fail','--location','--retry','2','--max-time','600','--output',str(part),'https://github.com/ggml-org/llama.cpp/releases/download/'+pin['version']+'/'+name],check=True)
-  if digest(part)!=expected:raise SystemExit('CUDA archive checksum mismatch: '+name)
-  part.replace(archive)
+  pinned=next((item for item in pins.get('cuda',{}).get(args.target,[]) if item['file']==name),None)
+  if pinned and type(pinned.get('bytes')) is int:
+   download_pinned_release(pinned['url'],archive,pinned['bytes'],expected)
+  else:
+   part=cache/(name+'.partial');subprocess.run(['curl','--fail','--location','--retry','2','--max-time','600','--output',str(part),'https://github.com/ggml-org/llama.cpp/releases/download/'+pin['version']+'/'+name],check=True)
+   if digest(part)!=expected:raise SystemExit('CUDA archive checksum mismatch: '+name)
+   part.replace(archive)
  if name.endswith('.zip'):
   with zipfile.ZipFile(archive) as z:
    for item in z.infolist():

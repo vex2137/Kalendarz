@@ -106,9 +106,7 @@ export async function encodeSync(payload: SyncPayload, password: string) {
   const envelope = new Uint8Array(28 + encrypted.length);
   envelope.set(salt); envelope.set(iv, 16); envelope.set(encrypted, 28);
   const data = toBase64(envelope), id = await checksum(data);
-  const parts = Math.ceil(data.length / 1000);
-  const frames = parts <= 256 ? Array.from({ length: parts }, (_, i) => `KAL3P:${id}:${i}:${parts}:${data.slice(i * 1000, (i + 1) * 1000)}`) : [];
-  return { code: `KAL3:${id}:${data}`, frames };
+  return { code: `KAL3:${id}:${data}`, frames: await transportFrames('3', id, data) };
 }
 // Explicit opt-in only. The password-protected encoder keeps its old contract.
 export async function encodeUnprotectedSync(payload: SyncPayload) {
@@ -116,8 +114,8 @@ export async function encodeUnprotectedSync(payload: SyncPayload) {
   const json = JSON.stringify(payload), bytes = strToU8(json);
   if (bytes.length > MAX_IMPORT_BYTES) throw new Error('Sync too large: use a file / Użyj pliku');
   const compressed = await new Promise<Uint8Array>((resolve, reject) => gzip(bytes, (error, result) => error ? reject(error) : resolve(result)));
-  const data = toBase64(compressed), id = await checksum(json), parts = Math.ceil(data.length / 1000);
-  return { code: `KAL2:${id}:${data}`, frames: parts <= 256 ? Array.from({length: parts}, (_,i) => `KAL2P:${id}:${i}:${parts}:${data.slice(i*1000,(i+1)*1000)}`) : [] };
+  const data = toBase64(compressed), id = await checksum(json);
+  return { code: `KAL2:${id}:${data}`, frames: await transportFrames('2', id, data) };
 }
 export async function decodeSync(code: string, password?: string): Promise<SyncPayload> {
   if (code.length > MAX_IMPORT_BYTES * 2) throw new Error('Sync too large');
@@ -172,45 +170,42 @@ export async function decodeSync(code: string, password?: string): Promise<SyncP
   }
   throw new Error('Invalid sync format');
 }
+export class SyncFrameError extends Error {}
+const QR_CHUNK = 800, MAX_QR_PARTS = 256;
+// Version 4 is a transport envelope only: KAL2 gzip and KAL3 authenticated
+// encryption remain byte-compatible, including the fixed KDF and GCM AAD.
+async function transportFrames(version: '2'|'3', id: string, data: string) {
+  const count=Math.ceil(data.length/QR_CHUNK);
+  if(count>MAX_QR_PARTS)return [];
+  const session=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
+  return Promise.all(Array.from({length:count},async(_,i)=>{
+    const part=data.slice(i*QR_CHUNK,(i+1)*QR_CHUNK), header=`${session}:${version}:${id}:${i}:${count}`;
+    return `KAL4P:${header}:${await checksum(header+':'+part)}:${part}`;
+  }));
+}
 export class QRAssembler {
-  private id = '';
-  private version = '';
-  private count = 0;
-  private parts = new Map<number, string>();
-  private started = 0;
-  add(frame: string): { received: number; total: number; code?: string } {
-    const match = /^KAL([23])P:([a-f0-9]{64}):(\d+):(\d+):([A-Za-z0-9+/=]+)$/.exec(
-      frame,
-    );
-    if (!match || frame.length > 1200) throw new Error('Invalid QR frame');
-    const [, version, id, indexText, countText, part] = match,
-      index = Number(indexText),
-      count = Number(countText);
-    if (
-      count < 1 ||
-      count > 256 ||
-      index >= count ||
-      index < 0 ||
-      part.length > 1000
-    )
-      throw new Error('Invalid QR frame count');
-    if (this.id !== id || Date.now() - this.started > 10 * 60000) {
-      this.id = id;
-      this.version = version;
-      this.count = count;
-      this.parts.clear();
-      this.started = Date.now();
-    }
-    if (count !== this.count || version !== this.version || (this.parts.has(index) && this.parts.get(index) !== part)) throw new Error('Conflicting QR frames');
-    this.parts.set(index, part);
-    return {
-      received: this.parts.size,
-      total: count,
-      ...(this.parts.size === count
-        ? {
-            code: `KAL${version}:${id}:${Array.from({ length: count }, (_, i) => this.parts.get(i)).join('')}`,
-          }
-        : {}),
-    };
+  private id=''; private session=''; private version=''; private count=0;
+  private parts=new Map<number,string>(); private started=0;
+  async add(frame:string):Promise<{received:number;total:number;duplicate:boolean;missing:number[];code?:string}> {
+    if(frame.length>1200)throw new SyncFrameError('Invalid QR frame');
+    const modern=/^KAL4P:([a-f0-9]{32}):([23]):([a-f0-9]{64}):(\d{1,3}):(\d{1,3}):([a-f0-9]{64}):([A-Za-z0-9+/=]+)$/.exec(frame);
+    const legacy=/^KAL([23])P:([a-f0-9]{64}):(\d{1,3}):(\d{1,3}):([A-Za-z0-9+/=]+)$/.exec(frame);
+    if(!modern&&!legacy)throw new SyncFrameError('Invalid QR frame');
+    const session=modern?.[1]||'',version=modern?.[2]||legacy![1],id=modern?.[3]||legacy![2];
+    const index=Number(modern?.[4]||legacy?.[3]||0),count=Number(modern?.[5]||legacy?.[4]||0),part=modern?.[7]||legacy![5];
+    if(count<1||count>MAX_QR_PARTS||index>=count||part.length>(modern?QR_CHUNK:1000))throw new SyncFrameError('Invalid QR frame count');
+    if(modern&&await checksum(`${session}:${version}:${id}:${index}:${count}:${part}`)!==modern[6])throw new SyncFrameError('Damaged QR frame');
+    if(this.id&&(this.id!==id||this.session!==session))throw new SyncFrameError('different-export');
+    if(this.id&&Date.now()-this.started>10*60000)throw new SyncFrameError('expired-export');
+    if(!this.id){this.id=id;this.session=session;this.version=version;this.count=count;this.started=Date.now();}
+    if(count!==this.count||version!==this.version||(this.parts.has(index)&&this.parts.get(index)!==part))throw new SyncFrameError('Conflicting QR frames');
+    const duplicate=this.parts.has(index);this.parts.set(index,part);
+    const missing=Array.from({length:count},(_,i)=>i).filter(i=>!this.parts.has(i)).map(i=>i+1);
+    return {received:this.parts.size,total:count,duplicate,missing,...(!missing.length?{code:`KAL${version}:${id}:${Array.from({length:count},(_,i)=>this.parts.get(i)).join('')}`}:{})};
   }
+}
+export function syncPreview(payload:SyncPayload,existing:CalendarEvent[]) {
+ validateSync(payload);
+ const ids=new Set(existing.map(event=>event.id)), dates=payload.events.flatMap(event=>[event.startDate,event.endDate]).sort();
+ return {events:payload.events.length,deletions:payload.deletions.length,duplicates:payload.events.filter(event=>ids.has(event.id)).length,from:dates[0],to:dates.at(-1)};
 }

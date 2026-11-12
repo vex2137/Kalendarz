@@ -1,0 +1,380 @@
+# Android APK unchanged; existing private draft only. No Actions artifact quota required.
+name: Private Android 16 adaptive icons and real visual evidence
+'on':
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact current Part 4 source; Android APK unchanged
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: private-android16-adaptive-icons
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+    working-directory: source
+env:
+  TZ: Europe/Warsaw
+  CALENDAR_EXPECTED_COMMIT: ${{ inputs.source_commit }}
+  CALENDAR_APPLICATION_BRANCH: feat/1.5.0-part4
+  CALENDAR_PART4_BETA: 'true'
+  CALENDAR_MODEL_FREE: 'true'
+  CALENDAR_ANDROID_NATIVE: 'false'
+  CALENDAR_BETA_APK: 'false'
+  CALENDAR_PART4_BETA_NUMBER: '3'
+  CALENDAR_VERIFY_CANONICAL_ICONS: 'true'
+  CALENDAR_ICON_ONLY: 'true'
+  CALENDAR_CAPTURE_ICON_EVIDENCE: 'true'
+jobs:
+  linux:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Validate icon pixels, unchanged application code and targeted tests
+      run: 'sudo apt-get update -qq
+
+        sudo apt-get install -y libcairo2
+
+        python3 -m pip install Pillow CairoSVG==2.8.2
+
+        python3 scripts/check-canonical-icons.py
+
+        python3 scripts/check-icon-change-scope.py
+
+        npm run lint
+
+        node --import tsx --test tests/desktop-packaging.test.ts'
+    - name: Install package smoke-test dependencies
+      run: 'npx --no-install playwright install --with-deps chromium
+
+        sudo apt-get update -qq
+
+        sudo apt-get install -y desktop-file-utils x11-utils openbox imagemagick
+
+        '
+    - name: Test full X11 property reading and rejection of a wrong icon before packaging
+      run: xvfb-run -a python3 -m unittest discover -s tests -p '*icons*.py'
+    - name: Build model-free AppImage with the unchanged pinned CPU/CUDA/Vulkan runtimes
+      run: 'test ! -e native/linux-x64/runtime-manifest.json
+
+        node scripts/prepare-model-free.cjs
+
+        node node_modules/vite/bin/vite.js build --mode production
+
+        npx --no-install electron-builder --linux AppImage --x64 --publish never --config.publish.provider=github --config.publish.owner=vex2137
+        --config.publish.repo=Kalendarz --config.linux.artifactName=Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64.AppImage'
+    - name: Verify actual AppImage source, complete native libraries and no GGUF/Android binaries
+      run: 'python3 scripts/check-part4-beta3-appimage.py
+
+        python3 scripts/check-built-native-runtime.py
+
+        xvfb-run -a -s ''-screen 0 1440x1000x24'' sh -c ''openbox >/tmp/icon-openbox.log 2>&1 & node tests/linux-desktop-icons.cjs''
+
+        CALENDAR_TEST_LLAMA_SERVER="$PWD/build/checked-appimage/squashfs-root/resources/native/cpu/llama-server" node --test
+        tests/native-architectures.test.cjs
+
+        CALENDAR_APPIMAGE_EXECUTABLE="$PWD/release/Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64.AppImage" APPIMAGE_EXTRACT_AND_RUN=1
+        xvfb-run -a node tests/appimage-startup-smoke.cjs'
+    - name: Package and open actual Web/PWA ZIP, favicon and manifest
+      run: "mkdir -p part4-artifacts/web build/icon-web-artifact\npython3 - <<'PYWEB'\nfrom pathlib import Path\nimport zipfile,os,json\n\
+        p=Path('part4-artifacts/web/Kalendarz-1.5.0-Part-4-Beta-3-Web-PWA.zip')\nwith zipfile.ZipFile(p,'w',zipfile.ZIP_DEFLATED)\
+        \ as z:\n for f in Path('dist').rglob('*'):\n  if f.is_file():\n   assert f.suffix.lower() not in ['.gguf','.p12','.jks','.keystore']\n\
+        \   z.write(f,f.relative_to('dist'))\nwith zipfile.ZipFile(p) as z:z.extractall('build/icon-web-artifact')\nPath(str(p)+'.json').write_text(json.dumps(dict(source=os.environ['CALENDAR_EXPECTED_COMMIT'],kind='production-web-pwa'))+'\\\
+        n')\nPYWEB\npython3 scripts/check-canonical-icons.py --web-dir build/icon-web-artifact\nBROWSER_EXECUTABLE=\"$(node\
+        \ -p 'require(\"playwright\").chromium.executablePath()')\" node tests/icon-web-package.cjs"
+    - name: Verify source and privately deliver checked AppImage and Web ZIP
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+
+        python3 scripts/upload-private-icon-packages.py linux
+
+        python3 scripts/upload-private-icon-packages.py web'
+    - name: Privately deliver real Linux and production Web icon screenshots
+      run: 'python3 scripts/capture-adaptive-icon-evidence.py upload linux
+
+        python3 scripts/capture-adaptive-icon-evidence.py upload web'
+    env:
+      CALENDAR_ANDROID_NATIVE: 'false'
+      CALENDAR_INCLUDE_CUDA: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_TOKEN: ${{ github.token }}
+      CALENDAR_ICON_PLATFORM: linux
+  windows:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+    env:
+      CALENDAR_ANDROID_NATIVE: 'false'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_TOKEN: ${{ github.token }}
+      CALENDAR_ICON_PLATFORM: windows
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Install screenshot encoder only
+      run: python -m pip install Pillow
+    - name: Confirm unchanged app code and parse Windows icon checker
+      run: 'python scripts/check-icon-change-scope.py
+
+        powershell -NoProfile -File scripts/check-windows-icon.ps1'
+    - name: Build real x64 NSIS and Portable EXE packages without Authenticode signing
+      run: 'node scripts/prepare-model-free.cjs
+
+        node node_modules/vite/bin/vite.js build --mode production
+
+        npx --no-install electron-builder --win nsis portable --x64 --publish never --config.publish.provider=github --config.publish.owner=vex2137
+        --config.publish.repo=Kalendarz --config.nsis.artifactName=Kalendarz-1.5.0-Part-4-Beta-3-Windows-x64-Setup.exe --config.portable.artifactName=Kalendarz-1.5.0-Part-4-Beta-3-Windows-x64-Portable.exe
+
+        mkdir -p part4-artifacts/windows
+
+        cp release/*-Setup.exe release/*-Portable.exe part4-artifacts/windows/
+
+        python scripts/check-part4-beta3-windows.py'
+    - name: Inspect actual Setup Portable and unpacked EXE icon pixels
+      run: 'powershell -NoProfile -File scripts/check-windows-icon.ps1 -Executable part4-artifacts/windows/Kalendarz-1.5.0-Part-4-Beta-3-Windows-x64-Setup.exe
+
+        powershell -NoProfile -File scripts/check-windows-icon.ps1 -Executable part4-artifacts/windows/Kalendarz-1.5.0-Part-4-Beta-3-Windows-x64-Portable.exe
+
+        powershell -NoProfile -File scripts/check-windows-icon.ps1 -Executable release/win-unpacked/Calendar.exe'
+    - name: Fetch and verify the actual 1.4.2 Portable EXE for the legacy-profile test
+      run: 'mkdir -p build/source142
+
+        python scripts/release_download.py https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WINDOWS-x86_64.exe
+        build/source142/setup.exe --bytes 124758456 --sha256 b147323b97c62b2ee390af3ee64dd0fa4b983282c2e38b1c3aa367dcb397a1f4'
+    - name: Real installation, update, uninstall with data retained and portable isolation/move
+      run: node tests/windows-packages.cjs
+    - name: Verify source and privately deliver checked Windows packages
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'python scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+
+        python scripts/upload-private-icon-packages.py windows'
+    - name: Privately deliver actual installed Setup and Portable window screenshots
+      run: python scripts/capture-adaptive-icon-evidence.py upload windows
+  flatpak:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    needs: linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CALENDAR_ICON_PLATFORM: flatpak
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Reuse exact AppImage from successful Linux job of this run
+      run: python3 scripts/reuse-icon-appimage.py
+    - name: Install only Flatpak and screenshot tools; free unused ephemeral SDK
+      run: 'if test "$GITHUB_ACTIONS" = true && test "$RUNNER_ENVIRONMENT" = github-hosted && test "$ANDROID_HOME" = /usr/local/lib/android/sdk;
+        then sudo rm -rf -- /usr/local/lib/android/sdk; fi
+
+        sudo apt-get update -qq
+
+        sudo apt-get install -y flatpak flatpak-builder ostree xvfb xdotool x11-utils openbox imagemagick desktop-file-utils
+        dbus-x11 xdg-desktop-portal xdg-desktop-portal-gtk
+
+        python3 -m pip install Pillow CairoSVG==2.8.2
+
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --prefix "$RUNNER_TEMP/icon-tools" --no-package-lock --ignore-scripts
+        playwright@1.64.1
+
+        echo "NODE_PATH=$RUNNER_TEMP/icon-tools/node_modules" >> "$GITHUB_ENV"
+
+        flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+        flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 org.electronjs.Electron2.BaseApp//25.08
+
+        python3 -c ''import shutil; assert shutil.disk_usage(".").free > 10*1024**3, "Insufficient space; never lower OSTree
+        safety reserve"'' '
+    - name: Build Flatpak only, validate installed source, native files and menu icon
+      run: 'mkdir -p part4-artifacts/flatpak
+
+        flatpak-builder --user --disable-cache --force-clean --repo=build/flatpak-repo --default-branch=beta build/flatpak-root
+        com.vex2137.kalendarz.yml
+
+        flatpak build-update-repo build/flatpak-repo
+
+        flatpak remote-add --user --no-gpg-verify local-candidate "file://$PWD/build/flatpak-repo"
+
+        flatpak install --user -y --noninteractive local-candidate com.vex2137.kalendarz//beta
+
+        python3 scripts/check-part4-beta3-flatpak.py --installed-only
+
+        python3 scripts/check-canonical-icons.py --flatpak-location "$(flatpak info --user --show-location com.vex2137.kalendarz)"
+
+        rm -rf -- .flatpak-builder release/linux-unpacked
+
+        '
+    - name: Run actual sandboxed Flatpak, capture window icon and preserve event
+      run: xvfb-run -a -s '-screen 0 1440x1000x24' dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment
+        DISPLAY XDG_CURRENT_DESKTOP; openbox >/tmp/icon-openbox.log 2>&1 & timeout --signal=TERM --kill-after=20s 600s node
+        tests/flatpak-packaged.cjs'
+    - name: Bundle and install actual bytes; verify original profile remains intact
+      run: 'flatpak build-bundle build/flatpak-repo part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64.flatpak
+        com.vex2137.kalendarz beta --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
+
+        # Isolated GitHub-hosted test installation only. Never --delete-data.
+
+        python3 scripts/preserve-flatpak-icon-profile.py snapshot
+
+        flatpak uninstall --user -y --noninteractive com.vex2137.kalendarz
+
+        python3 scripts/preserve-flatpak-icon-profile.py verify
+
+        flatpak install --user -y --noninteractive part4-artifacts/flatpak/Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64.flatpak
+
+        python3 scripts/preserve-flatpak-icon-profile.py verify
+
+        python3 scripts/check-part4-beta3-flatpak.py
+
+        python3 scripts/check-canonical-icons.py --flatpak-location "$(flatpak info --user --show-location com.vex2137.kalendarz)"
+
+        CALENDAR_FLATPAK_REOPEN=true xvfb-run -a -s ''-screen 0 1440x1000x24'' dbus-run-session -- bash -c ''export XDG_CURRENT_DESKTOP=GNOME;
+        dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; openbox >/tmp/icon-openbox.log 2>&1 & timeout --signal=TERM
+        --kill-after=20s 600s node tests/flatpak-packaged.cjs'''
+    - name: Privately deliver verified Flatpak bytes and real screenshots
+      run: 'python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+
+        python3 scripts/upload-private-icon-packages.py flatpak
+
+        python3 scripts/capture-adaptive-icon-evidence.py upload flatpak'
+  delivery:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    needs:
+    - linux
+    - windows
+    - flatpak
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - name: Verify five same-source package reports and screenshots; privately deliver checksum index and integration helper
+      run: "python3 - <<'PYDELIVERY'\nimport os,json,subprocess,hashlib,zipfile\nfrom pathlib import Path\nrepo=os.environ['GITHUB_REPOSITORY'];source=os.environ['CALENDAR_EXPECTED_COMMIT'];assert\
+        \ repo=='vex2137/Kalendarz-private-builds'\ndef api(p):return json.loads(subprocess.check_output(['gh','api','repos/'+repo+('/'+p\
+        \ if p else '')]))\nassert api('')['private'];r=api('releases/424632810');assert r['draft'];assets=r['assets'];files=[]\n\
+        for a in assets:\n if '-Android16-Adaptive-'+source[:12] not in a['name'] or not a['name'].endswith(('.AppImage','.flatpak','.exe','.zip')):continue\n\
+        \ m=next(m for m in assets if m['name']==a['name']+'.json')\n raw=subprocess.check_output(['gh','api','repos/'+repo+'/releases/assets/'+str(m['id']),'-H','Accept:\
+        \ application/octet-stream']);report=json.loads(raw)\n assert report['source']==source and report['workflowRun']==os.environ['GITHUB_RUN_ID']\
+        \ and report['workflowCommit']==os.environ['GITHUB_SHA']\n assert report['androidAdaptiveComposition']==json.loads(Path('packaging/icons/android16-adaptive.json').read_text())\n\
+        \ assert a['digest']=='sha256:'+report['sha256'] and a['size']==report['bytes']\n files.append(dict(file=a['name'],url=a['browser_download_url'],bytes=a['size'],sha256=report['sha256']))\n\
+        assert len(files)==5\nevidence=[dict(file=a['name'],url=a['browser_download_url'],bytes=a['size'],sha256=a['digest'].removeprefix('sha256:'))\
+        \ for a in assets if a['name'].startswith('Android16-Adaptive-Visual-') and source[:12] in a['name']];assert len(evidence)==4\n\
+        p=Path('Android16-Adaptive-Integration-'+source[:12]+'.zip')\nwith zipfile.ZipFile(p,'w',zipfile.ZIP_DEFLATED) as\
+        \ z:\n z.write('packaging/linux/install-desktop-entry.sh','install-desktop-entry.sh');z.write('public/desktop-icon.png','desktop-icon.png');z.writestr('README.txt','Extract,\
+        \ then run this fish-compatible command with the NEW AppImage:\\nsh ./install-desktop-entry.sh \"/absolute/path/to/Calendar.AppImage\"\
+        \\nNo user data is removed. Re-pin old dock shortcuts. KDE may additionally need: kbuildsycoca6 --noincremental\\\
+        n')\nsubprocess.run(['gh','release','upload','model-v142-v2',str(p),'--repo',repo],check=True)\nr=api('releases/424632810');assert\
+        \ r['draft'];integration=next(a for a in r['assets'] if a['name']==p.name)\nresult=dict(source=source,private=True,published=False,androidApkUnchanged=True,reference=json.loads(Path('packaging/icons/android16-adaptive.json').read_text()),files=files,visualEvidence=evidence,integration=dict(url=integration['browser_download_url'],sha256=hashlib.sha256(p.read_bytes()).hexdigest()),workflowRun=os.environ['GITHUB_RUN_ID'],notTested=['Physical\
+        \ POCO/HyperOS mask and icon theme','Existing user pinned-shortcut cache','Wayland compositor dock','OS-installed\
+        \ PWA icon refresh'],windowsAuthenticode='NotSigned')\np=Path('Android16-Adaptive-Delivery-'+source[:12]+'.json');p.write_text(json.dumps(result,indent=2)+'\\\
+        n');subprocess.run(['gh','release','upload','model-v142-v2',str(p),'--repo',repo],check=True)\nr=api('releases/424632810');assert\
+        \ r['draft'];a=next(a for a in r['assets'] if a['name']==p.name);raw=subprocess.check_output(['gh','api','repos/'+repo+'/releases/assets/'+str(a['id']),'-H','Accept:\
+        \ application/octet-stream']);assert raw==p.read_bytes();print(json.dumps(dict(deliveryIndex=a['browser_download_url'],**result)))\n\
+        PYDELIVERY"

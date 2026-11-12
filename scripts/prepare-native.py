@@ -11,6 +11,7 @@ import sys
 import tarfile
 import zipfile
 from native_runtime_state import verified_cuda_state
+from release_download import download_pinned_release
 
 ROOT=Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser();parser.add_argument('--platform',default=sys.platform);parser.add_argument('--arch',default={'x86_64':'x64','AMD64':'x64','aarch64':'arm64'}.get(host_platform.machine(),host_platform.machine()));parser.add_argument('--output',default=str(ROOT/'native'));args=parser.parse_args()
@@ -27,10 +28,7 @@ for backend,asset in meta['targets'][key].items():
  directory=output/backend;shutil.rmtree(directory,ignore_errors=True);directory.mkdir()
  archive=cache/asset['file']
  if not archive.exists() or archive.stat().st_size!=asset['bytes'] or digest(archive)!=asset['sha256']:
-  temp=archive.with_suffix(archive.suffix+'.partial')
-  subprocess.run(['curl','--fail','--location','--retry','3','--max-time','300','--output',str(temp),asset['url']],check=True)
-  assert temp.stat().st_size==asset['bytes'] and digest(temp)==asset['sha256'],'Native archive checksum mismatch'
-  temp.replace(archive)
+  download_pinned_release(asset['url'],archive,asset['bytes'],asset['sha256'])
  # Copy only the server, its libraries and upstream notices. Flattened names are
  # whitelisted; never extract archive paths or symlinks onto the host filesystem.
  def wanted(name):

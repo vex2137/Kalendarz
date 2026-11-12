@@ -44,7 +44,7 @@ const { existsSync } = require('node:fs');
     const page = await context.newPage(); await page.goto('http://127.0.0.1:4179');
     await page.waitForFunction(() => !!JSON.parse(localStorage.getItem('offline_calendar_settings_v2')).security.pinHash);
     for (const digit of '1234') await page.getByRole('button', {name:digit,exact:true}).click();
-    await page.locator('#btn-open-settings').click();
+    await page.locator('#btn-open-settings').click();await require('./settings-navigation.cjs')(page,'security');
     await page.getByLabel('Current PIN', {exact:true}).fill('1234');
     const toggle = page.getByLabel('Biometric unlock');
     await toggle.waitFor({state:'visible'});

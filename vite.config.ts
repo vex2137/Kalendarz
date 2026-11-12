@@ -7,11 +7,15 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 export default defineConfig(() => {
+  const finalStable = process.env.CALENDAR_FINAL_STABLE === 'true';
+  if(finalStable && ['CALENDAR_BETA_APK','CALENDAR_PART2_BETA','CALENDAR_PART2_STABLE','CALENDAR_PART3_BETA','CALENDAR_PART4_BETA','CALENDAR_ANDROID_LIFECYCLE_DIAGNOSTIC'].some(k=>process.env[k]==='true'))throw Error('Stable cannot be combined with a historical beta profile');
   const betaApk = process.env.CALENDAR_BETA_APK === 'true';
   const modelFree = process.env.CALENDAR_MODEL_FREE === 'true';
   if(betaApk&&modelFree)throw Error('Choose one distribution variant');
   const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
-  const buildInfo = { ...(process.env.CALENDAR_PART2_STABLE==='true'?{releaseChannel:'part2-stable'}:{}), commit: git('rev-parse', 'HEAD'), branch: process.env.CALENDAR_APPLICATION_BRANCH || process.env.GITHUB_REF_NAME || git('branch', '--show-current'),
+  const lifecycleDiagnostic = process.env.CALENDAR_ANDROID_LIFECYCLE_DIAGNOSTIC==='true';
+  if(lifecycleDiagnostic&&(process.env.CALENDAR_PART4_BETA!=='true'||process.env.CALENDAR_PART4_BETA_NUMBER!=='3'||process.env.CALENDAR_ANDROID_NATIVE!=='true'))throw Error('Lifecycle diagnostic is Android Part 4 Beta 3 only');
+  const buildInfo = { ...(finalStable?{...JSON.parse(readFileSync('scripts/stable-150-version.json','utf8')),releaseChannel:'stable'}:lifecycleDiagnostic?{...JSON.parse(readFileSync('scripts/part4-beta3-lifecycle-version.json','utf8')),releaseChannel:'part4-beta3-lifecycle-diag1'}:process.env.CALENDAR_PART4_BETA==='true'?{...JSON.parse(readFileSync(`scripts/part4-beta${process.env.CALENDAR_PART4_BETA_NUMBER || '1'}-version.json`,'utf8')),releaseChannel:`part4-beta${process.env.CALENDAR_PART4_BETA_NUMBER || '1'}`}:process.env.CALENDAR_PART3_BETA==='true'?{releaseChannel:'part3-beta2',...JSON.parse(readFileSync('scripts/part3-beta2-version.json','utf8'))}:process.env.CALENDAR_PART2_STABLE==='true'?{releaseChannel:'part2-stable'}:{}), commit: git('rev-parse', 'HEAD'), branch: process.env.CALENDAR_APPLICATION_BRANCH || process.env.GITHUB_REF_NAME || git('branch', '--show-current'),
     workflowCommit: process.env.GITHUB_SHA, workflowRepository: process.env.GITHUB_REPOSITORY,
     version: JSON.parse(readFileSync('package.json', 'utf8')).version + (betaApk ? ' beta 3' : ''), ...((betaApk||modelFree) ? {bundledModel:false} : {}), ...(modelFree ? {distribution:'model-free'} : {}), androidNative: process.env.CALENDAR_ANDROID_NATIVE === 'true', dirty: Boolean(git('status', '--porcelain', '--untracked-files=no')), builtAt: new Date().toISOString() };
   const modelHeaders = {
@@ -31,9 +35,12 @@ export default defineConfig(() => {
         injectRegister: null,
         includeAssets: [
           'icon.svg',
+          'favicon.ico',
+          'favicon-32x32.png',
           'apple-touch-icon.png',
           'pwa-192x192.png',
           'pwa-512x512.png',
+          'pwa-maskable-512x512.png',
         ],
         manifest: {
           id: '/',
@@ -61,7 +68,7 @@ export default defineConfig(() => {
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: '/pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',

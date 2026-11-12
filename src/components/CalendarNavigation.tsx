@@ -1,15 +1,18 @@
 import React, { useEffect, useRef } from 'react';
 import type { AnimationSettings } from '../types';
 import { reducedMotion } from '../utils/animations';
+import { resolveShortcut, type ShortcutMap } from '../utils/shortcuts';
 
 const editing = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest(
   'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="slider"], [role="spinbutton"], [role="combobox"], [data-no-swipe]',
 ));
 
-export function CalendarNavigation({ enabled, dateKey, onNavigate, children, animations, allowHorizontalScroll = false }: {
+export function CalendarNavigation({ enabled, dateKey, onNavigate, children, animations, allowHorizontalScroll = false, shortcuts }: {
   enabled: boolean; dateKey: string; onNavigate: (direction: number) => void; children: React.ReactNode; animations: AnimationSettings; allowHorizontalScroll?: boolean;
+  shortcuts?: ShortcutMap;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const bindings=useRef(shortcuts);bindings.current=shortcuts;
   const gesture = useRef<{ id: number; x: number; y: number; vertical: boolean } | null>(null);
   const suppressClick = useRef(0);
   const previous = useRef(dateKey);
@@ -22,7 +25,8 @@ export function CalendarNavigation({ enabled, dateKey, onNavigate, children, ani
       if (!enabled || event.defaultPrevented || event.isComposing || event.repeat ||
         event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || editing(event.target) ||
         document.querySelector('[role="dialog"]') || window.getSelection()?.isCollapsed === false) return;
-      const delta = ({ ArrowLeft: -1, ArrowRight: 1, a: -1, d: 1 })[event.key.length === 1 ? event.key.toLowerCase() : event.key];
+      if(bindings.current&&resolveShortcut(event,bindings.current,'calendar'))return;
+      const delta = ({ ArrowLeft: -1, ArrowRight: 1 })[event.key.length === 1 ? event.key.toLowerCase() : event.key];
       if (delta) { event.preventDefault(); navigateRef.current(delta); }
     };
     window.addEventListener('keydown', key);

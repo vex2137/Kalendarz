@@ -4,15 +4,24 @@ def calendarPackage = new groovy.json.JsonSlurper().parse(rootProject.file('../p
 def calendarBuildFile = rootProject.file('../dist/build-info.json')
 def calendarWebBuild = calendarBuildFile.isFile() ? new groovy.json.JsonSlurper().parse(calendarBuildFile) : [commit: 'unknown']
 def calendarVersion = calendarPackage.version.tokenize('.').collect { it as int }
+def calendarFinalStable = providers.gradleProperty('calendarFinalStable').orElse('false').get().toBoolean()
 def calendarTestSigning = providers.gradleProperty('calendarTestSigning').orElse('false').get().toBoolean()
 def calendarVulkanDiagnostics = providers.gradleProperty('calendarVulkanDiagnostics').orElse('false').get().toBoolean()
 def calendarStableUpdate = providers.gradleProperty('calendarStableUpdate').orElse('false').get().toBoolean()
 def calendarQwenV2Update = providers.gradleProperty('calendarQwenV2Update').orElse('false').get().toBoolean()
-def calendarPart2Beta = providers.gradleProperty('calendarPart2Beta').orElse('false').get().toBoolean()
-def calendarPart2BetaNumber = providers.gradleProperty('calendarPart2BetaNumber').orElse('2').get()
-if (!(calendarPart2BetaNumber in ['2','5','6','7','stable']) || (calendarPart2BetaNumber != '2' && !calendarPart2Beta)) throw new GradleException('Unsupported Part 2 Android beta profile')
+def calendarPart4BetaNumber = providers.gradleProperty('calendarPart4BetaNumber').orElse('1').get()
+if (!(calendarPart4BetaNumber in ['1','2','3'])) throw new GradleException('Unsupported Part 4 beta number')
+def calendarLifecycleDiagnostic = System.getenv('CALENDAR_ANDROID_LIFECYCLE_DIAGNOSTIC') == 'true'
+def calendarPart4Beta = providers.gradleProperty('calendarPart4Beta').orElse('false').get().toBoolean()
+if (calendarLifecycleDiagnostic && (!calendarPart4Beta || calendarPart4BetaNumber != '3')) throw new GradleException('Lifecycle diagnostic requires the existing Part 4 Beta 3 signing profile')
+if (calendarPart4Beta && providers.gradleProperty('calendarPart3Beta').orElse('false').get().toBoolean()) throw new GradleException('Choose one Part 3 or Part 4 profile')
+def calendarPart3Beta = calendarPart4Beta || providers.gradleProperty('calendarPart3Beta').orElse('false').get().toBoolean()
+if (calendarPart3Beta && providers.gradleProperty('calendarPart2Beta').orElse('false').get().toBoolean()) throw new GradleException('Choose one Part 2 or Part 3 profile')
+def calendarPart2Beta = calendarPart3Beta || providers.gradleProperty('calendarPart2Beta').orElse('false').get().toBoolean()
+def calendarPart2BetaNumber = calendarPart3Beta ? (calendarPart4Beta ? 'part4-' + calendarPart4BetaNumber : 'part3-2') : providers.gradleProperty('calendarPart2BetaNumber').orElse('2').get()
+if (!(calendarPart2BetaNumber in ['2','5','6','7','stable','part3-2','part4-1','part4-2','part4-3']) || (calendarPart2BetaNumber != '2' && !calendarPart2Beta)) throw new GradleException('Unsupported Part 2 Android beta profile')
 def calendarModelFreeTests = providers.gradleProperty('calendarModelFreeTests').orElse('false').get().toBoolean()
-if (calendarModelFreeTests && (calendarPart2Beta || calendarStableUpdate || calendarQwenV2Update || calendarVulkanDiagnostics ||
+if (calendarModelFreeTests && (calendarFinalStable || calendarPart2Beta || calendarStableUpdate || calendarQwenV2Update || calendarVulkanDiagnostics ||
     !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['testDebugUnitTest','assembleDebug','assembleDebugAndroidTest','connectedDebugAndroidTest'] })) {
     throw new GradleException('Model-free Android test builds allow only isolated debug test tasks')
 }
@@ -21,14 +30,15 @@ if (calendarStableUpdate && !gradle.startParameter.taskNames.every { it.tokenize
     throw new GradleException('The model-free update preserves the diagnostics application ID and signing; use assembleDiagnostics')
 }
 def calendarBeta = providers.gradleProperty('calendarBeta').orElse('false').get().toBoolean()
+if (calendarFinalStable && (calendarPart2Beta || calendarStableUpdate || calendarQwenV2Update || calendarBeta || calendarVulkanDiagnostics || calendarTestSigning)) throw new GradleException('Stable cannot be combined with historical beta or test-signing profiles')
 if (calendarStableUpdate && calendarBeta) throw new GradleException('Choose one update variant')
 if (calendarBeta && !gradle.startParameter.taskNames.every { it.tokenize(':').last() in ['assembleDiagnostics','assembleDiagnosticsAndroidTest','testDiagnosticsUnitTest'] }) {
     throw new GradleException('Beta without bundled weights is allowed only for assembleDiagnostics')
 }
 def calendarKeystore = System.getenv('CALENDAR_KEYSTORE_PATH')
 def calendarPart2VersionCode = null
-if (calendarPart2Beta) {
-    def guard = new ProcessBuilder('python3', calendarPart2BetaNumber == 'stable' ? 'scripts/part2_stable_guard.py' : calendarPart2BetaNumber in ['5','6','7'] ? 'scripts/android_beta' + calendarPart2BetaNumber + '_guard.py' : 'scripts/part2_artifact_guard.py',
+if (calendarPart2Beta || calendarFinalStable) {
+    def guard = new ProcessBuilder('python3', calendarFinalStable ? 'scripts/stable_150_guard.py' : calendarPart4Beta ? (calendarPart4BetaNumber == '3' ? 'scripts/part4_beta3_guard.py' : calendarPart4BetaNumber == '2' ? 'scripts/part4_beta2_guard.py' : 'scripts/part4_beta_guard.py') : calendarPart3Beta ? 'scripts/part3_beta_guard.py' : calendarPart2BetaNumber == 'stable' ? 'scripts/part2_stable_guard.py' : calendarPart2BetaNumber in ['5','6','7'] ? 'scripts/android_beta' + calendarPart2BetaNumber + '_guard.py' : 'scripts/part2_artifact_guard.py',
         '--source', System.getenv('CALENDAR_EXPECTED_COMMIT') ?: '', '--check-remote',
         '--info', 'dist/build-info.json', '--platform', 'android')
         .directory(rootProject.file('..')).redirectErrorStream(true).start()
@@ -88,7 +98,7 @@ android {
         resValue 'string', 'calendar_build_commit', calendarWebBuild.commit
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (calendarPart2Beta ? calendarPart2VersionCode : calendarQwenV2Update ? 10407 : calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarVulkanDiagnostics ? 4 : calendarStableUpdate ? 5 : calendarBeta ? 2 : 0))
+        versionCode ((calendarPart2Beta || calendarFinalStable) ? calendarPart2VersionCode : calendarQwenV2Update ? 10407 : calendarVersion[0] * 10000 + calendarVersion[1] * 100 + calendarVersion[2] + (calendarVulkanDiagnostics ? 4 : calendarStableUpdate ? 5 : calendarBeta ? 2 : 0))
         versionName calendarPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -112,10 +122,11 @@ android {
         diagnostics {
             initWith debug
             applicationIdSuffix '.diagnostics'
-            versionNameSuffix (calendarPart2Beta ? (calendarPart2BetaNumber == 'stable' ? '-part2-stable' : '-part2-beta.' + calendarPart2BetaNumber) : (calendarStableUpdate || calendarQwenV2Update) ? '' : calendarBeta ? ' beta 3' : '-diagnostics')
+            versionNameSuffix (calendarFinalStable ? '' : calendarPart2Beta ? (calendarPart3Beta ? (calendarPart4Beta ? '-part4-beta.' + calendarPart4BetaNumber + (calendarLifecycleDiagnostic ? '-diag.1' : '') : '-part3-beta.2') : calendarPart2BetaNumber == 'stable' ? '-part2-stable' : '-part2-beta.' + calendarPart2BetaNumber) : (calendarStableUpdate || calendarQwenV2Update) ? '' : calendarBeta ? ' beta 3' : '-diagnostics')
+            if (calendarFinalStable) { debuggable false; jniDebuggable false }
             matchingFallbacks = ['debug']
             signingConfig signingConfigs.debug
-            if (calendarQwenV2Update || calendarPart2Beta) signingConfig signingConfigs.stableRelease
+            if (calendarQwenV2Update || calendarPart2Beta || calendarFinalStable) signingConfig signingConfigs.stableRelease
         }
         // Opt in only for downloadable test APKs; production signing stays external.
         release {
@@ -136,7 +147,7 @@ android {
         sourceSets.main.assets.srcDirs += [rootProject.file('../build/android-native-assets')]
         packagingOptions { jniLibs { useLegacyPackaging = true } }
     }
-    if (calendarStableUpdate || calendarPart2Beta) {
+    if (calendarStableUpdate || calendarPart2Beta || calendarFinalStable) {
         sourceSets.diagnostics.res.setSrcDirs([rootProject.file('../build/model-free-res')])
     }
     if (calendarQwenV2Update) {
@@ -186,16 +197,17 @@ tasks.register('verifyBundledModel') {
         if (calendarWebBuild.androidNative == true && !rootProject.file('../build/android-jni/arm64-v8a/libcalendar_llama.so').isFile()) {
             throw new GradleException('Native Android frontend requires scripts/build-android-native.py artifacts')
         }
-        if (calendarPart2Beta || calendarModelFreeTests) {
+        if (calendarPart2Beta || calendarFinalStable || calendarModelFreeTests) {
             def packagedBuild = new groovy.json.JsonSlurper().parse(file('src/main/assets/public/build-info.json'))
             if (packagedBuild.version != calendarPackage.version || packagedBuild.bundledModel != false || packagedBuild.distribution != 'model-free' ||
                 packagedBuild.commit != calendarWebBuild.commit || fileTree('src/main/assets/public').matching { include '**/*.gguf' }.files) {
                 throw new GradleException('Rebuild the matching model-free frontend before assembling the candidate/test APK')
             }
-            if (calendarPart2Beta && (packagedBuild.dirty != false || packagedBuild.androidNative != true)) {
+            if ((calendarPart2Beta || calendarFinalStable) && (packagedBuild.dirty != false || packagedBuild.androidNative != true)) {
                 throw new GradleException('Part 2 candidate requires a clean Android-native frontend')
             }
-            logger.lifecycle(calendarPart2Beta ? 'Part 2 Beta manual candidate: existing diagnostics identity/signing; no bundled GGUF; no publication' : 'Isolated model-free debug tests; not an update candidate')
+            if (calendarFinalStable && packagedBuild.releaseChannel != 'stable') throw new GradleException('Stable requires stable model-free metadata')
+            logger.lifecycle(calendarFinalStable ? 'Stable 1.5.0: original update signature and identity; existing user data retained' : calendarPart2Beta ? 'Part 2 Beta manual candidate: existing diagnostics identity/signing; no bundled GGUF; no publication' : 'Isolated model-free debug tests; not an update candidate')
             return
         }
         if (calendarStableUpdate) {

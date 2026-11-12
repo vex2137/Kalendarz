@@ -1,3 +1,7 @@
+import { type SyncPayload } from './utils/sync';
+import { applySyncPayload } from './utils/syncImport';
+import { DesktopSidebar } from './components/DesktopSidebar';
+import { normalizedShortcuts, resolveShortcut } from './utils/shortcuts';
 import { useAnimatedClose } from './hooks/useAnimatedClose';
 import { CalendarNavigation } from './components/CalendarNavigation';
 import { animationPreferences } from './utils/animations';
@@ -173,6 +177,7 @@ export default function App() {
   const [modal, setModal] = useState<
     'event' | 'settings' | 'ai' | 'sync' | 'search' | 'download' | null
   >(null);
+  const [settingsSection, setSettingsSection] = useState<string>();
   const [assistantMounted, setAssistantMounted] = useState(false);
   useEffect(() => { if (modal === 'ai') setAssistantMounted(true); }, [modal]);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
@@ -291,16 +296,6 @@ export default function App() {
       document.removeEventListener('visibilitychange', visible);
     };
   }, [settings.security.pinEnabled, settings.security.autoLockMinutes, lock]);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (!isPinLocked && (e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        setModal('search');
-      }
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [isPinLocked]);
   const lastCheck = useRef(Date.now() - 60000);
   useEffect(() => {
     if (!ready) return;
@@ -427,6 +422,27 @@ export default function App() {
     signalCalendarChange();
     await refresh();
   }, [assistantUndo, refresh]);
+  const importSync = useCallback(async (payload:SyncPayload)=>{
+    const next=await applySyncPayload(payload,settings,saveStoredSettings,value=>commit(value.events,value.deletions),loadStoredSettings);
+    if(next!==settings)setSettings(next);
+  },[settings,commit]);
+  useEffect(() => {
+    const key=(event:KeyboardEvent)=>{
+      if(isPinLocked||!ready)return;
+      const context=modal==='ai'&&!document.getElementById('ai-settings-panel')?(document.getElementById('ai-history-overlay')?'assistant-history':'assistant'):modal==='settings'?'settings':!modal?'calendar':undefined;
+      const action=resolveShortcut(event,normalizedShortcuts(settings.keyboardShortcuts),context);if(!action)return;
+      if(action==='assistant'&&!settings.ai.enabled)return;
+      event.preventDefault();
+      if(['year','month','week','day','agenda'].includes(action))changeView(action as CalendarViewMode);
+      else if(action==='settings'){if(context==='assistant'||context==='assistant-history')window.dispatchEvent(new Event('calendar-open-ai-settings'));else{setSettingsSection(undefined);setModal('settings');}}
+      else if(action==='assistant')setModal('ai');
+      else if(action==='search'){if(context==='settings')document.getElementById('settings-search')?.focus();else if(context==='assistant-history')document.querySelector<HTMLInputElement>('#ai-history-overlay input[type=search]')?.focus();else setModal('search');}
+      else if(action==='today')today();
+      else if(action==='create')create();
+      else {setSettingsSection(action==='updates'?'updates':'data');setModal('settings');}
+    };
+    window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
+  },[isPinLocked,ready,modal,settings,changeView,today,create]);
   if (isPinLocked && settings.security.pinEnabled && settings.security.authenticationMethod === 'password')
     return <PasswordLockScreen security={settings.security} animations={animations} onUnlock={() => setIsPinLocked(false)} language={language} />;
   if (isPinLocked && settings.security.pinEnabled)
@@ -458,6 +474,8 @@ export default function App() {
       ) : (
         <>
           <TopNavBar
+            sidebarEnabled={settings.desktop?.sidebar??false}
+            onToggleSidebar={()=>updateSettings({...settings,desktop:{sidebar:!settings.desktop?.sidebar,width:settings.desktop?.width??256}})}
             startOfWeek={settings.startOfWeek}
             currentDate={currentDate}
             viewMode={viewMode}
@@ -467,20 +485,23 @@ export default function App() {
             onNavigateToday={today}
             onOpenCreateModal={() => create()}
             onOpenAiDrawer={() => setModal('ai')}
-            onOpenSettings={() => setModal('settings')}
+            onOpenSettings={() => {setSettingsSection(undefined);setModal('settings');}}
             onOpenSync={() => setModal('sync')}
             onOpenSearch={() => setModal('search')}
             onOpenDownload={() => setModal('download')}
             isAiEnabled={settings.ai.enabled}
             language={language}
           />
+
           <NotificationBanner
             language={language}
             activeNotification={activeNotification}
             onDismiss={() => setActiveNotification(null)}
             onOpenEvent={select}
           />
-          <CalendarNavigation enabled={ready && !isPinLocked && !modal} animations={animations} allowHorizontalScroll={viewMode === 'week'} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
+          <div className="flex flex-1 min-h-0 min-w-0">
+          {settings.desktop?.sidebar&&<DesktopSidebar settings={settings} onUpdateSettings={updateSettings} date={currentDate} events={events} language={language} onDate={selectDay} onEvent={select}/>}
+          <CalendarNavigation shortcuts={settings.keyboardShortcuts} enabled={ready && !isPinLocked && !modal} animations={animations} allowHorizontalScroll={viewMode === 'week'} dateKey={`${localDate(currentDate)}:${viewMode}`} onNavigate={navigate}>
           <CalendarPanel
             {...{
               currentDate,
@@ -498,6 +519,7 @@ export default function App() {
             }}
           />
           </CalendarNavigation>
+          </div>
           <BottomNavMobile
             viewMode={viewMode}
             onViewModeChange={changeView}
@@ -541,6 +563,9 @@ export default function App() {
             {modal === 'settings' && (
               <SettingsModal
                 isOpen
+                initialCategory={settingsSection}
+                onOpenSync={()=>setModal('sync')}
+                onOpenAi={()=>setModal('ai')}
                 onClose={close}
                 settings={settings}
                 onUpdateSettings={updateSettings}
@@ -576,6 +601,7 @@ export default function App() {
                 onClose={close}
                 events={events}
                 deletions={deletions}
+                onSyncPayload={importSync}
                 onSyncMergeEvents={commit}
                 currentTheme={settings.theme}
                 currentCustomTheme={settings.customThemes?.find(theme => theme.id === settings.theme)}

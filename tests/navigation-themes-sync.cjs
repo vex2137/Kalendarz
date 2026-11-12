@@ -32,13 +32,13 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
       await page.locator(`#btn-view-${view}`).click(); await page.locator('#btn-nav-today').click();
       await page.keyboard.press('ArrowRight');
       await page.waitForFunction(value => document.querySelector('[data-testid="calendar-navigation"]').dataset.dateKey.startsWith(value), expected[view]);
-      await page.keyboard.press('a'); assert.equal((await dateKey(page)).split(':')[0], '2026-10-21');
-      await page.keyboard.press('d'); assert.ok((await dateKey(page)).startsWith(expected[view]));
+      await page.keyboard.press('ArrowLeft'); assert.equal((await dateKey(page)).split(':')[0], '2026-10-21');
+      await page.keyboard.press('ArrowRight'); assert.ok((await dateKey(page)).startsWith(expected[view]));
       await page.keyboard.press('ArrowLeft');
       const before = await dateKey(page);
       await page.keyboard.press('Control+ArrowRight'); assert.equal(await dateKey(page), before);
     }
-    await page.locator('#btn-open-settings').click();
+    await page.locator('#btn-open-settings').click();await require('./settings-navigation.cjs')(page,'appearance');
     await page.getByRole('button', { name: 'Create theme', exact: true }).click();
     const name = page.getByLabel('Theme name', { exact: true });
     const before = await dateKey(page);
@@ -56,7 +56,7 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
       assert.equal(await page.locator('.theme-bg').first().evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(17, 34, 51)');
       assert.equal(await page.locator('#btn-create-event-top').evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(119, 34, 85)');
     }
-    await page.locator('#btn-open-settings').click();
+    await page.locator('#btn-open-settings').click();await require('./settings-navigation.cjs')(page,'appearance');
     await page.getByRole('button', { name: 'Edit theme: Personal theme', exact: true }).click();
     await page.getByLabel('Background', { exact: true }).fill('#223344');
     await page.getByRole('button', { name: 'Save theme', exact: true }).click();
@@ -147,11 +147,13 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
       if (i + 1 < qrImages.length) await receiver.page.getByRole('status').filter({ hasText: `${i+1}/${qrImages.length}` }).waitFor({ timeout: 5000 }).catch(async error => { console.error('QR image status:', await receiver.page.getByRole('status').allTextContents()); throw error; });
     }
     await receiver.page.getByLabel('Hasło nadawcy', { exact: true }).fill('wrong password');
-    await receiver.page.getByRole('button', { name: 'Odszyfruj i scal', exact: true }).click();
+    await receiver.page.getByRole('button', { name: 'Odszyfruj do podglądu', exact: true }).click();
     await receiver.page.getByText('Nieprawidłowe hasło lub uszkodzone zaszyfrowane dane.', { exact: true }).waitFor();
     assert.equal(await receiver.page.evaluate(async () => { const request = indexedDB.open('offline-calendar'); const db = await new Promise(resolve => request.onsuccess = () => resolve(request.result)); return new Promise(resolve => { const query = db.transaction('records').objectStore('records').getAll(); query.onsuccess = () => { db.close(); resolve(query.result.filter(record => record.event?.id.startsWith('private-')).length); }; }); }), 0);
     await receiver.page.getByLabel('Hasło nadawcy', { exact: true }).fill(secret);
-    await receiver.page.getByRole('button', { name: 'Odszyfruj i scal', exact: true }).click();
+    await receiver.page.getByRole('button', { name: 'Odszyfruj do podglądu', exact: true }).click();
+    await receiver.page.getByTestId('sync-preview').waitFor();
+    await receiver.page.getByRole('button',{name:'Potwierdź import',exact:true}).click();
     await receiver.page.getByText('Zapisano i scalono dane.', { exact: true }).waitFor();
     assert.ok(!(await receiver.page.evaluate(() => JSON.stringify({ ...localStorage }))).includes(secret));
     await receiver.ctx.setOffline(false); await receiver.page.keyboard.press('Escape'); await receiver.page.reload();
@@ -180,11 +182,11 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
     await plainReceiver.page.locator('textarea').last().fill(plainCode);
     await plainReceiver.page.getByRole('button',{name:'Scal dane',exact:true}).click();
     await plainReceiver.page.getByTestId('incoming-sync').waitFor();
-    await plainReceiver.page.getByRole('button',{name:'Scal nieszyfrowane dane',exact:true}).click();
+    await plainReceiver.page.getByRole('button',{name:'Potwierdź import',exact:true}).click();
     await plainReceiver.page.getByText('Zapisano i scalono dane.',{exact:true}).waitFor();assert.equal((await incomingEvents()).filter(e=>e.id.startsWith('private-')).length,80);
     // Exercise the real JSON download and browser file input, with confirmation.
     await sender.page.getByRole('button',{name:'File',exact:true}).click();
-    const downloadPromise=sender.page.waitForEvent('download');await sender.page.getByRole('button',{name:'Export full package',exact:true}).click();const download=await downloadPromise;
+    const downloadPromise=sender.page.waitForEvent('download');await sender.page.getByRole('button',{name:'Export package',exact:true}).click();const download=await downloadPromise;
     const chunks=[];for await(const chunk of await download.createReadStream())chunks.push(chunk);const exported=Buffer.concat(chunks);const exportedPayload=JSON.parse(exported);
     assert.equal(exportedPayload.events.length,80);
     await plainReceiver.page.getByRole('button',{name:'Plik',exact:true}).click();
@@ -194,7 +196,7 @@ const event = (i = 0) => ({ id: `private-${i}`, title: i ? `Private ${i} ${crypt
     await fileInput.setInputFiles({name:'export.json',mimeType:'application/json',buffer:exported});await plainReceiver.page.getByTestId('incoming-sync').waitFor();
     const beforeFile=await incomingEvents();await plainReceiver.page.getByRole('button',{name:'Anuluj',exact:true}).click();assert.deepEqual(await incomingEvents(),beforeFile);
     await fileInput.setInputFiles({name:'export-again.json',mimeType:'application/json',buffer:exported});await plainReceiver.page.getByTestId('incoming-sync').waitFor();
-    await plainReceiver.page.getByRole('button',{name:'Scal nieszyfrowane dane',exact:true}).click();await plainReceiver.page.getByText('Zapisano i scalono dane.',{exact:true}).waitFor();
+    await plainReceiver.page.getByRole('button',{name:'Potwierdź import',exact:true}).click();await plainReceiver.page.getByText('Zapisano i scalono dane.',{exact:true}).waitFor();
     const restored=(await incomingEvents()).filter(e=>e.id.startsWith('private-')).sort((a,b)=>a.id.localeCompare(b.id));
     assert.deepEqual(restored,exportedPayload.events.sort((a,b)=>a.id.localeCompare(b.id)));
     await sender.page.getByRole('button',{name:'Text code',exact:true}).click();

@@ -1,0 +1,151 @@
+# Linux only. No APK, no published Release, no model weights in package.
+name: Private Linux default model actions and real AppImage inference
+'on':
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact current application SHA; Linux-only diagnostic
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: private-linux-model-actions
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+    working-directory: source
+env:
+  TZ: Europe/Warsaw
+  CALENDAR_EXPECTED_COMMIT: ${{ inputs.source_commit }}
+  CALENDAR_APPLICATION_BRANCH: feat/1.5.0-part4
+  CALENDAR_PART4_BETA: 'true'
+  CALENDAR_MODEL_FREE: 'true'
+  CALENDAR_ANDROID_NATIVE: 'false'
+  CALENDAR_BETA_APK: 'false'
+  CALENDAR_PART4_BETA_NUMBER: '3'
+jobs:
+  linux:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Install package smoke-test dependencies
+      run: 'npx --no-install playwright install --with-deps chromium
+
+        sudo apt-get update -qq
+
+        sudo apt-get install -y desktop-file-utils x11-utils
+
+        '
+    - name: Targeted model actions regressions
+      run: 'npm run lint
+
+        node --import tsx --test tests/model-free-bundling.test.ts tests/model-presentation-state.test.ts tests/default-qwen-catalogue.test.ts
+
+        node --test tests/default-model-store.test.cjs
+
+        BROWSER_EXECUTABLE="$(node -p ''require("playwright").chromium.executablePath()'')" node tests/default-model-recovery-browser.cjs'
+    - name: Build model-free AppImage with the unchanged pinned CPU/CUDA/Vulkan runtimes
+      run: 'test ! -e native/linux-x64/runtime-manifest.json
+
+        node scripts/prepare-model-free.cjs
+
+        node node_modules/vite/bin/vite.js build --mode production
+
+        npx --no-install electron-builder --linux AppImage --x64 --publish never --config.publish.provider=github --config.publish.owner=vex2137
+        --config.publish.repo=Kalendarz --config.linux.artifactName=Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64.AppImage'
+    - name: Verify actual AppImage source, complete native libraries and no GGUF/Android binaries
+      run: 'python3 scripts/check-part4-beta3-appimage.py
+
+        python3 scripts/check-built-native-runtime.py
+
+        xvfb-run -a node tests/linux-desktop-icons.cjs
+
+        CALENDAR_TEST_LLAMA_SERVER="$PWD/build/checked-appimage/squashfs-root/resources/native/cpu/llama-server" node --test
+        tests/native-architectures.test.cjs
+
+        CALENDAR_APPIMAGE_EXECUTABLE="$PWD/release/Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64.AppImage" APPIMAGE_EXTRACT_AND_RUN=1
+        xvfb-run -a node tests/appimage-startup-smoke.cjs'
+    - name: Verify public model download once; approved private original only if network unavailable
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: "mkdir -p \"$RUNNER_TEMP/stable-model-test\" part4-artifacts/linux\npython3 - <<'PYMODEL'\nfrom pathlib import\
+        \ Path\nimport hashlib,os,json,subprocess\np=Path(os.environ['RUNNER_TEMP'])/'stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf'\n\
+        url=json.loads(Path('src/utils/defaultModelSource.json').read_text())['url']\nresult=subprocess.run(['curl','--location','--fail','--retry','0','--connect-timeout','15','--max-time','180','--output',str(p),url],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n\
+        source='public-huggingface'\nif result.returncode:\n source='private-original-fallback'\n with p.open('wb') as out:subprocess.run(['gh','api','repos/vex2137/Kalendarz-private-builds/releases/assets/679120004','-H','Accept:\
+        \ application/octet-stream'],stdout=out,check=True)\nassert p.stat().st_size==529297056\nwith p.open('rb') as f:assert\
+        \ hashlib.file_digest(f,'sha256').hexdigest()=='fecd8b646db036ca27801f8a4c2d84c5f8baf981ba9a635ea0d2553b652eb1b5'\n\
+        Path('part4-artifacts/linux/model-source.json').write_text(json.dumps(dict(source=source,publicModelSourceVerified=source=='public-huggingface',bytes=p.stat().st_size,sha256='fecd8b646db036ca27801f8a4c2d84c5f8baf981ba9a635ea0d2553b652eb1b5'))+'\\\
+        n')\nwith open(os.environ['GITHUB_ENV'],'a') as env:env.write('CALENDAR_TEST_LIVE_MODEL_SOURCE='+('true' if source=='public-huggingface'\
+        \ else 'false')+'\\n')\nprint('Pinned full GGUF verified, source:',source,'; never included in package')\nPYMODEL"
+    - name: Actual packaged download, retained OPFS primary action, import and CPU tokens across restart
+      run: 'ELECTRON_EXECUTABLE="$PWD/build/checked-appimage/squashfs-root/calendar" CALENDAR_EXTERNAL_MODEL="$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf"
+        CALENDAR_TEST_RETAINED_DEFAULT=true CALENDAR_DEFAULT_MODEL_REPORT_DIR=part4-artifacts/linux xvfb-run -a node tests/default-model-electron.cjs
+
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - name: Private existing draft delivery, with complete re-download verification
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: "python3 - <<'PYDEPOT'\nimport os,json,hashlib,subprocess,shutil\nfrom pathlib import Path\nrepo=os.environ['GITHUB_REPOSITORY'];source=os.environ['CALENDAR_EXPECTED_COMMIT']\n\
+        assert repo=='vex2137/Kalendarz-private-builds'\ndef api(path):return json.loads(subprocess.check_output(['gh','api',path]))\n\
+        r=api('repos/'+repo);assert r['private'] and r['visibility']=='private'\nrelease=api('repos/'+repo+'/releases/424632810');assert\
+        \ release['draft'] is True and release['tag_name']=='model-v142-v2'\nroot=Path('part4-artifacts/linux');original=root/'Kalendarz-1.5.0-Part-4-Beta-3-Linux-x86_64.AppImage'\n\
+        report=json.loads(original.with_name(original.name+'.json').read_text());model=json.loads((root/'default-model.json').read_text());transport=json.loads((root/'model-source.json').read_text())\n\
+        assert report['source']==source and report['nativeFilesVerified']>=100\nassert model['status']=='PASS' and model['retainedRecovery']\
+        \ is True and model['restart']['completionTokens']>0\nassert model['downloadInference']['completionTokens']>0 and\
+        \ model['importInference']['completionTokens']>0\nassert model['sha256']=='fecd8b646db036ca27801f8a4c2d84c5f8baf981ba9a635ea0d2553b652eb1b5'\
+        \ and model['bytes']==529297056\nchecksum=hashlib.file_digest(original.open('rb'),'sha256').hexdigest();assert report['sha256']==checksum\n\
+        folder=root/'private-depot';folder.mkdir();package=folder/('Kalendarz-1.5.0-Part-4-Beta-3-Linux-Model-Actions-Diagnostic-x86_64-'+source[:12]+'.AppImage');shutil.copyfile(original,package)\n\
+        report.update(file=package.name,modelAcceptance=model,modelSource=transport,delivery='existing-private-draft-depot',workflowCommit=os.environ['GITHUB_SHA'],workflowRun=os.environ['GITHUB_RUN_ID'])\n\
+        meta=package.with_name(package.name+'.json');meta.write_text(json.dumps(report,indent=2)+'\\n');sha=package.with_name(package.name+'.sha256');sha.write_text(checksum+'\
+        \  '+package.name+'\\n')\nfiles=[package,sha,meta];names={f.name for f in files}\nassert not names.intersection(a['name']\
+        \ for a in release['assets']),'Never overwrite existing assets'\nsubprocess.run(['gh','release','upload','model-v142-v2',*[str(f)\
+        \ for f in files],'--repo',repo],check=True)\nrelease=api('repos/'+repo+'/releases/424632810');assert release['draft']\
+        \ is True\nassets=[a for a in release['assets'] if a['name'] in names];assert len(assets)==3\nfor asset in assets:\n\
+        \    local=folder/asset['name'];expected=hashlib.file_digest(local.open('rb'),'sha256').hexdigest();target=Path(os.environ['RUNNER_TEMP'])/('redownload-'+asset['name'])\n\
+        \    with target.open('wb') as out:subprocess.run(['gh','api','repos/'+repo+'/releases/assets/'+str(asset['id']),'-H','Accept:\
+        \ application/octet-stream'],stdout=out,check=True)\n    assert target.stat().st_size==local.stat().st_size and hashlib.file_digest(target.open('rb'),'sha256').hexdigest()==expected\n\
+        \    target.unlink()\nprint(json.dumps(dict(private=True,draft=True,published=False,source=source,bytes=package.stat().st_size,sha256=checksum,modelAcceptance=model,modelSource=transport,assets=[dict(id=a['id'],name=a['name'],url=a['browser_download_url'])\
+        \ for a in assets])))\nPYDEPOT\n"
+    - name: Remove acceptance-only model from ephemeral runner
+      if: always()
+      run: rm -f "$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf"
+    - name: Preserve bounded failure diagnostics in logs
+      if: failure()
+      run: test ! -f part4-artifacts/linux/default-model.json || cat part4-artifacts/linux/default-model.json
+    env:
+      CALENDAR_ANDROID_NATIVE: 'false'
+      CALENDAR_INCLUDE_CUDA: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'

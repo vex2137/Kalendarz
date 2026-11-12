@@ -1,8 +1,9 @@
+import { p3 } from '../utils/part3Text';
 import { tr } from '../utils/i18n';
 import React from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, Sparkles, Settings,
-  ArrowLeftRight, Search, Download,
+  ArrowLeftRight, Search, Download, PanelLeft,
 } from 'lucide-react';
 import type { CalendarViewMode } from '../types';
 import { MONTH_NAMES, getTranslation, type AppLanguage } from '../utils/i18n';
@@ -18,6 +19,8 @@ interface Props {
   onOpenCreateModal: () => void;
   onOpenAiDrawer: () => void;
   onOpenSettings: () => void;
+  onToggleSidebar?: () => void;
+  sidebarEnabled?: boolean;
   onOpenSync: () => void;
   onOpenSearch: () => void;
   onOpenDownload?: () => void;
@@ -82,6 +85,7 @@ export function TopNavBar(p: Props) {
               <Icon size={20} className="shrink-0" /><span className="calendar-tool-label">{shortLabel}</span>
             </button>
           ))}
+          {p.onToggleSidebar&&<button id="btn-toggle-sidebar" type="button" aria-label={p3(language,'Desktop sidebar')} title={p3(language,'Desktop sidebar')} aria-pressed={p.sidebarEnabled??false} onClick={p.onToggleSidebar} className="sidebar-toggle h-10 w-10 shrink-0 items-center justify-center rounded-xl theme-border border theme-hover"><PanelLeft size={18}/></button>}
           <button id="btn-create-event-top" onClick={p.onOpenCreateModal}
             className="calendar-button calendar-primary hidden sm:flex items-center gap-1 theme-primary">
             <Plus size={18} />{t.create}

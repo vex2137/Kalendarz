@@ -30,8 +30,8 @@ final class NativeInferenceEngine {
     private final AtomicLong epoch=new AtomicLong();
     private volatile Process process, probeProcess;
     private volatile HttpURLConnection connection;
-    private String mode="auto", loadedId, key, endpoint, log="", fallback, lastError;
-    private boolean gpu, confirmed;
+    private volatile String mode="auto", loadedId, key, endpoint, log="", fallback, lastError;
+    private volatile boolean gpu, confirmed;
     private volatile int layers;
     private int gpuLayerLimit=999;
     private boolean automaticLayers=true;
@@ -42,8 +42,12 @@ final class NativeInferenceEngine {
     private double loadMs;
     private Double speed;
     private final Map<String,Integer> contexts=new HashMap<>();
-    private Integer contextRequested,contextApplied,contextUsed;
-    private volatile boolean completing;
+    private volatile Integer contextRequested,contextApplied,contextUsed;
+    private volatile boolean completing, stopping;
+    private volatile String shutdownError;
+    private volatile JSObject inferenceEvidence;
+    private final ScheduledExecutorService terminator=Executors.newSingleThreadScheduledExecutor(r->{Thread t=new Thread(r,"calendar-native-terminate");t.setDaemon(true);return t;});
+    private final ExecutorService disconnects=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"calendar-native-disconnect");t.setDaemon(true);return t;});
     private final java.util.concurrent.atomic.AtomicBoolean completionRequest=new java.util.concurrent.atomic.AtomicBoolean();
     private volatile String generationId,generationText="",generationState="cancelled",generationModel;
     private volatile boolean generationStructured;
@@ -90,7 +94,8 @@ final class NativeInferenceEngine {
     private File vulkanBinary(){return runtimeManifest().has("vulkan")?new File(getContext().getApplicationInfo().nativeLibraryDir,"libcalendar_llama_vulkan.so"):binary();}
     private File binary(){return new File(getContext().getApplicationInfo().nativeLibraryDir,"libcalendar_llama.so");}
     private JSObject snapshot(){
-        JSObject s=new JSObject();s.put("system","Android "+android.os.Build.VERSION.RELEASE);s.put("cpuArchitecture",android.os.Build.SUPPORTED_ABIS.length>0?android.os.Build.SUPPORTED_ABIS[0]:"unknown");s.put("gpuLayers",gpuLayerLimit);s.put("packagedBackends",new JSArray(binary().isFile()?(hasVulkan()?Arrays.asList("cpu-native","vulkan"):Arrays.asList("cpu-native")):Collections.emptyList()));s.put("availableBackends",new JSArray(vulkanDetected?Arrays.asList("vulkan"):Collections.emptyList()));s.put("mode",mode);s.put("backend",gpu?"vulkan":"cpu-native");s.put("available",binary().isFile()&&binary().canExecute()&&android.os.Build.VERSION.SDK_INT>=28);s.put("loaded",process!=null&&process.isAlive()&&loadedId!=null);s.put("gpuActive",confirmed&&process!=null&&process.isAlive()&&loadedId!=null);s.put("offloadedLayers",layers);s.put("threads",Math.min(4,Runtime.getRuntime().availableProcessors()));s.put("loadMs",loadMs);
+        JSObject s=new JSObject();s.put("system","Android "+android.os.Build.VERSION.RELEASE);s.put("cpuArchitecture",android.os.Build.SUPPORTED_ABIS.length>0?android.os.Build.SUPPORTED_ABIS[0]:"unknown");s.put("gpuLayers",gpuLayerLimit);s.put("packagedBackends",new JSArray(binary().isFile()?(hasVulkan()?Arrays.asList("cpu-native","vulkan"):Arrays.asList("cpu-native")):Collections.emptyList()));s.put("availableBackends",new JSArray(vulkanDetected?Arrays.asList("vulkan"):Collections.emptyList()));s.put("mode",mode);s.put("backend",gpu?"vulkan":"cpu-native");s.put("available",binary().isFile()&&binary().canExecute()&&android.os.Build.VERSION.SDK_INT>=28);s.put("loaded",!stopping&&process!=null&&process.isAlive()&&loadedId!=null);s.put("gpuActive",!stopping&&confirmed&&process!=null&&process.isAlive()&&loadedId!=null);s.put("offloadedLayers",layers);s.put("threads",Math.min(4,Runtime.getRuntime().availableProcessors()));s.put("loadMs",loadMs);
+        s.put("processAlive",process!=null&&process.isAlive());s.put("stopping",stopping);if(shutdownError!=null)s.put("shutdownError",shutdownError);if(inferenceEvidence!=null)s.put("inference",inferenceEvidence);
         s.put("automaticLayers",automaticLayers);s.put("contextLimit",NativeContextConfig.MAX_CONTEXT);
         android.app.ActivityManager manager=(android.app.ActivityManager)getContext().getSystemService(android.content.Context.ACTIVITY_SERVICE);
         if(manager!=null){android.app.ActivityManager.MemoryInfo memory=new android.app.ActivityManager.MemoryInfo();manager.getMemoryInfo(memory);s.put("availableMemoryBytes",memory.availMem);}
@@ -121,11 +126,40 @@ final class NativeInferenceEngine {
     public void finish(PluginCall call){submit(call,()->{Upload u=upload(call);u.stream.getFD().sync();u.stream.close();verify(u.part,u.model,epoch.get());Files.move(u.part.toPath(),file(u.model).toPath(),StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);verified.add(cacheKey(file(u.model),u.model));upload=null;JSObject out=new JSObject();out.put("installed",true);return out;});}
     public void abortUpload(PluginCall call){submit(call,()->{if(upload!=null&&upload.token.equals(call.getString("token"))){upload.stream.close();upload.part.delete();upload=null;}return new JSObject();});}
     public void remove(PluginCall call){submit(call,()->{JSONObject m=descriptor(call);if(m.optBoolean("external"))throw new Exception("model-input");if(m.getString("id").equals(loadedId))stopProcess();Files.deleteIfExists(file(m).toPath());verified.clear();return new JSObject();});}
-    private void interruptGeneration(){if(completing&&getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false)){epoch.incrementAndGet();HttpURLConnection c=connection;if(c!=null)c.disconnect();}else interrupt();}
+    private void disconnectRequest(){HttpURLConnection c=connection;if(c!=null)disconnects.execute(c::disconnect);}
+    private void interruptGeneration(){if(completing&&getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false)){epoch.incrementAndGet();disconnectRequest();}else interrupt();}
     public void cancelGeneration(PluginCall call){interruptGeneration();call.resolve();}
-    private void interrupt(){epoch.incrementAndGet();HttpURLConnection c=connection;if(c!=null)c.disconnect();Process p=process;if(p!=null)p.destroy();p=probeProcess;if(p!=null)p.destroy();}
-    private void kill(Process p)throws Exception{if(p==null)return;p.destroy();if(!p.waitFor(1500,TimeUnit.MILLISECONDS)){p.destroyForcibly();if(!p.waitFor(3500,TimeUnit.MILLISECONDS))throw new Exception("model-stop-timeout");}}
-    private void stopProcess()throws Exception{Process p=process;captureGpuStartup=false;loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;contextApplied=null;contextUsed=null;contextRequested=null;kill(p);if(process==p)process=null;if(externalModelFd!=null){externalModelFd.close();externalModelFd=null;}}
+    static void signalOwnedChild(Process p,boolean force)throws Exception{
+        if(p==null||!p.isAlive())return;
+        int pid=NativeProcessLifecycle.pid(p);
+        // Restrict signalling to a still-owned direct child, including on a PID
+        // reuse race. Never signal the Activity or arbitrary same-UID processes.
+        String parent="PPid:\t"+android.os.Process.myPid();
+        boolean owned=false;
+        try{for(String line:Files.readAllLines(Paths.get("/proc/"+pid+"/status")))if(line.equals(parent)){owned=true;break;}}
+        catch(java.nio.file.NoSuchFileException exited){if(p.waitFor(50,TimeUnit.MILLISECONDS))return;throw exited;}
+        if(!owned){if(!p.isAlive())return;throw new IOException("model-stop-ownership");}
+        try{android.system.Os.kill(pid,force?android.system.OsConstants.SIGKILL:android.system.OsConstants.SIGTERM);}
+        catch(android.system.ErrnoException error){if(error.errno!=android.system.OsConstants.ESRCH)throw error;}
+    }
+    private void interruptChild(Process p){
+        if(p==null)return;
+        try{signalOwnedChild(p,false);}catch(Exception error){shutdownError="model-stop-signal";}
+        // Escalate independently of the single inference worker: it may still be
+        // blocked reading HTTP. Capturing p prevents killing a replacement child.
+        terminator.schedule(()->{try{signalOwnedChild(p,true);}catch(Exception error){shutdownError="model-stop-signal";}},1500,TimeUnit.MILLISECONDS);
+    }
+    private void interrupt(){epoch.incrementAndGet();if(process!=null)stopping=true;interruptChild(process);interruptChild(probeProcess);disconnectRequest();}
+    private void kill(Process p)throws Exception{NativeProcessLifecycle.stop(p,NativeInferenceEngine::signalOwnedChild,1500,3500);}
+    private void stopProcess()throws Exception{
+        Process p=process;captureGpuStartup=false;stopping=p!=null;
+        try{kill(p);}catch(Exception error){shutdownError=error.getMessage()!=null&&error.getMessage().startsWith("model-")?error.getMessage():"model-stop-signal";throw error;}
+        if(process==p)process=null;
+        loadedId=null;confirmed=false;layers=0;gpu=false;speed=null;contextApplied=null;contextUsed=null;contextRequested=null;stopping=false;shutdownError=null;
+        if("model-stop-timeout".equals(lastError))lastError=null;
+        if(externalModelFd!=null){externalModelFd.close();externalModelFd=null;}
+    }
+    private void cleanupFailure(Exception original){try{stopProcess();}catch(Exception cleanup){original.addSuppressed(cleanup);}}
     public void stop(PluginCall call){interrupt();submit(call,()->{stopProcess();return new JSObject();});}
     public void setMode(PluginCall call){String next=call.getString("mode","");Integer limit=call.getInt("gpuLayers",999);if(!Arrays.asList("auto","gpu","cpu").contains(next)||limit==null||limit<1||limit>999){call.reject("model-input");return;}interrupt();submit(call,()->{stopProcess();gpuFailures.clear();mode=next;gpuLayerLimit=limit;automaticLayers=Boolean.TRUE.equals(call.getBoolean("automaticLayers",true));fallback=null;lastError=null;return snapshot();});}
     private Process spawn(List<String> args,boolean useGpu)throws Exception{
@@ -170,10 +204,10 @@ final class NativeInferenceEngine {
         long started=System.nanoTime();
         List<String> args=Arrays.asList("--host","127.0.0.1","--port",Integer.toString(port),"--api-key",key,"--model",f.getAbsolutePath(),"--ctx-size",Integer.toString(contexts.containsKey(m.getString("id"))?contexts.get(m.getString("id")):m.getInt("maxContext")),"--parallel","1","--threads",Integer.toString(Math.min(4,Runtime.getRuntime().availableProcessors())),"--batch-size","128","--ubatch-size","64","--no-webui","--log-verbosity","4","--n-gpu-layers",device==null?"0":Integer.toString(gpuLayerLimit),"--device",device==null?"none":device,"--jinja");
         if(device!=null&&gpuDiagnostics!=null){gpuDiagnostics.launch(args);gpuDiagnostics.stage("process-start");}
-        Process p=spawn(args,device!=null);process=p;captureGpuStartup=device!=null&&gpuDiagnostics!=null;
+        Process p=spawn(args,device!=null);process=p;stopping=false;captureGpuStartup=device!=null&&gpuDiagnostics!=null;
         NativeGpuDiagnostics startupTrace=device==null?null:gpuDiagnostics;
         if(device!=null&&gpuDiagnostics!=null)gpuDiagnostics.stage("native-startup");
-        Thread reader=new Thread(()->{try(BufferedReader r=new BufferedReader(new InputStreamReader(p.getInputStream()))){String line;while((line=r.readLine())!=null){synchronized(this){if(process!=p)continue;log=(log+line+'\n');if(captureGpuStartup&&startupTrace!=null)startupTrace.line(line);if(log.length()>32000)log=log.substring(log.length()-32000);Matcher match=Pattern.compile("offloaded (\\d+)/\\d+ layers to GPU").matcher(line);if(match.find())layers=Integer.parseInt(match.group(1));}}}catch(IOException error){if(captureGpuStartup&&startupTrace!=null)startupTrace.line("error: native log read: "+error.getClass().getSimpleName()+": "+error.getMessage());}finally{if(startupTrace!=null)startupTrace.readerFinished();}});reader.setDaemon(true);reader.start();
+        Thread reader=new Thread(()->{try(BufferedReader r=new BufferedReader(new InputStreamReader(p.getInputStream()))){String line;while((line=r.readLine())!=null){synchronized(this){if(process!=p)continue;log=(log+line+'\n');if(captureGpuStartup&&startupTrace!=null)startupTrace.line(line);if(log.length()>32000)log=log.substring(log.length()-32000);Matcher match=Pattern.compile("offloaded (\\d+)/\\d+ layers to GPU").matcher(line);if(match.find())layers=Integer.parseInt(match.group(1));}}}catch(IOException error){if(process==p&&!stopping&&p.isAlive()&&epoch.get()==version&&captureGpuStartup&&startupTrace!=null)startupTrace.line("error: native log read: "+error.getClass().getSimpleName()+": "+error.getMessage());}finally{if(startupTrace!=null)startupTrace.readerFinished();}});reader.setDaemon(true);reader.start();
         try{long deadline=System.nanoTime()+120_000_000_000L;boolean ready=false;while(System.nanoTime()<deadline){check(version);if(!p.isAlive())throw new Exception("model-native-load");try{request("/health",null,1000);ready=true;break;}catch(Exception ignored){}check(version);Thread.sleep(100);}
             check(version);if(!ready)throw new Exception("model-timeout");
             if(startupTrace!=null){layers=startupTrace.awaitOffload(1000);check(version);if(!p.isAlive())throw new Exception("model-native-load");if(layers<1)throw new Exception("model-gpu-offload");}
@@ -183,7 +217,7 @@ final class NativeInferenceEngine {
             loadedId=m.getString("id");modelName=m.optString("name",loadedId);gpu=device!=null;confirmed=false;loadMs=(System.nanoTime()-started)/1e6;if(startupTrace!=null)startupTrace.loaded(layers);
         }catch(Exception e){
             if(startupTrace!=null){if(!p.isAlive())reader.join(1000);boolean alive=p.isAlive();startupTrace.fail(e,alive?null:p.exitValue(),alive);}
-            String detail;synchronized(this){detail=log.toLowerCase(Locale.ROOT);}stopProcess();
+            String detail;synchronized(this){detail=log.toLowerCase(Locale.ROOT);}cleanupFailure(e);
             if(device==null&&!e.getMessage().equals("model-cancelled")){
                 if(detail.contains("out of memory")||detail.contains("bad_alloc")||detail.contains("allocation failed"))throw new Exception("model-memory",e);
                 if(detail.contains("unknown model architecture")||detail.contains("failed to load model")||detail.contains("invalid gguf"))throw new Exception("model-gguf-unsupported",e);
@@ -191,7 +225,7 @@ final class NativeInferenceEngine {
             throw e;}
     }
     private void prepare(JSONObject m,long version)throws Exception{
-        if(process!=null&&process.isAlive()&&m.getString("id").equals(loadedId))return;
+        check(version);if(!stopping&&process!=null&&process.isAlive()&&m.getString("id").equals(loadedId))return;
         fallback=null;lastError=null;gpuName=null;
         String failureKey=m.getString("id")+":"+contexts.get(m.getString("id"))+":"+gpuLayerLimit;
         if(mode.equals("gpu")&&gpuFailures.contains(failureKey))throw new Exception("model-gpu-unavailable");
@@ -201,7 +235,7 @@ final class NativeInferenceEngine {
                 String devices=probe(version);Matcher match=Pattern.compile("(?m)^\\s*(Vulkan\\d+):\\s*(.+)$").matcher(devices);String device=null;
                 while(match.find()){if(!match.group(2).matches("(?i).*(llvmpipe|lavapipe|swiftshader|software|cpu).*")){device=match.group(1);gpuName=match.group(2);break;}}
                 vulkanDetected=device!=null;if(device==null){fallback="no-compatible-gpu";gpuDiagnostics.fail(new Exception("model-gpu-unavailable"),null);gpuFailures.add(failureKey);}else{gpuDiagnostics.selected(device);start(m,device,version);return;}
-            }catch(Exception e){check(version);gpuDiagnostics.fail(e,process==null||process.isAlive()?null:process.exitValue());fallback=gpuDiagnostics.fallbackReason();gpuFailures.add(failureKey);stopProcess();}
+            }catch(Exception e){check(version);gpuDiagnostics.fail(e,process==null||process.isAlive()?null:process.exitValue());fallback=gpuDiagnostics.fallbackReason();gpuFailures.add(failureKey);try{stopProcess();}catch(Exception cleanup){e.addSuppressed(cleanup);throw e;}}
             // Keep the narrowly filtered capture through the first inference;
             // successful device enumeration/loading is not proof of GPU execution.
             finally{captureGpuStartup=gpu&&process!=null&&process.isAlive();}
@@ -214,7 +248,7 @@ final class NativeInferenceEngine {
         if(completing){call.reject("model-busy");return;}
         final Integer requested;
         try{requested=call.getData().has("contextSize")&&!call.getData().isNull("contextSize")?NativeContextConfig.validate(call.getData().optDouble("contextSize",Double.NaN)):null;}catch(Exception error){call.reject("model-context-range");return;}
-        long version=epoch.get();submit(call,()->{try{JSONObject m=descriptor(call);if(requested!=null){if(!requested.equals(contexts.get(m.getString("id")))&&loadedId!=null)stopProcess();contexts.put(m.getString("id"),requested);}prepare(m,version);return snapshot();}catch(Exception e){stopProcess();throw e;}});}
+        long version=epoch.get();submit(call,()->{try{JSONObject m=descriptor(call);if(requested!=null){if(!requested.equals(contexts.get(m.getString("id")))&&loadedId!=null)stopProcess();contexts.put(m.getString("id"),requested);}prepare(m,version);return snapshot();}catch(Exception e){cleanupFailure(e);throw e;}});}
     static JSONObject validateRequest(JSONObject input)throws Exception{
         if(input==null||input.toString().length()>60000)throw new Exception("model-input");
         JSONArray messages=input.getJSONArray("messages");int max=NativeContextConfig.validateOutputTokens(input.getDouble("max_tokens")),length=0;if(messages.length()>7||max<1||max>4096)throw new Exception("model-input");
@@ -229,13 +263,16 @@ final class NativeInferenceEngine {
         completing=true;
         HttpURLConnection c=(HttpURLConnection)new URL(endpoint+"/v1/chat/completions").openConnection();connection=c;c.setConnectTimeout(1500);c.setReadTimeout(180000);c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Authorization","Bearer "+key);c.setRequestProperty("Content-Type","application/json");
         NativeCompletionText text=new NativeCompletionText();JSONObject usage=new JSONObject(),timings=new JSONObject();String finish=null;Double first=null;long started=System.nanoTime();
+        inferenceEvidence=new JSObject().put("status","running").put("stage","request").put("backend",gpu?"vulkan":"cpu-native");
         if(gpu&&captureGpuStartup&&gpuDiagnostics!=null)gpuDiagnostics.stage("inference");
-        try{try(OutputStream out=c.getOutputStream()){out.write(request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}if(c.getResponseCode()!=200)throw new Exception("model-native-response");
+        try{try(OutputStream out=c.getOutputStream()){out.write(request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}int http=c.getResponseCode();inferenceEvidence.put("httpStatus",http);if(http!=200)throw new Exception("model-native-response");inferenceEvidence.put("stage","stream");
             try(BufferedReader r=new BufferedReader(new InputStreamReader(c.getInputStream(),java.nio.charset.StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null){check(version);if(line.length()>512000)throw new Exception("model-response");if(!line.startsWith("data:")||line.equals("data: [DONE]"))continue;JSONObject chunk=new JSONObject(line.substring(5));JSONArray choices=chunk.optJSONArray("choices");if(choices!=null&&choices.length()>0){JSONObject choice=choices.getJSONObject(0),delta=choice.optJSONObject("delta");if(text.append(delta)){if(text.length()>24000)throw new Exception("model-response");if(first==null)first=(System.nanoTime()-started)/1e6;streamChunk(requestId,(String)delta.opt("content"),false);}if(!choice.isNull("finish_reason"))finish=choice.optString("finish_reason",null);}if(text.length()>24000)throw new Exception("model-response");if(!chunk.isNull("usage"))usage=chunk.getJSONObject("usage");if(!chunk.isNull("timings"))timings=chunk.getJSONObject("timings");}}
             if(text.length()==0||finish==null)throw new Exception("model-response");confirmed=gpu&&layers>0&&usage.optInt("completion_tokens",timings.optInt("predicted_n",0))>0;speed=timings.has("predicted_per_second")?timings.getDouble("predicted_per_second"):null;if(confirmed&&gpuDiagnostics!=null){gpuDiagnostics.confirmed();captureGpuStartup=false;}
+            inferenceEvidence.put("status","complete").put("stage","tokens-verified").put("completionTokens",usage.optInt("completion_tokens",timings.optInt("predicted_n",0))).put("textCharacters",text.length()).put("finishReason",finish);
             contextUsed=usage.has("prompt_tokens")&&usage.has("completion_tokens")?usage.getInt("prompt_tokens")+usage.getInt("completion_tokens"):null;
             JSObject out=new JSObject();out.put("text",text.toString());out.put("finish",finish);out.put("usage",usage);out.put("timings",timings);if(first!=null)out.put("firstTokenMs",first);out.put("backend",snapshot());return out;
-        }finally{completing=false;c.disconnect();if(connection==c)connection=null;}
+        }catch(Exception error){inferenceEvidence.put("status",epoch.get()!=version?"cancelled":"failed").put("exceptionType",error.getClass().getSimpleName()).put("code",epoch.get()!=version?"model-cancelled":error.getMessage()!=null&&error.getMessage().matches("model-[a-z0-9-]+")?error.getMessage():"model-native-response");throw error;}
+        finally{completing=false;c.disconnect();if(connection==c)connection=null;}
     }
     private synchronized void protectGeneration(boolean background){
         if(background&&completionRequest.get()&&!serviceRequested)try{CalendarInferenceService.begin(getContext(),this::interruptGeneration);serviceRequested=true;backgroundProtection="requested";}catch(RuntimeException error){backgroundProtection="unavailable";}
@@ -253,9 +290,9 @@ final class NativeInferenceEngine {
         protectGeneration(background);
         long version=epoch.get();submit(call,()->{boolean started=false;try{
         JSONObject m=descriptor(call),request=validateRequest(call.getObject("request"));String requestId=call.getString("requestId");if(requestId!=null&&!requestId.matches("[a-fA-F0-9-]{36}"))throw new Exception("model-input");generationId=requestId;generationText="";generationState="running";generationModel=m.getString("id");generationStructured=request.has("response_format");started=true;generationCheckpoint=0;saveGeneration();
-        try{prepare(m,version);check(version);try{return complete(request,version,requestId);}catch(Exception e){check(version);if(!gpu)throw e;if(gpuDiagnostics!=null){if(!captureGpuStartup)gpuDiagnostics.stage("inference");gpuDiagnostics.fail(e,process==null||process.isAlive()?null:process.exitValue());}gpuFailures.add(m.getString("id")+":"+contexts.get(m.getString("id"))+":"+gpuLayerLimit);stopProcess();fallback="gpu-inference-failed";if(mode.equals("gpu"))throw new Exception("model-gpu-inference");streamChunk(requestId,"",true);start(m,null,version);return complete(request,version,requestId);}}
-        catch(Exception e){generationState="error";if(epoch.get()==version||!getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false)||process==null||!process.isAlive()||loadedId==null)stopProcess();throw e;}
-        }finally{if(started){generationState=epoch.get()!=version?"cancelled":"error".equals(generationState)?"error":"complete";saveGeneration();}completionRequest.set(false);protectGeneration(false);if(!bridgeAlive.getAsBoolean()&&!getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false))stopProcess();}
+        try{prepare(m,version);check(version);try{return complete(request,version,requestId);}catch(Exception e){check(version);if(!gpu)throw e;if(gpuDiagnostics!=null){if(!captureGpuStartup)gpuDiagnostics.stage("inference");gpuDiagnostics.fail(e,process==null||process.isAlive()?null:process.exitValue());}gpuFailures.add(m.getString("id")+":"+contexts.get(m.getString("id"))+":"+gpuLayerLimit);try{stopProcess();}catch(Exception cleanup){e.addSuppressed(cleanup);throw e;}fallback="gpu-inference-failed";if(mode.equals("gpu"))throw new Exception("model-gpu-inference");streamChunk(requestId,"",true);start(m,null,version);return complete(request,version,requestId);}}
+        catch(Exception e){generationState="error";if(epoch.get()==version||!getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false)||process==null||!process.isAlive()||loadedId==null)cleanupFailure(e);throw e;}
+        }finally{if(started){generationState=epoch.get()!=version?"cancelled":"error".equals(generationState)?"error":"complete";saveGeneration();}completionRequest.set(false);protectGeneration(false);if(!bridgeAlive.getAsBoolean()&&!getContext().getSharedPreferences("calendar-ai-residency",0).getBoolean("keepLoaded",false)){try{stopProcess();}catch(Exception cleanup){shutdownError=cleanup.getMessage();}}}
     });}
     static WebResourceResponse intercept(android.content.Context context,Uri url){
         if(!"https".equals(url.getScheme())||!"localhost".equals(url.getHost())||url.getPort()!=-1||!url.getPath().startsWith("/_calendar_native_model/"))return null;

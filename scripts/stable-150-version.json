@@ -1,0 +1,15 @@
+{
+  "version": "1.5.0",
+  "channel": "stable",
+  "label": "Kalendarz v1.5.0 Stable",
+  "lastTestedVersionCode": 10525,
+  "versionCode": 10526,
+  "versionName": "1.5.0",
+  "androidFile": "Kalendarz-1.5.0-Android-arm64.apk",
+  "linuxFile": "Kalendarz-1.5.0-Linux-x86_64.AppImage",
+  "flatpakFile": "Kalendarz-1.5.0-Linux-x86_64.flatpak",
+  "setupFile": "Kalendarz-1.5.0-Windows-x64-Setup.exe",
+  "portableFile": "Kalendarz-1.5.0-Windows-x64-Portable.exe",
+  "webFile": "Kalendarz-1.5.0-Web-PWA.zip",
+  "windowsZipFile": "Kalendarz-1.5.0-Windows-x64.zip"
+}

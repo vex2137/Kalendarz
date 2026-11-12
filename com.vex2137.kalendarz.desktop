@@ -9,4 +9,4 @@ Terminal=false
 Type=Application
 Icon=com.vex2137.kalendarz
 Categories=Office;Calendar;
-StartupWMClass=calendar
+StartupWMClass=com.vex2137.kalendarz

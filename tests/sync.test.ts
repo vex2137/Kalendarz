@@ -28,7 +28,7 @@ test('default holidays fit into decodable multipart QR; empty reminders survive'
   const assembler = new QRAssembler();
   let code = '';
   for (const frame of [...encoded.frames].reverse()) {
-    const progress = assembler.add(frame);
+    const progress = await assembler.add(frame);
     if (progress.code) code = progress.code;
   }
   const restored = await decodeSync(code, 'correct horse battery');
@@ -37,7 +37,7 @@ test('default holidays fit into decodable multipart QR; empty reminders survive'
 });
 test('corrupted, oversized and invalid sync data are rejected', async () => {
   await assert.rejects(decodeSync('KAL2:' + '0'.repeat(64) + ':aGVsbG8='));
-  assert.throws(() =>
+  await assert.rejects(
     new QRAssembler().add('KAL2P:' + 'a'.repeat(64) + ':0:100000:AAA'),
   );
   assert.throws(() =>
