@@ -15,7 +15,7 @@ export async function prepareNativeEngine(id:string,signal:AbortSignal,contextSi
     const status=await bridge.prepare(id,contextSize);signal.throwIfAborted();if(!status.loaded)throw Error('native-not-loaded');updateBackend(status);
   }finally{signal.removeEventListener('abort',stop);}
   const engine={
-    exit:async()=>{recordDiagnosticAction('release-memory','bridge-call');await bridge.stop();updateBackend({loaded:false,gpuActive:false,contextApplied:undefined,contextUsed:undefined,ramBytes:undefined,vramBytes:undefined});},
+    exit:async()=>{recordDiagnosticAction('release-memory','bridge-call');await bridge.stop();updateBackend({loaded:false,gpuActive:false,processAlive:false,stopping:false,shutdownError:undefined,contextApplied:undefined,contextUsed:undefined,ramBytes:undefined,vramBytes:undefined});},
     isMultithread:()=> (backendStatus().threads||1)>1,
     createChatCompletion:async(options:Record<string,unknown>)=>{
       const abort=options.abortSignal as AbortSignal;
@@ -24,7 +24,7 @@ export async function prepareNativeEngine(id:string,signal:AbortSignal,contextSi
         const {abortSignal,calendarRequestId,...request}=options;
         return (async function*(){
           const queue:{text?:string;reset?:boolean}[]=[];let wake=()=>{},done=false,error:unknown,received=false;
-          const pending=bridge.complete(id,request,chunk=>{queue.push(chunk);wake();},calendarRequestId as string|undefined).then(result=>{updateBackend(result.backend);return result;},failure=>{error=failure;return undefined;}).finally(()=>{done=true;wake();});
+          const pending=bridge.complete(id,request,chunk=>{queue.push(chunk);wake();},calendarRequestId as string|undefined).then(result=>{updateBackend(result.backend);return result;},async failure=>{error=failure;try{updateBackend(await bridge.status());}catch{}return undefined;}).finally(()=>{done=true;wake();});
           try{
             while(!done||queue.length){
               if(!queue.length){await new Promise<void>(resolve=>{wake=resolve;});continue;}

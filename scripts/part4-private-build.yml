@@ -1,0 +1,412 @@
+# Install only in vex2137/Kalendarz-private-builds. No tags, merges or Releases.
+name: Build private Kalendarz Part 4 Beta 1 candidates
+'on':
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact current application SHA; both platforms use this same source
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: private-part4-beta1
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+    working-directory: source
+env:
+  TZ: Europe/Warsaw
+  CALENDAR_EXPECTED_COMMIT: ${{ inputs.source_commit }}
+  CALENDAR_APPLICATION_BRANCH: feat/1.5.0-part4
+  CALENDAR_PART4_BETA: 'true'
+  CALENDAR_MODEL_FREE: 'true'
+  CALENDAR_ANDROID_NATIVE: 'false'
+  CALENDAR_BETA_APK: 'false'
+jobs:
+  validation:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |-
+        test "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.private and (.visibility == "private")')" = true
+        python3 -c 'import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: |-
+        git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+        python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Full unit, type, native-adapter and artifact-policy validation
+      run: |-
+        npm run lint
+        npm test
+        npm run test:native
+        node --test tests/beta7-stream.test.cjs
+        python3 -m unittest discover -s tests -p 'test_*.py'
+    - name: Install the pinned browser/Xvfb dependencies
+      run: |-
+        npx --no-install playwright install --with-deps chromium
+        if [ ! -e /usr/bin/chromium ]; then sudo ln -s "$(node -p 'require("playwright").chromium.executablePath()')" /usr/bin/chromium; fi
+    - name: Build current model-free web assets for production browser regressions
+      run: |-
+        node scripts/prepare-model-free.cjs
+        node node_modules/vite/bin/vite.js build --mode production
+    - name: Calendar, assistant, copy, history, models and transfer browser regressions
+      run: |-
+        node tests/browser.cjs
+        node tests/diagnostics-actions-browser.cjs
+        node tests/part4-recovery-browser.cjs
+        node tests/assistant-beta4-browser.cjs
+        node tests/assistant-beta5-browser.cjs
+        node tests/beta7-browser.cjs
+        node tests/part3-browser.cjs
+        node tests/part3-beta2-browser.cjs
+        node tests/part3-qr-browser.cjs
+        node tests/android-beta5-browser.cjs
+        node tests/beta6-gpu-browser.cjs
+        node tests/beta6-sync-browser.cjs
+        node tests/model-context-browser.cjs
+        node tests/native-startup-browser.cjs
+        node tests/model-transfer-lifecycle-browser.cjs
+    - name: Part 2 themes, calendar, security and motion browser regressions
+      run: |-
+        node node_modules/vite/bin/vite.js --host=127.0.0.1 --port=4179 --strictPort > "$RUNNER_TEMP/stable-ui-server.log" 2>&1 &
+        server_pid=$!
+        trap 'kill "$server_pid"' EXIT
+        for i in {1..50}; do curl -fsS http://127.0.0.1:4179 >/dev/null && break; sleep 0.2; done
+        for file in themes pin password biometric animations dialog-motion month; do node "tests/${file}-part2-browser.cjs"; done
+    - uses: actions/download-artifact@v4
+      with:
+        repository: vex2137/Kalendarz-private-builds
+        github-token: ${{ github.token }}
+        run-id: 42563978670
+        name: Kalendarz-Part-3-Beta-2-android-5e4ed1718cc40c2c57d44e437fa23ac9cc48d643
+        path: source/build/accepted-part2
+    - name: Verify accepted Part 3 Beta 2 assets and actual same-origin data upgrade
+      run: |-
+        python3 - <<'PYUPGRADE'
+        import hashlib,json,zipfile
+        from pathlib import Path
+        p=Path('build/accepted-part2/Kalendarz-1.5.0-Part-3-Beta-2-Android-arm64.apk')
+        with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='83d4eb3cb76b46565a2ab345675eeb716b179c09f6b312e26ac1e9855e4715a9'
+        root=Path('build/accepted-part2-web');root.mkdir()
+        with zipfile.ZipFile(p) as z:
+            info=json.loads(z.read('assets/public/build-info.json'));assert info['commit']=='5e4ed1718cc40c2c57d44e437fa23ac9cc48d643'
+            for name in z.namelist():
+                if name.startswith('assets/public/') and not name.endswith('/'):
+                    target=root/name.removeprefix('assets/public/');assert target.resolve().is_relative_to(root.resolve())
+                    target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(z.read(name))
+        PYUPGRADE
+        CALENDAR_140_WEB_DIR="$PWD/build/accepted-part2-web" CALENDAR_UPGRADE_SOURCE_VERSION=1.5.0 node tests/upgrade-part2-browser.cjs
+    - name: Published 1.4.2 same-origin upgrade and deterministic performance evidence
+      run: |-
+        mkdir -p build/source142
+        python3 scripts/release_download.py https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WEB.zip build/source142/web.zip --bytes 6955172 --sha256 2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676
+        python3 - <<'PY142'
+        import hashlib,zipfile
+        from pathlib import Path
+        p=Path('build/source142/web.zip')
+        assert hashlib.sha256(p.read_bytes()).hexdigest()=='2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676'
+        root=Path('build/source142/web');root.mkdir()
+        with zipfile.ZipFile(p) as z:
+            for name in z.namelist():assert not Path(name).is_absolute() and '..' not in Path(name).parts
+            z.extractall(root)
+        PY142
+        CALENDAR_140_WEB_DIR="$PWD/build/source142/web" node tests/upgrade-part4-browser.cjs
+        node tests/part4-performance.cjs
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: Kalendarz-Part-4-Beta-1-validation-${{ inputs.source_commit }}
+        path: source/manual-test-assets/part4/
+        if-no-files-found: error
+        retention-days: 30
+    - name: Real sandboxed Electron preload/IPC streaming and cancellation
+      run: xvfb-run -a node tests/beta7-electron-stream.cjs
+    - name: Final live-head guard
+      run: python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+  android:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |-
+        test "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.private and (.visibility == "private")')" = true
+        python3 -c 'import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: |-
+        git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+        python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '21'
+    - name: Install Android ARM64 build tools
+      run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865"
+        "cmake;3.31.6"'
+    - uses: actions/download-artifact@v4
+      with:
+        repository: vex2137/Kalendarz-private-builds
+        github-token: ${{ github.token }}
+        run-id: 42416579533
+        name: Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64-7c4785c10cbcabd64a545754d3cfb184870ba2ba
+        path: source/build/verified-beta5
+    - name: Reuse only verified Beta 5 CPU binary and build the separate ARM64 diagnostic
+      run: |
+        python3 scripts/reuse-beta5-android-cpu.py build/verified-beta5/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk
+        python3 scripts/build-android-vulkan-probe.py
+        "$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h -l -d build/android-jni/arm64-v8a/libcalendar_gpu_probe.so > build/android-probe-elf.txt
+        python3 - <<'PY'
+        from pathlib import Path
+        import re
+        text=Path('build/android-probe-elf.txt').read_text()
+        assert 'AArch64' in text and '/system/bin/linker64' in text
+        needed=re.findall(r'Shared library: \[(.*?)\]',text)
+        assert needed and set(needed)<= {'libc.so','libm.so','libdl.so','liblog.so','libandroid.so'},needed
+        assert 'libvulkan.so' not in needed,'Vulkan discovery must survive a missing loader'
+        print('Independent Android AArch64 Vulkan helper; system dependencies:',needed)
+        PY
+    - uses: actions/download-artifact@v4
+      with:
+        repository: vex2137/Kalendarz-private-builds
+        github-token: ${{ github.token }}
+        run-id: 42430844303
+        name: Android-b12189-Vulkan-fb82ba22746f3966145d32aab6f126a4cd56ec6f
+        path: source/build/verified-beta7
+    - name: Verify and stage separate Vulkan inference executable
+      run: |
+        python3 scripts/stage-beta7-vulkan.py build/verified-beta7
+    - name: Build the existing model-free frontend and synchronize Capacitor
+      run: |
+        node scripts/prepare-model-free.cjs
+        node node_modules/vite/bin/vite.js build --mode production
+        npx --no-install cap sync android
+    - uses: gradle/actions/setup-gradle@v4
+    - name: Acquire and verify the existing update key (secrets or one-use encrypted handoff)
+      env:
+        CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+        CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+        CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+        CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
+        GH_TOKEN: ${{ github.token }}
+      run: node scripts/android-beta5-signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP" "$CALENDAR_EXPECTED_COMMIT"
+        "$GITHUB_REPOSITORY"
+    - name: Android JVM tests, signed update APK and compile device tests
+      run: |
+        set -euo pipefail
+        trap 'rm -f "$CALENDAR_KEYSTORE_PATH"' EXIT
+        cd android
+        bash ./gradlew :app:testDiagnosticsUnitTest :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarPart4Beta=true -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
+    - name: Verify update signature, source, runtime hash, ABI, ZIP and absence of weights
+      run: |
+        mkdir -p part4-artifacts/android
+        cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk "part4-artifacts/android/Kalendarz-1.5.0-Part-4-Beta-1-Android-arm64.apk"
+        python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote --apk "part4-artifacts/android/Kalendarz-1.5.0-Part-4-Beta-1-Android-arm64.apk"
+        python3 - <<'PY'
+        from pathlib import Path
+        import json,xml.etree.ElementTree as ET
+        tests=[c for p in Path('android/app/build/test-results/testDiagnosticsUnitTest').glob('*.xml') for c in ET.parse(p).getroot().iter('testcase')]
+        assert tests and all(c.find('failure') is None and c.find('error') is None for c in tests)
+        import os
+        p=Path('part4-artifacts/android/Kalendarz-1.5.0-Part-4-Beta-1-Android-arm64.apk.json')
+        report=json.loads(p.read_text());report['androidJvmTests']=len(tests);report['physicalInferenceTested']=False;report['deviceInstrumentationExecuted']=False;report['phoneGpuComputeTested']=False;report['vulkanHostComputeVerified']=False;report['vulkanHostComputeBaselineRun']=42477584263;report['cpuEngineReusedFromBeta5']=True
+        p.write_text(json.dumps(report,indent=2)+'\n')
+        print('Android JVM tests passed:',len(tests))
+        PY
+        "$ANDROID_HOME/platform-tools/adb" devices -l
+        echo 'No ARM64 device/system image is provided by this runner. Device tests compiled; installation, WebView lifecycle and inference require POCO validation.' >> "$GITHUB_STEP_SUMMARY"
+    - name: Final current-source guard
+      run: python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: Kalendarz-Part-4-Beta-1-android-${{ inputs.source_commit }}
+        path: source/part4-artifacts/android/
+        if-no-files-found: error
+        retention-days: 30
+        compression-level: 0
+    - name: Remove signing material even after failure
+      run: rm -f "$RUNNER_TEMP/calendar-release.p12"
+      if: always()
+    needs: validation
+    permissions:
+      contents: write
+      actions: read
+    env:
+      CALENDAR_ANDROID_NATIVE: 'true'
+      CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
+      EXPECTED_ANDROID_CERTIFICATE: ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143
+  linux:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # GitHub draft-release assets require push access, even for an octet-stream
+    # GET. This trusted private job only reads the existing acceptance model;
+    # it never creates or publishes a Release.
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |-
+        test "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.private and (.visibility == "private")')" = true
+        python3 -c 'import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: |-
+        git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+        python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Install package smoke-test dependencies
+      run: npx --no-install playwright install --with-deps chromium
+    - name: Build model-free AppImage with the unchanged pinned CPU/CUDA/Vulkan runtimes
+      run: |-
+        test ! -e native/linux-x64/runtime-manifest.json
+        node scripts/prepare-model-free.cjs
+        node node_modules/vite/bin/vite.js build --mode production
+        npx --no-install electron-builder --linux AppImage --x64 --publish never --config.publish.provider=github --config.publish.owner=vex2137 --config.publish.repo=Kalendarz --config.linux.artifactName=Kalendarz-1.5.0-Part-4-Beta-1-x86_64.AppImage
+    - name: Verify actual AppImage source, complete native libraries and no GGUF/Android binaries
+      run: |-
+        python3 scripts/check-part4-appimage.py
+        python3 scripts/check-built-native-runtime.py
+        CALENDAR_TEST_LLAMA_SERVER="$PWD/build/checked-appimage/squashfs-root/resources/native/cpu/llama-server" node --test tests/native-architectures.test.cjs
+        CALENDAR_APPIMAGE_EXECUTABLE="$PWD/release/Kalendarz-1.5.0-Part-4-Beta-1-x86_64.AppImage" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a node tests/appimage-startup-smoke.cjs
+    - name: Use the already-private Qwen v2 only for package acceptance, never packaging
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |-
+        mkdir -p "$RUNNER_TEMP/stable-model-test"
+        gh api repos/vex2137/Kalendarz-private-builds/releases/assets/679120004 -H 'Accept: application/octet-stream' > "$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf"
+        python3 - <<'PYMODEL'
+        from pathlib import Path
+        import hashlib,os
+        p=Path(os.environ['RUNNER_TEMP'])/'stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf'
+        assert p.stat().st_size==529297056
+        with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='fecd8b646db036ca27801f8a4c2d84c5f8baf981ba9a635ea0d2553b652eb1b5'
+        print('Private acceptance model size/SHA-256 verified; no weights in package.')
+        PYMODEL
+    - name: Full actual packaged Electron acceptance with real offline CPU inference
+      run: |-
+        ELECTRON_EXECUTABLE="$PWD/build/checked-appimage/squashfs-root/calendar" CALENDAR_EXTERNAL_MODEL="$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf" xvfb-run -a node tests/electron.cjs
+        cp manual-test-assets/appimage/*.json part4-artifacts/linux/
+        python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: Kalendarz-Part-4-Beta-1-linux-${{ inputs.source_commit }}
+        path: source/part4-artifacts/linux/
+        if-no-files-found: error
+        retention-days: 30
+        compression-level: 0
+    - name: Remove the acceptance-only private GGUF
+      if: always()
+      run: rm -f "$RUNNER_TEMP/stable-model-test/kalendarz-qwen35-v2-q4_k_m.gguf"
+    needs: validation
+    env:
+      CALENDAR_ANDROID_NATIVE: 'false'
+      CALENDAR_INCLUDE_CUDA: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+  download-verification:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |-
+        test "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.private and (.visibility == "private")')" = true
+        python3 -c 'import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: |-
+        git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+        python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/download-artifact@v4
+      with:
+        name: Kalendarz-Part-4-Beta-1-android-${{ inputs.source_commit }}
+        path: source/downloaded/android
+    - uses: actions/download-artifact@v4
+      with:
+        name: Kalendarz-Part-4-Beta-1-linux-${{ inputs.source_commit }}
+        path: source/downloaded/linux
+    - uses: actions/download-artifact@v4
+      with:
+        name: Kalendarz-Part-4-Beta-1-validation-${{ inputs.source_commit }}
+        path: source/manual-test-assets/part4/
+    - name: Verify downloaded bytes and equal source, then record private artifact URLs
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        python3 scripts/check-part4-delivery.py
+        python3 scripts/part4_beta_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: Kalendarz-Part-4-Beta-1-manifest-${{ inputs.source_commit }}
+        path: source/part4-delivery/
+        if-no-files-found: error
+        retention-days: 30
+    needs:
+    - android
+    - linux

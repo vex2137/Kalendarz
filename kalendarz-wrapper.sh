@@ -1,2 +1,3 @@
-#!/usr/bin/env bash
-exec zypak-wrapper /app/lib/kalendarz/kalendarz-offline "$@"
+#!/bin/sh
+# Legacy launcher name retained for existing local tooling.
+exec /app/bin/calendar "$@"

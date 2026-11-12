@@ -3,6 +3,7 @@ import { androidAIReady } from './nativeAndroidAI';
 import { nativeModelResponse } from './nativeModelImport';
 import { openDB } from 'idb';
 import { sha256 } from '@noble/hashes/sha2.js';
+import { BUILD_INFO, buildBundlesModel } from './buildInfo';
 import { LOCAL_MODEL, bundledModelUrl } from './localModelManifest';
 import { DEFAULT_MODEL, type ModelDescriptor } from './modelRegistry';
 import { desktopAI, ensureNativeModel } from './nativeDesktopAI';
@@ -108,7 +109,10 @@ export async function recoverSavedModel(descriptor: ModelDescriptor, signal?: Ab
   catch (error) { if (error instanceof DOMException && error.name === 'NotFoundError') {if(damaged)throw damaged;return;} throw error; }
   for await (const [name, handle] of dir.entries()) {
     signal?.throwIfAborted();
-    if (!name.startsWith(descriptor.id + '-') || handle.kind !== 'file') continue;
+    // A complete transfer/import can outlive a failed native commit or a changed URL.
+    // Adopt only after the exact expected size and full pinned SHA-256 match.
+    const candidate=name.startsWith(descriptor.id+'-') || /^transfer-[a-f0-9]{64}\.gguf$/.test(name) || /^import-staging-[a-f0-9-]{36}\.gguf$/.test(name);
+    if (!candidate || handle.kind !== 'file') continue;
     const file = await (handle as FileSystemFileHandle).getFile();
     if (file.size !== descriptor.bytes) continue;
     try { await verifyModel(file, signal, undefined, descriptor); }
@@ -307,7 +311,7 @@ export async function downloadModel(signal: AbortSignal, progress: (loaded: numb
 // The build stages the exact verified weights beside this small metadata file.
 // Availability is cheap; inference independently verifies the actual GGUF bytes.
 export async function bundledModelAvailable(descriptor: ModelDescriptor = DEFAULT_MODEL): Promise<boolean> {
-  if (!descriptor.bundled) return false;
+  if (!descriptor.bundled || !buildBundlesModel(BUILD_INFO)) return false;
   try {
     const response = await fetch(bundledModelUrl('manifest.json'), { credentials: 'omit' });
     if (!response.ok) return false;

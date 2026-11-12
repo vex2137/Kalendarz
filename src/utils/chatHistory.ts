@@ -124,44 +124,51 @@ export async function saveChat(
     const tx = database.transaction(["chats", "messages"], "readwrite", {
       durability: "strict",
     });
-    const chat: ChatRecord | undefined = await tx.objectStore("chats").get(id);
-    if (!chat) {
+    void tx.done.catch(() => {});
+    try {
+      const chat: ChatRecord | undefined = await tx.objectStore("chats").get(id);
+      if (!chat) {
+        await tx.done;
+        return;
+      } // A delayed save must never recreate a deleted chat.
+      for (const message of messages) {
+        const previous = await tx.objectStore("messages").get([id, message.id]);
+        const sequence = previous?.sequence ?? chat.nextSequence ?? 0;
+        if (!previous) chat.nextSequence = sequence + 1;
+        const cleaned = cleanMessage(message, id);
+        await tx
+          .objectStore("messages")
+          .put({ ...cleaned, proposalSummary: cleaned.proposalSummary || previous?.proposalSummary, sequence });
+      }
+      const first = messages.find((message) => message.role === "user");
+      if (chat.autoTitle && first) {
+        chat.title = first.content.replace(/\s+/g, " ").slice(0, 80);
+        chat.autoTitle = false;
+      }
+      chat.updatedAt = Math.max(
+        chat.updatedAt,
+        ...messages.map((message) => message.timestamp),
+      );
+      chat.modelIds = [
+        ...new Set([
+          ...chat.modelIds,
+          ...messages
+            .filter((m) => m.route === "model" && m.modelId)
+            .map((m) => m.modelId!),
+        ]),
+      ];
+      chat.selectedModelId = selectedModelId;
+      chat.context = structuredClone(context);
+      // Live proposals are not restored after a restart or chat switch.
+      delete chat.context.proposal;
+      delete chat.context.pendingChoice;
+      await tx.objectStore("chats").put(chat);
       await tx.done;
-      return;
-    } // A delayed save must never recreate a deleted chat.
-    for (const message of messages) {
-      const previous = await tx.objectStore("messages").get([id, message.id]);
-      const sequence = previous?.sequence ?? chat.nextSequence ?? 0;
-      if (!previous) chat.nextSequence = sequence + 1;
-      const cleaned = cleanMessage(message, id);
-      await tx
-        .objectStore("messages")
-        .put({ ...cleaned, proposalSummary: cleaned.proposalSummary || previous?.proposalSummary, sequence });
+    } catch (error) {
+      try { tx.abort(); } catch { /* A request may already have aborted the transaction. */ }
+      await tx.done.catch(() => {});
+      throw error;
     }
-    const first = messages.find((message) => message.role === "user");
-    if (chat.autoTitle && first) {
-      chat.title = first.content.replace(/\s+/g, " ").slice(0, 80);
-      chat.autoTitle = false;
-    }
-    chat.updatedAt = Math.max(
-      chat.updatedAt,
-      ...messages.map((message) => message.timestamp),
-    );
-    chat.modelIds = [
-      ...new Set([
-        ...chat.modelIds,
-        ...messages
-          .filter((m) => m.route === "model" && m.modelId)
-          .map((m) => m.modelId!),
-      ]),
-    ];
-    chat.selectedModelId = selectedModelId;
-    chat.context = structuredClone(context);
-    // Live proposals are not restored after a restart or chat switch.
-    delete chat.context.proposal;
-    delete chat.context.pendingChoice;
-    await tx.objectStore("chats").put(chat);
-    await tx.done;
   } finally {
     database.close();
   }
@@ -257,16 +264,23 @@ export async function deleteChat(id: string) {
   const database = await db();
   try {
     const tx = database.transaction(["chats", "messages"], "readwrite");
-    await tx.objectStore("chats").delete(id);
-    let cursor = await tx
-      .objectStore("messages")
-      .index("chat")
-      .openCursor(IDBKeyRange.only(id));
-    while (cursor) {
-      await cursor.delete();
-      cursor = await cursor.continue();
+    void tx.done.catch(() => {});
+    try {
+      await tx.objectStore("chats").delete(id);
+      let cursor = await tx
+        .objectStore("messages")
+        .index("chat")
+        .openCursor(IDBKeyRange.only(id));
+      while (cursor) {
+        await cursor.delete();
+        cursor = await cursor.continue();
+      }
+      await tx.done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* A request may already have aborted the transaction. */ }
+      await tx.done.catch(() => {});
+      throw error;
     }
-    await tx.done;
   } finally {
     database.close();
   }
@@ -275,9 +289,16 @@ export async function clearChatHistory() {
   const database = await db();
   try {
     const tx = database.transaction(["chats", "messages"], "readwrite");
-    await tx.objectStore("chats").clear();
-    await tx.objectStore("messages").clear();
-    await tx.done;
+    void tx.done.catch(() => {});
+    try {
+      await tx.objectStore("chats").clear();
+      await tx.objectStore("messages").clear();
+      await tx.done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* A request may already have aborted the transaction. */ }
+      await tx.done.catch(() => {});
+      throw error;
+    }
   } finally {
     database.close();
   }
@@ -378,13 +399,20 @@ export async function importChatHistory(text: string) {
   const database = await db();
   try {
     const tx = database.transaction(["chats", "messages"], "readwrite");
-    for (const chat of chats)
-      await tx
-        .objectStore("chats")
-        .put({ ...chat, nextSequence: sequences.get(chat.id) || 0 });
-    for (const message of messages)
-      await tx.objectStore("messages").put(message);
-    await tx.done;
+    void tx.done.catch(() => {});
+    try {
+      for (const chat of chats)
+        await tx
+          .objectStore("chats")
+          .put({ ...chat, nextSequence: sequences.get(chat.id) || 0 });
+      for (const message of messages)
+        await tx.objectStore("messages").put(message);
+      await tx.done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* A request may already have aborted the transaction. */ }
+      await tx.done.catch(() => {});
+      throw error;
+    }
   } finally {
     database.close();
   }

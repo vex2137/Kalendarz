@@ -219,7 +219,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       modelId: model.modelId,
     };
 
-    const withUser = [...messages.slice(-199).map(message => ({ ...message, suggestedEvent: undefined, suggestedPlan: undefined })), userMessage];
+    const withUser = [...messages.slice(-199), userMessage];
     setMessages(withUser);
     setInputQuery('');
     setIsProcessing(true);
@@ -233,7 +233,6 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       cancelAnimationFrame(frame);frame=0;
       presentationRef.current = response.traceId;
       conversationRef.current = response.context || {};
-      setMessages(prev => prev.map(message => ({ ...message, suggestedEvent: undefined, suggestedPlan: undefined })));
       const assistantMessage: AiChatMessage = {
         id: draft.id,
         role: 'assistant',
@@ -245,7 +244,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         modelId: model.modelId,
         route: response.route,
       };
-      const next = [...withUser, assistantMessage];
+      const previous=response.suggestedEvent||response.suggestedPlan?withUser.map(message=>({...message,suggestedEvent:undefined,suggestedPlan:undefined})):withUser;
+      const next = [...previous, assistantMessage];
       setMessages(next);
       await persist(next);
     } catch (error) {
@@ -497,7 +497,6 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 >
                   {/* Markdown Renderer */}
                   <MessageCopy text={msg.content} language={language}><MarkdownMessage content={msg.content} isUser={isUser} /></MessageCopy>{msg.completion&&<p className="text-xs theme-muted" data-completion={msg.completion}>{msg.completion==='streaming'?ui.generating:({en:'Partial response',pl:'Odpowiedź częściowa',de:'Teilantwort',ru:'Частичный ответ'})[language]}</p>}
-                  {msg.route==='model'&&!plan&&!isAdded&&<p className="text-[11px] theme-muted mt-1">{p3(language,'Model reply, not a save confirmation')}</p>}
                   {msg.proposalSummary && <p className="mt-2 whitespace-pre-wrap theme-muted">{msg.proposalSummary}</p>}
 
                   {plan && (

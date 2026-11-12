@@ -1,5 +1,7 @@
+// This historical update-channel fixture deliberately boots Part 3 Beta 2,
+// even when the enclosing final-release workflow runs in Stable mode.
 const assert=require('node:assert/strict'),{spawn}=require('node:child_process'),{chromium}=require('playwright'),{existsSync}=require('node:fs');
-(async()=>{const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host=127.0.0.1','--port=4196','--strictPort'],{stdio:'ignore',env:{...process.env,CALENDAR_MODEL_FREE:'true',CALENDAR_PART3_BETA:'true'}});let browser;
+(async()=>{const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host=127.0.0.1','--port=4196','--strictPort'],{stdio:'ignore',env:{...process.env,CALENDAR_MODEL_FREE:'true',CALENDAR_PART3_BETA:'true',CALENDAR_FINAL_STABLE:'false'}});let browser;
 try{
  for(let i=0;i<100;i++){try{if((await fetch('http://127.0.0.1:4196')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
  browser=await chromium.launch({headless:true,...(existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1366,height:768},serviceWorkers:'block'}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));

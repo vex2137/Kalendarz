@@ -1,0 +1,13 @@
+{
+  "version": "1.5.0",
+  "channel": "part4-beta2",
+  "label": "Kalendarz 1.5.0 Part 4 Beta 2",
+  "lastTestedVersionCode": 10522,
+  "versionCode": 10523,
+  "versionName": "1.5.0-part4-beta.2",
+  "androidFile": "Kalendarz-1.5.0-Part-4-Beta-2-Android-arm64.apk",
+  "linuxFile": "Kalendarz-1.5.0-Part-4-Beta-2-Linux-x86_64.AppImage",
+  "flatpakFile": "Kalendarz-1.5.0-Part-4-Beta-2-Linux-x86_64.flatpak",
+  "setupFile": "Kalendarz-1.5.0-Part-4-Beta-2-Windows-x64-Setup.exe",
+  "portableFile": "Kalendarz-1.5.0-Part-4-Beta-2-Windows-x64-Portable.exe"
+}

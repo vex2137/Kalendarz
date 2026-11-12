@@ -54,12 +54,18 @@ export async function loadCalendar(): Promise<{
         : validateEvents(JSON.parse(legacy));
     const tx = database.transaction(['records', 'meta'], 'readwrite');
     void tx.done.catch(() => {});
-    for (const event of events)
-      await tx
-        .objectStore('records')
-        .put({ id: event.id, updatedAt: event.updatedAt, event });
-    await tx.objectStore('meta').put(true, 'migrated');
-    await tx.done;
+    try {
+      for (const event of events)
+        await tx
+          .objectStore('records')
+          .put({ id: event.id, updatedAt: event.updatedAt, event });
+      await tx.objectStore('meta').put(true, 'migrated');
+      await tx.done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* An IndexedDB request may already have aborted it. */ }
+      await tx.done.catch(() => {});
+      throw error;
+    }
     // Keep the old data as a migration backup; never silently delete user data.
   }
   const records = (await database.getAll('records')) as RecordValue[];
@@ -90,22 +96,28 @@ export async function commitCalendar(
   const database = await db();
   const tx = database.transaction('records', 'readwrite');
   void tx.done.catch(() => {});
-  const changes: RecordValue[] = [
-    ...events.map((event) => ({
-      id: event.id,
-      updatedAt: event.updatedAt,
-      event,
-    })),
-    ...deletions.map(({ id, updatedAt }) => ({ id, updatedAt })),
-  ];
-  for (const incoming of changes) {
-    const previous = (await tx.store.get(incoming.id)) as
-      | RecordValue
-      | undefined;
-    const winner = mergeRecords(previous ? [previous] : [], [incoming])[0];
-    if (winner !== previous) await tx.store.put(winner);
+  try {
+    const changes: RecordValue[] = [
+      ...events.map((event) => ({
+        id: event.id,
+        updatedAt: event.updatedAt,
+        event,
+      })),
+      ...deletions.map(({ id, updatedAt }) => ({ id, updatedAt })),
+    ];
+    for (const incoming of changes) {
+      const previous = (await tx.store.get(incoming.id)) as
+        | RecordValue
+        | undefined;
+      const winner = mergeRecords(previous ? [previous] : [], [incoming])[0];
+      if (winner !== previous) await tx.store.put(winner);
+    }
+    await tx.done;
+  } catch (error) {
+    try { tx.abort(); } catch { /* Preserve the original write error. */ }
+    await tx.done.catch(() => {});
+    throw error;
   }
-  await tx.done;
 }
 
 export function signalCalendarChange() {

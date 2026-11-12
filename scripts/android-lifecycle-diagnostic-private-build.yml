@@ -1,0 +1,204 @@
+# Private diagnostic only. No Releases, tags, APK inference claims or desktop builds.
+name: Private Android native lifecycle diagnostic (not a beta release)
+'on':
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact current application SHA; all five packages use this same source
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: private-android-lifecycle-diagnostic
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+    working-directory: source
+env:
+  TZ: Europe/Warsaw
+  CALENDAR_EXPECTED_COMMIT: ${{ inputs.source_commit }}
+  CALENDAR_APPLICATION_BRANCH: feat/1.5.0-part4
+  CALENDAR_PART4_BETA: 'true'
+  CALENDAR_MODEL_FREE: 'true'
+  CALENDAR_ANDROID_NATIVE: 'false'
+  CALENDAR_BETA_APK: 'false'
+  CALENDAR_PART4_BETA_NUMBER: '3'
+  CALENDAR_ANDROID_LIFECYCLE_DIAGNOSTIC: 'true'
+jobs:
+  android:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Targeted source and model-store regression validation
+      run: 'npm run lint
+
+        node --test tests/default-model-store.test.cjs tests/beta7-stream.test.cjs tests/native-ai.test.cjs
+
+        python3 -m unittest discover -s tests -p "test_android_lifecycle_policy.py"'
+    - uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '21'
+    - name: Install Android ARM64 build tools
+      run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865"
+        "cmake;3.31.6"'
+    - uses: actions/download-artifact@v4
+      with:
+        repository: vex2137/Kalendarz-private-builds
+        github-token: ${{ github.token }}
+        run-id: 42416579533
+        name: Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64-7c4785c10cbcabd64a545754d3cfb184870ba2ba
+        path: source/build/verified-beta5
+    - name: Reuse only verified Beta 5 CPU binary and build the separate ARM64 diagnostic
+      run: 'python3 scripts/reuse-beta5-android-cpu.py build/verified-beta5/Kalendarz-1.5.0-Part-2-Beta-5-Android-arm64.apk
+
+        python3 scripts/build-android-vulkan-probe.py
+
+        "$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h -l -d build/android-jni/arm64-v8a/libcalendar_gpu_probe.so
+        > build/android-probe-elf.txt
+
+        python3 - <<''PY''
+
+        from pathlib import Path
+
+        import re
+
+        text=Path(''build/android-probe-elf.txt'').read_text()
+
+        assert ''AArch64'' in text and ''/system/bin/linker64'' in text
+
+        needed=re.findall(r''Shared library: \[(.*?)\]'',text)
+
+        assert needed and set(needed)<= {''libc.so'',''libm.so'',''libdl.so'',''liblog.so'',''libandroid.so''},needed
+
+        assert ''libvulkan.so'' not in needed,''Vulkan discovery must survive a missing loader''
+
+        print(''Independent Android AArch64 Vulkan helper; system dependencies:'',needed)
+
+        PY
+
+        '
+    - uses: actions/download-artifact@v4
+      with:
+        repository: vex2137/Kalendarz-private-builds
+        github-token: ${{ github.token }}
+        run-id: 42430844303
+        name: Android-b12189-Vulkan-fb82ba22746f3966145d32aab6f126a4cd56ec6f
+        path: source/build/verified-beta7
+    - name: Verify and stage separate Vulkan inference executable
+      run: 'python3 scripts/stage-beta7-vulkan.py build/verified-beta7
+
+        '
+    - name: Build the existing model-free frontend and synchronize Capacitor
+      run: 'node scripts/prepare-model-free.cjs
+
+        node node_modules/vite/bin/vite.js build --mode production
+
+        npx --no-install cap sync android
+
+        '
+    - uses: gradle/actions/setup-gradle@v4
+    - name: Acquire and verify the existing update key (secrets or one-use encrypted handoff)
+      env:
+        CALENDAR_ANDROID_KEYSTORE_BASE64: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEYSTORE_BASE64 }}
+        CALENDAR_KEYSTORE_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_STORE_PASSWORD }}
+        CALENDAR_KEY_ALIAS: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_ALIAS }}
+        CALENDAR_KEY_PASSWORD: ${{ secrets.CALENDAR_ANDROID_UPDATE_KEY_PASSWORD }}
+        GH_TOKEN: ${{ github.token }}
+      run: node scripts/android-beta5-signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP" "$CALENDAR_EXPECTED_COMMIT"
+        "$GITHUB_REPOSITORY"
+    - name: Android JVM tests, signed update APK and compile device tests
+      run: 'set -euo pipefail
+
+        trap ''rm -f "$CALENDAR_KEYSTORE_PATH"'' EXIT
+
+        cd android
+
+        bash ./gradlew :app:testDiagnosticsUnitTest :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarPart4Beta=true
+        -PcalendarPart4BetaNumber=3 -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
+
+        '
+    - name: Verify update signature, source, runtime hash, ABI, ZIP and absence of weights
+      run: 'mkdir -p part4-artifacts/android
+
+        cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk "part4-artifacts/android/Kalendarz-1.5.0-Part-4-Beta-3-Android-Lifecycle-Diagnostic-arm64.apk"
+
+        python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote --apk "part4-artifacts/android/Kalendarz-1.5.0-Part-4-Beta-3-Android-Lifecycle-Diagnostic-arm64.apk"
+
+        python3 - <<''PY''
+
+        from pathlib import Path
+
+        import json,xml.etree.ElementTree as ET
+
+        tests=[c for p in Path(''android/app/build/test-results/testDiagnosticsUnitTest'').glob(''*.xml'') for c in ET.parse(p).getroot().iter(''testcase'')]
+
+        assert tests and all(c.find(''failure'') is None and c.find(''error'') is None for c in tests)
+
+        import os
+
+        p=Path(''part4-artifacts/android/Kalendarz-1.5.0-Part-4-Beta-3-Android-Lifecycle-Diagnostic-arm64.apk.json'')
+
+        report=json.loads(p.read_text());report[''diagnosticOnly'']=True;report[''androidJvmTests'']=len(tests);report[''physicalInferenceTested'']=False;report[''deviceInstrumentationExecuted'']=False;report[''phoneGpuComputeTested'']=False;report[''vulkanHostComputeVerified'']=False;report[''vulkanHostComputeBaselineRun'']=42477584263;report[''cpuEngineReusedFromBeta5'']=True
+
+        p.write_text(json.dumps(report,indent=2)+''\n'')
+
+        print(''Android JVM tests passed:'',len(tests))
+
+        PY
+
+        "$ANDROID_HOME/platform-tools/adb" devices -l
+
+        echo ''No ARM64 device/system image is provided by this runner. Device tests compiled; installation, WebView lifecycle
+        and inference require POCO validation.'' >> "$GITHUB_STEP_SUMMARY"
+
+        '
+    - name: Final current-source guard
+      run: python3 scripts/part4_beta3_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: Kalendarz-Android-Lifecycle-Diagnostic-${{ inputs.source_commit }}
+        path: source/part4-artifacts/android/
+        if-no-files-found: error
+        retention-days: 30
+        compression-level: 0
+    - name: Remove signing material even after failure
+      run: rm -f "$RUNNER_TEMP/calendar-release.p12"
+      if: always()
+    permissions:
+      contents: write
+      actions: read
+    env:
+      CALENDAR_ANDROID_NATIVE: 'true'
+      CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
+      EXPECTED_ANDROID_CERTIFICATE: ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143

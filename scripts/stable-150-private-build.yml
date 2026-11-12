@@ -1,0 +1,645 @@
+# Private Stable only; no public tag/release/merge.
+name: "Prepare private Kalendarz 1.5.0 Stable \u2014 approval required"
+'on':
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact current final Stable source SHA; no public tag/release/merge
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: private-final-stable-150
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+    working-directory: source
+env:
+  TZ: Europe/Warsaw
+  CALENDAR_EXPECTED_COMMIT: ${{ inputs.source_commit }}
+  CALENDAR_APPLICATION_BRANCH: feat/1.5.0-part4
+  CALENDAR_MODEL_FREE: 'true'
+  CALENDAR_ANDROID_NATIVE: 'false'
+  CALENDAR_BETA_APK: 'false'
+  CALENDAR_VERIFY_CANONICAL_ICONS: 'true'
+  CALENDAR_ICON_ONLY: 'true'
+  CALENDAR_CAPTURE_ICON_EVIDENCE: 'true'
+  CALENDAR_FINAL_STABLE: 'true'
+jobs:
+  linux:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Bound package/network provisioning
+      run: "if [ -f /etc/apt/apt-mirrors.txt ]; then\n  sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g;\
+        \ s|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g'\
+        \ /etc/apt/apt-mirrors.txt\nfi\necho 'Acquire::Retries \"2\"; Acquire::http::Timeout \"30\"; Acquire::https::Timeout\
+        \ \"30\";' | sudo tee /etc/apt/apt.conf.d/99-calendar-ci-network >/dev/null\n"
+    - name: Verify original adaptive sources before packaging
+      run: 'python3 -m pip install Pillow CairoSVG==2.8.2
+
+        python3 scripts/check-canonical-icons.py'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Install package smoke-test dependencies
+      run: 'npx --no-install playwright install --with-deps chromium
+
+        sudo apt-get update -qq
+
+        sudo apt-get install -y desktop-file-utils x11-utils openbox imagemagick
+
+        '
+    - name: Build model-free AppImage with the unchanged pinned CPU/CUDA/Vulkan runtimes
+      run: 'test ! -e native/linux-x64/runtime-manifest.json
+
+        node scripts/prepare-model-free.cjs
+
+        node node_modules/vite/bin/vite.js build --mode production
+
+        npx --no-install electron-builder --linux AppImage --x64 --publish never --config.publish.provider=github --config.publish.owner=vex2137
+        --config.publish.repo=Kalendarz --config.linux.artifactName=Kalendarz-1.5.0-Linux-x86_64.AppImage'
+    - name: Verify actual AppImage source, complete native libraries and no GGUF/Android binaries
+      run: 'python3 scripts/check-part4-beta3-appimage.py
+
+        python3 scripts/check-built-native-runtime.py
+
+        xvfb-run -a -s ''-screen 0 1440x1000x24'' sh -c ''openbox >/tmp/icon-openbox.log 2>&1 & node tests/linux-desktop-icons.cjs''
+
+        CALENDAR_TEST_LLAMA_SERVER="$PWD/build/checked-appimage/squashfs-root/resources/native/cpu/llama-server" node --test
+        tests/native-architectures.test.cjs
+
+        CALENDAR_APPIMAGE_EXECUTABLE="$PWD/release/Kalendarz-1.5.0-Linux-x86_64.AppImage" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run
+        -a node tests/appimage-startup-smoke.cjs'
+    - name: Package and open actual Web/PWA ZIP, favicon and manifest
+      run: "mkdir -p part4-artifacts/web build/icon-web-artifact\npython3 - <<'PYWEB'\nfrom pathlib import Path\nimport zipfile,os,json\n\
+        p=Path('part4-artifacts/web/Kalendarz-1.5.0-Web-PWA.zip')\nwith zipfile.ZipFile(p,'w',zipfile.ZIP_DEFLATED) as z:\n\
+        \ for f in Path('dist').rglob('*'):\n  if f.is_file():\n   assert f.suffix.lower() not in ['.gguf','.p12','.jks','.keystore']\n\
+        \   z.write(f,f.relative_to('dist'))\nwith zipfile.ZipFile(p) as z:z.extractall('build/icon-web-artifact')\nPath(str(p)+'.json').write_text(json.dumps(dict(source=os.environ['CALENDAR_EXPECTED_COMMIT'],kind='production-web-pwa'))+'\\\
+        n')\nPYWEB\npython3 scripts/check-canonical-icons.py --web-dir build/icon-web-artifact\nBROWSER_EXECUTABLE=\"$(node\
+        \ -p 'require(\"playwright\").chromium.executablePath()')\" node tests/icon-web-package.cjs"
+    - name: Verify source and privately deliver checked AppImage and Web ZIP
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+
+        python3 scripts/deliver-stable-150.py linux
+
+        python3 scripts/deliver-stable-150.py web'
+    - name: Privately deliver real Linux and production Web icon screenshots
+      run: 'python3 scripts/stable-150-evidence.py upload linux
+
+        python3 scripts/stable-150-evidence.py upload web'
+    env:
+      CALENDAR_ANDROID_NATIVE: 'false'
+      CALENDAR_INCLUDE_CUDA: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_TOKEN: ${{ github.token }}
+      CALENDAR_ICON_PLATFORM: linux
+    needs: prepare
+  windows:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+    env:
+      CALENDAR_ANDROID_NATIVE: 'false'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_TOKEN: ${{ github.token }}
+      CALENDAR_ICON_PLATFORM: windows
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Confirm stable version policy
+      run: python scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Install screenshot encoder only
+      run: python -m pip install Pillow
+    - name: Build real x64 NSIS and Portable EXE packages without Authenticode signing
+      run: 'node scripts/prepare-model-free.cjs
+
+        node node_modules/vite/bin/vite.js build --mode production
+
+        npx --no-install electron-builder --win nsis portable zip --x64 ''--config.win.artifactName=Kalendarz-1.5.0-Windows-x64.${ext}''
+        --publish never --config.publish.provider=github --config.publish.owner=vex2137 --config.publish.repo=Kalendarz --config.nsis.artifactName=Kalendarz-1.5.0-Windows-x64-Setup.exe
+        --config.portable.artifactName=Kalendarz-1.5.0-Windows-x64-Portable.exe
+
+        mkdir -p part4-artifacts/windows
+
+        cp release/*-Setup.exe release/*-Portable.exe release/*.zip part4-artifacts/windows/
+
+        python scripts/check-part4-beta3-windows.py
+
+        python scripts/check-stable-windows-zip.py'
+    - name: Inspect actual Setup Portable and unpacked EXE icon pixels
+      run: 'powershell -NoProfile -File scripts/check-windows-icon.ps1 -Executable part4-artifacts/windows/Kalendarz-1.5.0-Windows-x64-Setup.exe
+
+        powershell -NoProfile -File scripts/check-windows-icon.ps1 -Executable part4-artifacts/windows/Kalendarz-1.5.0-Windows-x64-Portable.exe
+
+        powershell -NoProfile -File scripts/check-windows-icon.ps1 -Executable release/win-unpacked/Calendar.exe'
+    - name: Fetch and verify the actual 1.4.2 Portable EXE for the legacy-profile test
+      run: 'mkdir -p build/source142
+
+        python scripts/release_download.py https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WINDOWS-x86_64.exe
+        build/source142/setup.exe --bytes 124758456 --sha256 b147323b97c62b2ee390af3ee64dd0fa4b983282c2e38b1c3aa367dcb397a1f4'
+    - name: Real installation, update, uninstall with data retained and portable isolation/move
+      run: node tests/windows-packages.cjs
+    - name: Verify source and privately deliver checked Windows packages
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'python scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+
+        python scripts/deliver-stable-150.py windows'
+    - name: Privately deliver actual installed Setup and Portable window screenshots
+      run: python scripts/stable-150-evidence.py upload windows
+    needs: prepare
+  flatpak:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    needs:
+    - linux
+    - prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CALENDAR_ICON_PLATFORM: flatpak
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require current application HEAD with accepted Part 2 Stable ancestry
+      run: 'git merge-base --is-ancestor 5e4ed1718cc40c2c57d44e437fa23ac9cc48d643 "$CALENDAR_EXPECTED_COMMIT"
+
+        python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Bound package/network provisioning
+      run: "if [ -f /etc/apt/apt-mirrors.txt ]; then\n  sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g;\
+        \ s|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g'\
+        \ /etc/apt/apt-mirrors.txt\nfi\necho 'Acquire::Retries \"2\"; Acquire::http::Timeout \"30\"; Acquire::https::Timeout\
+        \ \"30\";' | sudo tee /etc/apt/apt.conf.d/99-calendar-ci-network >/dev/null\n"
+    - name: Reuse exact AppImage from successful Linux job of this run
+      run: python3 scripts/reuse-stable-appimage.py
+    - name: Install only Flatpak and screenshot tools; free unused ephemeral SDK
+      run: 'if test "$GITHUB_ACTIONS" = true && test "$RUNNER_ENVIRONMENT" = github-hosted && test "$ANDROID_HOME" = /usr/local/lib/android/sdk;
+        then sudo rm -rf -- /usr/local/lib/android/sdk; fi
+
+        sudo apt-get update -qq
+
+        sudo apt-get install -y flatpak flatpak-builder ostree xvfb xdotool x11-utils openbox imagemagick desktop-file-utils
+        dbus-x11 xdg-desktop-portal xdg-desktop-portal-gtk
+
+        python3 -m pip install Pillow CairoSVG==2.8.2
+
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --prefix "$RUNNER_TEMP/icon-tools" --no-package-lock --ignore-scripts
+        playwright@1.64.1
+
+        echo "NODE_PATH=$RUNNER_TEMP/icon-tools/node_modules" >> "$GITHUB_ENV"
+
+        flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+        flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 org.electronjs.Electron2.BaseApp//25.08
+
+        python3 -c ''import shutil; assert shutil.disk_usage(".").free > 10*1024**3, "Insufficient space; never lower OSTree
+        safety reserve"'' '
+    - name: Build Flatpak only, validate installed source, native files and menu icon
+      run: 'mkdir -p part4-artifacts/flatpak
+
+        flatpak-builder --user --disable-cache --force-clean --repo=build/flatpak-repo --default-branch=stable build/flatpak-root
+        com.vex2137.kalendarz.yml
+
+        flatpak build-update-repo build/flatpak-repo
+
+        flatpak remote-add --user --no-gpg-verify local-candidate "file://$PWD/build/flatpak-repo"
+
+        flatpak install --user -y --noninteractive local-candidate com.vex2137.kalendarz//stable
+
+        python3 scripts/check-part4-beta3-flatpak.py --installed-only
+
+        python3 scripts/check-canonical-icons.py --flatpak-location "$(flatpak info --user --show-location com.vex2137.kalendarz)"
+
+        rm -rf -- .flatpak-builder release/linux-unpacked
+
+        '
+    - name: Run actual sandboxed Flatpak, capture window icon and preserve event
+      run: xvfb-run -a -s '-screen 0 1440x1000x24' dbus-run-session -- bash -c 'export XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment
+        DISPLAY XDG_CURRENT_DESKTOP; openbox >/tmp/icon-openbox.log 2>&1 & timeout --signal=TERM --kill-after=20s 600s node
+        tests/flatpak-packaged.cjs'
+    - name: Bundle and install actual bytes; verify original profile remains intact
+      run: 'flatpak build-bundle build/flatpak-repo part4-artifacts/flatpak/Kalendarz-1.5.0-Linux-x86_64.flatpak com.vex2137.kalendarz
+        stable --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
+
+        # Isolated GitHub-hosted test installation only. Never --delete-data.
+
+        python3 scripts/preserve-flatpak-icon-profile.py snapshot
+
+        flatpak uninstall --user -y --noninteractive com.vex2137.kalendarz
+
+        python3 scripts/preserve-flatpak-icon-profile.py verify
+
+        flatpak install --user -y --noninteractive part4-artifacts/flatpak/Kalendarz-1.5.0-Linux-x86_64.flatpak
+
+        python3 scripts/preserve-flatpak-icon-profile.py verify
+
+        python3 scripts/check-part4-beta3-flatpak.py
+
+        python3 scripts/check-canonical-icons.py --flatpak-location "$(flatpak info --user --show-location com.vex2137.kalendarz)"
+
+        CALENDAR_FLATPAK_REOPEN=true xvfb-run -a -s ''-screen 0 1440x1000x24'' dbus-run-session -- bash -c ''export XDG_CURRENT_DESKTOP=GNOME;
+        dbus-update-activation-environment DISPLAY XDG_CURRENT_DESKTOP; openbox >/tmp/icon-openbox.log 2>&1 & timeout --signal=TERM
+        --kill-after=20s 600s node tests/flatpak-packaged.cjs'''
+    - name: Privately deliver verified Flatpak bytes and real screenshots
+      run: 'python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+
+        python3 scripts/deliver-stable-150.py flatpak
+
+        python3 scripts/stable-150-evidence.py upload flatpak'
+  validation:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require exact current stable source and accepted application ancestry
+      run: python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Bound Ubuntu package/network provisioning
+      run: "if [ -f /etc/apt/apt-mirrors.txt ]; then\n  sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g;\
+        \ s|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g'\
+        \ /etc/apt/apt-mirrors.txt\nfi\necho 'Acquire::Retries \"2\"; Acquire::http::Timeout \"30\"; Acquire::https::Timeout\
+        \ \"30\";' | sudo tee /etc/apt/apt.conf.d/99-calendar-ci-network >/dev/null\n"
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - name: Full final type/unit/native regression and explicit stable/historical policies
+      id: unit
+      run: |
+        npm run lint
+        npm test | tee "$RUNNER_TEMP/stable-unit.log"
+        npm run test:native
+        python3 -m unittest discover -s tests -p test_stable_150.py
+        python3 -m unittest discover -s tests -p test_android_lifecycle_policy.py
+        python3 -m unittest discover -s tests -p test_kde_integration.py
+        python3 -m unittest discover -s tests -p test_release_v142.py
+        python3 - <<'PYCOUNT'
+        import os,re
+        from pathlib import Path
+        s=Path(os.environ['RUNNER_TEMP'],'stable-unit.log').read_text()
+        m=re.findall(r'(?:# |ℹ )?tests\s+(\d+)',s)
+        assert m, 'Missing completed Node test count'
+        with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+            f.write('cases='+m[-1]+'\n')
+        PYCOUNT
+    - name: Install the pinned browser/Xvfb dependencies
+      run: 'npx --no-install playwright install --with-deps chromium
+
+        if [ ! -e /usr/bin/chromium ]; then sudo ln -s "$(node -p ''require("playwright").chromium.executablePath()'')" /usr/bin/chromium;
+        fi'
+    - name: Build current model-free web assets for production browser regressions
+      run: 'node scripts/prepare-model-free.cjs
+
+        node node_modules/vite/bin/vite.js build --mode production'
+    - name: Calendar, assistant, copy, history, models and transfer browser regressions
+      run: 'node tests/browser.cjs
+
+        node tests/diagnostics-actions-browser.cjs
+
+        node tests/part4-recovery-browser.cjs
+
+        node tests/assistant-beta4-browser.cjs
+
+        node tests/assistant-beta5-browser.cjs
+
+        node tests/beta7-browser.cjs
+
+        node tests/part3-browser.cjs
+
+        node tests/part3-beta2-browser.cjs
+
+        node tests/part3-qr-browser.cjs
+
+        node tests/android-beta5-browser.cjs
+
+        node tests/beta6-gpu-browser.cjs
+
+        node tests/beta6-sync-browser.cjs
+
+        node tests/model-context-browser.cjs
+
+        node tests/native-startup-browser.cjs
+
+        node tests/model-transfer-lifecycle-browser.cjs'
+    - name: Part 2 themes, calendar, security and motion browser regressions
+      run: 'node node_modules/vite/bin/vite.js --host=127.0.0.1 --port=4179 --strictPort > "$RUNNER_TEMP/stable-ui-server.log"
+        2>&1 &
+
+        server_pid=$!
+
+        trap ''kill "$server_pid"'' EXIT
+
+        for i in {1..50}; do curl -fsS http://127.0.0.1:4179 >/dev/null && break; sleep 0.2; done
+
+        for file in themes pin password biometric animations dialog-motion month; do node "tests/${file}-part2-browser.cjs";
+        done'
+    - name: Published 1.4.2 same-origin upgrade and deterministic performance evidence
+      run: "mkdir -p build/source142\npython3 scripts/release_download.py https://github.com/vex2137/Kalendarz/releases/download/v1.4.2/KALENDARZ-1.4.2-WEB.zip\
+        \ build/source142/web.zip --bytes 6955172 --sha256 2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676\n\
+        python3 - <<'PY142'\nimport hashlib,zipfile\nfrom pathlib import Path\np=Path('build/source142/web.zip')\nassert hashlib.sha256(p.read_bytes()).hexdigest()=='2af8054115f0f688b700611718275a26a2d241e4dc54b13e8f378be50b5cc676'\n\
+        root=Path('build/source142/web');root.mkdir()\nwith zipfile.ZipFile(p) as z:\n    for name in z.namelist():assert\
+        \ not Path(name).is_absolute() and '..' not in Path(name).parts\n    z.extractall(root)\nPY142\nCALENDAR_140_WEB_DIR=\"\
+        $PWD/build/source142/web\" node tests/upgrade-part4-browser.cjs\nnode tests/part4-performance.cjs"
+    - name: Real sandboxed Electron preload/IPC streaming and cancellation
+      run: xvfb-run -a node tests/beta7-electron-stream.cjs
+    - name: Final immutable source check
+      run: python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    env:
+      GH_TOKEN: ${{ github.token }}
+    outputs:
+      unitCases: ${{ steps.unit.outputs.cases }}
+  prepare:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    needs: validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require exact current stable source and accepted application ancestry
+      run: python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Create or reuse only the private stable draft, with English release notes
+      run: "python3 - <<'PYPREP'\nimport json,subprocess,os\nrepo=os.environ['GITHUB_REPOSITORY'];assert repo=='vex2137/Kalendarz-private-builds';tag='stable-1.5.0-'+os.environ['CALENDAR_EXPECTED_COMMIT'][:12]\n\
+        r=json.loads(subprocess.check_output(['gh','api','repos/'+repo]));assert r['private']\nitems=json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/releases']));existing=[r\
+        \ for r in items if r['tag_name']==tag]\nif existing:assert len(existing)==1 and existing[0]['draft']\nelse:subprocess.run(['gh','release','create',tag,'--repo',repo,'--draft','--latest=false','--target',os.environ['GITHUB_SHA'],'--title','Kalendarz\
+        \ v1.5.0 Stable \u2014 awaiting approval','--notes-file','.github/release-notes/v1.5.0.md'],check=True)\nprint('PASS\
+        \ private Stable draft prepared; no public tag, publication, merge or historical changes')\nPYPREP"
+  android:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require exact current stable source and accepted application ancestry
+      run: python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.3
+    - run: bun install --frozen-lockfile
+    - uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '21'
+    - name: Acquire original verified update key through the one-use encrypted handoff
+      env:
+        GH_TOKEN: ${{ github.token }}
+        CALENDAR_ANDROID_KEYSTORE_BASE64: ''
+      run: node scripts/android-beta5-signing-exchange.cjs receive "$GITHUB_RUN_ID" "$RUNNER_TEMP" "$CALENDAR_EXPECTED_COMMIT"
+        "$GITHUB_REPOSITORY"
+    - name: Install Android ARM64 build tools
+      run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865"
+        "cmake;3.31.6"'
+    - name: Reuse accepted Android CPU/Vulkan binaries without retraining or native inference rebuild
+      run: 'mkdir -p build/accepted-android
+
+        python3 - <<''PYOLD''
+
+        import subprocess,hashlib
+
+        from pathlib import Path
+
+        p=Path(''build/accepted-android/accepted.apk'')
+
+        with p.open(''wb'') as f:subprocess.run([''gh'',''api'',''repos/vex2137/Kalendarz-private-builds/releases/assets/732684398'',''-H'',''Accept:
+        application/octet-stream''],stdout=f,check=True)
+
+        with p.open(''rb'') as f:assert hashlib.file_digest(f,''sha256'').hexdigest()==''80038012c11b27557821869ea02ac1df91c23df3c3a266a3fe5c4dadca73ce47''
+
+        PYOLD
+
+        python3 scripts/reuse-stable-android-native.py build/accepted-android/accepted.apk
+
+        python3 scripts/build-android-vulkan-probe.py
+
+        '
+    - name: Build the existing model-free frontend and synchronize Capacitor
+      run: 'node scripts/prepare-model-free.cjs
+
+        node node_modules/vite/bin/vite.js build --mode production
+
+        npx --no-install cap sync android
+
+        '
+    - uses: gradle/actions/setup-gradle@v4
+    - name: Android JVM tests and signed, non-debuggable stable update APK
+      run: 'set -euo pipefail
+
+        trap ''rm -f "$CALENDAR_KEYSTORE_PATH"'' EXIT
+
+        cd android
+
+        bash ./gradlew :app:testDiagnosticsUnitTest :app:assembleDiagnostics :app:assembleDiagnosticsAndroidTest -PcalendarFinalStable=true
+        -PcalendarAndroidTestBuildType=diagnostics --no-daemon --max-workers=2
+
+        '
+    - name: Verify stable certificate, identity, version, ARM64 runtimes and APK integrity
+      run: 'mkdir -p part4-artifacts/android
+
+        cp android/app/build/outputs/apk/diagnostics/app-diagnostics.apk part4-artifacts/android/Kalendarz-1.5.0-Android-arm64.apk
+
+        python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote --apk part4-artifacts/android/Kalendarz-1.5.0-Android-arm64.apk
+
+        python3 - <<''PYTESTS''
+
+        import json,xml.etree.ElementTree as ET
+
+        from pathlib import Path
+
+        cases=[c for p in Path(''android/app/build/test-results/testDiagnosticsUnitTest'').glob(''*.xml'') for c in ET.parse(p).getroot().iter(''testcase'')];assert
+        cases and not any(c.find(''failure'') is not None or c.find(''error'') is not None for c in cases)
+
+        p=Path(''part4-artifacts/android/Kalendarz-1.5.0-Android-arm64.apk.json'');r=json.loads(p.read_text());r.update(androidJvmTests=len(cases),physicalStableInference=''NOT
+        TESTED'',deviceInstrumentation=''Compiled, not executed'');p.write_text(json.dumps(r,indent=2)+''\n'');print(''PASS
+        Android JVM cases:'',len(cases))
+
+        PYTESTS
+
+        "$ANDROID_HOME/platform-tools/adb" devices -l
+
+        python3 scripts/deliver-stable-150.py android
+
+        '
+    - name: Remove signing material even after failure
+      run: rm -f "$RUNNER_TEMP/calendar-release.p12"
+      if: always()
+    permissions:
+      contents: write
+      actions: read
+    env:
+      CALENDAR_ANDROID_NATIVE: 'true'
+      CALENDAR_REQUIRE_RELEASE_SIGNING: 'true'
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_ANDROID_CERTIFICATE: ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143
+    needs: prepare
+  delivery:
+    if: github.repository == 'vex2137/Kalendarz-private-builds' && github.ref == 'refs/heads/main'
+    needs:
+    - android
+    - linux
+    - windows
+    - flatpak
+    - validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CALENDAR_UNIT_TEST_COUNT: ${{ needs.validation.outputs.unitCases }}
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - name: Require a private repository and immutable application source
+      working-directory: .
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'test "$(gh api "repos/$GITHUB_REPOSITORY" --jq ''.private and (.visibility == "private")'')" = true
+
+        python3 -c ''import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["CALENDAR_EXPECTED_COMMIT"])'''
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        repository: vex2137/Kalendarz
+        ref: ${{ inputs.source_commit }}
+        path: source
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require exact current stable source and accepted application ancestry
+      run: python3 scripts/stable_150_guard.py --source "$CALENDAR_EXPECTED_COMMIT" --check-remote
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Verify six stable packages, private access, SHA-256 and final index
+      run: python3 scripts/finalize-stable-150.py

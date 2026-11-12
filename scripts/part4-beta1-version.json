@@ -1,0 +1,10 @@
+{
+  "version": "1.5.0",
+  "channel": "part4-beta1",
+  "label": "Kalendarz 1.5.0 Part 4 Beta 1",
+  "lastTestedVersionCode": 10521,
+  "versionCode": 10522,
+  "versionName": "1.5.0-part4-beta.1",
+  "androidFile": "Kalendarz-1.5.0-Part-4-Beta-1-Android-arm64.apk",
+  "linuxFile": "Kalendarz-1.5.0-Part-4-Beta-1-x86_64.AppImage"
+}

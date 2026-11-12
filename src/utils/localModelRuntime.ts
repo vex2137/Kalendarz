@@ -6,7 +6,7 @@ import { downloadMeter, type DownloadProgress } from './downloadProgress';
 import { androidAIReady } from './nativeAndroidAI';
 import { cacheModelMetadata, contextPlan, modelMetadata, modelContextKey, saveContextPreference, type ContextPreference } from './modelContext';
 import { ggufMetadata, ggufLoadError } from './ggufMetadata';
-import { desktopAI, applyBackendMode, type BackendMode, backendMode, backendStatus, updateBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
+import { desktopAI, applyBackendMode, type BackendMode, backendMode, backendStatus, updateBackend, subscribeBackend, ensureNativeModel, type BackendInfo } from './nativeDesktopAI';
 import { prepareNativeEngine, type RuntimeEngine } from './nativeRuntimeEngine';
 import type { Wllama } from '@wllama/wllama/esm/index.js';
 import { LOCAL_MODEL } from './localModelManifest';
@@ -43,6 +43,13 @@ let loading: Promise<RuntimeEngine> | undefined;
 let loadController: AbortController | undefined;
 let disposing: Promise<void> = Promise.resolve();
 let disposingEngine:RuntimeEngine|undefined;
+// Residency is confirmed by the native backend, not by a stale JS handle. Keep
+// the handle for a shutdown retry, but never present a failed/stopping child as ready.
+subscribeBackend(()=>{
+  const live=backendStatus();
+  if(engine&&live.backend!=='cpu-wasm'&&status.loaded&&!live.loaded)
+    update({loaded:false,phase:live.errorCode?'error':status.installed?'installed':'missing',error:live.errorCode});
+});
 let releaseRequested = false;
 let assistantActive = false;
 let manualRelease = false;
@@ -217,6 +224,7 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
   let blob: Blob | undefined;
   const previous = {...status};
   let selectionChanged = false;
+  let committed = false, commitStarted = false;
   update({phase:'downloading',importing:true,progress:bytes>0?0:-1,error:undefined,errorDetail:undefined});
   let stage:DiagnosticStage='stream-open';
   const step=(next:DiagnosticStage)=>{stage=next;recordDiagnosticAction('import-gguf',stage,undefined,{expectedBytes:bytes>0?bytes:undefined});};
@@ -238,8 +246,9 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
     update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false});
     await selectLocalModel(descriptor.id);
     selectionChanged = true;
-    step('commit');await installLocalModel(blob);
+    commitStarted=true;step('commit');await installLocalModel(blob);
     if (!status.installed || status.phase === 'error') throw Error(status.error || 'model-import-file');
+    committed = true;
     recordDiagnosticAction('import-gguf','success');
   } catch(error){
     if (selectionChanged && !operation && !transition) {
@@ -250,7 +259,8 @@ export async function importLocalModel(source: Blob | {url:string;bytes:number},
     throw controller.signal.aborted?new Error('model-cancelled'):new Error(runtimeError(error));
   } finally {
     if (operation === controller) { operation=undefined; operationKind=undefined; update({...previous,loaded:false,phase:previous.installed?'installed':'missing',importing:false}); }
-    await discardDownloadedModel(blob);
+    // Retain verified complete staging bytes when the native commit fails.
+    if(!commitStarted||committed)await discardDownloadedModel(blob);
   }
 }
 
@@ -266,6 +276,7 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
   const controller = operation = new AbortController();
   operationKind = file ? 'import' : 'download';
   const action=file?'import-gguf':'download-model';
+  let committed = false, commitStarted = false;
   recordDiagnosticAction(action,'start',undefined,{modelId:descriptor.id});
   let stage:DiagnosticStage='lookup';
   const step=(next:DiagnosticStage)=>{stage=next;recordDiagnosticAction(action,stage,undefined,{modelId:descriptor.id,expectedBytes:descriptor.bytes});};
@@ -281,10 +292,22 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
       update({phase:'installed',installation:'verified',queued:false,installed:true,loaded:false,progress:100,error:undefined});
       return;
     }
-    const existing = await recoverSavedModel(descriptor, controller.signal).catch(error => { if (error instanceof Error && ['model-size','model-checksum'].includes(error.message)) return undefined; throw error; });
+    // An already verified native file needs no OPFS read or second upload.
+    if(!file && await hasNativeModelData(descriptor)) {
+      update({phase:'installed',installation:'verified',queued:false,installed:true,loaded:false,progress:100,error:undefined});
+      return;
+    }
+    const existing = !file ? await recoverSavedModel(descriptor, controller.signal).catch(error => { if (error instanceof Error && ['model-size','model-checksum'].includes(error.message)) return undefined; throw error; }) : undefined;
     // A second install request adopts verified bytes instead of downloading/copying again.
     if (!file && (existing || descriptor.bundled && await bundledModelAvailable(descriptor))) {
-      if (existing) await verifyModel(existing, controller.signal, undefined, descriptor);
+      if (existing) {
+        await verifyModel(existing, controller.signal, undefined, descriptor);
+        if(desktopAI()&&desktopAI()?.platform!=='android') {
+          commitStarted=true;step('commit');
+          await saveModel(existing,controller.signal,descriptor,n=>update({progress:n/descriptor.bytes*100}),action);
+          committed=true;
+        }
+      }
       update({phase:'installed',installation:'verified',queued:false,installed:true,loaded:false,progress:100,error:undefined});
       return;
     }
@@ -297,7 +320,8 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
     update({ phase: 'verifying', queued:false, installation:previouslyInstalled?'verified':'unverified', progress: 0 });
     step('verify');await verifyModel(blob, controller.signal, n => update({ progress: n / descriptor.bytes * 100 }), descriptor);
     try{cacheModelMetadata(descriptor,await ggufMetadata(blob));}catch{/* Keep valid older engine-compatible files usable. */}
-    step('commit');await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}),action);
+    commitStarted=true;step('commit');await saveModel(blob, controller.signal, descriptor, n => update({progress:n / descriptor.bytes * 100}),action);
+    committed = true;
     update({ phase: 'installed', installation:'verified', queued:false, installed: true, loaded:false, progress: 100, resumeBytes: 0, error:undefined,errorDetail:undefined });
   } catch (error) {
     if (error instanceof Error && error.message === 'model-checksum') await discardDownloadedModel(blob, true);
@@ -305,7 +329,7 @@ export async function installLocalModel(file?: Blob | { url: string; bytes: numb
     const resumeBytes = await modelTransferBytes(descriptor).catch(() => 0);
     update({ resumeBytes, queued:false, installation:previouslyInstalled?'verified':resumeBytes>=descriptor.bytes?'unverified':resumeBytes?'partial':'missing', phase: controller.signal.aborted ? (previouslyInstalled ? 'installed' : 'missing') : 'error', installed: previouslyInstalled, error: controller.signal.aborted ? undefined : error instanceof DOMException && error.name === 'QuotaExceededError' ? 'model-storage-space' : runtimeError(error) });
     throw controller.signal.aborted?new Error('model-cancelled'):error;
-  } finally { try { await discardDownloadedModel(blob); } finally { operation = undefined; operationKind = undefined; transition = false; update({importing:false,queued:false}); } }
+  } finally { try { if(!commitStarted||committed)await discardDownloadedModel(blob); } finally { operation = undefined; operationKind = undefined; transition = false; update({importing:false,queued:false}); } }
 }
 
 export async function unloadLocalModel() {
@@ -328,7 +352,7 @@ export async function changeLocalBackend(mode:BackendMode,layers?:number|'auto')
     // Aborted startup can still own a native process before a JS engine handle
     // exists. Its signal callback is asynchronous; explicitly join shutdown.
     const bridge=desktopAI();
-    if(bridge){await bridge.stop();const state=await bridge.status();updateBackend(state);if(state.loaded||state.gpuActive)throw Error('model-release-unconfirmed');}
+    if(bridge){await bridge.stop();const state=await bridge.status();updateBackend(state);if(state.loaded||state.gpuActive||state.processAlive)throw Error('model-release-unconfirmed');}
     await applyBackendMode(mode,layers);
     recoveryRequired=false;clearModelOperation(status.modelId);
     update({phase:status.installed?'installed':'missing',error:undefined,errorDetail:undefined});
@@ -339,7 +363,6 @@ export async function changeLocalBackend(mode:BackendMode,layers?:number|'auto')
 
 async function disposeEngine() {
   const current = engine;
-  if(!current&&desktopAI()&&backendStatus().loaded){await desktopAI()!.stop();updateBackend({loaded:false,gpuActive:false});}
   if (current && disposingEngine!==current) {
     disposingEngine=current;
     // Keep the handle and residency state if shutdown fails; a later retry must
@@ -349,16 +372,29 @@ async function disposeEngine() {
       if(engine===current)engine=undefined;
     }).finally(()=>{if(disposingEngine===current)disposingEngine=undefined;});
   }
-  try { await disposing; }
-  catch(error) { update({phase:'error',error:runtimeError(error)});throw error; }
-  updateBackend({loaded:false,gpuActive:false});
+  try {
+  if(!current&&desktopAI()&&(backendStatus().loaded||backendStatus().processAlive)){await desktopAI()!.stop();updateBackend({loaded:false,gpuActive:false,processAlive:false,stopping:false,shutdownError:undefined});}
+    await disposing;
+  }
+  catch(error) {
+    const bridge=desktopAI();
+    if(bridge)try{
+      const live=await bridge.status();updateBackend(live);
+      update({loaded:live.loaded});
+      // A stopped child needs no retry. Older bridges without processAlive
+      // retain ownership until a successful stop explicitly confirms release.
+      if(live.processAlive===false&&!live.loaded&&engine===current){engine=undefined;disposing=Promise.resolve();}
+    }catch{/* Unknown native state is not proof of release. */}
+    update({phase:'error',error:runtimeError(error)});throw error;
+  }
+  updateBackend({loaded:false,gpuActive:false,processAlive:false,stopping:false,shutdownError:undefined});
   update({loaded:false, ...(status.installed && status.phase !== 'error' ? { phase:'installed' as const } : {})});
 }
 
 export async function releaseLocalModelMemory():Promise<'released'|'already-unloaded'> {
   if(operation||transition||loading)throw Error('model-busy');
   manualRelease=true;clearTimeout(preloadTimer);clearTimeout(idleTimer);
-  const hadEngine=Boolean(engine||status.loaded||backendStatus().loaded);
+  const hadEngine=Boolean(engine||status.loaded||backendStatus().loaded||backendStatus().processAlive);
   let timeout:ReturnType<typeof setTimeout>|undefined;
   try {
     await Promise.race([
@@ -369,9 +405,9 @@ export async function releaseLocalModelMemory():Promise<'released'|'already-unlo
           recordDiagnosticAction('release-memory','bridge-call');
           // Also clean a native engine left alive after a lost JS handle.
           let state=await bridge.status();
-          if(state.loaded||state.gpuActive){await bridge.stop();state=await bridge.status();}
+          if(state.loaded||state.gpuActive||state.processAlive){await bridge.stop();state=await bridge.status();}
           updateBackend(state);
-          if(state.loaded||state.gpuActive){update({loaded:state.loaded,phase:'error',error:'model-release-unconfirmed'});throw Error('model-release-unconfirmed');}
+          if(state.loaded||state.gpuActive||state.processAlive){update({loaded:state.loaded,phase:'error',error:'model-release-unconfirmed'});throw Error('model-release-unconfirmed');}
         }
         if(engine||status.loaded)throw Error('model-release-unconfirmed');
       })(),
@@ -400,6 +436,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
   await disposing;
   await androidAIReady;
   if (loading) return loading;
+  if(engine&&desktopAI()&&backendStatus().backend!=='cpu-wasm'&&!backendStatus().loaded)await disposeEngine();
   if (engine) return engine;
   const controller = loadController = new AbortController();
   loading = (async () => {
@@ -440,7 +477,7 @@ async function ensureEngine(metric: Partial<ModelMetric> = {}, threadOverride?: 
           update({phase:'ready',installation:'verified',installed:true,loaded:true});if(!operation)clearModelOperation(descriptor.id);return native;
         } catch(error) {
           if(controller.signal.aborted)throw error;
-          await desktopAI()!.stop();
+          try{await desktopAI()!.stop();}catch(cleanup){recordDiagnosticAction('release-memory','error',cleanup);throw error;}
           updateBackend(await desktopAI()!.status());
           if(backendMode()==='gpu'||descriptor.external)throw error;
           updateBackend({backend:'cpu-wasm',loaded:false,gpuActive:false,fallbackReason:'native-runtime-unavailable'});
@@ -581,8 +618,12 @@ async function inferLocalCompletion(system: string, prompt: string, schema: unkn
     recordModelMetric({ ...metric,finishReason:code==='model-cancelled'?'cancelled':metric.finishReason??'error',errorCode:code, failureReason: error instanceof Error && error.message === 'model-incomplete' ? 'output-limit' : 'engine', totalMs: performance.now() - started, error: code === 'model-cancelled' ? 'cancelled' : 'inference' });
     let retained=code==='model-cancelled'&&keepModelLoaded()&&Boolean(engine)&&Boolean(desktopAI()?.cancelGeneration);
     if(retained){try{const live=await desktopAI()!.status();updateBackend(live);retained=live.loaded&&(!live.modelId||live.modelId===descriptor.id);}catch{retained=false;}}
-    if(!retained)await disposeEngine();
+    if(!retained)try{await disposeEngine();}catch(cleanup){
+      recordDiagnosticAction('release-memory','error',cleanup);
+      update({phase:'error',error:code});
+      throw new Error(code);
+    }
     update({ phase:retained?'ready':code === 'model-cancelled' ? (status.installed?'installed':'missing') : 'error', loaded:retained, error:code === 'model-cancelled' ? undefined : code });
     throw new Error(code);
-  } finally { clearModelOperation(descriptor.id); clearTimeout(timeout); controller.signal.removeEventListener('abort', abortLoad); operation = undefined; operationKind = undefined; if (releaseRequested) await disposeEngine(); else scheduleRelease(); }
+  } finally { clearModelOperation(descriptor.id); clearTimeout(timeout); controller.signal.removeEventListener('abort', abortLoad); operation = undefined; operationKind = undefined; if (releaseRequested) {try{await disposeEngine();}catch(error){recordDiagnosticAction('release-memory','error',error);}} else scheduleRelease(); }
 }
