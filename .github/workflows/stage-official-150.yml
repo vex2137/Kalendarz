@@ -1,0 +1,80 @@
+name: Stage approved Kalendarz 1.5.0 packages (no build)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPOT_TOKEN: ${{ secrets.CALENDAR_MODEL_DEPOT_TOKEN }}
+      PUBLIC_TOKEN: ${{ github.token }}
+    steps:
+      - name: Obtain approved immutable candidate index
+        run: |
+          test -n "$DEPOT_TOKEN"
+          mkdir -p packages
+          GH_TOKEN="$DEPOT_TOKEN" gh api repos/vex2137/Kalendarz-private-builds/releases/assets/737166054 -H 'Accept: application/octet-stream' > approved-index.json
+          echo '03d5218e233a6e7d8fd1737c280ac99336d7ccbdc48044ad6a70b17c63459ff5  approved-index.json' | sha256sum -c -
+          GH_TOKEN="$DEPOT_TOKEN" gh api repos/vex2137/Kalendarz-private-builds/releases/442248703 > private-release.json
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          index=json.load(open('approved-index.json'));release=json.load(open('private-release.json'))
+          assert index['source']=='495342795e3c46e65ed9f09f7706062084c34085'
+          assert index['versionCode']==10526
+          assert index['certificateSha256']=='ae055d7e4c95b51890af802776390a8eb6d6a45449cffad47ff447b88b564143'
+          assets={a['name']:a for a in release['assets']}
+          assert len(index['files'])==7
+          lines=[]
+          for f in index['files']:
+              assert re.fullmatch(r'[A-Za-z0-9._-]+',f['name'])
+              a=assets[f['name']]
+              assert a['size']==f['bytes'] and a['digest']=='sha256:'+f['sha256']
+              lines.append(f"{a['id']}\t{f['name']}\t{f['sha256']}\t{f['bytes']}\n")
+          Path('approved-files.tsv').write_text(''.join(lines))
+          PY
+      - name: Download and verify original packages; no builds or signing
+        run: |
+          while IFS=$'\t' read -r asset name checksum bytes; do
+            GH_TOKEN="$DEPOT_TOKEN" gh api "repos/vex2137/Kalendarz-private-builds/releases/assets/$asset" -H 'Accept: application/octet-stream' > "packages/$name"
+            test "$(stat -c %s "packages/$name")" = "$bytes"
+            printf '%s  %s\n' "$checksum" "packages/$name" | sha256sum -c -
+          done < approved-files.tsv
+          GH_TOKEN="$DEPOT_TOKEN" gh api repos/vex2137/Kalendarz-private-builds/releases/assets/737165998 -H 'Accept: application/octet-stream' > packages/Kalendarz-1.5.0-Linux-Desktop-Integration.zip
+          echo '4d8b37e51f2bea3a14f747e264a1bf2a9755a9a6acfbf37a6be58c8b49a42766  packages/Kalendarz-1.5.0-Linux-Desktop-Integration.zip' | sha256sum -c -
+      - name: Upload only to the approved public draft
+        run: |
+          GH_TOKEN="$PUBLIC_TOKEN" gh api repos/vex2137/Kalendarz/releases/443377372 > public-release.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.load(open('public-release.json'))
+          assert r['draft'] is True and r['tag_name']=='v1.5.0'
+          assert r['target_commitish']=='495342795e3c46e65ed9f09f7706062084c34085'
+          Path('packages/RELEASE-NOTES-1.5.0.md').write_text(r['body'])
+          index=json.load(open('approved-index.json'))
+          index.update(status='owner-approved-stable',private=False,published=True,releaseUrl='https://github.com/vex2137/Kalendarz/releases/tag/v1.5.0')
+          for f in index['files']:
+              f['url']='https://github.com/vex2137/Kalendarz/releases/download/v1.5.0/'+f['name']
+          index['ownerAcceptance']='Approved candidate tested on physical Android and CachyOS/KDE; updates and checked features work correctly.'
+          for key in ('extra','evidence'):index.pop(key,None)
+          Path('packages/STABLE-1.5.0-INDEX.json').write_text(json.dumps(index,indent=2)+'\n')
+          Path('packages/SHA256SUMS.txt').write_text(''.join(f"{f['sha256']}  {f['name']}\n" for f in index['files']))
+          PY
+          GH_TOKEN="$PUBLIC_TOKEN" gh release upload v1.5.0 packages/* --repo vex2137/Kalendarz
+      - name: Re-download uploaded packages and verify every checksum
+        run: |
+          mkdir -p verify
+          GH_TOKEN="$PUBLIC_TOKEN" gh release download v1.5.0 --repo vex2137/Kalendarz --dir verify --pattern 'Kalendarz-1.5.0-*' --pattern SHA256SUMS.txt --pattern STABLE-1.5.0-INDEX.json
+          cd verify
+          sha256sum -c SHA256SUMS.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          index=json.load(open('STABLE-1.5.0-INDEX.json'))
+          assert len(index['files'])==7
+          assert all(Path(f['name']).stat().st_size==f['bytes'] for f in index['files'])
+          print('PASS: seven original uploaded packages downloaded and verified. Release remains draft.')
+          PY
